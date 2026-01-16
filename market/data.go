@@ -10,6 +10,7 @@ import (
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
 	"nofx/provider/hyperliquid"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,7 +29,21 @@ var (
 	frCacheTTL     = 1 * time.Hour
 )
 
-// Note: Kline data now uses free/open API (coinank_api.Kline) which doesn't require authentication
+// Note: Kline data can use either CoinAnk API or OKX API
+// Set USE_OKX_API=true in environment to use OKX API instead of CoinAnk
+
+// getKlines fetches kline data from configured API (CoinAnk or OKX)
+func getKlines(symbol, interval string, limit int) ([]Kline, error) {
+	// 检查是否使用OKX API
+	useOKX := os.Getenv("USE_OKX_API")
+	if useOKX == "true" || useOKX == "1" {
+		logger.Infof("📊 Using OKX API for %s %s klines", symbol, interval)
+		return getKlinesFromOKX(symbol, interval, limit)
+	}
+	
+	// 默认使用CoinAnk API
+	return getKlinesFromCoinAnk(symbol, interval, limit)
+}
 
 // getKlinesFromCoinAnk fetches kline data from CoinAnk API (replacement for WSMonitorCli)
 func getKlinesFromCoinAnk(symbol, interval string, limit int) ([]Kline, error) {
@@ -152,10 +167,10 @@ func Get(symbol string) (*Data, error) {
 			return nil, fmt.Errorf("Failed to get 5-minute K-line from Hyperliquid: %v", err)
 		}
 	} else {
-		// Use CoinAnk for regular crypto assets
-		klines3m, err = getKlinesFromCoinAnk(symbol, "3m", 100)
+		// Use configured API (CoinAnk or OKX) for regular crypto assets
+		klines3m, err = getKlines(symbol, "3m", 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 3-minute K-line from CoinAnk: %v", err)
+			return nil, fmt.Errorf("Failed to get 3-minute K-line: %v", err)
 		}
 	}
 
@@ -172,9 +187,9 @@ func Get(symbol string) (*Data, error) {
 			return nil, fmt.Errorf("Failed to get 4-hour K-line from Hyperliquid: %v", err)
 		}
 	} else {
-		klines4h, err = getKlinesFromCoinAnk(symbol, "4h", 100)
+		klines4h, err = getKlines(symbol, "4h", 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 4-hour K-line from CoinAnk: %v", err)
+			return nil, fmt.Errorf("Failed to get 4-hour K-line: %v", err)
 		}
 	}
 
@@ -290,10 +305,10 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 				continue
 			}
 		} else {
-			// Use CoinAnk for regular crypto assets
-			klines, err = getKlinesFromCoinAnk(symbol, tf, 200)
+			// Use configured API (CoinAnk or OKX) for regular crypto assets
+			klines, err = getKlines(symbol, tf, 200)
 			if err != nil {
-				logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
+				logger.Infof("⚠️ Failed to get %s %s K-line: %v", symbol, tf, err)
 				continue
 			}
 		}
