@@ -11,7 +11,7 @@ export function WhitelistFullPage({ onBack }: WhitelistFullPageProps) {
     if (onBack) {
       onBack()
     } else {
-      window.location.href = '/login'
+      window.location.href = '/competition'
     }
   }
 
@@ -85,7 +85,7 @@ export function WhitelistFullPage({ onBack }: WhitelistFullPageProps) {
                 className="w-full flex items-center justify-center gap-2 py-3 border border-zinc-700 bg-black hover:bg-zinc-900 hover:border-red-500 hover:text-red-500 text-zinc-400 transition-all text-xs font-bold tracking-widest uppercase group"
               >
                 <ArrowLeft className="w-3 h-3 group-hover:-translate-x-1 transition-transform" />
-                RETURN TO LOGIN
+                RETURN TO DASHBOARD
               </button>
 
               <div className="grid grid-cols-2 gap-3 mt-4">

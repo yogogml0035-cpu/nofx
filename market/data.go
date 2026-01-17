@@ -10,6 +10,7 @@ import (
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
 	"nofx/provider/hyperliquid"
+	"nofx/provider/okx"
 	"os"
 	"strconv"
 	"strings"
@@ -40,7 +41,7 @@ func getKlines(symbol, interval string, limit int) ([]Kline, error) {
 		logger.Infof("📊 Using OKX API for %s %s klines", symbol, interval)
 		return getKlinesFromOKX(symbol, interval, limit)
 	}
-	
+
 	// 默认使用CoinAnk API
 	return getKlinesFromCoinAnk(symbol, interval, limit)
 }
@@ -346,7 +347,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
-	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
 	// Get OI data
@@ -764,8 +765,29 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	return data
 }
 
-// getOpenInterestData retrieves OI data
+// getOpenInterestData retrieves OI data (using OKX API instead of Binance)
 func getOpenInterestData(symbol string) (*OIData, error) {
+	// 使用 OKX API 获取持仓量数据（更稳定）
+	ctx := context.Background()
+
+	// 创建 OKX 客户端（公开接口不需要认证）
+	okxClient := okx.NewOKXMarketClient("", "", "")
+
+	oi, err := okxClient.GetOpenInterest(ctx, symbol)
+	if err != nil {
+		// 如果 OKX 失败，回退到 Binance（保持兼容性）
+		logger.Infof("⚠️  OKX OpenInterest failed for %s, falling back to Binance: %v", symbol, err)
+		return getOpenInterestDataFromBinance(symbol)
+	}
+
+	return &OIData{
+		Latest:  oi,
+		Average: oi * 0.999, // Approximate average
+	}, nil
+}
+
+// getOpenInterestDataFromBinance retrieves OI data from Binance (fallback)
+func getOpenInterestDataFromBinance(symbol string) (*OIData, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
 	apiClient := NewAPIClient()
@@ -1132,6 +1154,66 @@ func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data,
 
 	if len(longer) > 0 {
 		data.LongerTermContext = calculateLongerTermData(longer)
+	}
+
+	return data, nil
+}
+
+// BuildDataFromKlinesWithTimeframes constructs market data with multiple timeframes (for backtesting)
+// This ensures backtest uses the same data structure as live trading
+func BuildDataFromKlinesWithTimeframes(
+	symbol string,
+	klinesMap map[string][]Kline,
+	primaryTimeframe string,
+	count int,
+	emaPeriods []int,
+	rsiPeriods []int,
+	atrPeriods []int,
+) (*Data, error) {
+	if len(klinesMap) == 0 {
+		return nil, fmt.Errorf("klinesMap is empty")
+	}
+
+	// Get primary timeframe klines
+	primaryKlines, ok := klinesMap[primaryTimeframe]
+	if !ok || len(primaryKlines) == 0 {
+		return nil, fmt.Errorf("primary timeframe %s not found or empty", primaryTimeframe)
+	}
+
+	symbol = Normalize(symbol)
+	current := primaryKlines[len(primaryKlines)-1]
+	currentPrice := current.Close
+
+	// Calculate current indicators based on primary timeframe
+	currentEMA20 := calculateEMA(primaryKlines, 20)
+	currentMACD := calculateMACD(primaryKlines)
+	currentRSI7 := calculateRSI(primaryKlines, 7)
+
+	// Calculate price changes
+	priceChange1h := priceChangeFromSeries(primaryKlines, time.Hour)
+	priceChange4h := priceChangeFromSeries(primaryKlines, 4*time.Hour)
+
+	// Build timeframe data for all timeframes
+	timeframeData := make(map[string]*TimeframeSeriesData)
+	for tf, klines := range klinesMap {
+		if len(klines) == 0 {
+			continue
+		}
+		seriesData := calculateTimeframeSeriesWithConfig(klines, tf, count, emaPeriods, rsiPeriods, atrPeriods)
+		timeframeData[tf] = seriesData
+	}
+
+	data := &Data{
+		Symbol:        symbol,
+		CurrentPrice:  currentPrice,
+		CurrentEMA20:  currentEMA20,
+		CurrentMACD:   currentMACD,
+		CurrentRSI7:   currentRSI7,
+		PriceChange1h: priceChange1h,
+		PriceChange4h: priceChange4h,
+		OpenInterest:  &OIData{Latest: 0, Average: 0}, // Backtest doesn't have real-time OI
+		FundingRate:   0,                              // Backtest doesn't have real-time funding rate
+		TimeframeData: timeframeData,                  // ← Key: includes all timeframes!
 	}
 
 	return data, nil

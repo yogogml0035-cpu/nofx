@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
 import { TrendingUp, Layers, Zap, Hexagon, Crosshair } from 'lucide-react'
-import { useAuth } from '../../../contexts/AuthContext'
 
 const agents = [
     {
@@ -44,14 +43,9 @@ const agents = [
 ]
 
 export default function AgentGrid() {
-    const { user } = useAuth()
-
     const handleInitialize = () => {
-        if (user) {
-            window.location.href = '/strategy-market'
-        } else {
-            window.location.href = '/login'
-        }
+        // 用户现在总是自动登录，直接跳转到策略市场
+        window.location.href = '/strategy-market'
     }
 
     return (

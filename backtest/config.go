@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
 )
@@ -102,6 +103,19 @@ func (cfg *BacktestConfig) Validate() error {
 		return fmt.Errorf("invalid decision_timeframe: %w", err)
 	}
 	cfg.DecisionTimeframe = normalizedDecision
+
+	// Ensure DecisionTimeframe is included in Timeframes list
+	found := false
+	for _, tf := range cfg.Timeframes {
+		if tf == cfg.DecisionTimeframe {
+			found = true
+			break
+		}
+	}
+	if !found {
+		cfg.Timeframes = append(cfg.Timeframes, cfg.DecisionTimeframe)
+		logger.Infof("📊 Added DecisionTimeframe '%s' to Timeframes list", cfg.DecisionTimeframe)
+	}
 
 	if cfg.DecisionCadenceNBars <= 0 {
 		cfg.DecisionCadenceNBars = 20
@@ -203,15 +217,9 @@ func (cfg *BacktestConfig) ToStrategyConfig() *store.StrategyConfig {
 			result.CoinSource.UseOITop = false
 		}
 
-		// Override timeframes with backtest config
-		if len(cfg.Timeframes) > 0 {
-			result.Indicators.Klines.SelectedTimeframes = cfg.Timeframes
-			result.Indicators.Klines.PrimaryTimeframe = cfg.Timeframes[0]
-			if len(cfg.Timeframes) > 1 {
-				result.Indicators.Klines.LongerTimeframe = cfg.Timeframes[len(cfg.Timeframes)-1]
-			}
-			result.Indicators.Klines.EnableMultiTimeframe = len(cfg.Timeframes) > 1
-		}
+		// DO NOT override timeframes - use strategy's configuration
+		// This ensures backtest uses the same timeframes as live trading
+		// 不覆盖时间周期配置 - 使用策略的配置，确保回测与实盘一致
 
 		// Override leverage with backtest config
 		if cfg.Leverage.BTCETHLeverage > 0 {
@@ -241,12 +249,12 @@ func (cfg *BacktestConfig) ToStrategyConfig() *store.StrategyConfig {
 
 	return &store.StrategyConfig{
 		CoinSource: store.CoinSourceConfig{
-			SourceType: "static",
+			SourceType:  "static",
 			StaticCoins: cfg.Symbols,
-			UseAI500:   false,
-			AI500Limit: len(cfg.Symbols),
-			UseOITop:   false,
-			OITopLimit: 0,
+			UseAI500:    false,
+			AI500Limit:  len(cfg.Symbols),
+			UseOITop:    false,
+			OITopLimit:  0,
 		},
 		Indicators: store.IndicatorConfig{
 			Klines: store.KlineConfig{

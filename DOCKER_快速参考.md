@@ -10,10 +10,11 @@ docker-compose restart
 
 ### 重新构建并启动（应用代码更改）
 ```bash
-cd D:\TradingAgent\nofx
+cd nofx
 docker-compose down
 docker-compose build
 docker-compose up -d
+
 ```
 
 ### 查看实时日志
@@ -56,6 +57,7 @@ cd nofx
 docker-compose down
 docker-compose build
 docker-compose up -d
+
 ```
 
 ### 修改了 docker-compose.yml

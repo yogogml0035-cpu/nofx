@@ -1364,36 +1364,19 @@ export function BacktestPage() {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>
-                          {language === 'zh' ? '时间周期' : 'Timeframes'}
-                        </label>
-                        <div className="flex flex-wrap gap-1">
-                          {TIMEFRAME_OPTIONS.map((tf) => {
-                            const isSelected = formState.timeframes.includes(tf)
-                            return (
-                              <button
-                                key={tf}
-                                type="button"
-                                onClick={() => {
-                                  const updated = isSelected
-                                    ? formState.timeframes.filter((t) => t !== tf)
-                                    : [...formState.timeframes, tf]
-                                  if (updated.length > 0) handleFormChange('timeframes', updated)
-                                }}
-                                className="px-2 py-1 rounded text-xs transition-all"
-                                style={{
-                                  background: isSelected ? 'rgba(240,185,11,0.15)' : '#1E2329',
-                                  border: `1px solid ${isSelected ? '#F0B90B' : '#2B3139'}`,
-                                  color: isSelected ? '#F0B90B' : '#848E9C',
-                                }}
-                              >
-                                {tf}
-                              </button>
-                            )
-                          })}
+                      {/* 提示：使用策略配置的时间周期 */}
+                      {formState.strategyId && (
+                        <div className="p-3 rounded-lg" style={{ background: 'rgba(240,185,11,0.1)', border: '1px solid rgba(240,185,11,0.2)' }}>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span style={{ color: '#F0B90B' }}>ℹ️</span>
+                            <span style={{ color: '#EAECEF' }}>
+                              {language === 'zh' 
+                                ? '回测将使用策略配置的时间周期和指标设置，与实盘交易保持一致' 
+                                : 'Backtest will use strategy\'s timeframe and indicator settings, consistent with live trading'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -1418,7 +1401,7 @@ export function BacktestPage() {
                             value={formState.decisionTf}
                             onChange={(e) => handleFormChange('decisionTf', e.target.value)}
                           >
-                            {formState.timeframes.map((tf) => (
+                            {TIMEFRAME_OPTIONS.map((tf) => (
                               <option key={tf} value={tf}>
                                 {tf}
                               </option>

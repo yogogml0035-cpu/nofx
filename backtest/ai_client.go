@@ -3,8 +3,10 @@ package backtest
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"nofx/mcp"
+	"nofx/utils"
 )
 
 // configureMCPClient creates/clones an MCP client based on configuration (returns mcp.AIClient interface).
@@ -26,7 +28,11 @@ func configureMCPClient(cfg BacktestConfig, base mcp.AIClient) (mcp.AIClient, er
 		if cfg.AICfg.APIKey == "" {
 			return nil, fmt.Errorf("deepseek provider requires api key")
 		}
-		ds := mcp.NewDeepSeekClientWithOptions()
+		// DeepSeek 是国内 API，不需要代理
+		httpClient := utils.CreateHTTPClient(false, 120*time.Second)
+		ds := mcp.NewDeepSeekClientWithOptions(
+			mcp.WithHTTPClient(httpClient),
+		)
 		ds.(*mcp.DeepSeekClient).SetAPIKey(cfg.AICfg.APIKey, cfg.AICfg.BaseURL, cfg.AICfg.Model)
 		return ds, nil
 	case "qwen":

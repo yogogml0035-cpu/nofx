@@ -73,6 +73,8 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 
 	logger.Infof("📊 Backtest request - symbols from request: %v (count=%d), strategyID: %s",
 		cfg.Symbols, len(cfg.Symbols), cfg.StrategyID)
+	logger.Infof("📊 Backtest request - timeframes: %v, decision_timeframe: %s",
+		cfg.Timeframes, cfg.DecisionTimeframe)
 
 	// Load strategy config if strategy_id is provided
 	if cfg.StrategyID != "" {
@@ -97,6 +99,14 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 			strategyConfig.CoinSource.UseAI500,
 			strategyConfig.CoinSource.UseOITop,
 			strategyConfig.CoinSource.StaticCoins)
+
+		// Use strategy's timeframe configuration (override user input)
+		if len(strategyConfig.Indicators.Klines.SelectedTimeframes) > 0 {
+			cfg.Timeframes = strategyConfig.Indicators.Klines.SelectedTimeframes
+			cfg.DecisionTimeframe = strategyConfig.Indicators.Klines.PrimaryTimeframe
+			logger.Infof("📊 Using strategy timeframes: %v, decision_timeframe: %s",
+				cfg.Timeframes, cfg.DecisionTimeframe)
+		}
 
 		// If no symbols provided, fetch from strategy's coin source
 		if len(cfg.Symbols) == 0 {

@@ -627,6 +627,27 @@ func (r *Runner) executeDecision(dec kernel.Decision, priceMap map[string]float6
 		return store.DecisionAction{}, nil, "", fmt.Errorf("empty symbol in decision")
 	}
 
+	// Validate symbol: reject invalid symbols like "ALL", "WAIT", etc.
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	invalidSymbols := []string{"ALL", "WAIT", "HOLD", "NONE", "NULL", "SKIP"}
+	for _, invalid := range invalidSymbols {
+		if symbol == invalid {
+			return store.DecisionAction{}, nil, fmt.Sprintf("⚠️ Skipped invalid symbol: %s", symbol), nil
+		}
+	}
+
+	// Ensure symbol is in the configured symbols list
+	validSymbol := false
+	for _, s := range r.cfg.Symbols {
+		if strings.ToUpper(s) == symbol {
+			validSymbol = true
+			break
+		}
+	}
+	if !validSymbol {
+		return store.DecisionAction{}, nil, fmt.Sprintf("⚠️ Symbol %s not in configured symbols list", symbol), nil
+	}
+
 	usedLeverage := r.resolveLeverage(dec.Leverage, symbol)
 	actionRecord := store.DecisionAction{
 		Action:    dec.Action,

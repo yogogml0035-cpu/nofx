@@ -11,10 +11,12 @@ import (
 	"nofx/manager"
 	"nofx/mcp"
 	"nofx/store"
+	"nofx/utils"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -158,7 +160,11 @@ func newSharedMCPClient() mcp.AIClient {
 		logger.Warn("⚠️ DEEPSEEK_API_KEY not set, AI features will be unavailable")
 		return nil
 	}
-	return mcp.NewDeepSeekClient()
+	// DeepSeek 是国内 API，不需要代理
+	httpClient := utils.CreateHTTPClient(false, 120*time.Second)
+	return mcp.NewDeepSeekClientWithOptions(
+		mcp.WithHTTPClient(httpClient),
+	)
 }
 
 // initInstallationID initializes the anonymous installation ID for experience improvement

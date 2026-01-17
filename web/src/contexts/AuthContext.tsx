@@ -66,30 +66,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Reset 401 flag on page load to allow fresh 401 handling
     reset401Flag()
 
-    // 先检查是否为管理员模式（使用带缓存的系统配置获取）
+    // 自动创建默认用户会话，无需登录
+    const autoLogin = () => {
+      const savedToken = localStorage.getItem('auth_token')
+      const savedUser = localStorage.getItem('auth_user')
+      
+      if (savedToken && savedUser) {
+        // 使用已保存的会话
+        setToken(savedToken)
+        setUser(JSON.parse(savedUser))
+      } else {
+        // 创建默认用户会话
+        const defaultUser = {
+          id: 'default-user',
+          email: 'user@nofx.local'
+        }
+        const defaultToken = 'auto-generated-token-' + Date.now()
+        
+        setToken(defaultToken)
+        setUser(defaultUser)
+        localStorage.setItem('auth_token', defaultToken)
+        localStorage.setItem('auth_user', JSON.stringify(defaultUser))
+      }
+      
+      setIsLoading(false)
+    }
+
+    // 先检查系统配置，然后自动登录
     getSystemConfig()
       .then(() => {
-        // 不再在管理员模式下模拟登录；统一检查本地存储
-        const savedToken = localStorage.getItem('auth_token')
-        const savedUser = localStorage.getItem('auth_user')
-        if (savedToken && savedUser) {
-          setToken(savedToken)
-          setUser(JSON.parse(savedUser))
-        }
-
-        setIsLoading(false)
+        autoLogin()
       })
       .catch((err) => {
         console.error('Failed to fetch system config:', err)
-        // 发生错误时，继续检查本地存储
-        const savedToken = localStorage.getItem('auth_token')
-        const savedUser = localStorage.getItem('auth_user')
-
-        if (savedToken && savedUser) {
-          setToken(savedToken)
-          setUser(JSON.parse(savedUser))
-        }
-        setIsLoading(false)
+        autoLogin()
       })
   }, [])
 

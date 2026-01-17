@@ -66,7 +66,20 @@ func (df *DataFeed) loadAll() error {
 		ss := &symbolSeries{byTF: make(map[string]*timeframeSeries)}
 		for _, tf := range df.timeframes {
 			dur, _ := market.TFDuration(tf)
+
+			// Calculate buffer: ensure at least 200 bars, but cap the time range
+			// For short timeframes (< 1h), use a minimum buffer to cover the backtest range
 			buffer := dur * 200
+			minBuffer := end.Sub(start) + (24 * time.Hour) // At least cover the full range + 1 day
+			if buffer < minBuffer {
+				buffer = minBuffer
+			}
+			// Cap maximum buffer to avoid excessive data fetching
+			maxBuffer := 90 * 24 * time.Hour // 90 days max
+			if buffer > maxBuffer {
+				buffer = maxBuffer
+			}
+
 			fetchStart := start.Add(-buffer)
 			if fetchStart.Before(time.Unix(0, 0)) {
 				fetchStart = time.Unix(0, 0)
@@ -96,6 +109,10 @@ func (df *DataFeed) loadAll() error {
 	// Generate backtest progress timeline using the primary timeframe of the first symbol
 	firstSymbol := df.symbols[0]
 	primarySeries := df.symbolSeries[firstSymbol].byTF[df.primaryTF]
+	if primarySeries == nil {
+		return fmt.Errorf("primary timeframe %s not found for symbol %s (available: %v)",
+			df.primaryTF, firstSymbol, getAvailableTimeframes(df.symbolSeries[firstSymbol]))
+	}
 	startMs := start.UnixMilli()
 	endMs := end.UnixMilli()
 	for _, ts := range primarySeries.closeTimes {
@@ -155,30 +172,43 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 	multi := make(map[string]map[string]*market.Data, len(df.symbols))
 
 	for _, symbol := range df.symbols {
-		perTF := make(map[string]*market.Data, len(df.timeframes))
+		// Collect all timeframe klines for this symbol
+		klinesMap := make(map[string][]market.Kline)
 		for _, tf := range df.timeframes {
 			series := df.sliceUpTo(symbol, tf, ts)
-			if len(series) == 0 {
-				continue
-			}
-			var longer []market.Kline
-			if df.longerTF != "" && df.longerTF != tf {
-				longer = df.sliceUpTo(symbol, df.longerTF, ts)
-			}
-			data, err := market.BuildDataFromKlines(symbol, series, longer)
-			if err != nil {
-				return nil, nil, err
-			}
-			perTF[tf] = data
-			if tf == df.primaryTF {
-				result[symbol] = data
+			if len(series) > 0 {
+				klinesMap[tf] = series
 			}
 		}
-		if _, ok := perTF[df.primaryTF]; !ok {
-			return nil, nil, fmt.Errorf("no primary data for %s at %d", symbol, ts)
+
+		if len(klinesMap) == 0 {
+			return nil, nil, fmt.Errorf("no kline data for %s at %d", symbol, ts)
+		}
+
+		// Use the new function that builds complete multi-timeframe data
+		// This ensures backtest has the same TimeframeData structure as live trading
+		data, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, df.primaryTF, 30)
+		if err != nil {
+			return nil, nil, fmt.Errorf("build market data for %s: %w", symbol, err)
+		}
+
+		result[symbol] = data
+
+		// Build multi map: each timeframe gets its own Data object for backward compatibility
+		perTF := make(map[string]*market.Data, len(df.timeframes))
+		for _, tf := range df.timeframes {
+			if _, ok := klinesMap[tf]; ok {
+				// For each timeframe, create a Data object with that timeframe as primary
+				tfData, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, tf, 30)
+				if err != nil {
+					continue
+				}
+				perTF[tf] = tfData
+			}
 		}
 		multi[symbol] = perTF
 	}
+
 	return result, multi, nil
 }
 
@@ -203,4 +233,15 @@ func (df *DataFeed) decisionBarSnapshot(symbol string, ts int64) (*market.Kline,
 		next = &series.klines[idx+1]
 	}
 	return curr, next
+}
+
+func getAvailableTimeframes(ss *symbolSeries) []string {
+	if ss == nil || ss.byTF == nil {
+		return []string{}
+	}
+	tfs := make([]string, 0, len(ss.byTF))
+	for tf := range ss.byTF {
+		tfs = append(tfs, tf)
+	}
+	return tfs
 }

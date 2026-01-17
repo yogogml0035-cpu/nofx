@@ -36,13 +36,11 @@ export function LandingPage() {
         onLoginRequired={handleLoginRequired}
         onPageChange={(page) => {
           const pathMap: Record<string, string> = {
-            'competition': '/competition',
             'strategy-market': '/strategy-market',
             'traders': '/traders',
             'trader': '/dashboard',
             'backtest': '/backtest',
             'strategy': '/strategy',
-            'debate': '/debate',
             'faq': '/faq',
           }
           const path = pathMap[page]

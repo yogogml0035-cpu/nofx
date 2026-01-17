@@ -41,7 +41,7 @@ func NewOKXMarketClient(apiKey, secretKey, passphrase string) *OKXMarketClient {
 	transport := &http.Transport{
 		// 强制使用IPv4，避免IPv6 DNS解析问题
 		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
+			Timeout:   60 * time.Second, // 增加连接超时
 			KeepAlive: 30 * time.Second,
 			// 强制使用IPv4
 			FallbackDelay: -1,
@@ -49,12 +49,12 @@ func NewOKXMarketClient(apiKey, secretKey, passphrase string) *OKXMarketClient {
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
+		TLSHandshakeTimeout:   60 * time.Second, // 增加 TLS 握手超时，应对代理不稳定
 		ExpectContinueTimeout: 1 * time.Second,
 		// 使用系统代理设置
 		Proxy: http.ProxyFromEnvironment,
 	}
-	
+
 	// 检查是否配置了代理
 	proxyURL := os.Getenv("HTTPS_PROXY")
 	if proxyURL == "" {
@@ -66,20 +66,20 @@ func NewOKXMarketClient(apiKey, secretKey, passphrase string) *OKXMarketClient {
 	if proxyURL == "" {
 		proxyURL = os.Getenv("http_proxy")
 	}
-	
+
 	if proxyURL != "" {
 		if proxy, err := url.Parse(proxyURL); err == nil {
 			transport.Proxy = http.ProxyURL(proxy)
 			fmt.Printf("🌐 Using proxy: %s\n", proxyURL)
 		}
 	}
-	
+
 	// 创建 HTTP 客户端
 	client := &http.Client{
-		Timeout:   30 * time.Second,
+		Timeout:   90 * time.Second, // 增加超时时间以应对代理连接不稳定的情况
 		Transport: transport,
 	}
-	
+
 	return &OKXMarketClient{
 		apiKey:     apiKey,
 		secretKey:  secretKey,
@@ -100,7 +100,7 @@ func (c *OKXMarketClient) generateSignature(timestamp, method, requestPath, body
 // doRequest 执行HTTP请求
 func (c *OKXMarketClient) doRequest(ctx context.Context, method, endpoint string, params map[string]string, needAuth bool) ([]byte, error) {
 	url := c.baseURL + endpoint
-	
+
 	// 构建查询参数
 	if len(params) > 0 && method == "GET" {
 		url += "?"
@@ -113,15 +113,15 @@ func (c *OKXMarketClient) doRequest(ctx context.Context, method, endpoint string
 			first = false
 		}
 	}
-	
+
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 设置请求头
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	// 如果需要认证，添加签名
 	if needAuth && c.apiKey != "" {
 		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
@@ -137,26 +137,26 @@ func (c *OKXMarketClient) doRequest(ctx context.Context, method, endpoint string
 				first = false
 			}
 		}
-		
+
 		signature := c.generateSignature(timestamp, method, requestPath, "")
-		
+
 		req.Header.Set("OK-ACCESS-KEY", c.apiKey)
 		req.Header.Set("OK-ACCESS-SIGN", signature)
 		req.Header.Set("OK-ACCESS-TIMESTAMP", timestamp)
 		req.Header.Set("OK-ACCESS-PASSPHRASE", c.passphrase)
 	}
-	
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return body, nil
 }
 
@@ -167,13 +167,13 @@ func (c *OKXMarketClient) doRequest(ctx context.Context, method, endpoint string
 func (c *OKXMarketClient) GetKlines(ctx context.Context, symbol, interval string, limit int) ([]KlineData, error) {
 	// 转换symbol格式：BTCUSDT -> BTC-USDT
 	instId := convertSymbolToOKX(symbol)
-	
+
 	// 转换interval格式
 	bar := convertIntervalToOKX(interval)
-	
+
 	// OKX API单次最多返回100条，需要分批获取
 	const maxBatchSize = 100
-	
+
 	// 如果请求的数量小于等于100，直接使用candles端点（包含最新数据）
 	if limit <= maxBatchSize {
 		endpoint := "/api/v5/market/candles"
@@ -182,33 +182,33 @@ func (c *OKXMarketClient) GetKlines(ctx context.Context, symbol, interval string
 			"bar":    bar,
 			"limit":  strconv.Itoa(limit),
 		}
-		
+
 		needAuth := c.apiKey != ""
 		data, err := c.doRequest(ctx, "GET", endpoint, params, needAuth)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch klines: %w", err)
 		}
-		
+
 		klines, err := c.parseKlineResponse(data)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		return klines, nil
 	}
-	
+
 	// 如果请求超过100条，需要分批获取
 	// 策略：先获取最新的100条，然后向前获取更早的数据
 	var allBatches [][]KlineData
 	remaining := limit
 	var before string // 用于分页的参数（获取更早的数据）
-	
+
 	for remaining > 0 {
 		batchSize := maxBatchSize
 		if remaining < maxBatchSize {
 			batchSize = remaining
 		}
-		
+
 		// 第一批使用candles获取最新数据，后续批次使用history-candles
 		var endpoint string
 		if before == "" {
@@ -216,53 +216,53 @@ func (c *OKXMarketClient) GetKlines(ctx context.Context, symbol, interval string
 		} else {
 			endpoint = "/api/v5/market/history-candles"
 		}
-		
+
 		params := map[string]string{
 			"instId": instId,
 			"bar":    bar,
 			"limit":  strconv.Itoa(batchSize),
 		}
-		
+
 		// 如果有before参数，添加到请求中（用于获取更早的数据）
 		if before != "" {
 			params["before"] = before
 		}
-		
+
 		needAuth := c.apiKey != ""
 		data, err := c.doRequest(ctx, "GET", endpoint, params, needAuth)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch klines: %w", err)
 		}
-		
+
 		klines, err := c.parseKlineResponse(data)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if len(klines) == 0 {
 			break // 没有更多数据了
 		}
-		
+
 		// 将这批数据添加到批次列表（注意：每批内部已经是从旧到新排序）
 		allBatches = append(allBatches, klines)
 		remaining -= len(klines)
-		
+
 		// 如果返回的数据少于请求的数量，说明没有更多数据了
 		if len(klines) < batchSize {
 			break
 		}
-		
+
 		// 设置before参数为这批数据中最早的时间戳，用于获取更早的数据
 		// OKX的before参数是"请求此时间戳之前的数据"
 		before = strconv.FormatInt(klines[0].Timestamp, 10)
 	}
-	
+
 	// 合并所有批次：从最后一批开始（最早的数据）到第一批（最新的数据）
 	var allKlines []KlineData
 	for i := len(allBatches) - 1; i >= 0; i-- {
 		allKlines = append(allKlines, allBatches[i]...)
 	}
-	
+
 	return allKlines, nil
 }
 
@@ -273,22 +273,22 @@ func (c *OKXMarketClient) parseKlineResponse(data []byte) ([]KlineData, error) {
 		Msg  string          `json:"msg"`
 		Data [][]interface{} `json:"data"`
 	}
-	
+
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
-	
+
 	if response.Code != "0" {
 		return nil, fmt.Errorf("API error: %s", response.Msg)
 	}
-	
+
 	// 转换数据格式
 	klines := make([]KlineData, 0, len(response.Data))
 	for _, item := range response.Data {
 		if len(item) < 6 {
 			continue
 		}
-		
+
 		kline := KlineData{
 			Timestamp: parseFloat64ToInt64(item[0]),
 			Open:      parseFloat64(item[1]),
@@ -299,49 +299,49 @@ func (c *OKXMarketClient) parseKlineResponse(data []byte) ([]KlineData, error) {
 		}
 		klines = append(klines, kline)
 	}
-	
+
 	// OKX返回的数据是从新到旧，需要反转
 	for i, j := 0, len(klines)-1; i < j; i, j = i+1, j-1 {
 		klines[i], klines[j] = klines[j], klines[i]
 	}
-	
+
 	return klines, nil
 }
 
 // GetTicker 获取实时行情
 func (c *OKXMarketClient) GetTicker(ctx context.Context, symbol string) (map[string]interface{}, error) {
 	instId := convertSymbolToOKX(symbol)
-	
+
 	endpoint := "/api/v5/market/ticker"
 	params := map[string]string{
 		"instId": instId,
 	}
-	
+
 	// 使用认证以获得更高的请求限额
 	needAuth := c.apiKey != ""
 	data, err := c.doRequest(ctx, "GET", endpoint, params, needAuth)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch ticker: %w", err)
 	}
-	
+
 	var response struct {
 		Code string                   `json:"code"`
 		Msg  string                   `json:"msg"`
 		Data []map[string]interface{} `json:"data"`
 	}
-	
+
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
-	
+
 	if response.Code != "0" {
 		return nil, fmt.Errorf("API error: %s", response.Msg)
 	}
-	
+
 	if len(response.Data) == 0 {
 		return nil, fmt.Errorf("no ticker data found")
 	}
-	
+
 	return response.Data[0], nil
 }
 
@@ -382,7 +382,7 @@ func convertIntervalToOKX(interval string) string {
 		"1w":  "1W",
 		"1W":  "1W",
 	}
-	
+
 	if okxInterval, ok := mapping[interval]; ok {
 		return okxInterval
 	}
@@ -421,4 +421,50 @@ func parseFloat64ToInt64(v interface{}) int64 {
 	default:
 		return 0
 	}
+}
+
+// GetOpenInterest 获取持仓量数据
+// symbol: 交易对，如 BTCUSDT
+// 返回当前的持仓量（以合约张数计）
+func (c *OKXMarketClient) GetOpenInterest(ctx context.Context, symbol string) (float64, error) {
+	instId := convertSymbolToOKX(symbol)
+
+	endpoint := "/api/v5/public/open-interest"
+	params := map[string]string{
+		"instId": instId,
+	}
+
+	// 公开接口，不需要认证
+	data, err := c.doRequest(ctx, "GET", endpoint, params, false)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch open interest: %w", err)
+	}
+
+	var response struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+		Data []struct {
+			InstId string `json:"instId"` // 产品ID
+			Oi     string `json:"oi"`     // 持仓量（张）
+			OiCcy  string `json:"oiCcy"`  // 持仓量（币）
+			Ts     string `json:"ts"`     // 数据返回时间戳
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(data, &response); err != nil {
+		return 0, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if response.Code != "0" {
+		return 0, fmt.Errorf("API error: %s", response.Msg)
+	}
+
+	if len(response.Data) == 0 {
+		return 0, fmt.Errorf("no open interest data found")
+	}
+
+	// 解析持仓量（使用币本位的持仓量）
+	oiCcy := parseFloat64(response.Data[0].OiCcy)
+
+	return oiCcy, nil
 }

@@ -5,14 +5,8 @@ import { api } from './lib/api'
 import { TraderDashboardPage } from './pages/TraderDashboardPage'
 
 import { AITradersPage } from './components/AITradersPage'
-import { LoginPage } from './components/LoginPage'
-import { RegisterPage } from './components/RegisterPage'
-import { ResetPasswordPage } from './components/ResetPasswordPage'
-import { CompetitionPage } from './components/CompetitionPage'
-import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
-import { DebateArenaPage } from './pages/DebateArenaPage'
 import { StrategyMarketPage } from './pages/StrategyMarketPage'
 import { LoginRequiredOverlay } from './components/LoginRequiredOverlay'
 import HeaderBar from './components/HeaderBar'
@@ -35,16 +29,12 @@ import type {
 } from './types'
 
 type Page =
-  | 'competition'
   | 'traders'
   | 'trader'
   | 'backtest'
   | 'strategy'
   | 'strategy-market'
-  | 'debate'
   | 'faq'
-  | 'login'
-  | 'register'
 
 
 
@@ -68,10 +58,9 @@ function App() {
     if (path === '/backtest' || hash === 'backtest') return 'backtest'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
-    if (path === '/debate' || hash === 'debate') return 'debate'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
-    return 'competition' // 默认为竞赛页面
+    return 'traders' // 默认为交易员列表页面
   }
 
   // Login required overlay state
@@ -86,16 +75,12 @@ function App() {
   // Unified page navigation handler
   const navigateToPage = (page: Page) => {
     const pathMap: Record<Page, string> = {
-      'competition': '/competition',
       'strategy-market': '/strategy-market',
       'traders': '/traders',
       'trader': '/dashboard',
       'backtest': '/backtest',
       'strategy': '/strategy',
-      'debate': '/debate',
       'faq': '/faq',
-      'login': '/login',
-      'register': '/register',
     }
     const path = pathMap[page]
     if (path) {
@@ -152,8 +137,6 @@ function App() {
         setCurrentPage('strategy')
       } else if (path === '/strategy-market' || hash === 'strategy-market') {
         setCurrentPage('strategy-market')
-      } else if (path === '/debate' || hash === 'debate') {
-        setCurrentPage('debate')
       } else if (
         path === '/dashboard' ||
         hash === 'trader' ||
@@ -164,12 +147,9 @@ function App() {
         if (traderParam) {
           setSelectedTraderSlug(traderParam)
         }
-      } else if (
-        path === '/competition' ||
-        hash === 'competition' ||
-        hash === ''
-      ) {
-        setCurrentPage('competition')
+      } else {
+        // 默认跳转到交易员列表
+        setCurrentPage('traders')
       }
       setRoute(path)
     }
@@ -307,12 +287,20 @@ function App() {
 
   // Set current page based on route for consistent navigation state
   useEffect(() => {
-    if (route === '/competition') {
-      setCurrentPage('competition')
-    } else if (route === '/traders') {
+    if (route === '/traders') {
       setCurrentPage('traders')
     } else if (route === '/dashboard') {
       setCurrentPage('trader')
+    } else if (route === '/strategy-market') {
+      setCurrentPage('strategy-market')
+    } else if (route === '/strategy') {
+      setCurrentPage('strategy')
+    } else if (route === '/backtest') {
+      setCurrentPage('backtest')
+    } else if (route === '/faq') {
+      setCurrentPage('faq')
+    } else if (route === '/') {
+      setCurrentPage('traders')
     }
   }, [route])
 
@@ -335,13 +323,7 @@ function App() {
     )
   }
 
-  // Handle specific routes regardless of authentication
-  if (route === '/login') {
-    return <LoginPage />
-  }
-  if (route === '/register') {
-    return <RegisterPage />
-  }
+  // Handle FAQ route
   if (route === '/faq') {
     return (
       <div
@@ -367,17 +349,12 @@ function App() {
       </div>
     )
   }
-  if (route === '/reset-password') {
-    return <ResetPasswordPage />
-  }
-  // Show landing page for root route
-  if (route === '/' || route === '') {
-    return <LandingPage />
-  }
 
-  // Redirect unauthenticated users to landing page
-  if (!user || !token) {
-    return <LandingPage />
+  // 根路径直接重定向到交易员列表页面
+  if (route === '/' || route === '') {
+    window.history.replaceState({}, '', '/traders')
+    setRoute('/traders')
+    setCurrentPage('traders')
   }
 
   return (
@@ -406,9 +383,7 @@ function App() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
           >
-            {currentPage === 'competition' ? (
-              <CompetitionPage />
-            ) : currentPage === 'strategy-market' ? (
+            {currentPage === 'strategy-market' ? (
               <StrategyMarketPage />
             ) : currentPage === 'traders' ? (
               <AITradersPage
@@ -423,8 +398,6 @@ function App() {
               <BacktestPage />
             ) : currentPage === 'strategy' ? (
               <StrategyStudioPage />
-            ) : currentPage === 'debate' ? (
-              <DebateArenaPage />
             ) : (
               <TraderDashboardPage
                 selectedTrader={selectedTrader}
@@ -462,19 +435,18 @@ function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer - Hidden on debate page */}
-      {currentPage !== 'debate' && (
-        <footer
-          className="mt-16"
-          style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
+      {/* Footer */}
+      <footer
+        className="mt-16"
+        style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
+      >
+        <div
+          className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm"
+          style={{ color: '#5E6673' }}
         >
-          <div
-            className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm"
-            style={{ color: '#5E6673' }}
-          >
-            <p>{t('footerTitle', language)}</p>
-            <p className="mt-1">{t('footerWarning', language)}</p>
-            <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
+          <p>{t('footerTitle', language)}</p>
+          <p className="mt-1">{t('footerWarning', language)}</p>
+          <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
               {/* GitHub */}
               <a
                 href={OFFICIAL_LINKS.github}
@@ -574,7 +546,6 @@ function App() {
             </div>
           </div>
         </footer>
-      )}
 
       {/* Login Required Overlay */}
       <LoginRequiredOverlay
