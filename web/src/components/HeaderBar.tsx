@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, ChevronDown } from 'lucide-react'
 import { t, type Language } from '../i18n/translations'
 import { OFFICIAL_LINKS } from '../constants/branding'
+import { useSystemConfig } from '../hooks/useSystemConfig'
 
 type Page =
   | 'traders'
@@ -12,6 +13,8 @@ type Page =
   | 'strategy'
   | 'strategy-market'
   | 'faq'
+  | 'login'
+  | 'register'
 
 interface HeaderBarProps {
   onLoginClick?: () => void
@@ -38,6 +41,8 @@ export default function HeaderBar({
   onLoginRequired,
 }: HeaderBarProps) {
   const navigate = useNavigate()
+  const { config: systemConfig } = useSystemConfig()
+  const registrationEnabled = systemConfig?.registration_enabled !== false
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
@@ -176,7 +181,7 @@ export default function HeaderBar({
             <div className="h-5 w-px" style={{ background: '#2B3139' }} />
 
             {/* User Info and Actions */}
-            {isLoggedIn && user && (
+            {isLoggedIn && user ? (
               <div className="flex items-center gap-3">
                 {/* User Info with Dropdown */}
                 <div className="relative" ref={userDropdownRef}>
@@ -218,6 +223,27 @@ export default function HeaderBar({
                   )}
                 </div>
               </div>
+            ) : (
+              /* Show login/register buttons when not logged in and not on login/register pages */
+              currentPage !== 'login' &&
+              currentPage !== 'register' && (
+                <div className="flex items-center gap-3">
+                  <a
+                    href="/login"
+                    className="px-3 py-2 text-sm font-medium transition-colors rounded text-nofx-text-muted hover:text-white"
+                  >
+                    {t('signIn', language)}
+                  </a>
+                  {registrationEnabled && (
+                    <a
+                      href="/register"
+                      className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90 bg-nofx-gold text-black"
+                    >
+                      {t('signUp', language)}
+                    </a>
+                  )}
+                </div>
+              )
             )}
 
             {/* Language Toggle - Always at the rightmost */}
@@ -412,7 +438,7 @@ export default function HeaderBar({
                   </div>
 
                   {/* Auth Actions */}
-                  {isLoggedIn && user && (
+                  {isLoggedIn && user ? (
                     <button
                       onClick={() => {
                         onLogout?.()
@@ -422,6 +448,15 @@ export default function HeaderBar({
                     >
                       {t('exitLogin', language)}
                     </button>
+                  ) : (
+                    currentPage !== 'login' && currentPage !== 'register' && (
+                      <a
+                        href="/login"
+                        className="flex items-center justify-center bg-nofx-gold text-black rounded-lg font-bold text-sm hover:bg-yellow-400 transition-colors py-3"
+                      >
+                        {t('signIn', language)}
+                      </a>
+                    )
                   )}
                 </div>
               </div>
