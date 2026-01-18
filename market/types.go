@@ -8,15 +8,19 @@ type Data struct {
 	CurrentPrice      float64
 	PriceChange1h     float64 // 1-hour price change percentage
 	PriceChange4h     float64 // 4-hour price change percentage
-	CurrentEMA20      float64
+	CurrentEMA20      float64 // Deprecated: use DynamicEMA instead
 	CurrentMACD       float64
-	CurrentRSI7       float64
+	CurrentRSI7       float64 // Deprecated: use DynamicRSI instead
 	OpenInterest      *OIData
 	FundingRate       float64
 	IntradaySeries    *IntradayData
 	LongerTermContext *LongerTermData
 	// Multi-timeframe data (new)
 	TimeframeData map[string]*TimeframeSeriesData `json:"timeframe_data,omitempty"`
+	// Dynamic indicators (configurable periods)
+	DynamicEMA map[int]float64 `json:"dynamic_ema,omitempty"` // key: period, value: EMA value
+	DynamicRSI map[int]float64 `json:"dynamic_rsi,omitempty"` // key: period, value: RSI value
+	DynamicATR map[int]float64 `json:"dynamic_atr,omitempty"` // key: period, value: ATR value
 }
 
 // KlineBar single kline bar with OHLCV data
@@ -34,17 +38,21 @@ type TimeframeSeriesData struct {
 	Timeframe   string     `json:"timeframe"`    // Timeframe identifier, e.g. "5m", "15m", "1h"
 	Klines      []KlineBar `json:"klines"`       // Full OHLCV kline data
 	MidPrices   []float64  `json:"mid_prices"`   // Price series (deprecated, kept for compatibility)
-	EMA20Values []float64  `json:"ema20_values"` // EMA20 series
-	EMA50Values []float64  `json:"ema50_values"` // EMA50 series
+	EMA20Values []float64  `json:"ema20_values"` // EMA20 series (deprecated)
+	EMA50Values []float64  `json:"ema50_values"` // EMA50 series (deprecated)
 	MACDValues  []float64  `json:"macd_values"`  // MACD series
-	RSI7Values  []float64  `json:"rsi7_values"`  // RSI7 series
-	RSI14Values []float64  `json:"rsi14_values"` // RSI14 series
+	RSI7Values  []float64  `json:"rsi7_values"`  // RSI7 series (deprecated)
+	RSI14Values []float64  `json:"rsi14_values"` // RSI14 series (deprecated)
 	Volume      []float64  `json:"volume"`       // Volume series (deprecated, use Klines)
-	ATR14       float64    `json:"atr14"`        // ATR14
+	ATR14       float64    `json:"atr14"`        // ATR14 (deprecated)
 	// Bollinger Bands (period 20, std dev multiplier 2)
 	BOLLUpper  []float64 `json:"boll_upper"`  // Upper band
 	BOLLMiddle []float64 `json:"boll_middle"` // Middle band (SMA)
 	BOLLLower  []float64 `json:"boll_lower"`  // Lower band
+	// Dynamic indicators (configurable periods)
+	DynamicEMA map[int][]float64 `json:"dynamic_ema,omitempty"` // key: period, value: EMA series
+	DynamicRSI map[int][]float64 `json:"dynamic_rsi,omitempty"` // key: period, value: RSI series
+	DynamicATR map[int]float64   `json:"dynamic_atr,omitempty"` // key: period, value: ATR value
 }
 
 // OIData Open Interest data

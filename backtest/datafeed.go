@@ -187,7 +187,23 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 
 		// Use the new function that builds complete multi-timeframe data
 		// This ensures backtest has the same TimeframeData structure as live trading
-		data, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, df.primaryTF, 30)
+		// Get indicator periods from loaded strategy config, or use defaults
+		emaPeriods := []int{20, 50}
+		rsiPeriods := []int{7, 14}
+		atrPeriods := []int{14}
+		if df.cfg.loadedStrategy != nil {
+			if len(df.cfg.loadedStrategy.Indicators.EMAPeriods) > 0 {
+				emaPeriods = df.cfg.loadedStrategy.Indicators.EMAPeriods
+			}
+			if len(df.cfg.loadedStrategy.Indicators.RSIPeriods) > 0 {
+				rsiPeriods = df.cfg.loadedStrategy.Indicators.RSIPeriods
+			}
+			if len(df.cfg.loadedStrategy.Indicators.ATRPeriods) > 0 {
+				atrPeriods = df.cfg.loadedStrategy.Indicators.ATRPeriods
+			}
+		}
+
+		data, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, df.primaryTF, 30, emaPeriods, rsiPeriods, atrPeriods)
 		if err != nil {
 			return nil, nil, fmt.Errorf("build market data for %s: %w", symbol, err)
 		}
@@ -199,7 +215,7 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 		for _, tf := range df.timeframes {
 			if _, ok := klinesMap[tf]; ok {
 				// For each timeframe, create a Data object with that timeframe as primary
-				tfData, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, tf, 30)
+				tfData, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, tf, 30, emaPeriods, rsiPeriods, atrPeriods)
 				if err != nil {
 					continue
 				}

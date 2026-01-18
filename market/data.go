@@ -262,11 +262,25 @@ func Get(symbol string) (*Data, error) {
 // timeframes: list of timeframes, e.g. ["5m", "15m", "1h", "4h"]
 // primaryTimeframe: primary timeframe (used for calculating current indicators), defaults to timeframes[0]
 // count: number of K-lines for each timeframe
-func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int) (*Data, error) {
+// emaPeriods: EMA periods to calculate (e.g. [13, 55]), if nil uses default [20, 50]
+// rsiPeriods: RSI periods to calculate (e.g. [14]), if nil uses default [7, 14]
+// atrPeriods: ATR periods to calculate (e.g. [14]), if nil uses default [14]
+func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int, emaPeriods, rsiPeriods, atrPeriods []int) (*Data, error) {
 	symbol = Normalize(symbol)
 
 	if len(timeframes) == 0 {
 		return nil, fmt.Errorf("at least one timeframe is required")
+	}
+
+	// Use default periods if not specified
+	if len(emaPeriods) == 0 {
+		emaPeriods = []int{20, 50}
+	}
+	if len(rsiPeriods) == 0 {
+		rsiPeriods = []int{7, 14}
+	}
+	if len(atrPeriods) == 0 {
+		atrPeriods = []int{14}
 	}
 
 	// If primary timeframe is not specified, use the first one
@@ -324,8 +338,8 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 			primaryKlines = klines
 		}
 
-		// Calculate series data for this timeframe (use count from config)
-		seriesData := calculateTimeframeSeries(klines, tf, count)
+		// Calculate series data for this timeframe with dynamic periods
+		seriesData := calculateTimeframeSeriesWithConfig(klines, tf, count, emaPeriods, rsiPeriods, atrPeriods)
 		timeframeData[tf] = seriesData
 	}
 
@@ -342,9 +356,51 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 
 	// Calculate current indicators (based on primary timeframe latest data)
 	currentPrice := primaryKlines[len(primaryKlines)-1].Close
-	currentEMA20 := calculateEMA(primaryKlines, 20)
+
+	// Calculate dynamic EMA values
+	dynamicEMA := make(map[int]float64)
+	for _, period := range emaPeriods {
+		if len(primaryKlines) >= period {
+			dynamicEMA[period] = calculateEMA(primaryKlines, period)
+		}
+	}
+
+	// Calculate dynamic RSI values
+	dynamicRSI := make(map[int]float64)
+	for _, period := range rsiPeriods {
+		if len(primaryKlines) >= period {
+			dynamicRSI[period] = calculateRSI(primaryKlines, period)
+		}
+	}
+
+	// Calculate dynamic ATR values
+	dynamicATR := make(map[int]float64)
+	for _, period := range atrPeriods {
+		if len(primaryKlines) >= period {
+			dynamicATR[period] = calculateATR(primaryKlines, period)
+		}
+	}
+
+	// Keep backward compatibility - use first period or default
+	currentEMA20 := dynamicEMA[20]
+	if currentEMA20 == 0 && len(dynamicEMA) > 0 {
+		// Use first available EMA if 20 not available
+		for _, v := range dynamicEMA {
+			currentEMA20 = v
+			break
+		}
+	}
+
+	currentRSI7 := dynamicRSI[7]
+	if currentRSI7 == 0 && len(dynamicRSI) > 0 {
+		// Use first available RSI if 7 not available
+		for _, v := range dynamicRSI {
+			currentRSI7 = v
+			break
+		}
+	}
+
 	currentMACD := calculateMACD(primaryKlines)
-	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
 	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
@@ -364,17 +420,26 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		CurrentPrice:  currentPrice,
 		PriceChange1h: priceChange1h,
 		PriceChange4h: priceChange4h,
-		CurrentEMA20:  currentEMA20,
+		CurrentEMA20:  currentEMA20, // Deprecated: for backward compatibility
 		CurrentMACD:   currentMACD,
-		CurrentRSI7:   currentRSI7,
+		CurrentRSI7:   currentRSI7, // Deprecated: for backward compatibility
 		OpenInterest:  oiData,
 		FundingRate:   fundingRate,
 		TimeframeData: timeframeData,
+		DynamicEMA:    dynamicEMA,
+		DynamicRSI:    dynamicRSI,
+		DynamicATR:    dynamicATR,
 	}, nil
 }
 
-// calculateTimeframeSeries calculates series data for a single timeframe
+// calculateTimeframeSeries calculates series data for a single timeframe (deprecated, use calculateTimeframeSeriesWithConfig)
 func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *TimeframeSeriesData {
+	// Use default periods for backward compatibility
+	return calculateTimeframeSeriesWithConfig(klines, timeframe, count, []int{20, 50}, []int{7, 14}, []int{14})
+}
+
+// calculateTimeframeSeriesWithConfig calculates series data for a single timeframe with configurable indicator periods
+func calculateTimeframeSeriesWithConfig(klines []Kline, timeframe string, count int, emaPeriods, rsiPeriods, atrPeriods []int) *TimeframeSeriesData {
 	if count <= 0 {
 		count = 10 // default
 	}
@@ -392,6 +457,17 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 		BOLLUpper:   make([]float64, 0, count),
 		BOLLMiddle:  make([]float64, 0, count),
 		BOLLLower:   make([]float64, 0, count),
+		DynamicEMA:  make(map[int][]float64),
+		DynamicRSI:  make(map[int][]float64),
+		DynamicATR:  make(map[int]float64),
+	}
+
+	// Initialize dynamic indicator slices
+	for _, period := range emaPeriods {
+		data.DynamicEMA[period] = make([]float64, 0, count)
+	}
+	for _, period := range rsiPeriods {
+		data.DynamicRSI[period] = make([]float64, 0, count)
 	}
 
 	// Get latest N data points based on count from config
@@ -415,16 +491,19 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 		data.MidPrices = append(data.MidPrices, klines[i].Close)
 		data.Volume = append(data.Volume, klines[i].Volume)
 
-		// Calculate EMA20 for each point
-		if i >= 19 {
-			ema20 := calculateEMA(klines[:i+1], 20)
-			data.EMA20Values = append(data.EMA20Values, ema20)
-		}
+		// Calculate dynamic EMA for each period
+		for _, period := range emaPeriods {
+			if i >= period-1 {
+				emaValue := calculateEMA(klines[:i+1], period)
+				data.DynamicEMA[period] = append(data.DynamicEMA[period], emaValue)
 
-		// Calculate EMA50 for each point
-		if i >= 49 {
-			ema50 := calculateEMA(klines[:i+1], 50)
-			data.EMA50Values = append(data.EMA50Values, ema50)
+				// Backward compatibility: populate legacy fields
+				if period == 20 {
+					data.EMA20Values = append(data.EMA20Values, emaValue)
+				} else if period == 50 {
+					data.EMA50Values = append(data.EMA50Values, emaValue)
+				}
+			}
 		}
 
 		// Calculate MACD for each point
@@ -433,14 +512,19 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 			data.MACDValues = append(data.MACDValues, macd)
 		}
 
-		// Calculate RSI for each point
-		if i >= 7 {
-			rsi7 := calculateRSI(klines[:i+1], 7)
-			data.RSI7Values = append(data.RSI7Values, rsi7)
-		}
-		if i >= 14 {
-			rsi14 := calculateRSI(klines[:i+1], 14)
-			data.RSI14Values = append(data.RSI14Values, rsi14)
+		// Calculate dynamic RSI for each period
+		for _, period := range rsiPeriods {
+			if i >= period {
+				rsiValue := calculateRSI(klines[:i+1], period)
+				data.DynamicRSI[period] = append(data.DynamicRSI[period], rsiValue)
+
+				// Backward compatibility: populate legacy fields
+				if period == 7 {
+					data.RSI7Values = append(data.RSI7Values, rsiValue)
+				} else if period == 14 {
+					data.RSI14Values = append(data.RSI14Values, rsiValue)
+				}
+			}
 		}
 
 		// Calculate Bollinger Bands (period 20, std dev multiplier 2)
@@ -452,8 +536,23 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 		}
 	}
 
-	// Calculate ATR14
-	data.ATR14 = calculateATR(klines, 14)
+	// Calculate dynamic ATR for each period
+	for _, period := range atrPeriods {
+		if len(klines) >= period {
+			data.DynamicATR[period] = calculateATR(klines, period)
+		}
+	}
+
+	// Backward compatibility: populate legacy ATR14 field
+	if atr14, ok := data.DynamicATR[14]; ok {
+		data.ATR14 = atr14
+	} else if len(data.DynamicATR) > 0 {
+		// Use first available ATR if 14 not available
+		for _, v := range data.DynamicATR {
+			data.ATR14 = v
+			break
+		}
+	}
 
 	return data
 }

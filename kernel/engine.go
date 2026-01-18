@@ -331,6 +331,11 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	primaryTimeframe := config.Indicators.Klines.PrimaryTimeframe
 	klineCount := config.Indicators.Klines.PrimaryCount
 
+	// Get indicator periods from config
+	emaPeriods := config.Indicators.EMAPeriods
+	rsiPeriods := config.Indicators.RSIPeriods
+	atrPeriods := config.Indicators.ATRPeriods
+
 	// Compatible with old configuration
 	if len(timeframes) == 0 {
 		if primaryTimeframe != "" {
@@ -350,10 +355,11 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	}
 
 	logger.Infof("📊 Strategy timeframes: %v, Primary: %s, Kline count: %d", timeframes, primaryTimeframe, klineCount)
+	logger.Infof("📊 Indicator periods - EMA: %v, RSI: %v, ATR: %v", emaPeriods, rsiPeriods, atrPeriods)
 
 	// 1. First fetch data for position coins (must fetch)
 	for _, pos := range ctx.Positions {
-		data, err := market.GetWithTimeframes(pos.Symbol, timeframes, primaryTimeframe, klineCount)
+		data, err := market.GetWithTimeframes(pos.Symbol, timeframes, primaryTimeframe, klineCount, emaPeriods, rsiPeriods, atrPeriods)
 		if err != nil {
 			logger.Infof("⚠️  Failed to fetch market data for position %s: %v", pos.Symbol, err)
 			continue
@@ -374,7 +380,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 			continue
 		}
 
-		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
+		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount, emaPeriods, rsiPeriods, atrPeriods)
 		if err != nil {
 			logger.Infof("⚠️  Failed to fetch market data for %s: %v", coin.Symbol, err)
 			continue
@@ -1309,7 +1315,17 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	sb.WriteString(fmt.Sprintf("current_price = %.4f", data.CurrentPrice))
 
 	if indicators.EnableEMA {
-		sb.WriteString(fmt.Sprintf(", current_ema20 = %.3f", data.CurrentEMA20))
+		// Use dynamic EMA values from config
+		if len(data.DynamicEMA) > 0 {
+			for _, period := range indicators.EMAPeriods {
+				if emaValue, ok := data.DynamicEMA[period]; ok {
+					sb.WriteString(fmt.Sprintf(", current_ema%d = %.3f", period, emaValue))
+				}
+			}
+		} else {
+			// Fallback to legacy field for backward compatibility
+			sb.WriteString(fmt.Sprintf(", current_ema20 = %.3f", data.CurrentEMA20))
+		}
 	}
 
 	if indicators.EnableMACD {
@@ -1317,7 +1333,17 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	}
 
 	if indicators.EnableRSI {
-		sb.WriteString(fmt.Sprintf(", current_rsi7 = %.3f", data.CurrentRSI7))
+		// Use dynamic RSI values from config
+		if len(data.DynamicRSI) > 0 {
+			for _, period := range indicators.RSIPeriods {
+				if rsiValue, ok := data.DynamicRSI[period]; ok {
+					sb.WriteString(fmt.Sprintf(", current_rsi%d = %.3f", period, rsiValue))
+				}
+			}
+		} else {
+			// Fallback to legacy field for backward compatibility
+			sb.WriteString(fmt.Sprintf(", current_rsi7 = %.3f", data.CurrentRSI7))
+		}
 	}
 
 	sb.WriteString("\n\n")
@@ -1432,11 +1458,21 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	}
 
 	if indicators.EnableEMA {
-		if len(data.EMA20Values) > 0 {
-			sb.WriteString(fmt.Sprintf("EMA20: %s\n", formatFloatSlice(data.EMA20Values)))
-		}
-		if len(data.EMA50Values) > 0 {
-			sb.WriteString(fmt.Sprintf("EMA50: %s\n", formatFloatSlice(data.EMA50Values)))
+		// Use dynamic EMA values from config
+		if len(data.DynamicEMA) > 0 {
+			for _, period := range indicators.EMAPeriods {
+				if emaValues, ok := data.DynamicEMA[period]; ok && len(emaValues) > 0 {
+					sb.WriteString(fmt.Sprintf("EMA%d: %s\n", period, formatFloatSlice(emaValues)))
+				}
+			}
+		} else {
+			// Fallback to legacy fields for backward compatibility
+			if len(data.EMA20Values) > 0 {
+				sb.WriteString(fmt.Sprintf("EMA20: %s\n", formatFloatSlice(data.EMA20Values)))
+			}
+			if len(data.EMA50Values) > 0 {
+				sb.WriteString(fmt.Sprintf("EMA50: %s\n", formatFloatSlice(data.EMA50Values)))
+			}
 		}
 	}
 
@@ -1445,11 +1481,21 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	}
 
 	if indicators.EnableRSI {
-		if len(data.RSI7Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI7: %s\n", formatFloatSlice(data.RSI7Values)))
-		}
-		if len(data.RSI14Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI14: %s\n", formatFloatSlice(data.RSI14Values)))
+		// Use dynamic RSI values from config
+		if len(data.DynamicRSI) > 0 {
+			for _, period := range indicators.RSIPeriods {
+				if rsiValues, ok := data.DynamicRSI[period]; ok && len(rsiValues) > 0 {
+					sb.WriteString(fmt.Sprintf("RSI%d: %s\n", period, formatFloatSlice(rsiValues)))
+				}
+			}
+		} else {
+			// Fallback to legacy fields for backward compatibility
+			if len(data.RSI7Values) > 0 {
+				sb.WriteString(fmt.Sprintf("RSI7: %s\n", formatFloatSlice(data.RSI7Values)))
+			}
+			if len(data.RSI14Values) > 0 {
+				sb.WriteString(fmt.Sprintf("RSI14: %s\n", formatFloatSlice(data.RSI14Values)))
+			}
 		}
 	}
 
