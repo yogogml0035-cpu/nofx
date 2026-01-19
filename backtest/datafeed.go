@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	"nofx/logger"
 	"nofx/market"
 )
 
@@ -29,12 +30,41 @@ type DataFeed struct {
 }
 
 func NewDataFeed(cfg BacktestConfig) (*DataFeed, error) {
+	// Determine timeframes to use: prefer strategy config over backtest config
+	timeframes := cfg.Timeframes
+	primaryTF := cfg.DecisionTimeframe
+
+	// If strategy is loaded, use its timeframe configuration
+	if cfg.loadedStrategy != nil {
+		if len(cfg.loadedStrategy.Indicators.Klines.SelectedTimeframes) > 0 {
+			timeframes = cfg.loadedStrategy.Indicators.Klines.SelectedTimeframes
+			logger.Infof("📊 DataFeed: using strategy timeframes: %v", timeframes)
+		}
+		if cfg.loadedStrategy.Indicators.Klines.PrimaryTimeframe != "" {
+			primaryTF = cfg.loadedStrategy.Indicators.Klines.PrimaryTimeframe
+			logger.Infof("📊 DataFeed: using strategy primary timeframe: %s", primaryTF)
+		}
+	}
+
+	// Fallback to defaults if still empty
+	if len(timeframes) == 0 {
+		timeframes = []string{"5m", "4h"}
+		logger.Infof("⚠️  DataFeed: no timeframes configured, using defaults: %v", timeframes)
+	}
+	if primaryTF == "" {
+		primaryTF = timeframes[0]
+		logger.Infof("⚠️  DataFeed: no primary timeframe configured, using first: %s", primaryTF)
+	}
+
+	logger.Infof("📊 DataFeed initialized: symbols=%v, timeframes=%v, primary=%s",
+		cfg.Symbols, timeframes, primaryTF)
+
 	df := &DataFeed{
 		cfg:          cfg,
 		symbols:      make([]string, len(cfg.Symbols)),
-		timeframes:   append([]string(nil), cfg.Timeframes...),
+		timeframes:   append([]string(nil), timeframes...),
 		symbolSeries: make(map[string]*symbolSeries),
-		primaryTF:    cfg.DecisionTimeframe,
+		primaryTF:    primaryTF,
 	}
 	copy(df.symbols, cfg.Symbols)
 
@@ -148,6 +178,15 @@ func (df *DataFeed) DecisionTimestamp(index int) int64 {
 	return df.decisionTimes[index]
 }
 
+// getMapKeys returns the keys of a map for debugging
+func getMapKeys(m map[string][]market.Kline) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func (df *DataFeed) sliceUpTo(symbol, tf string, ts int64) []market.Kline {
 	// Nil checks to prevent panic
 	ss, ok := df.symbolSeries[symbol]
@@ -171,6 +210,9 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 	result := make(map[string]*market.Data, len(df.symbols))
 	multi := make(map[string]map[string]*market.Data, len(df.symbols))
 
+	logger.Infof("📊 [DEBUG] BuildMarketData called with %d symbols, %d timeframes: %v",
+		len(df.symbols), len(df.timeframes), df.timeframes)
+
 	for _, symbol := range df.symbols {
 		// Collect all timeframe klines for this symbol
 		klinesMap := make(map[string][]market.Kline)
@@ -178,6 +220,9 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 			series := df.sliceUpTo(symbol, tf, ts)
 			if len(series) > 0 {
 				klinesMap[tf] = series
+				logger.Infof("📊 [DEBUG] Symbol %s, timeframe %s: collected %d klines", symbol, tf, len(series))
+			} else {
+				logger.Warnf("⚠️  [DEBUG] Symbol %s, timeframe %s: NO klines collected", symbol, tf)
 			}
 		}
 
@@ -185,12 +230,16 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 			return nil, nil, fmt.Errorf("no kline data for %s at %d", symbol, ts)
 		}
 
+		logger.Infof("📊 [DEBUG] Symbol %s: klinesMap has %d timeframes: %v",
+			symbol, len(klinesMap), getMapKeys(klinesMap))
+
 		// Use the new function that builds complete multi-timeframe data
 		// This ensures backtest has the same TimeframeData structure as live trading
-		// Get indicator periods from loaded strategy config, or use defaults
+		// Get indicator periods and kline count from loaded strategy config, or use defaults
 		emaPeriods := []int{20, 50}
 		rsiPeriods := []int{7, 14}
 		atrPeriods := []int{14}
+		klineCount := 30 // default
 		if df.cfg.loadedStrategy != nil {
 			if len(df.cfg.loadedStrategy.Indicators.EMAPeriods) > 0 {
 				emaPeriods = df.cfg.loadedStrategy.Indicators.EMAPeriods
@@ -201,9 +250,13 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 			if len(df.cfg.loadedStrategy.Indicators.ATRPeriods) > 0 {
 				atrPeriods = df.cfg.loadedStrategy.Indicators.ATRPeriods
 			}
+			// Use primary_count from strategy config
+			if df.cfg.loadedStrategy.Indicators.Klines.PrimaryCount > 0 {
+				klineCount = df.cfg.loadedStrategy.Indicators.Klines.PrimaryCount
+			}
 		}
 
-		data, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, df.primaryTF, 30, emaPeriods, rsiPeriods, atrPeriods)
+		data, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, df.primaryTF, klineCount, emaPeriods, rsiPeriods, atrPeriods)
 		if err != nil {
 			return nil, nil, fmt.Errorf("build market data for %s: %w", symbol, err)
 		}
@@ -215,7 +268,8 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 		for _, tf := range df.timeframes {
 			if _, ok := klinesMap[tf]; ok {
 				// For each timeframe, create a Data object with that timeframe as primary
-				tfData, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, tf, 30, emaPeriods, rsiPeriods, atrPeriods)
+				// Use the same klineCount from strategy config
+				tfData, err := market.BuildDataFromKlinesWithTimeframes(symbol, klinesMap, tf, klineCount, emaPeriods, rsiPeriods, atrPeriods)
 				if err != nil {
 					continue
 				}

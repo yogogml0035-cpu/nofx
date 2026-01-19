@@ -1362,9 +1362,11 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	}
 
 	if len(data.TimeframeData) > 0 {
+		logger.Infof("📊 [DEBUG] TimeframeData contains %d timeframes: %v", len(data.TimeframeData), getTimeframeKeys(data.TimeframeData))
 		timeframeOrder := []string{"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"}
 		for _, tf := range timeframeOrder {
 			if tfData, ok := data.TimeframeData[tf]; ok {
+				logger.Infof("📊 [DEBUG] Formatting timeframe %s with %d klines", tf, len(tfData.Klines))
 				sb.WriteString(fmt.Sprintf("=== %s Timeframe (oldest → latest) ===\n\n", strings.ToUpper(tf)))
 				e.formatTimeframeSeriesData(&sb, tfData, indicators)
 			}
@@ -1434,6 +1436,15 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	}
 
 	return sb.String()
+}
+
+// getTimeframeKeys returns the keys of TimeframeData map for debugging
+func getTimeframeKeys(tfData map[string]*market.TimeframeSeriesData) []string {
+	keys := make([]string, 0, len(tfData))
+	for k := range tfData {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *market.TimeframeSeriesData, indicators store.IndicatorConfig) {

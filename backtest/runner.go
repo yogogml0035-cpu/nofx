@@ -121,6 +121,12 @@ func NewRunner(cfg BacktestConfig, mcpClient mcp.AIClient) (*Runner, error) {
 	strategyConfig := cfg.ToStrategyConfig()
 	strategyEngine := kernel.NewStrategyEngine(strategyConfig)
 
+	// Log strategy configuration for debugging
+	logger.Infof("📊 Backtest using strategy config - Timeframes: %v, Primary: %s, Kline count: %d",
+		strategyConfig.Indicators.Klines.SelectedTimeframes,
+		strategyConfig.Indicators.Klines.PrimaryTimeframe,
+		strategyConfig.Indicators.Klines.PrimaryCount)
+
 	r := &Runner{
 		cfg:            cfg,
 		feed:           feed,

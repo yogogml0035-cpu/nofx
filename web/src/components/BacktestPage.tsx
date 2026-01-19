@@ -1364,15 +1364,15 @@ export function BacktestPage() {
                         </div>
                       </div>
 
-                      {/* 提示：使用策略配置的时间周期 */}
+                      {/* 提示：使用策略配置的时间周期和K线数量 */}
                       {formState.strategyId && (
                         <div className="p-3 rounded-lg" style={{ background: 'rgba(240,185,11,0.1)', border: '1px solid rgba(240,185,11,0.2)' }}>
                           <div className="flex items-center gap-2 text-xs">
                             <span style={{ color: '#F0B90B' }}>ℹ️</span>
                             <span style={{ color: '#EAECEF' }}>
                               {language === 'zh' 
-                                ? '回测将使用策略配置的时间周期和指标设置，与实盘交易保持一致' 
-                                : 'Backtest will use strategy\'s timeframe and indicator settings, consistent with live trading'}
+                                ? '回测将使用策略配置的时间周期和指标设置（包括K线数量），与实盘交易保持一致' 
+                                : 'Backtest will use strategy\'s timeframe and indicator settings (including kline count), consistent with live trading'}
                             </span>
                           </div>
                         </div>

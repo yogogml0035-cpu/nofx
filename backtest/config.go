@@ -82,6 +82,17 @@ func (cfg *BacktestConfig) Validate() error {
 		cfg.Symbols[i] = market.Normalize(sym)
 	}
 
+	// If strategy is loaded, use its timeframe configuration
+	// This ensures cfg.Timeframes matches what DataFeed will use
+	if cfg.loadedStrategy != nil && len(cfg.loadedStrategy.Indicators.Klines.SelectedTimeframes) > 0 {
+		cfg.Timeframes = cfg.loadedStrategy.Indicators.Klines.SelectedTimeframes
+		logger.Infof("📊 Validate: using strategy timeframes: %v", cfg.Timeframes)
+		if cfg.loadedStrategy.Indicators.Klines.PrimaryTimeframe != "" {
+			cfg.DecisionTimeframe = cfg.loadedStrategy.Indicators.Klines.PrimaryTimeframe
+			logger.Infof("📊 Validate: using strategy primary timeframe: %s", cfg.DecisionTimeframe)
+		}
+	}
+
 	if len(cfg.Timeframes) == 0 {
 		cfg.Timeframes = []string{"3m", "15m", "4h"}
 	}
@@ -217,9 +228,10 @@ func (cfg *BacktestConfig) ToStrategyConfig() *store.StrategyConfig {
 			result.CoinSource.UseOITop = false
 		}
 
-		// DO NOT override timeframes - use strategy's configuration
-		// This ensures backtest uses the same timeframes as live trading
-		// 不覆盖时间周期配置 - 使用策略的配置，确保回测与实盘一致
+		// DO NOT override timeframes and kline count - use strategy's configuration
+		// This ensures backtest uses the same timeframes and kline count as live trading
+		// 不覆盖时间周期和K线数量配置 - 使用策略的配置，确保回测与实盘一致
+		// The strategy's primary_count (K线数量) will be used automatically
 
 		// Override leverage with backtest config
 		if cfg.Leverage.BTCETHLeverage > 0 {

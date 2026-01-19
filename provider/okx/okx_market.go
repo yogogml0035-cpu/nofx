@@ -164,6 +164,7 @@ func (c *OKXMarketClient) doRequest(ctx context.Context, method, endpoint string
 // symbol: 交易对，如 BTCUSDT
 // interval: K线周期，如 1m, 3m, 5m, 15m, 30m, 1H, 2H, 4H, 6H, 12H, 1D, 1W
 // limit: 数据条数，最大300（会自动分批获取）
+// 注意：根据OKX官方文档，两个端点都支持最多300条
 func (c *OKXMarketClient) GetKlines(ctx context.Context, symbol, interval string, limit int) ([]KlineData, error) {
 	// 转换symbol格式：BTCUSDT -> BTC-USDT
 	instId := convertSymbolToOKX(symbol)
@@ -171,10 +172,12 @@ func (c *OKXMarketClient) GetKlines(ctx context.Context, symbol, interval string
 	// 转换interval格式
 	bar := convertIntervalToOKX(interval)
 
-	// OKX API单次最多返回100条，需要分批获取
-	const maxBatchSize = 100
+	// OKX API限制（根据官方文档）：
+	// - /api/v5/market/candles: 最多300条（实时K线，包含未完成的K线）
+	// - /api/v5/market/history-candles: 最多300条（历史K线，只包含已完成的K线）
+	const maxBatchSize = 300 // 两个端点都支持最多300条
 
-	// 如果请求的数量小于等于100，直接使用candles端点（包含最新数据）
+	// 如果请求的数量小于等于300，直接使用candles端点（包含最新数据）
 	if limit <= maxBatchSize {
 		endpoint := "/api/v5/market/candles"
 		params := map[string]string{
@@ -197,8 +200,8 @@ func (c *OKXMarketClient) GetKlines(ctx context.Context, symbol, interval string
 		return klines, nil
 	}
 
-	// 如果请求超过100条，需要分批获取
-	// 策略：先获取最新的100条，然后向前获取更早的数据
+	// 如果请求超过300条，需要分批获取
+	// 策略：先获取最新的300条（candles），然后向前获取更早的数据（history-candles，每批300条）
 	var allBatches [][]KlineData
 	remaining := limit
 	var before string // 用于分页的参数（获取更早的数据）

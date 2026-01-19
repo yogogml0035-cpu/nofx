@@ -1269,6 +1269,14 @@ func BuildDataFromKlinesWithTimeframes(
 	rsiPeriods []int,
 	atrPeriods []int,
 ) (*Data, error) {
+	logger.Infof("📊 [DEBUG] BuildDataFromKlinesWithTimeframes called:")
+	logger.Infof("📊 [DEBUG]   - symbol: %s", symbol)
+	logger.Infof("📊 [DEBUG]   - primaryTimeframe: %s", primaryTimeframe)
+	logger.Infof("📊 [DEBUG]   - klinesMap has %d timeframes", len(klinesMap))
+	for tf, klines := range klinesMap {
+		logger.Infof("📊 [DEBUG]   - timeframe %s: %d klines", tf, len(klines))
+	}
+
 	if len(klinesMap) == 0 {
 		return nil, fmt.Errorf("klinesMap is empty")
 	}
@@ -1287,6 +1295,30 @@ func BuildDataFromKlinesWithTimeframes(
 	currentEMA20 := calculateEMA(primaryKlines, 20)
 	currentMACD := calculateMACD(primaryKlines)
 	currentRSI7 := calculateRSI(primaryKlines, 7)
+
+	// Calculate dynamic EMA values
+	dynamicEMA := make(map[int]float64)
+	for _, period := range emaPeriods {
+		if len(primaryKlines) >= period {
+			dynamicEMA[period] = calculateEMA(primaryKlines, period)
+		}
+	}
+
+	// Calculate dynamic RSI values
+	dynamicRSI := make(map[int]float64)
+	for _, period := range rsiPeriods {
+		if len(primaryKlines) >= period {
+			dynamicRSI[period] = calculateRSI(primaryKlines, period)
+		}
+	}
+
+	// Calculate dynamic ATR values
+	dynamicATR := make(map[int]float64)
+	for _, period := range atrPeriods {
+		if len(primaryKlines) >= period {
+			dynamicATR[period] = calculateATR(primaryKlines, period)
+		}
+	}
 
 	// Calculate price changes
 	priceChange1h := priceChangeFromSeries(primaryKlines, time.Hour)
@@ -1308,6 +1340,9 @@ func BuildDataFromKlinesWithTimeframes(
 		CurrentEMA20:  currentEMA20,
 		CurrentMACD:   currentMACD,
 		CurrentRSI7:   currentRSI7,
+		DynamicEMA:    dynamicEMA,
+		DynamicRSI:    dynamicRSI,
+		DynamicATR:    dynamicATR,
 		PriceChange1h: priceChange1h,
 		PriceChange4h: priceChange4h,
 		OpenInterest:  &OIData{Latest: 0, Average: 0}, // Backtest doesn't have real-time OI

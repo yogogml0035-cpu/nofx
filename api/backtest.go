@@ -99,6 +99,10 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 			strategyConfig.CoinSource.UseAI500,
 			strategyConfig.CoinSource.UseOITop,
 			strategyConfig.CoinSource.StaticCoins)
+		logger.Infof("📊 Strategy indicators: timeframes=%v, primary=%s, kline_count=%d",
+			strategyConfig.Indicators.Klines.SelectedTimeframes,
+			strategyConfig.Indicators.Klines.PrimaryTimeframe,
+			strategyConfig.Indicators.Klines.PrimaryCount)
 
 		// Use strategy's timeframe configuration (override user input)
 		if len(strategyConfig.Indicators.Klines.SelectedTimeframes) > 0 {
