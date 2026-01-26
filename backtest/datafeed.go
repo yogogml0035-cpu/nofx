@@ -18,6 +18,33 @@ type symbolSeries struct {
 	byTF map[string]*timeframeSeries
 }
 
+func buildTimeframeSeries(klines []market.Kline) *timeframeSeries {
+	if len(klines) == 0 {
+		return &timeframeSeries{
+			klines:     nil,
+			closeTimes: nil,
+		}
+	}
+
+	sorted := append([]market.Kline(nil), klines...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].CloseTime == sorted[j].CloseTime {
+			return sorted[i].OpenTime < sorted[j].OpenTime
+		}
+		return sorted[i].CloseTime < sorted[j].CloseTime
+	})
+
+	closeTimes := make([]int64, len(sorted))
+	for i, k := range sorted {
+		closeTimes[i] = k.CloseTime
+	}
+
+	return &timeframeSeries{
+		klines:     sorted,
+		closeTimes: closeTimes,
+	}
+}
+
 // DataFeed manages historical kline data and provides time-progressive snapshots for backtesting.
 type DataFeed struct {
 	cfg           BacktestConfig
@@ -54,6 +81,29 @@ func NewDataFeed(cfg BacktestConfig) (*DataFeed, error) {
 	if primaryTF == "" {
 		primaryTF = timeframes[0]
 		logger.Infof("⚠️  DataFeed: no primary timeframe configured, using first: %s", primaryTF)
+	}
+
+	seen := make(map[string]bool, len(timeframes)+1)
+	normalizedTF := make([]string, 0, len(timeframes))
+	for _, tf := range timeframes {
+		norm, err := market.NormalizeTimeframe(tf)
+		if err != nil {
+			return nil, err
+		}
+		if !seen[norm] {
+			seen[norm] = true
+			normalizedTF = append(normalizedTF, norm)
+		}
+	}
+	timeframes = normalizedTF
+
+	normPrimary, err := market.NormalizeTimeframe(primaryTF)
+	if err != nil {
+		return nil, err
+	}
+	primaryTF = normPrimary
+	if !seen[primaryTF] {
+		timeframes = append(timeframes, primaryTF)
 	}
 
 	logger.Infof("📊 DataFeed initialized: symbols=%v, timeframes=%v, primary=%s",
@@ -124,13 +174,7 @@ func (df *DataFeed) loadAll() error {
 				return fmt.Errorf("no klines for %s %s", symbol, tf)
 			}
 
-			series := &timeframeSeries{
-				klines:     klines,
-				closeTimes: make([]int64, len(klines)),
-			}
-			for i, k := range klines {
-				series.closeTimes[i] = k.CloseTime
-			}
+			series := buildTimeframeSeries(klines)
 			ss.byTF[tf] = series
 		}
 		df.symbolSeries[symbol] = ss

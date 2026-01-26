@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,6 +24,7 @@ type OKXMarketClient struct {
 	passphrase string
 	baseURL    string
 	httpClient *http.Client
+	limiter    *rateLimiter
 }
 
 // KlineData K线数据结构
@@ -86,6 +88,7 @@ func NewOKXMarketClient(apiKey, secretKey, passphrase string) *OKXMarketClient {
 		passphrase: passphrase,
 		baseURL:    "https://www.okx.com",
 		httpClient: client,
+		limiter:    newRateLimiter(10, 2*time.Second),
 	}
 }
 
@@ -99,6 +102,11 @@ func (c *OKXMarketClient) generateSignature(timestamp, method, requestPath, body
 
 // doRequest 执行HTTP请求
 func (c *OKXMarketClient) doRequest(ctx context.Context, method, endpoint string, params map[string]string, needAuth bool) ([]byte, error) {
+	if c.limiter != nil {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return nil, err
+		}
+	}
 	url := c.baseURL + endpoint
 
 	// 构建查询参数
@@ -158,6 +166,41 @@ func (c *OKXMarketClient) doRequest(ctx context.Context, method, endpoint string
 	}
 
 	return body, nil
+}
+
+type rateLimiter struct {
+	ch     chan struct{}
+	ticker *time.Ticker
+}
+
+func newRateLimiter(tokens int, interval time.Duration) *rateLimiter {
+	rl := &rateLimiter{
+		ch:     make(chan struct{}, tokens),
+		ticker: time.NewTicker(interval),
+	}
+	for i := 0; i < tokens; i++ {
+		rl.ch <- struct{}{}
+	}
+	go func() {
+		for range rl.ticker.C {
+			for i := 0; i < tokens; i++ {
+				select {
+				case rl.ch <- struct{}{}:
+				default:
+				}
+			}
+		}
+	}()
+	return rl
+}
+
+func (rl *rateLimiter) Wait(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-rl.ch:
+		return nil
+	}
 }
 
 // GetKlines 获取K线数据（支持大量历史数据）
@@ -267,6 +310,163 @@ func (c *OKXMarketClient) GetKlines(ctx context.Context, symbol, interval string
 	}
 
 	return allKlines, nil
+}
+
+func (c *OKXMarketClient) GetHistoryKlines(ctx context.Context, symbol, interval string, limit int, before string) ([]KlineData, error) {
+	instId := convertSymbolToOKX(symbol)
+	bar := convertIntervalToOKX(interval)
+
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 300 {
+		limit = 300
+	}
+
+	params := map[string]string{
+		"instId": instId,
+		"bar":    bar,
+		"limit":  strconv.Itoa(limit),
+	}
+	if before != "" {
+		params["before"] = before
+	}
+
+	const maxRetries = 5
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		needAuth := c.apiKey != ""
+		data, err := c.doRequest(ctx, "GET", "/api/v5/market/history-candles", params, needAuth)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to fetch history klines: %w", err)
+		} else {
+			klines, perr := c.parseKlineResponse(data)
+			if perr == nil {
+				return klines, nil
+			}
+			lastErr = perr
+			if !strings.Contains(perr.Error(), "Too Many Requests") {
+				break
+			}
+		}
+
+		if attempt < maxRetries-1 {
+			backoff := time.Duration(attempt+1) * time.Second
+			time.Sleep(backoff)
+		}
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("failed to fetch history klines after retries")
+}
+
+func (c *OKXMarketClient) GetIndexKlines(ctx context.Context, instId, interval string, limit int, before, after string) ([]KlineData, error) {
+	bar := convertIntervalToOKX(interval)
+	if limit <= 0 {
+		limit = 100
+	}
+	params := map[string]string{
+		"instId": instId,
+		"bar":    bar,
+		"limit":  strconv.Itoa(limit),
+	}
+	if before != "" {
+		params["before"] = before
+	}
+	if after != "" {
+		params["after"] = after
+	}
+
+	needAuth := c.apiKey != ""
+	data, err := c.doRequest(ctx, "GET", "/api/v5/market/index-candles", params, needAuth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch index klines: %w", err)
+	}
+	return c.parseKlineResponse(data)
+}
+
+func (c *OKXMarketClient) GetHistoryIndexKlines(ctx context.Context, instId, interval string, limit int, before, after string) ([]KlineData, error) {
+	bar := convertIntervalToOKX(interval)
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	params := map[string]string{
+		"instId": instId,
+		"bar":    bar,
+		"limit":  strconv.Itoa(limit),
+	}
+	if before != "" {
+		params["before"] = before
+	}
+	if after != "" {
+		params["after"] = after
+	}
+
+	needAuth := c.apiKey != ""
+	data, err := c.doRequest(ctx, "GET", "/api/v5/market/history-index-candles", params, needAuth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch history index klines: %w", err)
+	}
+	return c.parseKlineResponse(data)
+}
+
+func (c *OKXMarketClient) GetMarkPriceKlines(ctx context.Context, instId, interval string, limit int, before, after string) ([]KlineData, error) {
+	bar := convertIntervalToOKX(interval)
+	if limit <= 0 {
+		limit = 100
+	}
+	params := map[string]string{
+		"instId": instId,
+		"bar":    bar,
+		"limit":  strconv.Itoa(limit),
+	}
+	if before != "" {
+		params["before"] = before
+	}
+	if after != "" {
+		params["after"] = after
+	}
+
+	needAuth := c.apiKey != ""
+	data, err := c.doRequest(ctx, "GET", "/api/v5/market/mark-price-candles", params, needAuth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch mark price klines: %w", err)
+	}
+	return c.parseKlineResponse(data)
+}
+
+func (c *OKXMarketClient) GetHistoryMarkPriceKlines(ctx context.Context, instId, interval string, limit int, before, after string) ([]KlineData, error) {
+	bar := convertIntervalToOKX(interval)
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	params := map[string]string{
+		"instId": instId,
+		"bar":    bar,
+		"limit":  strconv.Itoa(limit),
+	}
+	if before != "" {
+		params["before"] = before
+	}
+	if after != "" {
+		params["after"] = after
+	}
+
+	needAuth := c.apiKey != ""
+	data, err := c.doRequest(ctx, "GET", "/api/v5/market/history-mark-price-candles", params, needAuth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch history mark price klines: %w", err)
+	}
+	return c.parseKlineResponse(data)
 }
 
 // parseKlineResponse 解析K线响应数据

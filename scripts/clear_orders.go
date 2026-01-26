@@ -1,3 +1,6 @@
+//go:build clear_orders
+// +build clear_orders
+
 package main
 
 import (

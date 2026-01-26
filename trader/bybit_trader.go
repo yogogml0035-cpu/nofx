@@ -24,6 +24,7 @@ type BybitTrader struct {
 	client    *bybit.Client
 	apiKey    string
 	secretKey string
+	httpClient *http.Client
 
 	// Balance cache
 	cachedBalance     map[string]interface{}
@@ -67,7 +68,12 @@ func NewBybitTrader(apiKey, secretKey string) *BybitTrader {
 		apiKey:        apiKey,
 		secretKey:     secretKey,
 		cacheDuration: 15 * time.Second,
-		qtyStepCache:  make(map[string]float64),
+		httpClient:    &http.Client{Timeout: 3 * time.Second},
+		qtyStepCache: map[string]float64{
+			"BTCUSDT": 0.001,
+			"ETHUSDT": 0.001,
+			"SOLUSDT": 0.001,
+		},
 	}
 
 	logger.Infof("🔵 [Bybit] Trader initialized")
@@ -682,16 +688,20 @@ func (t *BybitTrader) getQtyStep(symbol string) float64 {
 
 	// Call public API directly to get contract information
 	url := fmt.Sprintf("https://api.bybit.com/v5/market/instruments-info?category=linear&symbol=%s", symbol)
-	resp, err := http.Get(url)
+	httpClient := t.httpClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		logger.Infof("⚠️ [Bybit] Failed to get precision info for %s: %v", symbol, err)
-		return 1 // Default to integer
+		return 0.001
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 1
+		return 0.001
 	}
 
 	var result struct {
@@ -706,16 +716,16 @@ func (t *BybitTrader) getQtyStep(symbol string) float64 {
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		return 1
+		return 0.001
 	}
 
 	if result.RetCode != 0 || len(result.Result.List) == 0 {
-		return 1
+		return 0.001
 	}
 
 	qtyStep, _ := strconv.ParseFloat(result.Result.List[0].LotSizeFilter.QtyStep, 64)
 	if qtyStep <= 0 {
-		qtyStep = 1
+		qtyStep = 0.001
 	}
 
 	// Cache result

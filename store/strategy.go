@@ -378,6 +378,16 @@ func (s *StrategyStore) Get(userID, id string) (*Strategy, error) {
 	return &st, nil
 }
 
+func (s *StrategyStore) GetByName(userID, name string) (*Strategy, error) {
+	var st Strategy
+	err := s.db.Where("name = ? AND (user_id = ? OR is_default = ?)", name, userID, true).
+		First(&st).Error
+	if err != nil {
+		return nil, err
+	}
+	return &st, nil
+}
+
 // GetActive get user's currently active strategy
 func (s *StrategyStore) GetActive(userID string) (*Strategy, error) {
 	var st Strategy

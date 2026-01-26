@@ -222,6 +222,7 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 		walletAddr:    walletAddr,
 		meta:          meta,
 		isCrossMargin: true,
+		xyzAPIURL:     mockServer.URL,
 	}
 
 	// Create base suite

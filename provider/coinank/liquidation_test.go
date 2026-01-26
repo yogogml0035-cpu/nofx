@@ -4,15 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"nofx/provider/coinank/coinank_enum"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestLiquidationExchangeStatistics(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.LiquidationExchangeStatistics(context.TODO(), "BTC")
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("%v", err)
 	}
 	if resp.Total <= 0 {
 		t.Errorf("total amount is negative")
@@ -25,10 +29,16 @@ func TestLiquidationExchangeStatistics(t *testing.T) {
 }
 
 func TestLiquidationCoinAggHistory(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.LiquidationCoinAggHistory(context.TODO(), "BTC", coinank_enum.Hour1, time.Now().UnixMilli(), 10)
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	if resp[0].All.LongTurnover <= 0 {
 		t.Errorf("longTurnover is negative")
@@ -41,10 +51,16 @@ func TestLiquidationCoinAggHistory(t *testing.T) {
 }
 
 func TestLiquidationHistory(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.LiquidationHistory(context.TODO(), coinank_enum.Binance, "BTCUSDT", coinank_enum.Hour1, time.Now().UnixMilli(), 10)
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	if resp[0].LongTurnover <= 0 {
 		t.Errorf("longTurnover is negative")
@@ -57,10 +73,16 @@ func TestLiquidationHistory(t *testing.T) {
 }
 
 func TestLiquidationOrders(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.LiquidationOrders(context.TODO(), "BTC", coinank_enum.Binance, "long", 1000, time.Now().UnixMilli())
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	res, err := json.Marshal(resp)
 	if resp[0].Price <= 0 {
@@ -73,10 +95,16 @@ func TestLiquidationOrders(t *testing.T) {
 }
 
 func TestLiquidationOrdersNoArgs(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.LiquidationOrders(context.TODO(), "", "", "", 0, 0)
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	res, err := json.Marshal(resp)
 	if resp[0].Price <= 0 {

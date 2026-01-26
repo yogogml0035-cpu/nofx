@@ -1,6 +1,8 @@
 package backtest
 
 import (
+	"database/sql"
+	"encoding/json"
 	"nofx/store"
 	"testing"
 )
@@ -82,6 +84,88 @@ func TestToStrategyConfig_PreservesKlineCount(t *testing.T) {
 	// Verify leverage is overridden from backtest config
 	if result.RiskControl.BTCETHMaxLeverage != 5 {
 		t.Errorf("Expected BTCETHMaxLeverage=5, got %d", result.RiskControl.BTCETHMaxLeverage)
+	}
+}
+
+func TestLoadStrategyForBacktest_LoadsAndAffectsValidate(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	defer db.Close()
+
+	if _, err := db.Exec(`
+		CREATE TABLE strategies (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			is_default BOOLEAN NOT NULL DEFAULT 0,
+			config TEXT NOT NULL
+		)
+	`); err != nil {
+		t.Fatalf("create strategies table: %v", err)
+	}
+
+	strategyConfig := store.StrategyConfig{
+		Language: "zh",
+		Indicators: store.IndicatorConfig{
+			Klines: store.KlineConfig{
+				PrimaryTimeframe:     "30m",
+				PrimaryCount:         100,
+				EnableMultiTimeframe: true,
+				SelectedTimeframes:   []string{"30m", "4h", "1d"},
+			},
+		},
+	}
+	cfgJSON, err := json.Marshal(strategyConfig)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+
+	if _, err := db.Exec(`INSERT INTO strategies (id, user_id, name, is_default, config) VALUES (?, ?, ?, ?, ?)`,
+		"strategy-1", "default", "4H策略1.2", false, string(cfgJSON),
+	); err != nil {
+		t.Fatalf("insert strategy: %v", err)
+	}
+
+	UseDatabaseWithType(db, false)
+	defer UseDatabase(nil)
+
+	cfg := BacktestConfig{
+		RunID:             "load-strategy",
+		UserID:            "default",
+		StrategyID:        "strategy-1",
+		Symbols:           []string{"BTCUSDT"},
+		Timeframes:        []string{"4h"},
+		DecisionTimeframe: "4h",
+		StartTS:           1704067200,
+		EndTS:             1704153600,
+		InitialBalance:    1000,
+	}
+
+	if err := loadStrategyForBacktest(&cfg); err != nil {
+		t.Fatalf("load strategy: %v", err)
+	}
+	if cfg.loadedStrategy == nil {
+		t.Fatalf("loaded strategy is nil")
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+
+	has30m := false
+	for _, tf := range cfg.Timeframes {
+		if tf == "30m" {
+			has30m = true
+			break
+		}
+	}
+	if !has30m {
+		t.Fatalf("expected cfg.Timeframes to include 30m, got %v", cfg.Timeframes)
+	}
+	if cfg.DecisionTimeframe != "30m" {
+		t.Fatalf("expected cfg.DecisionTimeframe=30m, got %s", cfg.DecisionTimeframe)
 	}
 }
 

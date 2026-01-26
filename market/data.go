@@ -11,7 +11,6 @@ import (
 	"nofx/provider/coinank/coinank_enum"
 	"nofx/provider/hyperliquid"
 	"nofx/provider/okx"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,16 +32,8 @@ var (
 // Note: Kline data can use either CoinAnk API or OKX API
 // Set USE_OKX_API=true in environment to use OKX API instead of CoinAnk
 
-// getKlines fetches kline data from configured API (CoinAnk or OKX)
+// getKlines fetches kline data from CoinAnk API for regular crypto assets
 func getKlines(symbol, interval string, limit int) ([]Kline, error) {
-	// 检查是否使用OKX API
-	useOKX := os.Getenv("USE_OKX_API")
-	if useOKX == "true" || useOKX == "1" {
-		logger.Infof("📊 Using OKX API for %s %s klines", symbol, interval)
-		return getKlinesFromOKX(symbol, interval, limit)
-	}
-
-	// 默认使用CoinAnk API
 	return getKlinesFromCoinAnk(symbol, interval, limit)
 }
 
@@ -1282,7 +1273,21 @@ func BuildDataFromKlinesWithTimeframes(
 	}
 
 	// Get primary timeframe klines
-	primaryKlines, ok := klinesMap[primaryTimeframe]
+	primaryNorm, err := NormalizeTimeframe(primaryTimeframe)
+	if err != nil {
+		return nil, err
+	}
+
+	normalizedMap := make(map[string][]Kline, len(klinesMap))
+	for tf, klines := range klinesMap {
+		normTF, err := NormalizeTimeframe(tf)
+		if err != nil {
+			continue
+		}
+		normalizedMap[normTF] = klines
+	}
+
+	primaryKlines, ok := normalizedMap[primaryNorm]
 	if !ok || len(primaryKlines) == 0 {
 		return nil, fmt.Errorf("primary timeframe %s not found or empty", primaryTimeframe)
 	}
@@ -1326,7 +1331,7 @@ func BuildDataFromKlinesWithTimeframes(
 
 	// Build timeframe data for all timeframes
 	timeframeData := make(map[string]*TimeframeSeriesData)
-	for tf, klines := range klinesMap {
+	for tf, klines := range normalizedMap {
 		if len(klines) == 0 {
 			continue
 		}

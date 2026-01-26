@@ -51,3 +51,29 @@ func TestKlineDaily(t *testing.T) {
 	res, _ := json.MarshalIndent(resp, "", "  ")
 	fmt.Printf("\n原始 JSON:\n%s\n", res)
 }
+
+func TestKline30mHistoryWindow(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	ts := end.UnixMilli()
+	size := 1000
+
+	resp, err := Kline(context.TODO(), "BTCUSDT", coinank_enum.Binance, ts, coinank_enum.To, size, coinank_enum.Minute30)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var inRange []int64
+	for _, k := range resp {
+		if k.StartTime >= start.UnixMilli() && k.StartTime <= end.UnixMilli() {
+			inRange = append(inRange, k.StartTime)
+		}
+	}
+
+	t.Logf("30m history window 2024-01-01 ~ 2024-01-15: total=%d, in_range=%d", len(resp), len(inRange))
+	if len(inRange) > 0 {
+		first := time.UnixMilli(inRange[0]).UTC().Format(time.RFC3339)
+		last := time.UnixMilli(inRange[len(inRange)-1]).UTC().Format(time.RFC3339)
+		t.Logf("first_in_range=%s last_in_range=%s", first, last)
+	}
+}

@@ -1,3 +1,6 @@
+//go:build cleanup_duplicates
+// +build cleanup_duplicates
+
 package main
 
 import (

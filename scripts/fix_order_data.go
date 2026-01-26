@@ -1,3 +1,6 @@
+//go:build fix_order_data
+// +build fix_order_data
+
 package main
 
 import (

@@ -1,3 +1,6 @@
+//go:build diagnose_orders
+// +build diagnose_orders
+
 package main
 
 import (

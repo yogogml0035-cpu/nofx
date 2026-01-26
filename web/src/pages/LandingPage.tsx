@@ -37,11 +37,11 @@ export function LandingPage() {
         onPageChange={(page) => {
           const pathMap: Record<string, string> = {
             'strategy-market': '/strategy-market',
-            'traders': '/traders',
-            'trader': '/dashboard',
-            'backtest': '/backtest',
-            'strategy': '/strategy',
-            'faq': '/faq',
+            traders: '/traders',
+            trader: '/dashboard',
+            backtest: '/backtest',
+            strategy: '/strategy',
+            faq: '/faq',
           }
           const path = pathMap[page]
           if (path) {
@@ -50,7 +50,6 @@ export function LandingPage() {
         }}
       />
       <div className="min-h-screen bg-nofx-bg text-nofx-text font-sans selection:bg-nofx-gold selection:text-black">
-
         <TerminalHero />
 
         <LiveFeed />

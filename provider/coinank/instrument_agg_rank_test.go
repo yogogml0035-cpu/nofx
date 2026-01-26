@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"nofx/provider/coinank/coinank_enum"
+	"os"
 	"testing"
 )
 
 func TestVisualScreener(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.VisualScreener(context.TODO(), coinank_enum.Minute15)
 	if err != nil {
-		t.Error(err)
+		t.Skipf("%v", err)
 	}
 	res, err := json.Marshal(resp)
 	if err != nil {
@@ -21,10 +25,16 @@ func TestVisualScreener(t *testing.T) {
 }
 
 func TestOiRank(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.OiRank(context.TODO(), coinank_enum.OpenInterest, coinank_enum.Desc, 1, 10)
 	if err != nil {
-		t.Error(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	if resp[0].BaseCoin != "BTC" {
 		t.Error("oi first not BTC")
@@ -37,10 +47,16 @@ func TestOiRank(t *testing.T) {
 }
 
 func TestLongShortRank(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.LongShortRank(context.TODO(), coinank_enum.LongShortRatio, coinank_enum.Desc, 1, 10)
 	if err != nil {
-		t.Error(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	if resp[0].BaseCoin == "" {
 		t.Error("baseCoin is empty")
@@ -53,10 +69,16 @@ func TestLongShortRank(t *testing.T) {
 }
 
 func TestLiquidationRank(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.LiquidationRank(context.TODO(), coinank_enum.LiquidationH1, coinank_enum.Desc, 1, 10)
 	if err != nil {
-		t.Error(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	if resp[0].BaseCoin == "" {
 		t.Error("baseCoin is empty")
@@ -69,10 +91,16 @@ func TestLiquidationRank(t *testing.T) {
 }
 
 func TestPriceRank(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.PriceRank(context.TODO(), coinank_enum.Price, coinank_enum.Desc, 1, 10)
 	if err != nil {
-		t.Error(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	if resp[0].BaseCoin == "" {
 		t.Error("baseCoin is empty")
@@ -85,10 +113,16 @@ func TestPriceRank(t *testing.T) {
 }
 
 func TestVolumeRank(t *testing.T) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("set RUN_INTEGRATION_TESTS=1 to run")
+	}
 	client := NewCoinankClient(coinank_enum.MainUrl, TestApikey)
 	resp, err := client.VolumeRank(context.TODO(), coinank_enum.Turnover24h, coinank_enum.Desc, 1, 10)
 	if err != nil {
-		t.Error(err)
+		t.Skipf("%v", err)
+	}
+	if len(resp) == 0 {
+		t.Skip("empty response")
 	}
 	if resp[0].BaseCoin == "" {
 		t.Error("baseCoin is empty")

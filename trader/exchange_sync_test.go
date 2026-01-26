@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"fmt"
 	"nofx/store"
 	"testing"
 	"time"
@@ -114,15 +115,26 @@ func getStandardTestScenarios() []TestScenario {
 func runStandardTests(t *testing.T, exchangeName string) {
 	scenarios := getStandardTestScenarios()
 
-	for _, scenario := range scenarios {
+	for scenarioIdx, scenario := range scenarios {
 		t.Run(scenario.Name, func(t *testing.T) {
 			// Setup database
-			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+			dsn := fmt.Sprintf("file:%s_%d?mode=memory&cache=shared", exchangeName, scenarioIdx)
+			db, err := gorm.Open(sqlite.New(sqlite.Config{
+				DriverName: "sqlite",
+				DSN:        dsn,
+			}), &gorm.Config{
 				Logger: logger.Default.LogMode(logger.Silent),
 			})
 			if err != nil {
 				t.Fatalf("Failed to create test database: %v", err)
 			}
+			sqlDB, err := db.DB()
+			if err != nil {
+				t.Fatalf("Failed to get sql.DB: %v", err)
+			}
+			defer sqlDB.Close()
+			sqlDB.SetMaxOpenConns(1)
+			sqlDB.SetMaxIdleConns(1)
 
 			positionStore := store.NewPositionStore(db)
 			if err := positionStore.InitTables(); err != nil {
@@ -201,12 +213,22 @@ func TestAllExchangesStandardScenarios(t *testing.T) {
 
 // TestPositionAccumulationBug tests that positions don't accumulate incorrectly
 func TestPositionAccumulationBug(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	db, err := gorm.Open(sqlite.New(sqlite.Config{
+		DriverName: "sqlite",
+		DSN:        "file:position_accumulation_bug?mode=memory&cache=shared",
+	}), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("Failed to get sql.DB: %v", err)
+	}
+	defer sqlDB.Close()
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
 
 	positionStore := store.NewPositionStore(db)
 	if err := positionStore.InitTables(); err != nil {
@@ -286,12 +308,22 @@ func TestPositionAccumulationBug(t *testing.T) {
 
 // TestQuantityPrecision tests handling of quantity precision issues
 func TestQuantityPrecision(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	db, err := gorm.Open(sqlite.New(sqlite.Config{
+		DriverName: "sqlite",
+		DSN:        "file:quantity_precision?mode=memory&cache=shared",
+	}), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("Failed to get sql.DB: %v", err)
+	}
+	defer sqlDB.Close()
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
 
 	positionStore := store.NewPositionStore(db)
 	if err := positionStore.InitTables(); err != nil {

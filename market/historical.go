@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"nofx/logger"
+	"nofx/provider/coinank/coinank_api"
+	"nofx/provider/coinank/coinank_enum"
 	"nofx/provider/okx"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -21,25 +24,16 @@ func GetKlinesRange(symbol string, timeframe string, start, end time.Time) ([]Kl
 		return nil, fmt.Errorf("end time must be after start time")
 	}
 
-	logger.Infof("📊 Fetching klines from OKX: %s %s from %s to %s", symbol, normTF, start.Format("2006-01-02 15:04"), end.Format("2006-01-02 15:04"))
-
-	// 创建 OKX 客户端（使用代理）
-	okxClient := okx.NewOKXMarketClient("", "", "")
-
-	// 计算需要的K线数量（基于实际的时间范围）
 	duration := end.Sub(start)
 	tfDuration, err := TFDuration(normTF)
 	if err != nil {
 		return nil, fmt.Errorf("invalid timeframe: %w", err)
 	}
 
-	// 计算需要多少根K线（向上取整，多获取一些以确保覆盖整个时间范围）
-	estimatedBars := int(duration/tfDuration) + 1 // +1 for rounding up
-	limit := estimatedBars + 50                   // 多获取50根作为buffer
+	estimatedBars := int(duration/tfDuration) + 1
+	limit := estimatedBars + 50
 
-	// OKX API 限制：单次最多可以获取很多数据（通过分批）
-	// 但为了避免过大的请求，我们限制最大值
-	const maxLimit = 2000
+	const maxLimit = 6000
 	if limit > maxLimit {
 		limit = maxLimit
 	}
@@ -47,66 +41,214 @@ func GetKlinesRange(symbol string, timeframe string, start, end time.Time) ([]Kl
 		limit = 100
 	}
 
-	logger.Infof("📊 Requesting %d klines from OKX (time range: %.2f hours, estimated bars: %d)",
-		limit, duration.Hours(), estimatedBars)
-
-	// 调用 OKX API 获取K线数据
 	ctx := context.Background()
-	okxKlines, err := okxClient.GetKlines(ctx, symbol, normTF, limit)
+	startMs := start.UnixMilli()
+	endMs := end.UnixMilli()
+	stepMs := int64(tfDuration.Milliseconds())
+
+	coinankKlines, err := getKlinesRangeFromCoinAnk(ctx, symbol, normTF, startMs, endMs, stepMs, limit)
 	if err != nil {
-		return nil, fmt.Errorf("OKX API error: %w", err)
+		return nil, err
+	}
+	if len(coinankKlines) == 0 {
+		return nil, fmt.Errorf("no klines in range returned from CoinAnk")
+	}
+	return coinankKlines, nil
+}
+
+func getKlinesRangeFromOKX(ctx context.Context, symbol, normTF string, startMs, endMs, stepMs int64, limit int) ([]Kline, error) {
+	logger.Infof("📊 Fetching klines from OKX: %s %s from %d to %d (limit=%d)", symbol, normTF, startMs, endMs, limit)
+
+	okxClient := okx.NewOKXMarketClient("", "", "")
+	klineByOpenTime := make(map[int64]Kline, limit)
+	cursor := endMs + stepMs
+	prevCursor := int64(-1)
+
+	for len(klineByOpenTime) < limit {
+		if cursor <= 0 || cursor == prevCursor {
+			break
+		}
+		prevCursor = cursor
+
+		batchLimit := 300
+		remaining := limit - len(klineByOpenTime)
+		if remaining < batchLimit {
+			batchLimit = remaining
+		}
+
+		okxKlines, err := okxClient.GetHistoryKlines(ctx, symbol, normTF, batchLimit, strconv.FormatInt(cursor, 10))
+		if err != nil {
+			return nil, fmt.Errorf("OKX API error: %w", err)
+		}
+		if len(okxKlines) == 0 {
+			break
+		}
+
+		for _, okK := range okxKlines {
+			if okK.Timestamp < startMs || okK.Timestamp > endMs {
+				continue
+			}
+			klineByOpenTime[okK.Timestamp] = Kline{
+				OpenTime:  okK.Timestamp,
+				Open:      okK.Open,
+				High:      okK.High,
+				Low:       okK.Low,
+				Close:     okK.Close,
+				Volume:    okK.Volume,
+				CloseTime: okK.Timestamp + stepMs - 1,
+			}
+		}
+
+		earliest := okxKlines[0].Timestamp
+		if earliest <= startMs {
+			break
+		}
+		cursor = earliest
 	}
 
-	if len(okxKlines) == 0 {
+	if len(klineByOpenTime) == 0 {
 		return nil, fmt.Errorf("no klines returned from OKX")
 	}
 
-	logger.Infof("📊 Received %d klines from OKX", len(okxKlines))
-
-	// 转换为通用 Kline 格式
-	klines := make([]Kline, 0, len(okxKlines))
-
-	for _, ok := range okxKlines {
-		klines = append(klines, Kline{
-			OpenTime:  ok.Timestamp,
-			Open:      ok.Open,
-			High:      ok.High,
-			Low:       ok.Low,
-			Close:     ok.Close,
-			Volume:    ok.Volume,
-			CloseTime: ok.Timestamp + int64(tfDuration.Milliseconds()) - 1,
-		})
+	klines := make([]Kline, 0, len(klineByOpenTime))
+	for _, k := range klineByOpenTime {
+		klines = append(klines, k)
 	}
-
-	logger.Infof("📊 Converted %d klines to standard format", len(klines))
-
-	if len(klines) == 0 {
-		return nil, fmt.Errorf("no klines returned from OKX")
-	}
-
-	// 确保K线按时间升序排列（从旧到新）
-	// 虽然OKX API应该返回排序的数据，但为了安全起见，我们再次排序
 	sort.Slice(klines, func(i, j int) bool {
 		return klines[i].OpenTime < klines[j].OpenTime
 	})
 
-	// 去重：移除重复的K线（基于OpenTime）
-	if len(klines) > 1 {
-		uniqueKlines := make([]Kline, 0, len(klines))
-		uniqueKlines = append(uniqueKlines, klines[0])
+	return klines, nil
+}
 
-		for i := 1; i < len(klines); i++ {
-			// 只添加与前一根K线时间不同的K线
-			if klines[i].OpenTime != klines[i-1].OpenTime {
-				uniqueKlines = append(uniqueKlines, klines[i])
+func getKlinesRangeFromCoinAnk(ctx context.Context, symbol, normTF string, startMs, endMs, stepMs int64, limit int) ([]Kline, error) {
+	interval, err := coinankIntervalFromTimeframe(normTF)
+	if err != nil {
+		return nil, err
+	}
+
+	const maxLimit = 6000
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+	if limit < 100 {
+		limit = 100
+	}
+
+	expectedBars := int((endMs-startMs)/stepMs) + 1
+	if expectedBars < 1 {
+		expectedBars = 1
+	}
+	if expectedBars > limit {
+		expectedBars = limit
+	}
+
+	const coinankBatchMax = 1000
+	batchSize := limit
+	if batchSize > coinankBatchMax {
+		batchSize = coinankBatchMax
+	}
+
+	klineByOpenTime := make(map[int64]Kline, expectedBars)
+	cursor := endMs
+	prevCursor := int64(-1)
+
+	for page := 0; page < 64; page++ {
+		if cursor <= 0 || cursor == prevCursor {
+			break
+		}
+		prevCursor = cursor
+
+		logger.Infof("📊 Fetching klines from CoinAnk: %s %s ts=%d size=%d", symbol, normTF, cursor, batchSize)
+
+		resp, err := coinank_api.Kline(ctx, symbol, coinank_enum.Binance, cursor, coinank_enum.To, batchSize, interval)
+		if err != nil {
+			return nil, fmt.Errorf("CoinAnk API error: %w", err)
+		}
+		if len(resp) == 0 {
+			break
+		}
+
+		earliest := int64(-1)
+		for _, ck := range resp {
+			openTime := ck.StartTime
+			if earliest < 0 || openTime < earliest {
+				earliest = openTime
+			}
+
+			if openTime < startMs || openTime > endMs {
+				continue
+			}
+
+			klineByOpenTime[openTime] = Kline{
+				OpenTime:  openTime,
+				Open:      ck.Open,
+				High:      ck.High,
+				Low:       ck.Low,
+				Close:     ck.Close,
+				Volume:    ck.Volume,
+				CloseTime: openTime + stepMs - 1,
 			}
 		}
 
-		if len(uniqueKlines) < len(klines) {
-			logger.Infof("📊 Removed %d duplicate klines", len(klines)-len(uniqueKlines))
+		if len(klineByOpenTime) >= expectedBars {
+			break
 		}
-		klines = uniqueKlines
+		if earliest <= startMs {
+			break
+		}
+		if earliest <= 0 || earliest >= cursor {
+			break
+		}
+
+		cursor = earliest - 1
 	}
 
+	if len(klineByOpenTime) == 0 {
+		return nil, fmt.Errorf("no klines in range returned from CoinAnk")
+	}
+
+	klines := make([]Kline, 0, len(klineByOpenTime))
+	for _, k := range klineByOpenTime {
+		klines = append(klines, k)
+	}
+	sort.Slice(klines, func(i, j int) bool {
+		return klines[i].OpenTime < klines[j].OpenTime
+	})
 	return klines, nil
+}
+
+func coinankIntervalFromTimeframe(tf string) (coinank_enum.Interval, error) {
+	switch tf {
+	case "1m":
+		return coinank_enum.Minute1, nil
+	case "3m":
+		return coinank_enum.Minute3, nil
+	case "5m":
+		return coinank_enum.Minute5, nil
+	case "15m":
+		return coinank_enum.Minute15, nil
+	case "30m":
+		return coinank_enum.Minute30, nil
+	case "1h":
+		return coinank_enum.Hour1, nil
+	case "2h":
+		return coinank_enum.Hour2, nil
+	case "4h":
+		return coinank_enum.Hour4, nil
+	case "6h":
+		return coinank_enum.Hour6, nil
+	case "8h":
+		return coinank_enum.Hour8, nil
+	case "12h":
+		return coinank_enum.Hour12, nil
+	case "1d":
+		return coinank_enum.Day1, nil
+	case "3d":
+		return coinank_enum.Day3, nil
+	case "1w":
+		return coinank_enum.Week1, nil
+	default:
+		return "", fmt.Errorf("unsupported interval: %s", tf)
+	}
 }

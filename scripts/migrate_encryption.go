@@ -1,3 +1,6 @@
+//go:build migrate_encryption
+// +build migrate_encryption
+
 package main
 
 import (

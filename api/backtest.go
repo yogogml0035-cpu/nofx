@@ -80,12 +80,11 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 	if cfg.StrategyID != "" {
 		strategy, err := s.store.Strategy().Get(cfg.UserID, cfg.StrategyID)
 		if err != nil {
-			SafeBadRequest(c, "Failed to load strategy")
-			return
-		}
-		if strategy == nil {
-			SafeBadRequest(c, "Strategy not found")
-			return
+			strategy, err = s.store.Strategy().GetByName(cfg.UserID, cfg.StrategyID)
+			if err != nil {
+				SafeBadRequest(c, "Failed to load strategy")
+				return
+			}
 		}
 		var strategyConfig store.StrategyConfig
 		if err := json.Unmarshal([]byte(strategy.Config), &strategyConfig); err != nil {

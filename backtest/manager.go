@@ -2,6 +2,8 @@ package backtest
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"nofx/logger"
@@ -41,6 +43,9 @@ func (m *Manager) SetAIResolver(resolver AIConfigResolver) {
 }
 
 func (m *Manager) Start(ctx context.Context, cfg BacktestConfig) (*Runner, error) {
+	if err := loadStrategyForBacktest(&cfg); err != nil {
+		return nil, err
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -202,6 +207,9 @@ func (m *Manager) Resume(runID string) error {
 		return err
 	}
 	cfgCopy := *cfg
+	if err := loadStrategyForBacktest(&cfgCopy); err != nil {
+		return err
+	}
 	if err := cfgCopy.Validate(); err != nil {
 		return err
 	}
@@ -490,4 +498,90 @@ func (m *Manager) RestoreRuns() error {
 // RestoreRunsFromDisk retains the old method name for backward compatibility.
 func (m *Manager) RestoreRunsFromDisk() error {
 	return m.RestoreRuns()
+}
+
+func loadStrategyForBacktest(cfg *BacktestConfig) error {
+	if cfg == nil {
+		return nil
+	}
+	if strings.TrimSpace(cfg.StrategyID) == "" {
+		return nil
+	}
+	if cfg.loadedStrategy != nil {
+		return nil
+	}
+
+	userID := strings.TrimSpace(cfg.UserID)
+	if userID == "" {
+		userID = "default"
+	}
+	strategyID := strings.TrimSpace(cfg.StrategyID)
+
+	if usingDB() {
+		strategyCfg, matchedID, err := queryStrategyConfigFromDB(persistenceDB, convertQuery, userID, strategyID)
+		if err != nil {
+			return err
+		}
+		if strategyCfg == nil {
+			return fmt.Errorf("strategy %s not found", strategyID)
+		}
+		cfg.SetLoadedStrategy(strategyCfg)
+		logger.Infof("📊 Backtest loaded strategy from persistence DB: requested=%s matched=%s", strategyID, matchedID)
+		return nil
+	}
+
+	driver, err := store.NewDBDriverFromEnv()
+	if err != nil {
+		return err
+	}
+	defer driver.Close()
+
+	db := driver.DB()
+	if db == nil {
+		return sql.ErrConnDone
+	}
+
+	strategyCfg, matchedID, err := queryStrategyConfigFromDB(db, driver.ConvertPlaceholders, userID, strategyID)
+	if err != nil {
+		return err
+	}
+	if strategyCfg == nil {
+		return fmt.Errorf("strategy %s not found", strategyID)
+	}
+	cfg.SetLoadedStrategy(strategyCfg)
+	logger.Infof("📊 Backtest loaded strategy from store DB: requested=%s matched=%s", strategyID, matchedID)
+	return nil
+}
+
+func queryStrategyConfigFromDB(
+	db *sql.DB,
+	convertPlaceholders func(string) string,
+	userID string,
+	strategyIDOrName string,
+) (*store.StrategyConfig, string, error) {
+	if db == nil {
+		return nil, "", sql.ErrConnDone
+	}
+
+	var matchedID string
+	var configJSON string
+
+	qByID := convertPlaceholders(`SELECT id, config FROM strategies WHERE id = ? AND (user_id = ? OR is_default = ?) LIMIT 1`)
+	err := db.QueryRow(qByID, strategyIDOrName, userID, true).Scan(&matchedID, &configJSON)
+	if err == sql.ErrNoRows {
+		qByName := convertPlaceholders(`SELECT id, config FROM strategies WHERE name = ? AND (user_id = ? OR is_default = ?) LIMIT 1`)
+		err = db.QueryRow(qByName, strategyIDOrName, userID, true).Scan(&matchedID, &configJSON)
+	}
+	if err == sql.ErrNoRows {
+		return nil, "", nil
+	}
+	if err != nil {
+		return nil, "", err
+	}
+
+	var parsed store.StrategyConfig
+	if err := json.Unmarshal([]byte(configJSON), &parsed); err != nil {
+		return nil, "", err
+	}
+	return &parsed, matchedID, nil
 }

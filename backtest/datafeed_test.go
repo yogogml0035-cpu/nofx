@@ -3,6 +3,7 @@ package backtest
 import (
 	"testing"
 
+	"nofx/market"
 	"nofx/store"
 )
 
@@ -52,5 +53,29 @@ func TestDataFeedUsesStrategyKlineCount(t *testing.T) {
 	// Verify that indicator periods are preserved
 	if len(result.Indicators.EMAPeriods) != 2 || result.Indicators.EMAPeriods[0] != 13 {
 		t.Errorf("Expected EMAPeriods=[13, 55], got %v", result.Indicators.EMAPeriods)
+	}
+}
+
+func TestSliceUpTo_SortsKlinesByCloseTime(t *testing.T) {
+	df := &DataFeed{
+		symbolSeries: map[string]*symbolSeries{},
+	}
+
+	klines := []market.Kline{
+		{OpenTime: 1000, CloseTime: 1999, Close: 2},
+		{OpenTime: 2000, CloseTime: 2999, Close: 3},
+		{OpenTime: 0, CloseTime: 999, Close: 1},
+	}
+
+	ss := &symbolSeries{byTF: map[string]*timeframeSeries{}}
+	ss.byTF["30m"] = buildTimeframeSeries(klines)
+	df.symbolSeries["BTCUSDT"] = ss
+
+	got := df.sliceUpTo("BTCUSDT", "30m", 1999)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 klines, got %d", len(got))
+	}
+	if got[0].CloseTime != 999 || got[1].CloseTime != 1999 {
+		t.Fatalf("unexpected closeTime order: %d, %d", got[0].CloseTime, got[1].CloseTime)
 	}
 }
