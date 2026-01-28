@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -91,4 +92,26 @@ func GetProxyURL() string {
 // IsProxyConfigured 检查是否配置了代理
 func IsProxyConfigured() bool {
 	return GetProxyURL() != ""
+}
+
+func IsDeepSeekNoProxy() bool {
+	value := strings.TrimSpace(os.Getenv("DEEPSEEK_NO_PROXY"))
+	if value == "" {
+		return true
+	}
+	value = strings.ToLower(value)
+	return value == "1" || value == "true" || value == "yes" || value == "y"
+}
+
+func GetDeepSeekTimeout() time.Duration {
+	value := strings.TrimSpace(os.Getenv("DEEPSEEK_TIMEOUT_SECONDS"))
+	if value == "" {
+		return 180 * time.Second
+	}
+
+	seconds, err := strconv.Atoi(value)
+	if err != nil || seconds <= 0 {
+		return 180 * time.Second
+	}
+	return time.Duration(seconds) * time.Second
 }

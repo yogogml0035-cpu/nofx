@@ -614,11 +614,14 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 		aiClient = mcp.NewQwenClient()
 		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "deepseek":
-		// DeepSeek 是国内 API，不需要代理
-		httpClient := utils.CreateHTTPClient(false, 120*time.Second)
-		aiClient = mcp.NewDeepSeekClientWithOptions(
-			mcp.WithHTTPClient(httpClient),
-		)
+		var opts []mcp.ClientOption
+		timeout := utils.GetDeepSeekTimeout()
+		if utils.IsDeepSeekNoProxy() {
+			httpClient := utils.CreateHTTPClient(false, timeout)
+			opts = append(opts, mcp.WithHTTPClient(httpClient), mcp.WithDisableProxy())
+		}
+		opts = append(opts, mcp.WithTimeout(timeout))
+		aiClient = mcp.NewDeepSeekClientWithOptions(opts...)
 		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "claude":
 		aiClient = mcp.NewClaudeClient()

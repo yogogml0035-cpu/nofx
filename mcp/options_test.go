@@ -115,6 +115,34 @@ func TestWithHTTPClient(t *testing.T) {
 	}
 }
 
+func TestWithDisableProxy(t *testing.T) {
+	cfg := DefaultConfig()
+	WithDisableProxy()(cfg)
+
+	tr, ok := cfg.HTTPClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected *http.Transport, got %T", cfg.HTTPClient.Transport)
+	}
+	if tr.Proxy != nil {
+		t.Error("Proxy should be nil")
+	}
+
+	customTransport := (&http.Transport{Proxy: http.ProxyFromEnvironment}).Clone()
+	customClient := &http.Client{Transport: customTransport}
+
+	cfg = DefaultConfig()
+	WithHTTPClient(customClient)(cfg)
+	WithDisableProxy()(cfg)
+
+	tr, ok = cfg.HTTPClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected *http.Transport, got %T", cfg.HTTPClient.Transport)
+	}
+	if tr.Proxy != nil {
+		t.Error("Proxy should be nil after applying WithDisableProxy")
+	}
+}
+
 // ============================================================
 // Test Preset Configuration Options
 // ============================================================

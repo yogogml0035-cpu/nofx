@@ -192,17 +192,22 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		logger.Infof("🤖 [%s] Using custom AI API: %s (model: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
 
 	default: // deepseek or empty
-		// DeepSeek 是国内 API，不需要代理
-		httpClient := utils.CreateHTTPClient(false, 120*time.Second)
-		mcpClient = mcp.NewDeepSeekClientWithOptions(
-			mcp.WithHTTPClient(httpClient),
-		)
+		var opts []mcp.ClientOption
+		timeout := utils.GetDeepSeekTimeout()
+		if utils.IsDeepSeekNoProxy() {
+			httpClient := utils.CreateHTTPClient(false, timeout)
+			opts = append(opts, mcp.WithHTTPClient(httpClient), mcp.WithDisableProxy())
+			logger.Infof("🤖 [%s] Using DeepSeek AI (without proxy)", config.Name)
+		} else {
+			logger.Infof("🤖 [%s] Using DeepSeek AI (with system proxy)", config.Name)
+		}
+		opts = append(opts, mcp.WithTimeout(timeout))
+		mcpClient = mcp.NewDeepSeekClientWithOptions(opts...)
 		apiKey := config.DeepSeekKey
 		if apiKey == "" {
 			apiKey = config.CustomAPIKey
 		}
 		mcpClient.SetAPIKey(apiKey, config.CustomAPIURL, config.CustomModelName)
-		logger.Infof("🤖 [%s] Using DeepSeek AI (without proxy)", config.Name)
 	}
 
 	if config.CustomAPIURL != "" || config.CustomModelName != "" {

@@ -85,11 +85,14 @@ func (e *DebateEngine) InitializeClients(participants []*store.DebateParticipant
 		var client mcp.AIClient
 		switch aiModel.Provider {
 		case "deepseek":
-			// DeepSeek 是国内 API，不需要代理
-			httpClient := utils.CreateHTTPClient(false, 120*time.Second)
-			client = mcp.NewDeepSeekClientWithOptions(
-				mcp.WithHTTPClient(httpClient),
-			)
+			var opts []mcp.ClientOption
+			timeout := utils.GetDeepSeekTimeout()
+			if utils.IsDeepSeekNoProxy() {
+				httpClient := utils.CreateHTTPClient(false, timeout)
+				opts = append(opts, mcp.WithHTTPClient(httpClient), mcp.WithDisableProxy())
+			}
+			opts = append(opts, mcp.WithTimeout(timeout))
+			client = mcp.NewDeepSeekClientWithOptions(opts...)
 		case "qwen":
 			client = mcp.NewQwenClient()
 		case "openai":

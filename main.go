@@ -16,7 +16,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -160,11 +159,14 @@ func newSharedMCPClient() mcp.AIClient {
 		logger.Warn("⚠️ DEEPSEEK_API_KEY not set, AI features will be unavailable")
 		return nil
 	}
-	// DeepSeek 是国内 API，不需要代理
-	httpClient := utils.CreateHTTPClient(false, 120*time.Second)
-	return mcp.NewDeepSeekClientWithOptions(
-		mcp.WithHTTPClient(httpClient),
-	)
+	var opts []mcp.ClientOption
+	timeout := utils.GetDeepSeekTimeout()
+	if utils.IsDeepSeekNoProxy() {
+		httpClient := utils.CreateHTTPClient(false, timeout)
+		opts = append(opts, mcp.WithHTTPClient(httpClient), mcp.WithDisableProxy())
+	}
+	opts = append(opts, mcp.WithTimeout(timeout))
+	return mcp.NewDeepSeekClientWithOptions(opts...)
 }
 
 // initInstallationID initializes the anonymous installation ID for experience improvement

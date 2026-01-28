@@ -17,6 +17,12 @@ services:
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       - AI_MAX_TOKENS=8000
+      - HTTPS_PROXY=http://host.docker.internal:7890
+      - HTTP_PROXY=http://host.docker.internal:7890
+      - https_proxy=http://host.docker.internal:7890
+      - http_proxy=http://host.docker.internal:7890
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - nofx-network
     healthcheck:
