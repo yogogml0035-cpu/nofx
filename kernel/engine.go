@@ -1455,9 +1455,18 @@ func getTimeframeKeys(tfData map[string]*market.TimeframeSeriesData) []string {
 }
 
 func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *market.TimeframeSeriesData, indicators store.IndicatorConfig) {
+	// 只输出最近5根K线的OHLCV数据（硬编码）
 	if len(data.Klines) > 0 {
 		sb.WriteString("Time(UTC)      Open      High      Low       Close     Volume\n")
-		for i, k := range data.Klines {
+
+		// 计算起始索引，最多显示最近5根K线
+		startIdx := len(data.Klines) - 5
+		if startIdx < 0 {
+			startIdx = 0
+		}
+
+		for i := startIdx; i < len(data.Klines); i++ {
+			k := data.Klines[i]
 			t := time.Unix(k.Time/1000, 0).UTC()
 			timeStr := t.Format("01-02 15:04")
 			marker := ""
@@ -1476,43 +1485,43 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	}
 
 	if indicators.EnableEMA {
-		// Use dynamic EMA values from config
+		// Use dynamic EMA values from config - 只输出最后3个值
 		if len(data.DynamicEMA) > 0 {
 			for _, period := range indicators.EMAPeriods {
 				if emaValues, ok := data.DynamicEMA[period]; ok && len(emaValues) > 0 {
-					sb.WriteString(fmt.Sprintf("EMA%d: %s\n", period, formatFloatSlice(emaValues)))
+					sb.WriteString(fmt.Sprintf("EMA%d: %s\n", period, formatLast3Values(emaValues)))
 				}
 			}
 		} else {
 			// Fallback to legacy fields for backward compatibility
 			if len(data.EMA20Values) > 0 {
-				sb.WriteString(fmt.Sprintf("EMA20: %s\n", formatFloatSlice(data.EMA20Values)))
+				sb.WriteString(fmt.Sprintf("EMA20: %s\n", formatLast3Values(data.EMA20Values)))
 			}
 			if len(data.EMA50Values) > 0 {
-				sb.WriteString(fmt.Sprintf("EMA50: %s\n", formatFloatSlice(data.EMA50Values)))
+				sb.WriteString(fmt.Sprintf("EMA50: %s\n", formatLast3Values(data.EMA50Values)))
 			}
 		}
 	}
 
 	if indicators.EnableMACD && len(data.MACDValues) > 0 {
-		sb.WriteString(fmt.Sprintf("MACD: %s\n", formatFloatSlice(data.MACDValues)))
+		sb.WriteString(fmt.Sprintf("MACD: %s\n", formatLast3Values(data.MACDValues)))
 	}
 
 	if indicators.EnableRSI {
-		// Use dynamic RSI values from config
+		// Use dynamic RSI values from config - 只输出最后3个值
 		if len(data.DynamicRSI) > 0 {
 			for _, period := range indicators.RSIPeriods {
 				if rsiValues, ok := data.DynamicRSI[period]; ok && len(rsiValues) > 0 {
-					sb.WriteString(fmt.Sprintf("RSI%d: %s\n", period, formatFloatSlice(rsiValues)))
+					sb.WriteString(fmt.Sprintf("RSI%d: %s\n", period, formatLast3Values(rsiValues)))
 				}
 			}
 		} else {
 			// Fallback to legacy fields for backward compatibility
 			if len(data.RSI7Values) > 0 {
-				sb.WriteString(fmt.Sprintf("RSI7: %s\n", formatFloatSlice(data.RSI7Values)))
+				sb.WriteString(fmt.Sprintf("RSI7: %s\n", formatLast3Values(data.RSI7Values)))
 			}
 			if len(data.RSI14Values) > 0 {
-				sb.WriteString(fmt.Sprintf("RSI14: %s\n", formatFloatSlice(data.RSI14Values)))
+				sb.WriteString(fmt.Sprintf("RSI14: %s\n", formatLast3Values(data.RSI14Values)))
 			}
 		}
 	}
@@ -1522,9 +1531,9 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	}
 
 	if indicators.EnableBOLL && len(data.BOLLUpper) > 0 {
-		sb.WriteString(fmt.Sprintf("BOLL Upper: %s\n", formatFloatSlice(data.BOLLUpper)))
-		sb.WriteString(fmt.Sprintf("BOLL Middle: %s\n", formatFloatSlice(data.BOLLMiddle)))
-		sb.WriteString(fmt.Sprintf("BOLL Lower: %s\n", formatFloatSlice(data.BOLLLower)))
+		sb.WriteString(fmt.Sprintf("BOLL Upper: %s\n", formatLast3Values(data.BOLLUpper)))
+		sb.WriteString(fmt.Sprintf("BOLL Middle: %s\n", formatLast3Values(data.BOLLMiddle)))
+		sb.WriteString(fmt.Sprintf("BOLL Lower: %s\n", formatLast3Values(data.BOLLLower)))
 	}
 
 	sb.WriteString("\n")
@@ -1637,6 +1646,30 @@ func formatFlowValue(v float64) string {
 func formatFloatSlice(values []float64) string {
 	strValues := make([]string, len(values))
 	for i, v := range values {
+		strValues[i] = fmt.Sprintf("%.4f", v)
+	}
+	return "[" + strings.Join(strValues, ", ") + "]"
+}
+
+// formatLast3Values formats only the last 3 values from a slice (current, previous, previous-2)
+// Returns format: [value1, value2, value3] where value3 is the current (latest) value
+func formatLast3Values(values []float64) string {
+	if len(values) == 0 {
+		return "[]"
+	}
+
+	// Calculate start index for last 3 values
+	startIdx := len(values) - 3
+	if startIdx < 0 {
+		startIdx = 0
+	}
+
+	// Extract last 3 (or fewer) values
+	lastValues := values[startIdx:]
+
+	// Format values
+	strValues := make([]string, len(lastValues))
+	for i, v := range lastValues {
 		strValues[i] = fmt.Sprintf("%.4f", v)
 	}
 	return "[" + strings.Join(strValues, ", ") + "]"
@@ -1787,8 +1820,15 @@ func validateJSONFormat(jsonStr string) error {
 		return fmt.Errorf("JSON must start with [{ (whitespace allowed), actual: %s", trimmed[:min(20, len(trimmed))])
 	}
 
-	if strings.Contains(jsonStr, "~") {
-		return fmt.Errorf("JSON cannot contain range symbol ~, all numbers must be precise single values")
+	// 检查数值字段中是否使用了波浪符号（范围表示）
+	// 只检查数值字段，不检查reasoning等文本字段
+	numericFields := []string{"leverage", "position_size_usd", "stop_loss", "take_profit", "confidence", "risk_usd"}
+	for _, field := range numericFields {
+		// 查找字段定义，例如 "leverage": 3~5
+		fieldPattern := `"` + field + `"\s*:\s*[^,}\]]*~`
+		if matched, _ := regexp.MatchString(fieldPattern, jsonStr); matched {
+			return fmt.Errorf("numeric field '%s' cannot contain range symbol ~, all numbers must be precise single values", field)
+		}
 	}
 
 	for i := 0; i < len(jsonStr)-4; i++ {
