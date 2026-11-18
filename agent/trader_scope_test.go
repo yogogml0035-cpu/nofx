@@ -301,11 +301,6 @@ func TestStrategyConfigSchemaOnlyExposesEditorCoinSourceFields(t *testing.T) {
 	aiProperties := aiConfig["properties"].(map[string]any)
 	coinSource := aiProperties["coin_source"].(map[string]any)
 	coinProperties := coinSource["properties"].(map[string]any)
-	for _, unexpected := range []string{"use_hyper_all", "use_hyper_main", "hyper_main_limit"} {
-		if _, ok := coinProperties[unexpected]; ok {
-			t.Fatalf("strategy config schema should not expose non-editor coin source field %s", unexpected)
-		}
-	}
 	ai500 := coinProperties["ai500_limit"].(map[string]any)
 	if ai500["maximum"] != 10 {
 		t.Fatalf("expected AI500 maximum 10, got %+v", ai500)
@@ -372,7 +367,7 @@ func TestHydrateCreateTraderSlotReferencesNormalizesExchangeIDFromVisibleName(t 
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
-	exchangeID, err := st.Exchange().Create("default", "okx", "小偶", true, "api-test", "secret-test", "pass", false, "", false, false, "", "", "", "", "", "", 0)
+	exchangeID, err := st.Exchange().Create("default", "okx", "小偶", true, "api-test", "secret-test", "pass", false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed exchange: %v", err)
 	}
@@ -737,7 +732,7 @@ func TestBuildTraderCreateMissingPromptListsAllMissingSlots(t *testing.T) {
 	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek AI", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
-	exchangeID, err := st.Exchange().Create("default", "okx", "OKX 主账户", true, "api-test", "secret-test", "pass", false, "", false, false, "", "", "", "", "", "", 0)
+	exchangeID, err := st.Exchange().Create("default", "okx", "OKX 主账户", true, "api-test", "secret-test", "pass", false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed exchange: %v", err)
 	}

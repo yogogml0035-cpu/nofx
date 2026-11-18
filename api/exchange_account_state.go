@@ -16,7 +16,6 @@ import (
 	"nofx/trader/bitget"
 	"nofx/trader/bybit"
 	"nofx/trader/gate"
-	hyperliquidtrader "nofx/trader/hyperliquid"
 	"nofx/trader/indodax"
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
@@ -238,13 +237,6 @@ func buildExchangeProbeTrader(exchangeCfg *store.Exchange, userID string) (trade
 		return kucoin.NewKuCoinTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), string(exchangeCfg.Passphrase)), nil
 	case "indodax":
 		return indodax.NewIndodaxTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey)), nil
-	case "hyperliquid":
-		return hyperliquidtrader.NewHyperliquidTrader(
-			string(exchangeCfg.APIKey),
-			exchangeCfg.HyperliquidWalletAddr,
-			exchangeCfg.Testnet,
-			exchangeCfg.HyperliquidUnifiedAcct,
-		)
 	case "aster":
 		return aster.NewAsterTrader(
 			exchangeCfg.AsterUser,
@@ -311,7 +303,7 @@ func formatDisplayBalance(value float64, asset string) string {
 
 func accountAssetForExchange(exchangeType string) string {
 	switch exchangeType {
-	case "hyperliquid", "aster", "lighter":
+	case "aster", "lighter":
 		return "USDC"
 	default:
 		return "USDT"
@@ -324,7 +316,6 @@ func missingExchangeCredentials(exchangeCfg *store.Exchange) (status string, cod
 		string(exchangeCfg.APIKey),
 		string(exchangeCfg.SecretKey),
 		string(exchangeCfg.Passphrase),
-		exchangeCfg.HyperliquidWalletAddr,
 		exchangeCfg.AsterUser,
 		exchangeCfg.AsterSigner,
 		string(exchangeCfg.AsterPrivateKey),

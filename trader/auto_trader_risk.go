@@ -3,7 +3,6 @@ package trader
 import (
 	"fmt"
 	"nofx/logger"
-	"nofx/market"
 	"strings"
 	"time"
 )
@@ -185,15 +184,9 @@ func isBTCETH(symbol string) bool {
 }
 
 // isMajorAsset returns true for assets that should use the BTC/ETH higher
-// position-value tier rather than the altcoin (1x equity) tier. This covers
-// BTC/ETH crypto perps AND Hyperliquid XYZ assets (US equities, commodities,
-// forex) — none of which are "altcoins" and all of which deserve the higher
-// per-position cap so the AI can actually take meaningful positions.
+// position-value tier rather than the altcoin (1x equity) tier.
 func isMajorAsset(symbol string) bool {
-	if isBTCETH(symbol) {
-		return true
-	}
-	return market.IsXyzDexAsset(symbol)
+	return isBTCETH(symbol)
 }
 
 // enforcePositionValueRatio checks and enforces position value ratio limits (CODE ENFORCED)
@@ -208,14 +201,13 @@ func (at *AutoTrader) enforcePositionValueRatio(positionSizeUSD float64, equity 
 
 	riskControl := at.config.StrategyConfig.RiskControl
 
-	// Get the appropriate position value ratio limit. BTC/ETH AND Hyperliquid
-	// XYZ assets (US stocks etc.) use the higher tier; pure altcoins use the
-	// lower tier.
+	// Get the appropriate position value ratio limit. BTC/ETH uses the
+	// higher tier; pure altcoins use the lower tier.
 	var maxPositionValueRatio float64
 	if isMajorAsset(symbol) {
 		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
 		if maxPositionValueRatio <= 0 {
-			maxPositionValueRatio = 5.0 // Default: 5x for BTC/ETH and XYZ assets
+			maxPositionValueRatio = 5.0 // Default: 5x for BTC/ETH
 		}
 	} else {
 		maxPositionValueRatio = riskControl.AltcoinMaxPositionValueRatio

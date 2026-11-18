@@ -19,7 +19,6 @@ const ( // all maybe support exchange
 	CME         Exchange = "CME"
 	Upbit       Exchange = "Upbit"
 	Coinbase    Exchange = "Coinbase"
-	Hyperliquid Exchange = "Hyperliquid"
 	Bitunix     Exchange = "Bitunix"
 	Aster       Exchange = "Aster"
 )

@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"nofx/store"
 	"nofx/trader"
 )
 
@@ -243,108 +242,6 @@ func TestTraderLogTag(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestEnsureHyperliquidNativeStrategy(t *testing.T) {
-	t.Run("nil config does not panic", func(t *testing.T) {
-		ensureHyperliquidNativeStrategy("bot", "hyperliquid", nil)
-	})
-
-	t.Run("non-hyperliquid exchange is untouched", func(t *testing.T) {
-		cfg := &store.StrategyConfig{
-			CoinSource: store.CoinSourceConfig{
-				SourceType: "ai500",
-				UseAI500:   true,
-			},
-		}
-		ensureHyperliquidNativeStrategy("bot", "binance", cfg)
-
-		if cfg.CoinSource.SourceType != "ai500" || !cfg.CoinSource.UseAI500 {
-			t.Errorf("non-hyperliquid config was modified: %+v", cfg.CoinSource)
-		}
-	})
-
-	t.Run("native sources are kept as-is", func(t *testing.T) {
-		nativeSources := []string{"hyper_rank", "static", "hyper_all", "hyper_main", " Hyper_Rank "}
-		for _, src := range nativeSources {
-			cfg := &store.StrategyConfig{
-				CoinSource: store.CoinSourceConfig{SourceType: src},
-			}
-			ensureHyperliquidNativeStrategy("bot", "hyperliquid", cfg)
-
-			if cfg.CoinSource.SourceType != src {
-				t.Errorf("native source %q was rewritten to %q", src, cfg.CoinSource.SourceType)
-			}
-		}
-	})
-
-	t.Run("legacy source on hyperliquid is forced to hyper_rank with defaults", func(t *testing.T) {
-		cfg := &store.StrategyConfig{
-			CoinSource: store.CoinSourceConfig{
-				SourceType:   "ai500",
-				UseAI500:     true,
-				UseOITop:     true,
-				UseOILow:     true,
-				UseHyperAll:  true,
-				UseHyperMain: true,
-			},
-		}
-		ensureHyperliquidNativeStrategy("bot", "hyperliquid", cfg)
-
-		cs := cfg.CoinSource
-		if cs.SourceType != "hyper_rank" {
-			t.Errorf("SourceType = %q, want hyper_rank", cs.SourceType)
-		}
-		if cs.UseAI500 || cs.UseOITop || cs.UseOILow || cs.UseHyperAll || cs.UseHyperMain {
-			t.Errorf("legacy source flags should all be cleared: %+v", cs)
-		}
-		if cs.HyperRankCategory != "stock" {
-			t.Errorf("HyperRankCategory = %q, want stock", cs.HyperRankCategory)
-		}
-		if cs.HyperRankDirection != "gainers" {
-			t.Errorf("HyperRankDirection = %q, want gainers", cs.HyperRankDirection)
-		}
-		if cs.HyperRankLimit != 5 {
-			t.Errorf("HyperRankLimit = %d, want 5", cs.HyperRankLimit)
-		}
-	})
-
-	t.Run("existing hyper_rank settings are preserved when forcing", func(t *testing.T) {
-		cfg := &store.StrategyConfig{
-			CoinSource: store.CoinSourceConfig{
-				SourceType:         "oi_top",
-				HyperRankCategory:  "crypto",
-				HyperRankDirection: "losers",
-				HyperRankLimit:     8,
-			},
-		}
-		ensureHyperliquidNativeStrategy("bot", "hyperliquid", cfg)
-
-		cs := cfg.CoinSource
-		if cs.SourceType != "hyper_rank" {
-			t.Errorf("SourceType = %q, want hyper_rank", cs.SourceType)
-		}
-		if cs.HyperRankCategory != "crypto" {
-			t.Errorf("HyperRankCategory = %q, want crypto (preserved)", cs.HyperRankCategory)
-		}
-		if cs.HyperRankDirection != "losers" {
-			t.Errorf("HyperRankDirection = %q, want losers (preserved)", cs.HyperRankDirection)
-		}
-		if cs.HyperRankLimit != 8 {
-			t.Errorf("HyperRankLimit = %d, want 8 (preserved)", cs.HyperRankLimit)
-		}
-	})
-
-	t.Run("exchange type is matched case-insensitively with whitespace", func(t *testing.T) {
-		cfg := &store.StrategyConfig{
-			CoinSource: store.CoinSourceConfig{SourceType: "ai500"},
-		}
-		ensureHyperliquidNativeStrategy("bot", "  HyperLiquid  ", cfg)
-
-		if cfg.CoinSource.SourceType != "hyper_rank" {
-			t.Errorf("SourceType = %q, want hyper_rank for case-insensitive exchange match", cfg.CoinSource.SourceType)
-		}
-	})
 }
 
 func TestGetCompetitionDataEmptyAndCache(t *testing.T) {

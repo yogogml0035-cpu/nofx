@@ -24,7 +24,6 @@ import (
 	"nofx/trader/bitget"
 	"nofx/trader/bybit"
 	"nofx/trader/gate"
-	hyperliquidtrader "nofx/trader/hyperliquid"
 	"nofx/trader/indodax"
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
@@ -452,7 +451,7 @@ func exchangeConfigFieldsSchema() map[string]any {
 		},
 		"exchange_type": map[string]any{
 			"type":        "string",
-			"description": "Exchange type such as binance, bybit, okx, bitget, gate, kucoin, hyperliquid, aster, lighter, or indodax.",
+			"description": "Exchange type such as binance, bybit, okx, bitget, gate, kucoin, aster, lighter, or indodax.",
 		},
 		"account_name": map[string]any{
 			"type":        "string",
@@ -466,8 +465,6 @@ func exchangeConfigFieldsSchema() map[string]any {
 		"secret_key":                  map[string]any{"type": "string", "description": "Secret key for CEX-style exchanges."},
 		"passphrase":                  map[string]any{"type": "string", "description": "Optional passphrase, required by exchanges like OKX, Bitget, and KuCoin."},
 		"testnet":                     map[string]any{"type": "boolean", "description": "Whether to use the exchange testnet/sandbox."},
-		"hyperliquid_wallet_addr":     map[string]any{"type": "string", "description": "Hyperliquid wallet address."},
-		"hyperliquid_unified_account": map[string]any{"type": "boolean", "description": "Whether Hyperliquid unified account mode is enabled."},
 		"aster_user":                  map[string]any{"type": "string", "description": "Aster user address."},
 		"aster_signer":                map[string]any{"type": "string", "description": "Aster signer address."},
 		"aster_private_key":           map[string]any{"type": "string", "description": "Aster private key."},
@@ -589,8 +586,6 @@ func buildAgentTools() []mcp.Tool {
 						"secret_key":                  exchangeConfigFieldsSchema()["secret_key"],
 						"passphrase":                  exchangeConfigFieldsSchema()["passphrase"],
 						"testnet":                     exchangeConfigFieldsSchema()["testnet"],
-						"hyperliquid_wallet_addr":     exchangeConfigFieldsSchema()["hyperliquid_wallet_addr"],
-						"hyperliquid_unified_account": exchangeConfigFieldsSchema()["hyperliquid_unified_account"],
 						"aster_user":                  exchangeConfigFieldsSchema()["aster_user"],
 						"aster_signer":                exchangeConfigFieldsSchema()["aster_signer"],
 						"aster_private_key":           exchangeConfigFieldsSchema()["aster_private_key"],
@@ -962,24 +957,23 @@ func (a *Agent) handleToolCall(ctx context.Context, storeUserID string, userID i
 }
 
 type safeExchangeToolConfig struct {
-	ID                    string `json:"id"`
-	ExchangeType          string `json:"exchange_type"`
-	AccountName           string `json:"account_name"`
-	Name                  string `json:"name"`
-	Type                  string `json:"type"`
-	Enabled               bool   `json:"enabled"`
-	HasAPIKey             bool   `json:"has_api_key"`
-	HasSecretKey          bool   `json:"has_secret_key"`
-	HasPassphrase         bool   `json:"has_passphrase"`
-	Testnet               bool   `json:"testnet"`
-	HyperliquidWalletAddr string `json:"hyperliquid_wallet_addr,omitempty"`
-	HasAsterPrivateKey    bool   `json:"has_aster_private_key"`
-	AsterUser             string `json:"aster_user,omitempty"`
-	AsterSigner           string `json:"aster_signer,omitempty"`
-	LighterWalletAddr     string `json:"lighter_wallet_addr,omitempty"`
-	LighterAPIKeyIndex    int    `json:"lighter_api_key_index,omitempty"`
-	HasLighterPrivateKey  bool   `json:"has_lighter_private_key"`
-	HasLighterAPIKey      bool   `json:"has_lighter_api_key_private_key"`
+	ID                   string `json:"id"`
+	ExchangeType         string `json:"exchange_type"`
+	AccountName          string `json:"account_name"`
+	Name                 string `json:"name"`
+	Type                 string `json:"type"`
+	Enabled              bool   `json:"enabled"`
+	HasAPIKey            bool   `json:"has_api_key"`
+	HasSecretKey         bool   `json:"has_secret_key"`
+	HasPassphrase        bool   `json:"has_passphrase"`
+	Testnet              bool   `json:"testnet"`
+	HasAsterPrivateKey   bool   `json:"has_aster_private_key"`
+	AsterUser            string `json:"aster_user,omitempty"`
+	AsterSigner          string `json:"aster_signer,omitempty"`
+	LighterWalletAddr    string `json:"lighter_wallet_addr,omitempty"`
+	LighterAPIKeyIndex   int    `json:"lighter_api_key_index,omitempty"`
+	HasLighterPrivateKey bool   `json:"has_lighter_private_key"`
+	HasLighterAPIKey     bool   `json:"has_lighter_api_key_private_key"`
 }
 
 type safeModelToolConfig struct {
@@ -1064,24 +1058,23 @@ type manageTraderArgs struct {
 
 func safeExchangeForTool(ex *store.Exchange) safeExchangeToolConfig {
 	return safeExchangeToolConfig{
-		ID:                    ex.ID,
-		ExchangeType:          ex.ExchangeType,
-		AccountName:           ex.AccountName,
-		Name:                  ex.Name,
-		Type:                  ex.Type,
-		Enabled:               ex.Enabled,
-		HasAPIKey:             ex.APIKey != "",
-		HasSecretKey:          ex.SecretKey != "",
-		HasPassphrase:         ex.Passphrase != "",
-		Testnet:               ex.Testnet,
-		HyperliquidWalletAddr: ex.HyperliquidWalletAddr,
-		HasAsterPrivateKey:    ex.AsterPrivateKey != "",
-		AsterUser:             ex.AsterUser,
-		AsterSigner:           ex.AsterSigner,
-		LighterWalletAddr:     ex.LighterWalletAddr,
-		LighterAPIKeyIndex:    ex.LighterAPIKeyIndex,
-		HasLighterPrivateKey:  ex.LighterPrivateKey != "",
-		HasLighterAPIKey:      ex.LighterAPIKeyPrivateKey != "",
+		ID:                   ex.ID,
+		ExchangeType:         ex.ExchangeType,
+		AccountName:          ex.AccountName,
+		Name:                 ex.Name,
+		Type:                 ex.Type,
+		Enabled:              ex.Enabled,
+		HasAPIKey:            ex.APIKey != "",
+		HasSecretKey:         ex.SecretKey != "",
+		HasPassphrase:        ex.Passphrase != "",
+		Testnet:              ex.Testnet,
+		HasAsterPrivateKey:   ex.AsterPrivateKey != "",
+		AsterUser:            ex.AsterUser,
+		AsterSigner:          ex.AsterSigner,
+		LighterWalletAddr:    ex.LighterWalletAddr,
+		LighterAPIKeyIndex:   ex.LighterAPIKeyIndex,
+		HasLighterPrivateKey: ex.LighterPrivateKey != "",
+		HasLighterAPIKey:     ex.LighterAPIKeyPrivateKey != "",
 	}
 }
 
@@ -1116,13 +1109,6 @@ func buildTraderExchangeProbe(exchangeCfg *store.Exchange, userID string) (trade
 		return kucoin.NewKuCoinTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), string(exchangeCfg.Passphrase)), nil
 	case "indodax":
 		return indodax.NewIndodaxTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey)), nil
-	case "hyperliquid":
-		return hyperliquidtrader.NewHyperliquidTrader(
-			string(exchangeCfg.APIKey),
-			exchangeCfg.HyperliquidWalletAddr,
-			exchangeCfg.Testnet,
-			exchangeCfg.HyperliquidUnifiedAcct,
-		)
 	case "aster":
 		return aster.NewAsterTrader(
 			exchangeCfg.AsterUser,
@@ -1479,24 +1465,22 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 		return `{"error":"store unavailable"}`
 	}
 	var args struct {
-		Action                    string `json:"action"`
-		ExchangeID                string `json:"exchange_id"`
-		ExchangeType              string `json:"exchange_type"`
-		AccountName               string `json:"account_name"`
-		Enabled                   *bool  `json:"enabled"`
-		APIKey                    string `json:"api_key"`
-		SecretKey                 string `json:"secret_key"`
-		Passphrase                string `json:"passphrase"`
-		Testnet                   *bool  `json:"testnet"`
-		HyperliquidWalletAddr     string `json:"hyperliquid_wallet_addr"`
-		HyperliquidUnifiedAccount *bool  `json:"hyperliquid_unified_account"`
-		AsterUser                 string `json:"aster_user"`
-		AsterSigner               string `json:"aster_signer"`
-		AsterPrivateKey           string `json:"aster_private_key"`
-		LighterWalletAddr         string `json:"lighter_wallet_addr"`
-		LighterPrivateKey         string `json:"lighter_private_key"`
-		LighterAPIKeyPrivateKey   string `json:"lighter_api_key_private_key"`
-		LighterAPIKeyIndex        *int   `json:"lighter_api_key_index"`
+		Action                  string `json:"action"`
+		ExchangeID              string `json:"exchange_id"`
+		ExchangeType            string `json:"exchange_type"`
+		AccountName             string `json:"account_name"`
+		Enabled                 *bool  `json:"enabled"`
+		APIKey                  string `json:"api_key"`
+		SecretKey               string `json:"secret_key"`
+		Passphrase              string `json:"passphrase"`
+		Testnet                 *bool  `json:"testnet"`
+		AsterUser               string `json:"aster_user"`
+		AsterSigner             string `json:"aster_signer"`
+		AsterPrivateKey         string `json:"aster_private_key"`
+		LighterWalletAddr       string `json:"lighter_wallet_addr"`
+		LighterPrivateKey       string `json:"lighter_private_key"`
+		LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
+		LighterAPIKeyIndex      *int   `json:"lighter_api_key_index"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err)
@@ -1520,10 +1504,6 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 		if args.Testnet != nil {
 			testnet = *args.Testnet
 		}
-		unified := true
-		if args.HyperliquidUnifiedAccount != nil {
-			unified = *args.HyperliquidUnifiedAccount
-		}
 		lighterIndex := 0
 		if args.LighterAPIKeyIndex != nil {
 			lighterIndex = *args.LighterAPIKeyIndex
@@ -1534,7 +1514,6 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 			apiKey:                  strings.TrimSpace(args.APIKey),
 			secretKey:               strings.TrimSpace(args.SecretKey),
 			passphrase:              strings.TrimSpace(args.Passphrase),
-			hyperliquidWalletAddr:   strings.TrimSpace(args.HyperliquidWalletAddr),
 			asterUser:               strings.TrimSpace(args.AsterUser),
 			asterSigner:             strings.TrimSpace(args.AsterSigner),
 			asterPrivateKey:         strings.TrimSpace(args.AsterPrivateKey),
@@ -1556,9 +1535,6 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 			strings.TrimSpace(args.SecretKey),
 			strings.TrimSpace(args.Passphrase),
 			testnet,
-			strings.TrimSpace(args.HyperliquidWalletAddr),
-			unified,
-			false,
 			strings.TrimSpace(args.AsterUser),
 			strings.TrimSpace(args.AsterSigner),
 			strings.TrimSpace(args.AsterPrivateKey),
@@ -1615,17 +1591,9 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 		if args.Testnet != nil {
 			testnet = *args.Testnet
 		}
-		unified := existing.HyperliquidUnifiedAcct
-		if args.HyperliquidUnifiedAccount != nil {
-			unified = *args.HyperliquidUnifiedAccount
-		}
 		lighterIndex := existing.LighterAPIKeyIndex
 		if args.LighterAPIKeyIndex != nil {
 			lighterIndex = *args.LighterAPIKeyIndex
-		}
-		hyperWallet := existing.HyperliquidWalletAddr
-		if strings.TrimSpace(args.HyperliquidWalletAddr) != "" {
-			hyperWallet = strings.TrimSpace(args.HyperliquidWalletAddr)
 		}
 		asterUser := existing.AsterUser
 		if strings.TrimSpace(args.AsterUser) != "" {
@@ -1669,7 +1637,6 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 			apiKey:                  effectiveAPIKey,
 			secretKey:               effectiveSecretKey,
 			passphrase:              effectivePassphrase,
-			hyperliquidWalletAddr:   hyperWallet,
 			asterUser:               asterUser,
 			asterSigner:             asterSigner,
 			asterPrivateKey:         effectiveAsterPrivateKey,
@@ -1688,9 +1655,6 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 			strings.TrimSpace(args.SecretKey),
 			strings.TrimSpace(args.Passphrase),
 			testnet,
-			hyperWallet,
-			unified,
-			existing.HyperliquidBuilderApproved,
 			asterUser,
 			asterSigner,
 			strings.TrimSpace(args.AsterPrivateKey),
@@ -2562,12 +2526,8 @@ func (a *Agent) toolStartTrader(storeUserID, traderID string) string {
 	if a.traderManager == nil {
 		return `{"error":"trader manager unavailable"}`
 	}
-	fullCfg, err := a.store.Trader().GetFullConfig(storeUserID, traderID)
-	if err != nil {
+	if _, err := a.store.Trader().GetFullConfig(storeUserID, traderID); err != nil {
 		return fmt.Sprintf(`{"error":"trader not found or inaccessible: %s"}`, err)
-	}
-	if fullCfg != nil && fullCfg.Exchange != nil && fullCfg.Exchange.ExchangeType == "hyperliquid" && !fullCfg.Exchange.HyperliquidBuilderApproved {
-		return `{"error":"Hyperliquid trading authorization is incomplete; reconnect Hyperliquid wallet and complete trading authorization before starting this trader"}`
 	}
 	if existing, err := a.traderManager.GetTrader(traderID); err == nil {
 		if running, ok := existing.GetStatus()["is_running"].(bool); ok && running {
@@ -3571,18 +3531,15 @@ func candidateCoinSourceSummary(cfg *store.StrategyConfig) map[string]any {
 		return nil
 	}
 	return map[string]any{
-		"source_type":      cfg.CoinSource.SourceType,
-		"use_ai500":        cfg.CoinSource.UseAI500,
-		"ai500_limit":      cfg.CoinSource.AI500Limit,
-		"use_oi_top":       cfg.CoinSource.UseOITop,
-		"oi_top_limit":     cfg.CoinSource.OITopLimit,
-		"use_oi_low":       cfg.CoinSource.UseOILow,
-		"oi_low_limit":     cfg.CoinSource.OILowLimit,
-		"use_hyper_all":    cfg.CoinSource.UseHyperAll,
-		"use_hyper_main":   cfg.CoinSource.UseHyperMain,
-		"hyper_main_limit": cfg.CoinSource.HyperMainLimit,
-		"static_coins":     cfg.CoinSource.StaticCoins,
-		"excluded_coins":   cfg.CoinSource.ExcludedCoins,
+		"source_type":    cfg.CoinSource.SourceType,
+		"use_ai500":      cfg.CoinSource.UseAI500,
+		"ai500_limit":    cfg.CoinSource.AI500Limit,
+		"use_oi_top":     cfg.CoinSource.UseOITop,
+		"oi_top_limit":   cfg.CoinSource.OITopLimit,
+		"use_oi_low":     cfg.CoinSource.UseOILow,
+		"oi_low_limit":   cfg.CoinSource.OILowLimit,
+		"static_coins":   cfg.CoinSource.StaticCoins,
+		"excluded_coins": cfg.CoinSource.ExcludedCoins,
 	}
 }
 

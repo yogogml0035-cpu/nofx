@@ -1,19 +1,16 @@
 package kernel
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"nofx/logger"
 	"nofx/market"
-	"nofx/provider/hyperliquid"
 	"nofx/provider/nofxos"
 	"nofx/security"
 	"nofx/store"
 	"os"
-	"sort"
 	"strings"
 	"time"
 )
@@ -225,22 +222,6 @@ func NewStrategyEngine(config *store.StrategyConfig, claw402WalletKey ...string)
 	}
 }
 
-func (e *StrategyEngine) usesHyperliquidNativeUniverse() bool {
-	if e == nil || e.config == nil {
-		return false
-	}
-	source := e.config.CoinSource
-	if source.SourceType == "hyper_all" || source.SourceType == "hyper_main" || source.SourceType == "hyper_rank" || source.UseHyperAll || source.UseHyperMain {
-		return true
-	}
-	for _, symbol := range source.StaticCoins {
-		if market.IsXyzDexAsset(symbol) {
-			return true
-		}
-	}
-	return false
-}
-
 // GetRiskControlConfig gets risk control configuration
 func (e *StrategyEngine) GetRiskControlConfig() store.RiskControlConfig {
 	return e.config.RiskControl
@@ -347,51 +328,6 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		// Empty list is a normal condition, return directly
 		return e.filterExcludedCoins(coins), nil
 
-	case "hyper_all":
-		// All Hyperliquid perp coins
-		if !coinSource.UseHyperAll {
-			logger.Infof("⚠️  source_type is 'hyper_all' but use_hyper_all is false, falling back to static coins")
-			for _, symbol := range coinSource.StaticCoins {
-				symbol = market.Normalize(symbol)
-				candidates = append(candidates, CandidateCoin{
-					Symbol:  symbol,
-					Sources: []string{"static"},
-				})
-			}
-			return e.filterExcludedCoins(candidates), nil
-		}
-		coins, err := e.getHyperAllCoins()
-		if err != nil {
-			return nil, err
-		}
-		return e.filterExcludedCoins(coins), nil
-
-	case "hyper_main":
-		// Top N Hyperliquid coins by 24h volume
-		if !coinSource.UseHyperMain {
-			logger.Infof("⚠️  source_type is 'hyper_main' but use_hyper_main is false, falling back to static coins")
-			for _, symbol := range coinSource.StaticCoins {
-				symbol = market.Normalize(symbol)
-				candidates = append(candidates, CandidateCoin{
-					Symbol:  symbol,
-					Sources: []string{"static"},
-				})
-			}
-			return e.filterExcludedCoins(candidates), nil
-		}
-		coins, err := e.getHyperMainCoins(coinSource.HyperMainLimit)
-		if err != nil {
-			return nil, err
-		}
-		return e.filterExcludedCoins(coins), nil
-
-	case "hyper_rank":
-		coins, err := e.getHyperRankCoins(coinSource.HyperRankCategory, coinSource.HyperRankDirection, coinSource.HyperRankLimit)
-		if err != nil {
-			return nil, err
-		}
-		return e.filterExcludedCoins(coins), nil
-
 	case "mixed":
 		if coinSource.UseAI500 {
 			poolCoins, err := e.getAI500Coins(coinSource.AI500Limit)
@@ -422,28 +358,6 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 			} else {
 				for _, coin := range oiLowCoins {
 					symbolSources[coin.Symbol] = append(symbolSources[coin.Symbol], "oi_low")
-				}
-			}
-		}
-
-		if coinSource.UseHyperAll {
-			hyperCoins, err := e.getHyperAllCoins()
-			if err != nil {
-				logger.Infof("⚠️  Failed to get Hyperliquid All coins: %v", err)
-			} else {
-				for _, coin := range hyperCoins {
-					symbolSources[coin.Symbol] = append(symbolSources[coin.Symbol], "hyper_all")
-				}
-			}
-		}
-
-		if coinSource.UseHyperMain {
-			hyperMainCoins, err := e.getHyperMainCoins(coinSource.HyperMainLimit)
-			if err != nil {
-				logger.Infof("⚠️  Failed to get Hyperliquid Main coins: %v", err)
-			} else {
-				for _, coin := range hyperMainCoins {
-					symbolSources[coin.Symbol] = append(symbolSources[coin.Symbol], "hyper_main")
 				}
 			}
 		}
@@ -564,136 +478,6 @@ func (e *StrategyEngine) getOILowCoins(limit int) ([]CandidateCoin, error) {
 	return candidates, nil
 }
 
-// getHyperAllCoins returns all available Hyperliquid perpetual coins
-func (e *StrategyEngine) getHyperAllCoins() ([]CandidateCoin, error) {
-	ctx := context.Background()
-	symbols, err := hyperliquid.GetAllCoinSymbols(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Hyperliquid coins: %w", err)
-	}
-
-	var candidates []CandidateCoin
-	for _, symbol := range symbols {
-		// Add USDT suffix for compatibility
-		normalizedSymbol := market.Normalize(symbol + "USDT")
-		candidates = append(candidates, CandidateCoin{
-			Symbol:  normalizedSymbol,
-			Sources: []string{"hyper_all"},
-		})
-	}
-	logger.Infof("✅ Loaded %d Hyperliquid coins (hyper_all)", len(candidates))
-	return candidates, nil
-}
-
-// getHyperMainCoins returns top N Hyperliquid coins by 24h volume
-func (e *StrategyEngine) getHyperMainCoins(limit int) ([]CandidateCoin, error) {
-	if limit <= 0 {
-		limit = 20
-	}
-
-	ctx := context.Background()
-	symbols, err := hyperliquid.GetMainCoinSymbols(ctx, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Hyperliquid main coins: %w", err)
-	}
-
-	var candidates []CandidateCoin
-	for _, symbol := range symbols {
-		// Add USDT suffix for compatibility
-		normalizedSymbol := market.Normalize(symbol + "USDT")
-		candidates = append(candidates, CandidateCoin{
-			Symbol:  normalizedSymbol,
-			Sources: []string{"hyper_main"},
-		})
-	}
-	logger.Infof("✅ Loaded %d Hyperliquid main coins (hyper_main) by 24h volume", len(candidates))
-	return candidates, nil
-}
-
-func clampHyperRankLimit(limit int) int {
-	if limit <= 0 {
-		return 5
-	}
-	if limit > 10 {
-		return 10
-	}
-	return limit
-}
-
-func (e *StrategyEngine) getHyperRankCoins(category, direction string, limit int) ([]CandidateCoin, error) {
-	category = strings.ToLower(strings.TrimSpace(category))
-	if category == "" {
-		category = "stock"
-	}
-	direction = strings.ToLower(strings.TrimSpace(direction))
-	if direction == "" {
-		direction = "gainers"
-	}
-	limit = clampHyperRankLimit(limit)
-
-	ctx := context.Background()
-	var ranked []struct {
-		symbol string
-		info   hyperliquid.CoinInfo
-		cat    string
-	}
-
-	if category == "crypto" || category == "all" {
-		coins, err := hyperliquid.GetPerpDexCoins(ctx, "")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Hyperliquid crypto ranking: %w", err)
-		}
-		for _, coin := range coins {
-			ranked = append(ranked, struct {
-				symbol string
-				info   hyperliquid.CoinInfo
-				cat    string
-			}{symbol: market.Normalize(coin.Symbol + "USDT"), info: coin, cat: "crypto"})
-		}
-	}
-
-	if category != "crypto" {
-		coins, err := hyperliquid.GetPerpDexCoins(ctx, "xyz")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Hyperliquid XYZ ranking: %w", err)
-		}
-		for _, coin := range coins {
-			base := strings.TrimPrefix(coin.Symbol, "xyz:")
-			cat := hyperliquid.XYZCategory(base)
-			if category != "all" && cat != category {
-				continue
-			}
-			ranked = append(ranked, struct {
-				symbol string
-				info   hyperliquid.CoinInfo
-				cat    string
-			}{symbol: hyperliquid.FormatCoinForAPI("xyz:" + base), info: coin, cat: cat})
-		}
-	}
-
-	sort.SliceStable(ranked, func(i, j int) bool {
-		switch direction {
-		case "losers":
-			return ranked[i].info.Change24hPct < ranked[j].info.Change24hPct
-		case "volume":
-			return ranked[i].info.Volume24h > ranked[j].info.Volume24h
-		default:
-			return ranked[i].info.Change24hPct > ranked[j].info.Change24hPct
-		}
-	})
-
-	if len(ranked) > limit {
-		ranked = ranked[:limit]
-	}
-	candidates := make([]CandidateCoin, 0, len(ranked))
-	source := fmt.Sprintf("hyper_rank_%s_%s", category, direction)
-	for _, item := range ranked {
-		candidates = append(candidates, CandidateCoin{Symbol: item.symbol, Sources: []string{source}})
-	}
-	logger.Infof("✅ Loaded %d Hyperliquid rank coins (%s/%s, capped at %d)", len(candidates), category, direction, limit)
-	return candidates, nil
-}
-
 // ============================================================================
 // External & Quant Data
 // ============================================================================
@@ -783,10 +567,6 @@ func extractJSONPath(data interface{}, path string) interface{} {
 // FetchQuantData fetches quantitative data for a single coin
 func (e *StrategyEngine) FetchQuantData(symbol string) (*QuantData, error) {
 	if !e.config.Indicators.EnableQuantData {
-		return nil, nil
-	}
-	if e.usesHyperliquidNativeUniverse() || market.IsXyzDexAsset(symbol) {
-		logger.Infof("⏭️  Skipping NofxOS quant data for Hyperliquid symbol %s; using native Hyperliquid klines/mark data only", symbol)
 		return nil, nil
 	}
 
@@ -885,10 +665,6 @@ func (e *StrategyEngine) FetchOIRankingData() *nofxos.OIRankingData {
 	if !indicators.EnableOIRanking {
 		return nil
 	}
-	if e.usesHyperliquidNativeUniverse() {
-		logger.Infof("⏭️  Skipping NofxOS OI ranking for Hyperliquid strategy; native Hyperliquid universe is the source of truth")
-		return nil
-	}
 
 	duration := indicators.OIRankingDuration
 	if duration == "" {
@@ -918,10 +694,6 @@ func (e *StrategyEngine) FetchOIRankingData() *nofxos.OIRankingData {
 func (e *StrategyEngine) FetchNetFlowRankingData() *nofxos.NetFlowRankingData {
 	indicators := e.config.Indicators
 	if !indicators.EnableNetFlowRanking {
-		return nil
-	}
-	if e.usesHyperliquidNativeUniverse() {
-		logger.Infof("⏭️  Skipping NofxOS netflow ranking for Hyperliquid strategy; native Hyperliquid universe is the source of truth")
 		return nil
 	}
 
@@ -954,10 +726,6 @@ func (e *StrategyEngine) FetchNetFlowRankingData() *nofxos.NetFlowRankingData {
 func (e *StrategyEngine) FetchPriceRankingData() *nofxos.PriceRankingData {
 	indicators := e.config.Indicators
 	if !indicators.EnablePriceRanking {
-		return nil
-	}
-	if e.usesHyperliquidNativeUniverse() {
-		logger.Infof("⏭️  Skipping NofxOS price ranking for Hyperliquid strategy; native Hyperliquid universe is the source of truth")
 		return nil
 	}
 

@@ -190,7 +190,7 @@ func runStandardTests(t *testing.T, exchangeName string) {
 
 // TestAllExchangesStandardScenarios runs standard scenarios for all exchanges
 func TestAllExchangesStandardScenarios(t *testing.T) {
-	exchanges := []string{"hyperliquid", "binance", "bybit", "okx", "bitget", "aster", "lighter"}
+	exchanges := []string{"binance", "bybit", "okx", "bitget", "aster", "lighter"}
 
 	for _, exchange := range exchanges {
 		t.Run(exchange, func(t *testing.T) {
@@ -217,7 +217,7 @@ func TestPositionAccumulationBug(t *testing.T) {
 
 	traderID := "test-trader"
 	exchangeID := "test-exchange"
-	exchangeType := "hyperliquid"
+	exchangeType := "binance"
 
 	// Simulate many trades that should cancel out
 	// This tests that we don't accumulate positions incorrectly

@@ -14,11 +14,14 @@ import (
 	"nofx/provider/alpaca"
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
-	"nofx/provider/hyperliquid"
+	"nofx/provider/gate"
 	"nofx/provider/twelvedata"
 
 	"github.com/gin-gonic/gin"
 )
+
+// 默认行情数据源为 Gate（D7）：/api/klines 与 /api/symbols 无参时均走 gate
+const defaultExchange = "gate"
 
 // handleKlines K-line data (supports multiple exchanges via coinank)
 func (s *Server) handleKlines(c *gin.Context) {
@@ -30,7 +33,7 @@ func (s *Server) handleKlines(c *gin.Context) {
 	}
 
 	interval := c.DefaultQuery("interval", "5m")
-	exchange := c.DefaultQuery("exchange", "binance") // Default to binance for backward compatibility
+	exchange := c.DefaultQuery("exchange", defaultExchange)
 	limitStr := c.DefaultQuery("limit", "1000")
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
@@ -59,13 +62,6 @@ func (s *Server) handleKlines(c *gin.Context) {
 		klines, err = s.getKlinesFromTwelveData(symbol, interval, limit)
 		if err != nil {
 			SafeInternalError(c, "Get klines from TwelveData", err)
-			return
-		}
-	case "hyperliquid", "hyperliquid-xyz", "xyz":
-		// Hyperliquid native API - supports both crypto perps and stock perps (xyz dex)
-		klines, err = s.getKlinesFromHyperliquid(symbol, interval, limit)
-		if err != nil {
-			SafeInternalError(c, "Get klines from Hyperliquid", err)
 			return
 		}
 	default:
@@ -280,263 +276,24 @@ func (s *Server) getKlinesFromTwelveData(symbol, interval string, limit int) ([]
 	return klines, nil
 }
 
-// getKlinesFromHyperliquid fetches kline data from Hyperliquid API
-// Supports both crypto perps (default dex) and stock perps/forex/commodities (xyz dex)
-func (s *Server) getKlinesFromHyperliquid(symbol, interval string, limit int) ([]market.Kline, error) {
-	// Create Hyperliquid client
-	client := hyperliquid.NewClient()
-
-	// Map interval to Hyperliquid format
-	timeframe := hyperliquid.MapTimeframe(interval)
-
-	// Fetch candles from Hyperliquid
-	// FormatCoinForAPI will automatically add xyz: prefix for stock perps
-	ctx := context.Background()
-	candles, err := client.GetCandles(ctx, symbol, timeframe, limit)
-	if err != nil {
-		return nil, fmt.Errorf("hyperliquid API error: %w", err)
-	}
-
-	// Convert Hyperliquid candles to market.Kline format
-	klines := make([]market.Kline, len(candles))
-	for i, candle := range candles {
-		open, _ := strconv.ParseFloat(candle.Open, 64)
-		high, _ := strconv.ParseFloat(candle.High, 64)
-		low, _ := strconv.ParseFloat(candle.Low, 64)
-		close, _ := strconv.ParseFloat(candle.Close, 64)
-		volume, _ := strconv.ParseFloat(candle.Volume, 64)
-
-		klines[i] = market.Kline{
-			OpenTime:    candle.OpenTime,
-			Open:        open,
-			High:        high,
-			Low:         low,
-			Close:       close,
-			Volume:      volume,         // contract quantity
-			QuoteVolume: volume * close, // turnover (USD)
-			CloseTime:   candle.CloseTime,
-		}
-	}
-
-	return klines, nil
-}
-
-func hyperliquidXYZDisplayBase(baseSymbol string) string {
-	baseSymbol = strings.ToUpper(strings.TrimSpace(baseSymbol))
-	// User-facing names should be product names, not exchange shorthand tickers.
-	// Keep the internal symbol separate because Hyperliquid's xyz dex still routes
-	// orders/candles by the short coin name (for example xyz:SMSN).
-	fullNames := map[string]string{
-		"XYZ100":    "XYZ100",
-		"TSLA":      "TESLA",
-		"NVDA":      "NVIDIA",
-		"GOLD":      "GOLD",
-		"HOOD":      "ROBINHOOD",
-		"INTC":      "INTEL",
-		"PLTR":      "PALANTIR",
-		"COIN":      "COINBASE",
-		"META":      "META",
-		"AAPL":      "APPLE",
-		"MSFT":      "MICROSOFT",
-		"ORCL":      "ORACLE",
-		"GOOGL":     "GOOGLE",
-		"AMZN":      "AMAZON",
-		"AMD":       "AMD",
-		"MU":        "MICRON",
-		"SNDK":      "SANDISK",
-		"MSTR":      "MICROSTRATEGY",
-		"CRCL":      "CIRCLE",
-		"NFLX":      "NETFLIX",
-		"COST":      "COSTCO",
-		"LLY":       "ELI-LILLY",
-		"SKHX":      "SK-HYNIX",
-		"TSM":       "TSMC",
-		"JPY":       "JPY",
-		"EUR":       "EUR",
-		"SILVER":    "SILVER",
-		"RIVN":      "RIVIAN",
-		"BABA":      "ALIBABA",
-		"CL":        "CRUDE-OIL",
-		"COPPER":    "COPPER",
-		"NATGAS":    "NATURAL-GAS",
-		"URANIUM":   "URANIUM",
-		"ALUMINIUM": "ALUMINIUM",
-		"SMSN":      "SAMSUNG",
-		"PLATINUM":  "PLATINUM",
-		"USAR":      "USA-RARE-EARTH",
-		"CRWV":      "COREWEAVE",
-		"URNM":      "URNM",
-		"PALLADIUM": "PALLADIUM",
-		"DXY":       "DOLLAR-INDEX",
-		"GME":       "GAMESTOP",
-		"KR200":     "KOREA-200",
-		"SOFTBANK":  "SOFTBANK",
-		"JP225":     "JAPAN-225",
-		"HYUNDAI":   "HYUNDAI",
-		"KIOXIA":    "KIOXIA",
-		"EWY":       "SOUTH-KOREA-ETF",
-		"EWJ":       "JAPAN-ETF",
-		"BRENTOIL":  "BRENT-OIL",
-		"VIX":       "VIX",
-		"HIMS":      "HIMS-HERS",
-		"SP500":     "S&P-500",
-		"DKNG":      "DRAFTKINGS",
-		"LITE":      "LITECOIN",
-		"CORN":      "CORN",
-		"XLE":       "ENERGY-SECTOR-ETF",
-		"WHEAT":     "WHEAT",
-		"TTF":       "TTF-GAS",
-		"BX":        "BLACKSTONE",
-		"PURRDAT":   "PURRDAT",
-		"MRVL":      "MARVELL",
-		"RKLB":      "ROCKET-LAB",
-		"BIRD":      "BIRD",
-		"VOL":       "VOLATILITY",
-		"DRAM":      "DRAM",
-		"CBRS":      "COINBASE-PRE-IPO",
-		"EWZ":       "BRAZIL-ETF",
-		"KRW":       "KRW",
-		"ZM":        "ZOOM",
-		"EBAY":      "EBAY",
-		"H100":      "H100",
-		"NIFTY":     "NIFTY-50",
-		"ARM":       "ARM",
-		"EWT":       "TAIWAN-ETF",
-		"GBP":       "GBP",
-		"SPCX":      "SPACEX-PRE-IPO",
-		"IBOV":      "IBOVESPA",
-		"ASML":      "ASML",
-	}
-	if fullName, ok := fullNames[baseSymbol]; ok {
-		return fullName
-	}
-	return baseSymbol
-}
-
-func hyperliquidXYZCategory(baseSymbol string) string {
-	baseSymbol = strings.ToUpper(strings.TrimSpace(baseSymbol))
-	switch baseSymbol {
-	case "GOLD", "SILVER", "CL", "COPPER", "NATGAS", "URANIUM", "ALUMINIUM", "PLATINUM", "PALLADIUM", "BRENTOIL", "CORN", "WHEAT", "TTF":
-		return "commodity"
-	case "XYZ100", "SP500", "JP225", "KR200", "DXY", "VIX", "XLE", "EWY", "EWJ", "EWZ", "EWT", "NIFTY", "IBOV":
-		return "index"
-	case "EUR", "JPY", "GBP", "KRW":
-		return "forex"
-	case "SPCX", "BIRD", "PURRDAT", "H100", "CBRS":
-		return "pre_ipo"
-	default:
-		return "stock"
-	}
-}
-
-func hyperliquidCategoryOrder(category string) int {
-	switch category {
-	case "stock":
-		return 0
-	case "commodity":
-		return 1
-	case "index":
-		return 2
-	case "forex":
-		return 3
-	case "pre_ipo":
-		return 4
-	case "crypto":
-		return 5
-	default:
-		return 99
-	}
-}
-
 // handleSymbols returns available symbols for a given exchange
 func (s *Server) handleSymbols(c *gin.Context) {
-	exchange := c.DefaultQuery("exchange", "hyperliquid")
+	exchange := c.DefaultQuery("exchange", defaultExchange)
 
-	type SymbolInfo struct {
-		Symbol       string  `json:"symbol"`
-		Display      string  `json:"display"`
-		Name         string  `json:"name"`
-		Category     string  `json:"category"` // crypto, stock, forex, commodity, index
-		Exchange     string  `json:"exchange"`
-		Volume24h    float64 `json:"volume_24h"`
-		MarkPrice    float64 `json:"mark_price"`
-		PrevDayPrice float64 `json:"prev_day_price,omitempty"`
-		Change24hPct float64 `json:"change_24h_pct,omitempty"`
-		MaxLeverage  int     `json:"maxLeverage,omitempty"`
-		SzDecimals   int     `json:"sz_decimals,omitempty"`
-	}
-
-	var symbols []SymbolInfo
-
-	exchangeLower := strings.ToLower(exchange)
-	switch exchangeLower {
-	case "hyperliquid", "hyperliquid-xyz", "xyz":
-		ctx := context.Background()
-
-		// hyperliquid-xyz returns the full USDC trading board in product order:
-		// stocks → commodities → indices → forex → pre-IPO → crypto.
-		if exchangeLower == "hyperliquid-xyz" || exchangeLower == "xyz" {
-			xyzCoins, err := hyperliquid.GetPerpDexCoins(ctx, hyperliquid.XYZDex)
-			if err != nil {
-				SafeInternalError(c, "Get Hyperliquid XYZ symbols", err)
-				return
-			}
-			for _, coin := range xyzCoins {
-				baseSymbol := strings.TrimPrefix(coin.Symbol, "xyz:")
-				displayBase := hyperliquidXYZDisplayBase(baseSymbol)
-				displaySymbol := displayBase + "-USDC"
-				tradeSymbol := baseSymbol + "-USDC"
-				symbols = append(symbols, SymbolInfo{
-					Symbol:       tradeSymbol,
-					Display:      displaySymbol,
-					Name:         displayBase,
-					Category:     hyperliquidXYZCategory(baseSymbol),
-					Exchange:     "hyperliquid-xyz",
-					Volume24h:    coin.Volume24h,
-					MarkPrice:    coin.MarkPrice,
-					PrevDayPrice: coin.PrevDayPrice,
-					Change24hPct: coin.Change24hPct,
-					MaxLeverage:  coin.MaxLeverage,
-					SzDecimals:   coin.SzDecimals,
-				})
-			}
-		}
-
-		// Crypto perps are shown last; only include them on the combined Hyperliquid board.
-		if exchangeLower == "hyperliquid" || exchangeLower == "hyperliquid-xyz" {
-			coins, err := hyperliquid.GetProvider().GetAllCoins(ctx)
-			if err != nil {
-				SafeInternalError(c, "Get Hyperliquid symbols", err)
-				return
-			}
-			for _, coin := range coins {
-				symbols = append(symbols, SymbolInfo{
-					Symbol:       coin.Symbol,
-					Display:      coin.Symbol,
-					Name:         coin.Symbol,
-					Category:     "crypto",
-					Exchange:     "hyperliquid",
-					Volume24h:    coin.Volume24h,
-					MarkPrice:    coin.MarkPrice,
-					PrevDayPrice: coin.PrevDayPrice,
-					Change24hPct: coin.Change24hPct,
-					MaxLeverage:  coin.MaxLeverage,
-					SzDecimals:   coin.SzDecimals,
-				})
-			}
-		}
-
-	default:
+	if strings.ToLower(exchange) != "gate" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange for symbol listing"})
 		return
 	}
 
+	// Gate USDT 永续合约清单（公开行情接口，免鉴权）
+	symbols, err := gate.ListSymbols(c.Request.Context())
+	if err != nil {
+		SafeInternalError(c, "Get Gate symbols", err)
+		return
+	}
+
+	// 单一 crypto 类别：按 24h 成交额降序
 	sort.SliceStable(symbols, func(i, j int) bool {
-		ci := hyperliquidCategoryOrder(symbols[i].Category)
-		cj := hyperliquidCategoryOrder(symbols[j].Category)
-		if ci != cj {
-			return ci < cj
-		}
 		return symbols[i].Volume24h > symbols[j].Volume24h
 	})
 

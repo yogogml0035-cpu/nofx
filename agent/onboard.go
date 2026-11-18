@@ -239,7 +239,6 @@ func (a *Agent) handleExchangeChoice(userID int64, text string, state *SetupStat
 		"bitget": "bitget", "4": "bitget",
 		"gate": "gate", "5": "gate",
 		"kucoin": "kucoin", "库币": "kucoin", "6": "kucoin",
-		"hyperliquid": "hyperliquid", "7": "hyperliquid",
 	}
 
 	ex, ok := exchanges[lower]
@@ -433,17 +432,9 @@ func (a *Agent) saveSetupExchange(storeUserID string, state *SetupState) (string
 		return "", fmt.Errorf("store not available")
 	}
 
-	hlWallet := ""
-	hlUnified := false
 	passphrase := state.Passphrase
 	apiKey := state.APIKey
 	apiSecret := state.APISecret
-
-	if state.Exchange == "hyperliquid" {
-		hlWallet = state.APISecret
-		apiKey = ""
-		apiSecret = state.APIKey
-	}
 
 	exchanges, err := a.store.Exchange().List(storeUserID)
 	if err != nil {
@@ -455,7 +446,6 @@ func (a *Agent) saveSetupExchange(storeUserID string, state *SetupState) (string
 				storeUserID, ex.ID, true,
 				apiKey, apiSecret, passphrase,
 				false,
-				hlWallet, hlUnified, false,
 				"", "", "",
 				"", "", "", 0,
 			); err != nil {
@@ -472,7 +462,6 @@ func (a *Agent) saveSetupExchange(storeUserID string, state *SetupState) (string
 		true,
 		apiKey, apiSecret, passphrase,
 		false,
-		hlWallet, hlUnified, false,
 		"", "", "",
 		"", "", "", 0,
 	)
@@ -542,8 +531,7 @@ var setupMessages = map[string]map[string]string{
 			"3️⃣ Bybit\n" +
 			"4️⃣ Bitget\n" +
 			"5️⃣ Gate\n" +
-			"6️⃣ KuCoin（库币）\n" +
-			"7️⃣ Hyperliquid\n\n" +
+			"6️⃣ KuCoin（库币）\n\n" +
 			"发送数字或名称选择：",
 		"en": "🏦 *Choose your exchange*\n\n" +
 			"1️⃣ Binance\n" +
@@ -551,13 +539,12 @@ var setupMessages = map[string]map[string]string{
 			"3️⃣ Bybit\n" +
 			"4️⃣ Bitget\n" +
 			"5️⃣ Gate\n" +
-			"6️⃣ KuCoin\n" +
-			"7️⃣ Hyperliquid\n\n" +
+			"6️⃣ KuCoin\n\n" +
 			"Send number or name:",
 	},
 	"invalid_exchange": {
-		"zh": "❓ 没有识别到交易所。请发送数字 1-7 或交易所名称。",
-		"en": "❓ Exchange not recognized. Send a number 1-7 or exchange name.",
+		"zh": "❓ 没有识别到交易所。请发送数字 1-6 或交易所名称。",
+		"en": "❓ Exchange not recognized. Send a number 1-6 or exchange name.",
 	},
 	"ask_secret": {
 		"zh": "🔑 收到 API Key。\n\n现在请发送你的 *API Secret*：",

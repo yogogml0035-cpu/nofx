@@ -65,9 +65,6 @@ func SanitizeExchangeConfigForLog(exchanges map[string]ExchangeConfigUpdate) map
 		}
 
 		// Add non-sensitive fields directly
-		if cfg.HyperliquidWalletAddr != "" {
-			safeExchange["hyperliquid_wallet_addr"] = cfg.HyperliquidWalletAddr
-		}
 		if cfg.AsterUser != "" {
 			safeExchange["aster_user"] = cfg.AsterUser
 		}

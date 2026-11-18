@@ -85,7 +85,8 @@ func isSupportedTraderSymbol(symbol string) bool {
 	if normalized == "" {
 		return true
 	}
-	return strings.HasSuffix(normalized, "USDT") || strings.HasSuffix(normalized, "-USDC") || strings.HasPrefix(normalized, "XYZ:")
+	// 仅支持 crypto USDT 永续合约符号（BTCUSDT / BTC_USDT 均视为合法）
+	return strings.HasSuffix(normalized, "USDT")
 }
 
 func exchangeDisplayName(exchange *store.Exchange) string {
@@ -124,13 +125,6 @@ func missingExchangeFields(exchange *store.Exchange) []string {
 		}
 		if exchange.Passphrase == "" {
 			missing = append(missing, "Passphrase")
-		}
-	case "hyperliquid":
-		if exchange.APIKey == "" {
-			missing = append(missing, "私钥")
-		}
-		if strings.TrimSpace(exchange.HyperliquidWalletAddr) == "" {
-			missing = append(missing, "钱包地址")
 		}
 	case "aster":
 		if strings.TrimSpace(exchange.AsterUser) == "" {
@@ -190,7 +184,7 @@ func validateExchangeForTraderCreation(exchange *store.Exchange) (string, string
 	}
 
 	switch exchange.ExchangeType {
-	case "binance", "bybit", "okx", "bitget", "gate", "kucoin", "hyperliquid", "aster", "lighter", "indodax":
+	case "binance", "bybit", "okx", "bitget", "gate", "kucoin", "aster", "lighter", "indodax":
 		return "", "", nil
 	default:
 		return formatTraderCreationError(
@@ -220,14 +214,10 @@ func classifyTraderSetupReason(reason string) (string, string) {
 	case strings.Contains(lower, "failed to parse private key"),
 		(strings.Contains(lower, "invalid hex character") && strings.Contains(lower, "private key")):
 		return "trader.reason.private_key_invalid", "私钥格式不正确，系统无法识别"
-	case strings.Contains(lower, "failed to initialize hyperliquid trader"):
-		return "trader.reason.hyperliquid_init_failed", "Hyperliquid 账户初始化失败，请确认私钥、主钱包地址和 Agent Wallet 配置是否正确"
 	case strings.Contains(lower, "failed to initialize aster trader"):
 		return "trader.reason.aster_init_failed", "Aster 账户初始化失败，请确认 Aster User、Signer 和私钥是否正确"
 	case strings.Contains(lower, "failed to get meta information"):
 		return "trader.reason.exchange_meta_unavailable", "系统暂时无法从交易所读取账户元信息"
-	case strings.Contains(lower, "security check failed") && strings.Contains(lower, "agent wallet balance too high"):
-		return "trader.reason.hyperliquid_agent_balance_too_high", "Hyperliquid Agent Wallet 余额过高，不符合当前安全要求"
 	case strings.Contains(lower, "failed to initialize account"):
 		return "trader.reason.exchange_account_init_failed", "交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配"
 	case strings.Contains(lower, "unsupported trading platform"):
@@ -335,16 +325,14 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		return
 	}
 
-	// Validate trading symbol format. Hyperliquid xyz dex markets (stocks,
-	// commodities, indices, FX, Pre-IPO) are user-facing SYMBOL-USDC pairs,
-	// while standard crypto/perp markets keep the legacy USDT suffix format.
+	// Validate trading symbol format. Only standard crypto USDT perpetual pairs are supported.
 	if req.TradingSymbols != "" {
 		symbols := strings.Split(req.TradingSymbols, ",")
 		for _, symbol := range symbols {
 			symbol = strings.TrimSpace(symbol)
 			if !isSupportedTraderSymbol(symbol) {
 				SafeBadRequestWithDetails(c, traderCreationRequestError(
-					fmt.Sprintf("交易对 %s 的格式不正确，目前只支持 USDT 合约或 Hyperliquid XYZ USDC 标的（SYMBOL-USDC）", symbol),
+					fmt.Sprintf("交易对 %s 的格式不正确，目前只支持 USDT 合约（如 BTCUSDT）", symbol),
 				), "trader.create.invalid_symbol", mapStringPairs("symbol", symbol))
 				return
 			}
@@ -775,14 +763,6 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	traderName := traderID
 	if fullCfg != nil && fullCfg.Trader != nil && fullCfg.Trader.Name != "" {
 		traderName = fullCfg.Trader.Name
-	}
-
-	if fullCfg != nil && fullCfg.Exchange != nil && fullCfg.Exchange.ExchangeType == "hyperliquid" && !fullCfg.Exchange.HyperliquidBuilderApproved {
-		SafeBadRequestWithDetails(c, formatTraderStartError(
-			fmt.Sprintf("机器人「%s」的 Hyperliquid 交易授权尚未完成", traderName),
-			"请重新连接 Hyperliquid 钱包并完成交易授权后，再启动机器人",
-		), "trader.start.hyperliquid_builder_not_approved", mapStringPairs("trader_name", traderName, "exchange_name", exchangeDisplayName(fullCfg.Exchange)))
-		return
 	}
 
 	// Check if trader exists in memory and if it's running

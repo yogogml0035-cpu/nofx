@@ -255,7 +255,7 @@ func TestExchangeSkillOptionSummaryMatchesManualPage(t *testing.T) {
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
 	summary := a.exchangeSkillOptionSummary("zh")
-	for _, expected := range []string{"Binance", "Bybit", "OKX", "Bitget", "Gate", "KuCoin", "Hyperliquid", "Aster", "Lighter", "Indodax"} {
+	for _, expected := range []string{"Binance", "Bybit", "OKX", "Bitget", "Gate", "KuCoin", "Aster", "Lighter", "Indodax"} {
 		if !strings.Contains(summary, expected) {
 			t.Fatalf("expected option %q in summary, got: %s", expected, summary)
 		}
@@ -286,7 +286,7 @@ func TestLoadExchangeOptionsHidesInvisibleExchangeRows(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("seed legacy hidden exchange: %v", err)
 	}
-	if _, err := st.Exchange().Create("default", "okx", "我的主力OKX账户", true, "api-test", "secret-test", "pass-test", false, "", false, false, "", "", "", "", "", "", 0); err != nil {
+	if _, err := st.Exchange().Create("default", "okx", "我的主力OKX账户", true, "api-test", "secret-test", "pass-test", false, "", "", "", "", "", "", 0); err != nil {
 		t.Fatalf("create visible exchange: %v", err)
 	}
 
@@ -307,21 +307,21 @@ func TestDescribeExchangeIncludesTypeSpecificVisibleFields(t *testing.T) {
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
-	hyperID, err := st.Exchange().Create("default", "hyperliquid", "Dex Pro", true, "hyper-api-key", "", "", true, "0xabc", true, false, "", "", "", "", "", "", 0)
+	gateID, err := st.Exchange().Create("default", "gate", "Gate Pro", true, "gate-api-key", "gate-secret", "", false, "", "", "", "", "", "", 0)
 	if err != nil {
-		t.Fatalf("seed hyperliquid exchange: %v", err)
+		t.Fatalf("seed gate exchange: %v", err)
 	}
-	detail, ok := a.describeExchange("default", "zh", &EntityReference{ID: hyperID})
+	detail, ok := a.describeExchange("default", "zh", &EntityReference{ID: gateID})
 	if !ok {
-		t.Fatal("expected describeExchange to resolve hyperliquid config")
+		t.Fatal("expected describeExchange to resolve gate config")
 	}
-	for _, expected := range []string{"交易所配置“Dex Pro”详情", "交易所：hyperliquid", "账户名：Dex Pro", "API Key：true", "Hyperliquid 钱包地址：0xabc"} {
+	for _, expected := range []string{"交易所配置“Gate Pro”详情", "交易所：gate", "账户名：Gate Pro", "API Key：true", "Secret：true"} {
 		if !strings.Contains(detail, expected) {
-			t.Fatalf("expected hyperliquid detail to contain %q, got: %s", expected, detail)
+			t.Fatalf("expected gate detail to contain %q, got: %s", expected, detail)
 		}
 	}
 
-	lighterID, err := st.Exchange().Create("default", "lighter", "Lighter Main", false, "", "", "", false, "", true, false, "", "", "", "wallet-1", "", "lighter-secret", 7)
+	lighterID, err := st.Exchange().Create("default", "lighter", "Lighter Main", false, "", "", "", false, "", "", "", "wallet-1", "", "lighter-secret", 7)
 	if err != nil {
 		t.Fatalf("seed lighter exchange: %v", err)
 	}
@@ -345,12 +345,12 @@ func TestSkillVisibleFieldSummaryForExchangeUsesReadableNames(t *testing.T) {
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
 	summary := a.skillVisibleFieldSummary("default", "zh", "exchange_management", "update")
-	for _, expected := range []string{"交易所类型", "账户名", "API Key", "Secret", "Passphrase", "Hyperliquid 钱包地址", "Aster User", "Lighter API Key 私钥", "Lighter API Key Index"} {
+	for _, expected := range []string{"交易所类型", "账户名", "API Key", "Secret", "Passphrase", "Aster User", "Lighter API Key 私钥", "Lighter API Key Index"} {
 		if !strings.Contains(summary, expected) {
 			t.Fatalf("expected field label %q in summary, got: %s", expected, summary)
 		}
 	}
-	if strings.Contains(summary, "hyperliquid_wallet_addr") || strings.Contains(summary, "lighter_api_key_private_key") {
+	if strings.Contains(summary, "lighter_api_key_private_key") {
 		t.Fatalf("field summary should use readable labels instead of raw keys: %s", summary)
 	}
 }
@@ -463,7 +463,7 @@ func TestToolUpdateTraderRejectsRenameOutsideManualPanel(t *testing.T) {
 	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
-	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, false, "", "", "", "", "", "", 0)
+	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed exchange: %v", err)
 	}
@@ -515,7 +515,7 @@ func TestToolCreateTraderResponseHidesLegacyTraderTuningFields(t *testing.T) {
 	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
-	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, false, "", "", "", "", "", "", 0)
+	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed exchange: %v", err)
 	}
@@ -566,7 +566,7 @@ func TestToolCreateTraderAutoReadsInitialBalanceFromExchange(t *testing.T) {
 	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
-	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, false, "", "", "", "", "", "", 0)
+	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed exchange: %v", err)
 	}

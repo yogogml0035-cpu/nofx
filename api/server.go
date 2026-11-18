@@ -145,14 +145,6 @@ func (s *Server) setupRoutes() {
 		// System config (no authentication required, for frontend to determine admin mode/registration status)
 		s.route(api, "GET", "/config", "Get system configuration", s.handleGetSystemConfig)
 
-		// Wallet validation (no authentication required — used by frontend config form)
-		api.POST("/wallet/validate", s.handleWalletValidate)
-		api.POST("/wallet/generate", s.handleWalletGenerate)
-		s.route(api, "GET", "/hyperliquid/connect-config", "Get NOFX Hyperliquid builder authorization config", s.handleHyperliquidConnectConfig)
-		s.route(api, "GET", "/hyperliquid/account", "Get Hyperliquid account balance summary", s.handleHyperliquidAccount)
-		s.route(api, "GET", "/hyperliquid/agent", "Get Hyperliquid approved agent wallets and authorization expiry", s.handleHyperliquidAgent)
-		s.route(api, "POST", "/hyperliquid/submit-exchange", "Submit a user-signed Hyperliquid approval action", s.handleHyperliquidSubmitExchange)
-
 		// Crypto related endpoints (no authentication required, not exposed to bot).
 		// SECURITY: only the config + public-key endpoints are exposed. Transport
 		// encryption is one-directional (client encrypts to the server's public key;
@@ -287,11 +279,10 @@ Use this endpoint to show balance and health in the exchange list without depend
 				s.handleGetExchangeAccountStates)
 			s.routeWithSchema(protected, "POST", "/exchanges", "Create a new exchange account",
 				`Body: {"exchange_type":"<string>","account_name":"<string, user label>","enabled":true,"api_key":"<string>","secret_key":"<string>","passphrase":"<string, required for okx/gate/kucoin>"}
-exchange_type values: "binance","bybit","okx","bitget","gate","kucoin","indodax" (CEX) | "hyperliquid","aster","lighter" (DEX)
+exchange_type values: "binance","bybit","okx","bitget","gate","kucoin","indodax" (CEX) | "aster","lighter" (DEX)
 Required fields by exchange:
   binance/bybit/bitget/indodax: api_key + secret_key
   okx/gate/kucoin: api_key + secret_key + passphrase
-  hyperliquid: hyperliquid_wallet_addr
   aster: aster_user + aster_signer + aster_private_key
   lighter: lighter_wallet_addr + lighter_private_key + lighter_api_key_private_key + lighter_api_key_index`,
 				s.handleCreateExchange)

@@ -22,18 +22,6 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	zh := lang == LangChinese
 	singleSymbol, primarySymbol := e.singleSymbolInfo()
 
-	// XYZ-only override: when the strategy trades a single Hyperliquid XYZ
-	// asset (US stocks, commodities, forex), force the entire prompt to
-	// English regardless of the strategy's stored language. Mixing Chinese
-	// reasoning with US-equity analysis confuses the LLM (its US-stock
-	// training is overwhelmingly English) and the user prompt sections
-	// ended up looking incoherent because some sections respect the
-	// language flag while legacy stored sections were always English.
-	if singleSymbol && market.IsXyzDexAsset(primarySymbol) {
-		zh = false
-		lang = LangEnglish
-	}
-
 	// 0. Data Dictionary & Schema (ensure AI understands all fields)
 	sb.WriteString(GetSchemaPrompt(lang))
 	sb.WriteString("\n\n")
@@ -45,10 +33,10 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString(promptSections.RoleDefinition)
 		sb.WriteString("\n\n")
 	} else if zh {
-		sb.WriteString("# 你是一名专业的 Hyperliquid USDC 多资产交易 AI\n\n")
+		sb.WriteString("# 你是一名专业的加密货币永续合约交易 AI\n\n")
 		sb.WriteString("你的任务是基于提供的市场数据做出交易决策。\n\n")
 	} else {
-		sb.WriteString("# You are a professional Hyperliquid USDC multi-asset trading AI\n\n")
+		sb.WriteString("# You are a professional crypto perpetual futures trading AI\n\n")
 		sb.WriteString("Your task is to make trading decisions based on the provided market data.\n\n")
 	}
 
@@ -137,19 +125,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	writeOutputFormat(&sb, accountEquity, btcEthPosValueRatio, riskControl, singleSymbol, primarySymbol, zh)
 
 	// 8. Custom Prompt.
-	//
-	// For single-symbol Hyperliquid XYZ assets (US equities, commodities,
-	// forex), we replace any stored CustomPrompt with a built-in English
-	// stock-trader template. This serves two purposes:
-	//   1. The auto-generated CustomPrompt from the quick-create flow used
-	//      to be Chinese (matching UI language), which produced an
-	//      incoherent mixed-language final prompt that confused the LLM.
-	//   2. It guarantees a stock-specific, US-equity-tuned briefing
-	//      regardless of when the strategy was first created.
 	customPrompt := e.config.CustomPrompt
-	if singleSymbol && market.IsXyzDexAsset(primarySymbol) {
-		customPrompt = buildXYZStockCustomPrompt(primarySymbol)
-	}
 
 	if customPrompt != "" {
 		if zh {
@@ -166,51 +142,6 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		}
 	}
 
-	return sb.String()
-}
-
-// buildXYZStockCustomPrompt returns the canonical English long-only stock
-// briefing the agent uses for single-symbol Hyperliquid USDC perpetuals on
-// the XYZ board. This is the quick-trade flow's stance: when the user clicks
-// the lightning button they want exposure NOW, not a watch-and-wait analyst.
-// We bias the AI toward opening a probing long on every flat cycle, with
-// risk guardrails to keep the size sane. Symbol is inlined for LLM grounding
-// so it never confuses the trading instrument.
-func buildXYZStockCustomPrompt(symbol string) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Trade ONLY the Hyperliquid USDC perpetual %s (US equity / xyz board).\n\n", symbol))
-	sb.WriteString("Core stance: LONG-ONLY, ACTIVE. Do not short. Do not sit on the sidelines.\n\n")
-
-	sb.WriteString("## ⚡ Flat-Account Rule (HIGHEST PRIORITY)\n")
-	sb.WriteString("If `Current Positions` is None / empty AND no open exposure on this symbol, you MUST open a long position THIS cycle.\n")
-	sb.WriteString("- The user is paying for the quick-trade flow specifically to be in the market — your default is OPEN, not WAIT.\n")
-	sb.WriteString("- `wait` / `hold` are only acceptable when you ALREADY have an open position (then it's a hold decision).\n")
-	sb.WriteString("- If you cannot find a clear breakout setup, take a probing entry at market with reduced size (40-60% of max position value) and a tight 2% stop. Probing > waiting.\n")
-	sb.WriteString("- Set `confidence` >= 75 so backend risk control accepts the order. Justify the 75 in reasoning even if the technical picture is mixed — the strategic decision to be exposed IS the edge for this flow.\n\n")
-
-	sb.WriteString("## Preferred Entry Conditions (use to size up, not to gate the entry)\n")
-	sb.WriteString("Size up toward the 80-100% bracket when you see ANY of:\n")
-	sb.WriteString("- Break of the prior session/intraday high on rising volume.\n")
-	sb.WriteString("- Pullback to a clearly held intraday support (prior swing low, VWAP, EMA20/50) with a bullish reaction bar.\n")
-	sb.WriteString("- Sector tape strength (broad US-equity bid, sympathy with peers in the same theme).\n")
-	sb.WriteString("- Confirmed catalyst: earnings beat, guide up, sector rotation, macro tailwind.\n\n")
-
-	sb.WriteString("## Risk Guardrails (non-negotiable)\n")
-	sb.WriteString("- Per-trade stop-loss: 1.5-3% from entry. ALWAYS set a numeric `stop_loss`.\n")
-	sb.WriteString("- Take-profit: target at least R/R 2:1; set a numeric `take_profit`.\n")
-	sb.WriteString("- Per-trade notional: <= 25% of account equity (probing 10-15%, full 20-25%).\n")
-	sb.WriteString("- Leverage: 2-3x default, never above 5x. Never go all-in.\n")
-	sb.WriteString("- Once long, do NOT short the same cycle. Manage the open position first.\n\n")
-
-	sb.WriteString("## Position Management (when already long)\n")
-	sb.WriteString("- Trail stop to breakeven once +1R, take partial profits at +2R if momentum stalls.\n")
-	sb.WriteString("- Cut quickly if price breaks the stop or the catalyst thesis fails.\n")
-	sb.WriteString("- Holding past 30 minutes is fine; flipping in/out every cycle is not.\n\n")
-
-	sb.WriteString("## Discipline\n")
-	sb.WriteString(fmt.Sprintf("- Single-symbol mandate: never rotate into another ticker. The decision JSON `symbol` MUST be exactly \"%s\".\n", symbol))
-	sb.WriteString("- Before every decision: check current price vs prior pivot, volume vs 5m/1h average, and the broader US-equity tape.\n")
-	sb.WriteString("- If positions are open, prioritize managing them over piling on new ones.")
 	return sb.String()
 }
 
@@ -714,8 +645,6 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 		hasAI500 := false
 		hasOITop := false
 		hasOILow := false
-		hasHyperAll := false
-		hasHyperMain := false
 		for _, s := range sources {
 			switch s {
 			case "ai500":
@@ -724,10 +653,6 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 				hasOITop = true
 			case "oi_low":
 				hasOILow = true
-			case "hyper_all":
-				hasHyperAll = true
-			case "hyper_main":
-				hasHyperMain = true
 			}
 		}
 		if hasAI500 && hasOITop {
@@ -738,12 +663,6 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 		}
 		if hasOITop && hasOILow {
 			return " (OI_Top+OI_Low)"
-		}
-		if hasHyperMain && hasAI500 {
-			return " (HyperMain+AI500)"
-		}
-		if hasHyperAll || hasHyperMain {
-			return " (Hyperliquid)"
 		}
 		return " (Multiple sources)"
 	} else if len(sources) == 1 {
@@ -756,10 +675,6 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 			return " (OI_Low OI decrease)"
 		case "static":
 			return " (Manual selection)"
-		case "hyper_all":
-			return " (Hyperliquid All)"
-		case "hyper_main":
-			return " (Hyperliquid Top20)"
 		}
 	}
 	return ""
