@@ -213,7 +213,6 @@ export function SettingsPage() {
     secretKey?: string,
     passphrase?: string,
     testnet?: boolean,
-    hyperliquidWalletAddr?: string,
     asterUser?: string,
     asterSigner?: string,
     asterPrivateKey?: string,
@@ -223,10 +222,6 @@ export function SettingsPage() {
     lighterApiKeyIndex?: number
   ) => {
     try {
-      if (exchangeType === 'hyperliquid') {
-        toast.error(language === 'zh' ? 'Hyperliquid 必须通过钱包授权连接，不能手动填写密钥。' : 'Hyperliquid must be connected through wallet authorization, not manual keys.')
-        return
-      }
       if (exchangeId) {
         const request = {
           exchanges: {
@@ -236,7 +231,6 @@ export function SettingsPage() {
               secret_key: secretKey || '',
               passphrase: passphrase || '',
               testnet: testnet || false,
-              hyperliquid_wallet_addr: hyperliquidWalletAddr || '',
               aster_user: asterUser || '',
               aster_signer: asterSigner || '',
               aster_private_key: asterPrivateKey || '',
@@ -258,7 +252,6 @@ export function SettingsPage() {
           secret_key: secretKey || '',
           passphrase: passphrase || '',
           testnet: testnet || false,
-          hyperliquid_wallet_addr: hyperliquidWalletAddr || '',
           aster_user: asterUser || '',
           aster_signer: asterSigner || '',
           aster_private_key: asterPrivateKey || '',
@@ -471,7 +464,6 @@ export function SettingsPage() {
                             {configBadge('API Key', !!exchange.has_api_key)}
                             {configBadge('Secret', !!exchange.has_secret_key)}
                             {exchange.has_passphrase ? configBadge('Passphrase', true) : null}
-                            {exchange.hyperliquidWalletAddr ? configBadge('Wallet', true) : null}
                             {exchange.has_aster_private_key ? configBadge('Aster Key', true) : null}
                             {exchange.has_lighter_private_key || exchange.has_lighter_api_key_private_key ? configBadge('Lighter Key', true) : null}
                           </div>

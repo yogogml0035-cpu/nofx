@@ -50,7 +50,7 @@ interface AdvancedChartProps {
   interval?: string
   traderID?: string
   height?: number
-  exchange?: string // Exchange type: binance, bybit, okx, bitget, hyperliquid, aster, lighter
+  exchange?: string // Exchange type: binance, bybit, okx, bitget, gate, aster, lighter
   onSymbolChange?: (symbol: string) => void // Symbol change callback
 }
 
@@ -941,8 +941,8 @@ export function AdvancedChart({
             <span
               className="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase"
               style={{
-                background: exchange === 'hyperliquid' ? 'rgba(80, 227, 194, 0.1)' : 'rgba(243, 186, 47, 0.1)',
-                color: exchange === 'hyperliquid' ? '#50E3C2' : '#F3BA2F',
+                background: 'rgba(243, 186, 47, 0.1)',
+                color: '#F3BA2F',
               }}
             >
               {exchange?.toUpperCase()}

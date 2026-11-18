@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { EquityChart } from './EquityChart'
 import { AdvancedChart } from './AdvancedChart'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { chartTabs, ts } from '../../i18n/strategy-translations'
-import { BarChart3, CandlestickChart, ChevronDown, Search } from 'lucide-react'
+import { BarChart3, CandlestickChart } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface ChartTabsProps {
@@ -16,22 +16,22 @@ interface ChartTabsProps {
 
 type ChartTab = 'equity' | 'kline'
 type Interval = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d'
-type MarketType = 'hyperliquid' | 'crypto' | 'stocks' | 'forex' | 'metals'
+type MarketType = 'crypto' | 'stocks' | 'forex' | 'metals'
 
-interface SymbolInfo {
-  symbol: string
-  display?: string
-  name: string
-  category: string
+interface MarketConfigEntry {
+  exchange: string
+  defaultSymbol: string
+  icon: string
+  labelKey: keyof typeof chartTabs
+  color: string
 }
 
 // Market type configuration
-const MARKET_CONFIG = {
-  hyperliquid: { exchange: 'hyperliquid-xyz', defaultSymbol: 'BTC', icon: '🔷', labelKey: 'hyperliquid' as const, color: 'cyan', hasDropdown: true },
-  crypto: { exchange: 'binance', defaultSymbol: 'BTCUSDT', icon: '₿', labelKey: 'crypto' as const, color: 'yellow', hasDropdown: false },
-  stocks: { exchange: 'alpaca', defaultSymbol: 'AAPL', icon: '📈', labelKey: 'stocks' as const, color: 'green', hasDropdown: false },
-  forex: { exchange: 'forex', defaultSymbol: 'EUR/USD', icon: '💱', labelKey: 'forex' as const, color: 'blue', hasDropdown: false },
-  metals: { exchange: 'metals', defaultSymbol: 'XAU/USD', icon: '🥇', labelKey: 'metals' as const, color: 'amber', hasDropdown: false },
+const MARKET_CONFIG: Record<MarketType, MarketConfigEntry> = {
+  crypto: { exchange: 'gate', defaultSymbol: 'BTCUSDT', icon: '₿', labelKey: 'crypto' as const, color: 'yellow' },
+  stocks: { exchange: 'alpaca', defaultSymbol: 'AAPL', icon: '📈', labelKey: 'stocks' as const, color: 'green' },
+  forex: { exchange: 'forex', defaultSymbol: 'EUR/USD', icon: '💱', labelKey: 'forex' as const, color: 'blue' },
+  metals: { exchange: 'metals', defaultSymbol: 'XAU/USD', icon: '🥇', labelKey: 'metals' as const, color: 'amber' },
 }
 
 const INTERVALS: { value: Interval; label: string }[] = [
@@ -46,9 +46,8 @@ const INTERVALS: { value: Interval; label: string }[] = [
 
 // Infer market type from exchange ID
 function getMarketTypeFromExchange(exchangeId: string | undefined): MarketType {
-  if (!exchangeId) return 'hyperliquid'
-  const lower = exchangeId.toLowerCase()
-  if (lower.includes('hyperliquid')) return 'hyperliquid'
+  // 无交易所上下文时默认 crypto（数据源 gate，D7）
+  if (!exchangeId) return 'crypto'
   // Other exchanges default to crypto type
   return 'crypto'
 }
@@ -56,15 +55,10 @@ function getMarketTypeFromExchange(exchangeId: string | undefined): MarketType {
 export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: ChartTabsProps) {
   const { language } = useLanguage()
   const [activeTab, setActiveTab] = useState<ChartTab>('equity')
-  const [chartSymbol, setChartSymbol] = useState<string>('BTC')
+  const [chartSymbol, setChartSymbol] = useState<string>('BTCUSDT')
   const [interval, setInterval] = useState<Interval>('5m')
   const [symbolInput, setSymbolInput] = useState('')
   const [marketType, setMarketType] = useState<MarketType>(() => getMarketTypeFromExchange(exchangeId))
-  const [availableSymbols, setAvailableSymbols] = useState<SymbolInfo[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [searchFilter, setSearchFilter] = useState('')
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const chartSymbolDisplay = availableSymbols.find(s => s.symbol === chartSymbol)?.display || chartSymbol
 
   // Auto-switch market type when exchange ID changes
   useEffect(() => {
@@ -74,56 +68,14 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
 
   // Determine exchange from market type
   const marketConfig = MARKET_CONFIG[marketType]
-  // Prefer passed-in exchangeId (when not hyperliquid)
-  const currentExchange = marketType === 'hyperliquid' ? 'hyperliquid' : (exchangeId || marketConfig.exchange)
-
-  // Fetch available symbol list
-  useEffect(() => {
-    if (marketConfig.hasDropdown) {
-      fetch(`/api/symbols?exchange=${marketConfig.exchange}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.symbols) {
-            // Product order for Hyperliquid XYZ board: stocks → commodities → indices → FX → pre-IPO → crypto
-            const categoryOrder: Record<string, number> = { stock: 0, commodity: 1, index: 2, forex: 3, pre_ipo: 4, crypto: 5 }
-            const sorted = [...data.symbols].sort((a: SymbolInfo, b: SymbolInfo) => {
-              const orderA = categoryOrder[a.category] ?? 99
-              const orderB = categoryOrder[b.category] ?? 99
-              if (orderA !== orderB) return orderA - orderB
-              return (a.display || a.symbol).localeCompare(b.display || b.symbol)
-            })
-            setAvailableSymbols(sorted)
-          }
-        })
-        .catch(err => console.error('Failed to fetch symbols:', err))
-    }
-  }, [marketType, marketConfig.exchange, marketConfig.hasDropdown])
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  // Prefer passed-in exchangeId (crypto uses the trader's exchange when available)
+  const currentExchange = marketType === 'crypto' && exchangeId ? exchangeId : marketConfig.exchange
 
   // Update default symbol when switching market type
   const handleMarketTypeChange = (type: MarketType) => {
     setMarketType(type)
     setChartSymbol(MARKET_CONFIG[type].defaultSymbol)
-    setShowDropdown(false)
   }
-
-  // Filtered symbol list
-  const filteredSymbols = availableSymbols.filter(s => {
-    const q = searchFilter.toLowerCase()
-    return s.symbol.toLowerCase().includes(q)
-      || (s.display || '').toLowerCase().includes(q)
-      || s.name.toLowerCase().includes(q)
-  })
 
   // Auto-switch to kline chart when symbol selected externally
   useEffect(() => {
@@ -150,8 +102,8 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
   return (
     <div className={`nofx-glass rounded-lg border border-white/5 relative z-10 w-full flex flex-col transition-all duration-300 ${typeof window !== 'undefined' && window.innerWidth < 768 ? 'h-[500px]' : 'h-[600px]'
       }`}>
-      {/* 
-        Premium Professional Toolbar 
+      {/*
+        Premium Professional Toolbar
         Mobile: Single row, horizontal scroll with gradient mask
         Desktop: Standard flex-wrap/nowrap
       */}
@@ -212,61 +164,8 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
         {/* Right: Symbol + Interval */}
         {activeTab === 'kline' && (
           <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto min-w-0">
-            {/* Symbol Dropdown */}
-            <div className="shrink-0 relative" ref={dropdownRef}>
-              {marketConfig.hasDropdown ? (
-                <>
-                  <button
-                    onClick={() => setShowDropdown(!showDropdown)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 border border-white/10 rounded text-[11px] font-bold text-nofx-text-main hover:border-nofx-gold/30 hover:text-nofx-gold transition-all"
-                  >
-                    <span>{chartSymbolDisplay}</span>
-                    <ChevronDown className={`w-3 h-3 text-nofx-text-muted transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-                  {showDropdown && (
-                    <div className="absolute top-full right-0 mt-2 w-64 bg-[#0B0E11] border border-white/10 rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] z-50 overflow-hidden nofx-glass ring-1 ring-white/5">
-                      <div className="p-2 border-b border-white/5">
-                        <div className="flex items-center gap-2 px-2 py-1.5 bg-black/40 rounded border border-white/10 focus-within:border-nofx-gold/50 transition-colors">
-                          <Search className="w-3.5 h-3.5 text-nofx-text-muted" />
-                          <input
-                            type="text"
-                            value={searchFilter}
-                            onChange={(e) => setSearchFilter(e.target.value)}
-                            placeholder="Search symbol..."
-                            className="flex-1 bg-transparent text-[11px] text-white placeholder-gray-600 focus:outline-none font-mono"
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-                      <div className="overflow-y-auto max-h-60 custom-scrollbar">
-                        {['stock', 'commodity', 'index', 'forex', 'pre_ipo', 'crypto'].map(category => {
-                          const categorySymbols = filteredSymbols.filter(s => s.category === category)
-                          if (categorySymbols.length === 0) return null
-                          const labels: Record<string, string> = { crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', commodity: 'Commodities', index: 'Indices', pre_ipo: 'Pre-IPO' }
-                          return (
-                            <div key={category}>
-                              <div className="px-3 py-1.5 text-[9px] font-bold text-nofx-text-muted/60 bg-white/5 uppercase tracking-wider">{labels[category]}</div>
-                              {categorySymbols.map(s => (
-                                <button
-                                  key={s.symbol}
-                                  onClick={() => { setChartSymbol(s.symbol); setShowDropdown(false); setSearchFilter('') }}
-                                  className={`w-full px-3 py-2 text-left text-[11px] font-mono hover:bg-white/5 transition-all flex items-center justify-between ${chartSymbol === s.symbol ? 'bg-nofx-gold/10 text-nofx-gold' : 'text-nofx-text-muted'}`}
-                                >
-                                  <span>{s.display || s.symbol}</span>
-                                  <span className="text-[9px] opacity-40">{s.name}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <span className="px-2.5 py-1 bg-black/40 border border-white/10 rounded text-[11px] font-bold text-nofx-text-main font-mono">{chartSymbol}</span>
-              )}
-            </div>
+            {/* Symbol Display */}
+            <span className="shrink-0 px-2.5 py-1 bg-black/40 border border-white/10 rounded text-[11px] font-bold text-nofx-text-main font-mono">{chartSymbol}</span>
 
             {/* Interval Selector - Allow scrolling if needed */}
             <div className="flex items-center bg-black/40 rounded border border-white/10 overflow-x-auto no-scrollbar max-w-[200px] md:max-w-none">
@@ -284,7 +183,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
               ))}
             </div>
 
-            {/* Quick Input - Hidden on mobile, dropdown search is enough */}
+            {/* Quick Input */}
             <form onSubmit={handleSymbolSubmit} className="hidden md:flex items-center shrink-0">
               <input
                 type="text"

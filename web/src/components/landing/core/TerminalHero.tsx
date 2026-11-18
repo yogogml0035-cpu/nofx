@@ -5,41 +5,37 @@ import { useGitHubStats } from '../../../hooks/useGitHubStats'
 import AgentTerminal from '../brand/AgentTerminal'
 
 const tickerLabels: Record<string, string> = {
-    AAPL: 'AAPL',
-    MSFT: 'MSFT',
-    NVDA: 'NVDA',
-    TSLA: 'TSLA',
-    GOLD: 'GOLD',
-    EURUSD: 'EUR/USD',
-    SPX: 'S&P 500',
-    PREIPO: 'PRE-IPO INDEX',
+    BTCUSDT: 'BTC',
+    ETHUSDT: 'ETH',
+    SOLUSDT: 'SOL',
+    BNBUSDT: 'BNB',
+    XRPUSDT: 'XRP',
+    DOGEUSDT: 'DOGE',
 }
 
 export default function TerminalHero() {
 
     // Real-time price state
     const [prices, setPrices] = useState<Record<string, string>>({
-        AAPL: '...',
-        MSFT: '...',
-        NVDA: '...',
-        TSLA: '...',
-        GOLD: '...',
-        EURUSD: '...',
-        SPX: '...',
-        PREIPO: '...'
+        BTCUSDT: '...',
+        ETHUSDT: '...',
+        SOLUSDT: '...',
+        BNBUSDT: '...',
+        XRPUSDT: '...',
+        DOGEUSDT: '...'
     })
 
     useEffect(() => {
         const fetchPrices = async () => {
-            const symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOLD', 'EURUSD', 'SPX']
+            const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT']
 
-            // We use Promise.all to fetch them in parallel for now, or sequentially if rate limited. 
+            // We use Promise.all to fetch them in parallel for now, or sequentially if rate limited.
             // Parallel is better for UI responsiveness.
             try {
                 const results = await Promise.all(symbols.map(async (sym) => {
                     try {
                         // Use native fetch to bypass global error handlers (toasts) in httpClient
-                        const response = await fetch(`/api/klines?symbol=xyz:${sym}&interval=1m&limit=1`)
+                        const response = await fetch(`/api/klines?symbol=${sym}&interval=1m&limit=1`)
                         if (!response.ok) return null
 
                         const res = await response.json()
@@ -162,7 +158,7 @@ export default function TerminalHero() {
                     <div className="font-mono text-[10px] text-zinc-600 space-y-1 opacity-70">
                         <div>&gt; CONNECTING TO MARKET DATA... OK</div>
                         <div>&gt; SYNCING VENUES (424/424)... OK</div>
-                        <div>&gt; LOADING MULTI-ASSET UNIVERSE... DONE</div>
+                        <div>&gt; LOADING CRYPTO PERP UNIVERSE... DONE</div>
                         <div className="animate-pulse">&gt; AWAITING USER INPUT_</div>
                     </div>
                 </div>
@@ -180,7 +176,7 @@ export default function TerminalHero() {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-gold opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-gold"></span>
                         </span>
-                        <span className="text-xs font-mono text-nofx-gold tracking-widest">NOFX PROFESSIONAL MULTI-ASSET AGENT OS</span>
+                        <span className="text-xs font-mono text-nofx-gold tracking-widest">NOFX PROFESSIONAL CRYPTO PERP AGENT OS</span>
                     </motion.div>
 
                     {/* Main Title - Massive & Impactful */}
@@ -192,7 +188,7 @@ export default function TerminalHero() {
                         </h1>
 
                         <p className="max-w-xl text-zinc-200 md:text-zinc-400 text-lg mb-6 font-light leading-relaxed drop-shadow-md">
-                            Professional AI trading agents for US stocks, commodities, FX and Pre-IPO synthetic markets.
+                            Professional AI trading agents for crypto perpetual markets.
                             Build institutional-grade strategies by chatting in plain English.
                         </p>
                     </div>
@@ -208,7 +204,7 @@ export default function TerminalHero() {
                             Live Data Feeds Active
                         </div>
                         <div className="flex flex-wrap gap-4 font-mono">
-                            {['US STOCKS', 'COMMODITIES', 'FOREX', 'PRE-IPO'].map((market) => (
+                            {['CRYPTO PERP', 'BTC', 'ETH', 'ALT'].map((market) => (
                                 <div key={market} className="relative group cursor-default">
                                     <div className="absolute -inset-0.5 bg-gradient-to-r from-nofx-gold/20 to-blue-600/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
                                     <div className="relative flex items-center gap-3 px-6 py-3 rounded-lg bg-zinc-900/80 border border-zinc-700 hover:border-nofx-gold/50 transition-all duration-300 backdrop-blur-sm">
@@ -224,7 +220,7 @@ export default function TerminalHero() {
                     <div className="w-full max-w-lg h-12 bg-black/50 border border-zinc-800 rounded flex items-center px-4 mb-10 font-mono text-sm shadow-2xl backdrop-blur-sm group hover:border-nofx-gold/50 transition-colors cursor-text" onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}>
                         <span className="text-nofx-success mr-2">➜</span>
                         <span className="text-nofx-accent mr-2">~</span>
-                        <span className="text-zinc-500">create US stock agent --idea="breakouts"</span>
+                        <span className="text-zinc-500">create crypto agent --idea="breakouts"</span>
                         <span className="w-2 h-4 bg-nofx-gold ml-1 animate-pulse"></span>
                     </div>
 
@@ -236,7 +232,7 @@ export default function TerminalHero() {
                             style={{ clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)' }}
                         >
                             <span className="relative z-10 flex items-center gap-2">
-                                CREATE STOCK AGENT <ArrowRight className="w-4 h-4" />
+                                CREATE TRADING AGENT <ArrowRight className="w-4 h-4" />
                             </span>
                             <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                         </button>
@@ -274,7 +270,7 @@ export default function TerminalHero() {
             <div className="absolute bottom-0 w-full bg-black/80 border-t border-zinc-800/50 backdrop-blur-md z-30 overflow-hidden py-2 flex items-center">
                 <div className="flex animate-marquee whitespace-nowrap gap-12 text-xs font-mono text-zinc-500 px-4">
                     <span className="flex items-center gap-2"><Globe className="w-3 h-3 text-zinc-600" /> GLOBAL MARKET ACCESS</span>
-                    <span className="flex items-center gap-2 text-nofx-gold"><Zap className="w-3 h-3" /> MULTI-ASSET ROUTING ENABLED</span>
+                    <span className="flex items-center gap-2 text-nofx-gold"><Zap className="w-3 h-3" /> CROSS-EXCHANGE ROUTING ENABLED</span>
                     <span className="flex items-center gap-2"><Wifi className="w-3 h-3 text-green-500" /> LOW LATENCY LINK: 12ms</span>
 
                     {/* Dynamic Coins */}

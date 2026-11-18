@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react'
 import type { Exchange } from '../../types'
 import { t, type Language } from '../../i18n/translations'
 import { api } from '../../lib/api'
-import { useAuth } from '../../contexts/AuthContext'
-import { HyperliquidWalletConnect } from '../common/HyperliquidWalletConnect'
 import { getExchangeIcon } from '../common/ExchangeIcons'
 import {
   TwoStageKeyModal,
@@ -29,7 +27,6 @@ const SUPPORTED_EXCHANGE_TEMPLATES = [
   { exchange_type: 'bitget', name: 'Bitget Futures', type: 'cex' as const },
   { exchange_type: 'gate', name: 'Gate.io Futures', type: 'cex' as const },
   { exchange_type: 'kucoin', name: 'KuCoin Futures', type: 'cex' as const },
-  { exchange_type: 'hyperliquid', name: 'Hyperliquid', type: 'dex' as const },
   { exchange_type: 'aster', name: 'Aster DEX', type: 'dex' as const },
   { exchange_type: 'lighter', name: 'Lighter', type: 'dex' as const },
   { exchange_type: 'indodax', name: 'Indodax', type: 'cex' as const },
@@ -46,7 +43,6 @@ interface ExchangeConfigModalProps {
     secretKey?: string,
     passphrase?: string,
     testnet?: boolean,
-    hyperliquidWalletAddr?: string,
     asterUser?: string,
     asterSigner?: string,
     asterPrivateKey?: string,
@@ -153,7 +149,6 @@ export function ExchangeConfigModal({
   onClose,
   language,
 }: ExchangeConfigModalProps) {
-  const { user } = useAuth()
   // Step: 0 = select exchange, 1 = configure
   const [currentStep, setCurrentStep] = useState(editingExchangeId ? 1 : 0)
   const [selectedExchangeType, setSelectedExchangeType] = useState('')
@@ -179,7 +174,7 @@ export function ExchangeConfigModal({
   const [lighterApiKeyIndex, setLighterApiKeyIndex] = useState(0)
 
   // Other state
-  const [secureInputTarget, setSecureInputTarget] = useState<null | 'hyperliquid' | 'aster' | 'lighter'>(null)
+  const [secureInputTarget, setSecureInputTarget] = useState<null | 'aster' | 'lighter'>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [accountName, setAccountName] = useState('')
 
@@ -195,17 +190,17 @@ export function ExchangeConfigModal({
     ? selectedExchange?.exchange_type
     : selectedExchangeType
 
+  // 注册引导链接：仅 Gate 保留推荐位（D4），其余交易所用官方注册页（无返佣参数）
   const exchangeRegistrationLinks: Record<string, { url: string; hasReferral?: boolean }> = {
-    binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
-    okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
-    bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
-    bitget: { url: 'https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172', hasReferral: true },
+    binance: { url: 'https://www.binance.com/join' },
+    okx: { url: 'https://www.okx.com/join' },
+    bybit: { url: 'https://www.bybit.com/register' },
+    bitget: { url: 'https://www.bitget.com/register' },
     gate: { url: 'https://www.gatenode.xyz/share/VQBGUAxY', hasReferral: true },
-    kucoin: { url: 'https://www.kucoin.com/r/broker/CXEV7XKK', hasReferral: true },
-    hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
-    aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
-    lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
-    indodax: { url: 'https://indodax.com/ref/Saep23/1', hasReferral: true },
+    kucoin: { url: 'https://www.kucoin.com/register' },
+    aster: { url: 'https://www.asterdex.com' },
+    lighter: { url: 'https://app.lighter.xyz' },
+    indodax: { url: 'https://indodax.com/register' },
   }
 
   // Initialize form when editing
@@ -263,12 +258,10 @@ export function ExchangeConfigModal({
 
   const secureInputContextLabel =
     secureInputTarget === 'aster' ? t('asterExchangeName', language)
-      : secureInputTarget === 'hyperliquid' ? t('hyperliquidExchangeName', language)
-        : undefined
+      : undefined
 
   const handleSecureInputComplete = ({ value }: TwoStageKeyModalResult) => {
     const trimmed = value.trim()
-    if (secureInputTarget === 'hyperliquid') setApiKey(trimmed)
     if (secureInputTarget === 'aster') setAsterPrivateKey(trimmed)
     if (secureInputTarget === 'lighter') {
       setLighterApiKeyPrivateKey(trimmed)
@@ -313,15 +306,12 @@ export function ExchangeConfigModal({
       } else if (currentExchangeType === 'okx' || currentExchangeType === 'bitget' || currentExchangeType === 'kucoin') {
         if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, apiKey.trim(), secretKey.trim(), passphrase.trim(), testnet)
-      } else if (currentExchangeType === 'hyperliquid') {
-        toast.error(language === 'zh' ? 'Hyperliquid 请使用钱包授权流程连接。' : 'Use the wallet authorization flow to connect Hyperliquid.')
-        return
       } else if (currentExchangeType === 'aster') {
         if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, '', '', '', testnet, undefined, asterUser.trim(), asterSigner.trim(), asterPrivateKey.trim())
       } else if (currentExchangeType === 'lighter') {
         if (!lighterWalletAddr.trim() || !lighterApiKeyPrivateKey.trim()) return
-        await onSave(exchangeId, exchangeType, trimmedAccountName, '', '', '', testnet, undefined, undefined, undefined, undefined, lighterWalletAddr.trim(), '', lighterApiKeyPrivateKey.trim(), lighterApiKeyIndex)
+        await onSave(exchangeId, exchangeType, trimmedAccountName, '', '', '', testnet, undefined, undefined, undefined, lighterWalletAddr.trim(), '', lighterApiKeyPrivateKey.trim(), lighterApiKeyIndex)
       } else {
         if (!apiKey.trim() || !secretKey.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, apiKey.trim(), secretKey.trim(), '', testnet)
@@ -681,30 +671,6 @@ export function ExchangeConfigModal({
                 </>
               )}
 
-              {/* Hyperliquid Wallet Authorization */}
-              {currentExchangeType === 'hyperliquid' && (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-xl" style={{ background: 'rgba(127, 231, 204, 0.1)', border: '1px solid rgba(127, 231, 204, 0.3)' }}>
-                    <div className="flex items-start gap-2">
-                      <span style={{ fontSize: '16px' }}>🔐</span>
-                      <div>
-                        <div className="text-sm font-semibold mb-1" style={{ color: '#7FE7CC' }}>
-                          {language === 'zh' ? 'Hyperliquid 必须走钱包授权' : 'Hyperliquid requires wallet authorization'}
-                        </div>
-                        <div className="text-xs leading-5" style={{ color: '#848E9C' }}>
-                          {language === 'zh'
-                            ? '不再支持手动填写私钥/API Key。请用 MetaMask、Rabby、OKX、Coinbase Wallet 等 EVM 钱包完成连接、Agent 授权和 Builder fee 授权。'
-                            : 'Manual private-key/API-key entry is disabled. Use MetaMask, Rabby, OKX, Coinbase Wallet or another EVM wallet to connect, authorize the agent, and approve the builder fee.'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex justify-start">
-                    <HyperliquidWalletConnect language={language} isLoggedIn={Boolean(user)} variant="inline" />
-                  </div>
-                </div>
-              )}
-
               {/* Lighter Fields */}
               {currentExchangeType === 'lighter' && (
                 <>
@@ -747,20 +713,18 @@ export function ExchangeConfigModal({
               {/* Buttons */}
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={handleBack} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5" style={{ background: '#2B3139', color: '#848E9C' }}>
-                  {currentExchangeType === 'hyperliquid' ? t('closeGuide', language) : editingExchangeId ? t('cancel', language) : t('exchangeConfig.back', language)}
+                  {editingExchangeId ? t('cancel', language) : t('exchangeConfig.back', language)}
                 </button>
-                {currentExchangeType !== 'hyperliquid' && (
-                  <button
-                    type="submit"
-                    disabled={isSaving || !accountName.trim()}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ background: '#F0B90B', color: '#000' }}
-                  >
-                    {isSaving ? t('saving', language) : (
-                      <>{t('saveConfig', language)} <ArrowRight className="w-4 h-4" /></>
-                    )}
-                  </button>
-                )}
+                <button
+                  type="submit"
+                  disabled={isSaving || !accountName.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: '#F0B90B', color: '#000' }}
+                >
+                  {isSaving ? t('saving', language) : (
+                    <>{t('saveConfig', language)} <ArrowRight className="w-4 h-4" /></>
+                  )}
+                </button>
               </div>
             </form>
           )}

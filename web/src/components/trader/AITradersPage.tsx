@@ -152,9 +152,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       if (e.id === 'aster') {
         return e.asterUser && e.asterUser.trim() !== ''
       }
-      if (e.id === 'hyperliquid') {
-        return e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== ''
-      }
       return e.enabled
     }) || []
 
@@ -169,9 +166,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           e.asterSigner &&
           e.asterSigner.trim() !== ''
         )
-      }
-      if (e.id === 'hyperliquid') {
-        return e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== ''
       }
       return true
     }) || []
@@ -545,7 +539,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     secretKey?: string,
     passphrase?: string,
     testnet?: boolean,
-    hyperliquidWalletAddr?: string,
     asterUser?: string,
     asterSigner?: string,
     asterPrivateKey?: string,
@@ -570,7 +563,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               secret_key: secretKey || '',
               passphrase: passphrase || '',
               testnet: testnet || false,
-              hyperliquid_wallet_addr: hyperliquidWalletAddr || '',
               aster_user: asterUser || '',
               aster_signer: asterSigner || '',
               aster_private_key: asterPrivateKey || '',
@@ -593,7 +585,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           secret_key: secretKey || '',
           passphrase: passphrase || '',
           testnet: testnet || false,
-          hyperliquid_wallet_addr: hyperliquidWalletAddr || '',
           aster_user: asterUser || '',
           aster_signer: asterSigner || '',
           aster_private_key: asterPrivateKey || '',

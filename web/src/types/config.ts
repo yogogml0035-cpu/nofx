@@ -7,8 +7,6 @@ export interface AIModel {
   apiKey?: string
   customApiUrl?: string
   customModelName?: string
-  walletAddress?: string
-  balanceUsdc?: string
 }
 
 export interface TelegramConfig {
@@ -20,7 +18,7 @@ export interface TelegramConfig {
 
 export interface Exchange {
   id: string                     // UUID (empty for supported exchange templates)
-  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+  exchange_type: string          // "binance", "bybit", "okx", "aster", "lighter"
   account_name: string           // User-defined account name
   name: string                   // Display name
   type: 'cex' | 'dex'
@@ -32,10 +30,6 @@ export interface Exchange {
   secretKey?: string
   passphrase?: string            // OKX specific
   testnet?: boolean
-  // Hyperliquid specific
-  hyperliquidWalletAddr?: string
-  hyperliquidBuilderApproved?: boolean
-  has_hyperliquid_secret?: boolean
   // Aster specific
   asterUser?: string
   asterSigner?: string
@@ -75,15 +69,13 @@ export interface ExchangeAccountStateResponse {
 }
 
 export interface CreateExchangeRequest {
-  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+  exchange_type: string          // "binance", "bybit", "okx", "aster", "lighter"
   account_name: string           // User-defined account name
   enabled: boolean
   api_key?: string
   secret_key?: string
   passphrase?: string
   testnet?: boolean
-  hyperliquid_wallet_addr?: string
-  hyperliquid_builder_approved?: boolean
   aster_user?: string
   aster_signer?: string
   aster_private_key?: string
@@ -131,9 +123,6 @@ export interface UpdateExchangeConfigRequest {
       secret_key: string
       passphrase?: string
       testnet?: boolean
-      // Hyperliquid 特定字段
-      hyperliquid_wallet_addr?: string
-      hyperliquid_builder_approved?: boolean
       // Aster 特定字段
       aster_user?: string
       aster_signer?: string
@@ -145,27 +134,4 @@ export interface UpdateExchangeConfigRequest {
       lighter_api_key_index?: number
     }
   }
-}
-
-export interface BeginnerOnboardingResponse {
-  address: string
-  private_key: string
-  chain: string
-  asset: string
-  provider: string
-  default_model: string
-  configured_model_id: string
-  balance_usdc: string
-  env_saved: boolean
-  env_path?: string
-  reused_existing: boolean
-  env_warning?: string
-}
-
-export interface CurrentBeginnerWalletResponse {
-  found: boolean
-  address?: string
-  balance_usdc?: string
-  source?: string
-  claw402_status?: string
 }

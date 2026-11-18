@@ -23,14 +23,13 @@ function getStrategyAIConfig(strategy: Strategy) {
   )
 }
 
-// 交易所注册链接配置
+// 交易所注册链接配置：仅 Gate 保留推荐位（D4），其余为官方注册页
 const EXCHANGE_REGISTRATION_LINKS: Record<string, { url: string; hasReferral?: boolean }> = {
-  binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
-  okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
-  bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
-  hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
-  aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
-  lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
+  binance: { url: 'https://www.binance.com/join' },
+  okx: { url: 'https://www.okx.com/join' },
+  bybit: { url: 'https://www.bybit.com/register' },
+  aster: { url: 'https://www.asterdex.com' },
+  lighter: { url: 'https://app.lighter.xyz' },
 }
 // 表单内部状态类型
 interface FormState {
@@ -336,10 +335,7 @@ export function TraderConfigModal({
                     return (
                       <div className="grid grid-cols-2 gap-2 text-xs text-[#848E9C]">
                         <div>
-                          {t('coinSource', language)}: {aiConfig.coin_source.source_type === 'static' ? (language === 'zh' ? '固定美股' : 'Fixed US stocks') :
-                            aiConfig.coin_source.source_type === 'hyper_rank' ? (language === 'zh' ? 'Hyperliquid 美股榜单' : 'Hyperliquid US stock ranking') :
-                            aiConfig.coin_source.source_type === 'hyper_all' ? (language === 'zh' ? 'Hyperliquid 全市场' : 'Hyperliquid all markets') :
-                            aiConfig.coin_source.source_type === 'hyper_main' ? (language === 'zh' ? 'Hyperliquid 主流市场' : 'Hyperliquid main markets') :
+                          {t('coinSource', language)}: {aiConfig.coin_source.source_type === 'static' ? (language === 'zh' ? '自选标的' : 'Selected symbols') :
                             aiConfig.coin_source.source_type === 'ai500' ? 'AI500' :
                             aiConfig.coin_source.source_type === 'oi_top' ? 'OI Top' :
                             aiConfig.coin_source.source_type === 'oi_low' ? 'OI Low' : '-'}

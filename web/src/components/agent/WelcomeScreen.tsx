@@ -21,16 +21,16 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({ language, onSend }: WelcomeScreenProps) {
   const suggestions: SuggestionCard[] = language === 'zh'
     ? [
-        { icon: <Bot size={18} />, title: '创建美股 Agent', subtitle: '强势股 + 严格风控', cmd: '创建一个美股趋势交易 Agent，默认选择5个强势美股，严格风控' },
-        { icon: <Zap size={18} />, title: '一句话建策略', subtitle: '从想法到 Agent', cmd: '我想做美股强趋势突破，帮我生成策略和Agent' },
-        { icon: <Search size={18} />, title: '搜索美股', subtitle: '输入名称或代码即可', cmd: '搜索一下 NVIDIA 和 Apple' },
-        { icon: <Lightbulb size={18} />, title: '全球资产策略', subtitle: '美股/黄金/外汇', cmd: '当前美股、黄金、外汇适合什么策略？' },
+        { icon: <Bot size={18} />, title: '创建加密 Agent', subtitle: '强势标的 + 严格风控', cmd: '创建一个加密货币趋势交易 Agent，默认选择强势标的，严格风控' },
+        { icon: <Zap size={18} />, title: '一句话建策略', subtitle: '从想法到 Agent', cmd: '我想做 BTC 强趋势突破，帮我生成策略和Agent' },
+        { icon: <Search size={18} />, title: 'AI500 精选', subtitle: '查看 AI 评分精选币种', cmd: '展示 AI500 精选币种' },
+        { icon: <Lightbulb size={18} />, title: '行情策略建议', subtitle: 'BTC/ETH/主流币', cmd: '当前 BTC、ETH 行情适合什么策略？' },
       ]
     : [
-        { icon: <Bot size={18} />, title: 'Create US Stock Agent', subtitle: 'Strong stocks + strict risk', cmd: 'Create a US stock trend-following agent with 5 strong stocks and strict risk control' },
-        { icon: <Zap size={18} />, title: 'One-line strategy', subtitle: 'Idea to agent', cmd: 'I want a US stock breakout strategy; build the strategy and agent' },
-        { icon: <Search size={18} />, title: 'Search US stocks', subtitle: 'Name or ticker', cmd: 'Search for NVIDIA and Apple stocks' },
-        { icon: <Lightbulb size={18} />, title: 'Global strategy', subtitle: 'Stocks/gold/FX', cmd: 'What strategy fits US stocks, gold, and FX now?' },
+        { icon: <Bot size={18} />, title: 'Create Crypto Agent', subtitle: 'Strong symbols + strict risk', cmd: 'Create a crypto trend-following agent with strong symbols and strict risk control' },
+        { icon: <Zap size={18} />, title: 'One-line strategy', subtitle: 'Idea to agent', cmd: 'I want a BTC breakout strategy; build the strategy and agent' },
+        { icon: <Search size={18} />, title: 'AI500 Picks', subtitle: 'AI-scored coin selection', cmd: 'Show me the AI500 picks' },
+        { icon: <Lightbulb size={18} />, title: 'Market strategy', subtitle: 'BTC/ETH/majors', cmd: 'What strategy fits BTC and ETH now?' },
       ]
 
   return (
@@ -72,7 +72,7 @@ export function WelcomeScreen({ language, onSend }: WelcomeScreenProps) {
           margin: '0 0 8px',
           letterSpacing: '-0.02em',
         }}>
-          {language === 'zh' ? '快速创建你的美股 Agent' : 'Create your US stock agent'}
+          {language === 'zh' ? '快速创建你的交易 Agent' : 'Create your trading agent'}
         </h1>
         <p style={{
           fontSize: 13.5,
@@ -81,8 +81,8 @@ export function WelcomeScreen({ language, onSend }: WelcomeScreenProps) {
           lineHeight: 1.5,
         }}>
           {language === 'zh'
-            ? '美股、大宗、外汇、Pre-IPO — 用自然语言描述策略即可'
-            : 'US stocks, commodities, FX, Pre-IPO — describe the strategy in plain English'}
+            ? '加密货币永续合约 — 用自然语言描述策略即可'
+            : 'Crypto perpetual futures — describe the strategy in plain English'}
         </p>
       </motion.div>
 

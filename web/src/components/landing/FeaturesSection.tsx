@@ -39,8 +39,8 @@ export default function FeaturesSection({ language }: FeaturesSectionProps) {
       icon: Blocks,
       title: language === 'zh' ? '多交易所支持' : 'Multi-Exchange Support',
       desc: language === 'zh'
-        ? 'Binance、OKX、Bybit、Hyperliquid、Aster DEX，一套系统管理多个交易所'
-        : 'Binance, OKX, Bybit, Hyperliquid, Aster DEX - one system, multiple exchanges',
+        ? 'Binance、OKX、Bybit、Gate、Aster DEX 等 9 家交易所，一套系统统一管理'
+        : 'Binance, OKX, Bybit, Gate, Aster DEX and more - 9 exchanges, one system',
     },
     {
       icon: BarChart3,
