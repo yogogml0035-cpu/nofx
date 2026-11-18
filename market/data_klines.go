@@ -6,8 +6,6 @@ import (
 	"nofx/logger"
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
-	"nofx/provider/hyperliquid"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -64,8 +62,6 @@ func getKlinesFromCoinAnk(symbol, interval, exchange string, limit int) ([]Kline
 		coinankExchange = coinank_enum.Bitget
 	case "gate":
 		coinankExchange = coinank_enum.Gate
-	case "hyperliquid":
-		coinankExchange = coinank_enum.Hyperliquid
 	case "aster":
 		coinankExchange = coinank_enum.Aster
 	default:
@@ -106,46 +102,6 @@ func getKlinesFromCoinAnk(symbol, interval, exchange string, limit int) ([]Kline
 			Close:     ck.Close,
 			Volume:    ck.Volume,
 			CloseTime: ck.EndTime,
-		}
-	}
-
-	return klines, nil
-}
-
-// getKlinesFromHyperliquid fetches kline data from Hyperliquid API for xyz dex assets
-func getKlinesFromHyperliquid(symbol, interval string, limit int) ([]Kline, error) {
-	// Pass the symbol AS-IS to GetCandles. It internally calls FormatCoinForAPI
-	// which handles the xyz: prefix correctly. Stripping the prefix here was a
-	// bug: if the base symbol (e.g. "QNT") was not in our hardcoded
-	// StockPerpsSymbols list, FormatCoinForAPI couldn't tell it was an xyz
-	// asset and the request hit the crypto perp endpoint instead — which
-	// returns 500 for stock symbols that have no crypto perp on Hyperliquid.
-	hlInterval := hyperliquid.MapTimeframe(interval)
-
-	client := hyperliquid.NewClient()
-	ctx := context.Background()
-	candles, err := client.GetCandles(ctx, symbol, hlInterval, limit)
-	if err != nil {
-		return nil, fmt.Errorf("Hyperliquid API error: %w", err)
-	}
-
-	// Convert to market.Kline format
-	klines := make([]Kline, len(candles))
-	for i, c := range candles {
-		open, _ := strconv.ParseFloat(c.Open, 64)
-		high, _ := strconv.ParseFloat(c.High, 64)
-		low, _ := strconv.ParseFloat(c.Low, 64)
-		closePrice, _ := strconv.ParseFloat(c.Close, 64)
-		volume, _ := strconv.ParseFloat(c.Volume, 64)
-
-		klines[i] = Kline{
-			OpenTime:  c.OpenTime,
-			Open:      open,
-			High:      high,
-			Low:       low,
-			Close:     closePrice,
-			Volume:    volume,
-			CloseTime: c.CloseTime,
 		}
 	}
 
@@ -405,15 +361,7 @@ func GetBoxData(symbol string) (*BoxData, error) {
 	symbol = Normalize(symbol)
 
 	// Fetch 500 1h klines
-	var klines []Kline
-	var err error
-
-	if IsXyzDexAsset(symbol) {
-		klines, err = getKlinesFromHyperliquid(symbol, "1h", LongBoxPeriod)
-	} else {
-		klines, err = getKlinesFromCoinAnk(symbol, "1h", "binance", LongBoxPeriod)
-	}
-
+	klines, err := getKlinesFromCoinAnk(symbol, "1h", "binance", LongBoxPeriod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get 1h klines: %w", err)
 	}

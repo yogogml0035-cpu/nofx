@@ -8,14 +8,14 @@ func TestIsSupportedTraderSymbol(t *testing.T) {
 		symbol string
 		want   bool
 	}{
-		{name: "legacy USDT perp", symbol: "BTCUSDT", want: true},
-		{name: "legacy USDT perp lowercase", symbol: "ethusdt", want: true},
-		{name: "Hyperliquid xyz stock USDC pair", symbol: "SMSN-USDC", want: true},
-		{name: "Hyperliquid xyz commodity USDC pair", symbol: "GOLD-USDC", want: true},
-		{name: "legacy internal xyz prefix still accepted", symbol: "xyz:SMSN", want: true},
+		{name: "standard USDT perp", symbol: "BTCUSDT", want: true},
+		{name: "USDT perp lowercase", symbol: "ethusdt", want: true},
+		{name: "gate style USDT perp", symbol: "BTC_USDT", want: true},
 		{name: "empty slot ignored", symbol: "  ", want: true},
-		{name: "bare stock without xyz prefix rejected", symbol: "SMSN", want: false},
-		{name: "unknown non-USDT pair rejected", symbol: "BTCUSD", want: false},
+		{name: "bare base symbol rejected", symbol: "SMSN", want: false},
+		{name: "non-USDT quote rejected", symbol: "BTCUSD", want: false},
+		{name: "USDC pair rejected", symbol: "SMSN-USDC", want: false},
+		{name: "xyz prefix rejected", symbol: "xyz:SMSN", want: false},
 	}
 
 	for _, tt := range tests {

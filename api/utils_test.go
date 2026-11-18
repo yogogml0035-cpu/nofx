@@ -104,11 +104,6 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 			LighterPrivateKey:       "lighter_private_key_1234567890abcdef",
 			LighterAPIKeyPrivateKey: "lighter_api_key_private_key_1234567890abcdef",
 		},
-		"hyperliquid": {
-			Enabled:               true,
-			HyperliquidWalletAddr: "0x1234567890abcdef1234567890abcdef12345678",
-			Testnet:               false,
-		},
 	}
 
 	result := SanitizeExchangeConfigForLog(exchanges)
@@ -161,22 +156,6 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 	}
 	if maskedLighterAPIKey != "ligh****cdef" {
 		t.Errorf("expected masked lighter_api_key_private_key='ligh****cdef', got %q", maskedLighterAPIKey)
-	}
-
-	// Check Hyperliquid configuration
-	hlConfig, ok := result["hyperliquid"].(map[string]interface{})
-	if !ok {
-		t.Fatal("hyperliquid config not found or wrong type")
-	}
-
-	walletAddr, ok := hlConfig["hyperliquid_wallet_addr"].(string)
-	if !ok {
-		t.Fatal("hyperliquid_wallet_addr not found or wrong type")
-	}
-
-	// Wallet address should not be masked
-	if walletAddr != "0x1234567890abcdef1234567890abcdef12345678" {
-		t.Errorf("wallet address should not be masked, got %q", walletAddr)
 	}
 }
 

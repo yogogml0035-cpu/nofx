@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"nofx/market"
 	"nofx/store"
 	"strings"
 	"sync"
@@ -377,14 +376,10 @@ func isBTCETHSymbol(symbol string) bool {
 }
 
 // isMajorTradeSymbol mirrors trader/auto_trader_risk.isMajorAsset for the
-// chat-execute path. BTC/ETH crypto perps and Hyperliquid XYZ assets
-// (US stocks, commodities, forex) get the higher BTC/ETH risk tier — their
-// per-position caps should not be clamped to the 1x altcoin tier.
+// chat-execute path: BTC/ETH crypto perps get the higher BTC/ETH risk tier —
+// their per-position caps should not be clamped to the 1x altcoin tier.
 func isMajorTradeSymbol(symbol string) bool {
-	if isBTCETHSymbol(symbol) {
-		return true
-	}
-	return market.IsXyzDexAsset(symbol)
+	return isBTCETHSymbol(symbol)
 }
 
 // formatTradeConfirmation creates a confirmation message for a pending trade.

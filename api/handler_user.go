@@ -1,18 +1,15 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"nofx/auth"
-	"nofx/logger"
 	"nofx/store"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // handleLogout Add current token to blacklist
@@ -115,12 +112,6 @@ func (s *Server) handleRegister(c *gin.Context) {
 		return
 	}
 
-	// Initialize default model and exchange configs for user
-	err = s.initUserDefaultConfigs(user.ID, lang)
-	if err != nil {
-		logger.Infof("Failed to initialize user default configs: %v", err)
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"token":   token,
 		"user_id": user.ID,
@@ -209,196 +200,3 @@ func (s *Server) handleChangePassword(c *gin.Context) {
 // rather than authentication. Recovery now lives in the local CLI
 // (`nofx reset-password` / `nofx reset-account`, see cli.go), which requires
 // shell access to the host — something a remote attacker does not have.
-
-// initUserDefaultConfigs Initialize default configs for new user
-func (s *Server) initUserDefaultConfigs(userID string, lang string) error {
-	if err := s.createDefaultStrategies(userID, lang); err != nil {
-		logger.Warnf("Failed to create default strategies for user %s: %v", userID, err)
-		// Non-fatal: user can create strategies manually
-	}
-	logger.Infof("✓ User %s registration completed with default strategies", userID)
-	return nil
-}
-
-func (s *Server) createDefaultStrategies(userID string, lang string) error {
-	type strategyI18n struct {
-		name, description string
-	}
-	type strategyLocale struct {
-		trend, megaCap, breakout strategyI18n
-	}
-	locales := map[string]strategyLocale{
-		"zh": {
-			trend:    strategyI18n{"美股趋势策略", "开箱即用的 Hyperliquid 美股 USDC 策略。只扫描流动性更好的美股合约，低杠杆、低频率，适合直接创建 Agent 后运行。"},
-			megaCap:  strategyI18n{"美股大盘稳健策略", "开箱即用的 Hyperliquid 美股 USDC 策略。固定关注 AAPL、MSFT、GOOGL、AMZN、META 等大盘股，强调趋势确认和回撤控制。"},
-			breakout: strategyI18n{"美股突破策略", "开箱即用的 Hyperliquid 美股 USDC 策略。扫描 24h 强势美股，等待突破确认后再开仓，避免频繁追涨。"},
-		},
-		"en": {
-			trend:    strategyI18n{"US Stock Trend Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Scans liquid US stock perps with low leverage and low trade frequency, suitable for one-click Agent deployment."},
-			megaCap:  strategyI18n{"US Mega-Cap Steady Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Fixed universe: AAPL, MSFT, GOOGL, AMZN and META, with trend confirmation and drawdown control."},
-			breakout: strategyI18n{"US Stock Breakout Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Scans 24h strong US stocks and waits for breakout confirmation before entering, avoiding impulsive chasing."},
-		},
-		"id": {
-			trend:    strategyI18n{"Strategi Tren Saham AS", "Strategi saham AS USDC Hyperliquid siap jalan. Memindai perp saham AS likuid dengan leverage rendah dan frekuensi rendah."},
-			megaCap:  strategyI18n{"Strategi Stabil Mega-Cap AS", "Strategi saham AS USDC Hyperliquid siap jalan. Universe tetap: AAPL, MSFT, GOOGL, AMZN, META, dengan konfirmasi tren."},
-			breakout: strategyI18n{"Strategi Breakout Saham AS", "Strategi saham AS USDC Hyperliquid siap jalan. Memindai saham AS kuat 24 jam dan menunggu konfirmasi breakout."},
-		},
-	}
-	locale, ok := locales[lang]
-	if !ok {
-		locale = locales["en"]
-	}
-
-	type strategyDef struct {
-		name        string
-		description string
-		isActive    bool
-		applyConfig func(*store.StrategyConfig)
-	}
-
-	setStockRank := func(c *store.StrategyConfig, direction string, limit int) {
-		c.CoinSource.SourceType = "hyper_rank"
-		c.CoinSource.StaticCoins = nil
-		c.CoinSource.UseAI500 = false
-		c.CoinSource.UseOITop = false
-		c.CoinSource.UseOILow = false
-		c.CoinSource.UseHyperAll = false
-		c.CoinSource.UseHyperMain = false
-		c.CoinSource.HyperRankCategory = "stock"
-		c.CoinSource.HyperRankDirection = direction
-		c.CoinSource.HyperRankLimit = limit
-	}
-	setStaticStocks := func(c *store.StrategyConfig, symbols []string) {
-		c.CoinSource.SourceType = "static"
-		c.CoinSource.StaticCoins = symbols
-		c.CoinSource.UseAI500 = false
-		c.CoinSource.UseOITop = false
-		c.CoinSource.UseOILow = false
-		c.CoinSource.UseHyperAll = false
-		c.CoinSource.UseHyperMain = false
-	}
-	setStableRisk := func(c *store.StrategyConfig) {
-		c.RiskControl.MaxPositions = 2
-		c.RiskControl.BTCETHMaxLeverage = 3
-		c.RiskControl.AltcoinMaxLeverage = 3
-		c.RiskControl.BTCETHMaxPositionValueRatio = 2.0
-		c.RiskControl.AltcoinMaxPositionValueRatio = 0.6
-		c.RiskControl.MaxMarginUsage = 0.45
-		c.RiskControl.MinConfidence = 78
-		c.RiskControl.MinRiskRewardRatio = 3.0
-		c.Indicators.Klines.PrimaryTimeframe = "15m"
-		c.Indicators.Klines.LongerTimeframe = "4h"
-		c.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h", "4h"}
-		c.Indicators.EnableEMA = true
-		c.Indicators.EnableMACD = true
-		c.Indicators.EnableRSI = true
-		c.Indicators.EnableATR = true
-		c.Indicators.EnableVolume = true
-	}
-
-	definitions := []strategyDef{
-		{
-			name:        locale.trend.name,
-			description: locale.trend.description,
-			isActive:    true,
-			applyConfig: func(c *store.StrategyConfig) {
-				setStockRank(c, "volume", 5)
-				setStableRisk(c)
-			},
-		},
-		{
-			name:        locale.megaCap.name,
-			description: locale.megaCap.description,
-			isActive:    false,
-			applyConfig: func(c *store.StrategyConfig) {
-				setStaticStocks(c, []string{"AAPL-USDC", "MSFT-USDC", "GOOGL-USDC", "AMZN-USDC", "META-USDC"})
-				setStableRisk(c)
-				c.RiskControl.MaxPositions = 2
-				c.RiskControl.MinConfidence = 80
-			},
-		},
-		{
-			name:        locale.breakout.name,
-			description: locale.breakout.description,
-			isActive:    false,
-			applyConfig: func(c *store.StrategyConfig) {
-				setStockRank(c, "gainers", 5)
-				setStableRisk(c)
-				c.RiskControl.MinConfidence = 82
-				c.RiskControl.MinRiskRewardRatio = 3.5
-			},
-		},
-	}
-
-	// GetDefaultStrategyConfig only supports zh/en; map id -> en
-	configLang := lang
-	if lang == "id" {
-		configLang = "en"
-	}
-
-	// Pre-build all strategy objects before opening the transaction
-	var strategies []*store.Strategy
-	for _, def := range definitions {
-		config := store.GetDefaultStrategyConfig(configLang)
-		def.applyConfig(&config)
-		config.ClampLimits()
-
-		strategy := &store.Strategy{
-			ID:          uuid.New().String(),
-			UserID:      userID,
-			Name:        def.name,
-			Description: def.description,
-			IsActive:    def.isActive,
-			IsDefault:   false,
-		}
-		if err := strategy.SetConfig(&config); err != nil {
-			return fmt.Errorf("failed to set config for strategy %q: %w", def.name, err)
-		}
-		strategies = append(strategies, strategy)
-	}
-
-	legacyDefaultNames := []string{
-		"均衡策略", "稳健策略", "积极策略",
-		"Balanced Strategy", "Conservative Strategy", "Aggressive Strategy",
-		"Strategi Seimbang", "Strategi Konservatif", "Strategi Agresif",
-	}
-
-	return s.store.Transaction(func(tx *gorm.DB) error {
-		// Remove obsolete built-in risk-profile presets for this user. If a trader still
-		// references one of them, keep it to avoid breaking an existing running setup.
-		deleteResult := tx.Where("user_id = ? AND name IN ? AND id NOT IN (SELECT strategy_id FROM traders WHERE user_id = ? AND strategy_id IS NOT NULL)", userID, legacyDefaultNames, userID).
-			Delete(&store.Strategy{})
-		if deleteResult.Error != nil {
-			return fmt.Errorf("failed to remove legacy default strategies: %w", deleteResult.Error)
-		}
-		if deleteResult.RowsAffected > 0 {
-			logger.Infof("  ✓ Removed %d legacy default strategy preset(s)", deleteResult.RowsAffected)
-		}
-
-		var activeCount int64
-		if err := tx.Model(&store.Strategy{}).Where("user_id = ? AND is_active = ?", userID, true).Count(&activeCount).Error; err != nil {
-			return fmt.Errorf("failed to count active strategies: %w", err)
-		}
-
-		for _, strategy := range strategies {
-			var existing int64
-			if err := tx.Model(&store.Strategy{}).Where("user_id = ? AND name = ?", userID, strategy.Name).Count(&existing).Error; err != nil {
-				return fmt.Errorf("failed to check strategy %q: %w", strategy.Name, err)
-			}
-			if existing > 0 {
-				continue
-			}
-			if activeCount > 0 {
-				strategy.IsActive = false
-			}
-			if err := tx.Create(strategy).Error; err != nil {
-				return fmt.Errorf("failed to create strategy %q: %w", strategy.Name, err)
-			}
-			if strategy.IsActive {
-				activeCount++
-			}
-			logger.Infof("  ✓ Created default strategy: %s (active=%v)", strategy.Name, strategy.IsActive)
-		}
-		return nil
-	})
-}

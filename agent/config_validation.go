@@ -72,7 +72,6 @@ type exchangeConfigValidator struct {
 	apiKey                  string
 	secretKey               string
 	passphrase              string
-	hyperliquidWalletAddr   string
 	asterUser               string
 	asterSigner             string
 	asterPrivateKey         string
@@ -98,7 +97,6 @@ func (v exchangeConfigValidator) Validate() error {
 			v.apiKey,
 			v.secretKey,
 			v.passphrase,
-			v.hyperliquidWalletAddr,
 			v.asterUser,
 			v.asterSigner,
 			v.asterPrivateKey,
@@ -153,7 +151,6 @@ func (v traderBindingValidator) Validate() error {
 		apiKey:                  strings.TrimSpace(string(exchange.APIKey)),
 		secretKey:               strings.TrimSpace(string(exchange.SecretKey)),
 		passphrase:              strings.TrimSpace(string(exchange.Passphrase)),
-		hyperliquidWalletAddr:   exchange.HyperliquidWalletAddr,
 		asterUser:               exchange.AsterUser,
 		asterSigner:             exchange.AsterSigner,
 		asterPrivateKey:         strings.TrimSpace(string(exchange.AsterPrivateKey)),
@@ -201,7 +198,7 @@ func (a *Agent) validateModelDraft(storeUserID, modelID, provider string, enable
 	}).Validate()
 }
 
-func (a *Agent) validateExchangeDraft(storeUserID, exchangeID, exchangeType string, enabled bool, apiKey, secretKey, passphrase, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterAPIKeyPrivateKey string) error {
+func (a *Agent) validateExchangeDraft(storeUserID, exchangeID, exchangeType string, enabled bool, apiKey, secretKey, passphrase, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterAPIKeyPrivateKey string) error {
 	if a == nil || a.store == nil {
 		return fmt.Errorf("store unavailable")
 	}
@@ -219,9 +216,6 @@ func (a *Agent) validateExchangeDraft(storeUserID, exchangeID, exchangeType stri
 		}
 		if strings.TrimSpace(passphrase) == "" {
 			passphrase = strings.TrimSpace(string(exchange.Passphrase))
-		}
-		if strings.TrimSpace(hyperliquidWalletAddr) == "" {
-			hyperliquidWalletAddr = strings.TrimSpace(exchange.HyperliquidWalletAddr)
 		}
 		if strings.TrimSpace(asterUser) == "" {
 			asterUser = strings.TrimSpace(exchange.AsterUser)
@@ -245,7 +239,6 @@ func (a *Agent) validateExchangeDraft(storeUserID, exchangeID, exchangeType stri
 		apiKey:                  apiKey,
 		secretKey:               secretKey,
 		passphrase:              passphrase,
-		hyperliquidWalletAddr:   hyperliquidWalletAddr,
 		asterUser:               asterUser,
 		asterSigner:             asterSigner,
 		asterPrivateKey:         asterPrivateKey,
@@ -280,8 +273,6 @@ func formatValidationFeedback(lang, domain string, err error) string {
 			return "这份配置还有问题：Secret 格式不对。请直接发完整的 Secret 值，不要和 API Key 填反。"
 		case strings.Contains(lower, "okx requires passphrase"):
 			return "这份配置还有问题：OKX 账户缺少 Passphrase，启用前需要补齐。你直接把 Passphrase 发我就行。"
-		case strings.Contains(lower, "hyperliquid requires wallet address"):
-			return "这份配置还有问题：Hyperliquid 账户缺少钱包地址，启用前需要补齐。"
 		case strings.Contains(lower, "aster requires user, signer, and private key"):
 			return "这份配置还有问题：Aster 账户还缺 user、signer 和 private key，启用前需要补齐。"
 		case strings.Contains(lower, "lighter requires wallet address and api key private key"):

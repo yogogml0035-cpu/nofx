@@ -151,16 +151,6 @@ func displayCatalogFieldName(field, lang string) string {
 			return "测试网"
 		}
 		return "testnet"
-	case "hyperliquid_wallet_addr":
-		if lang == "zh" {
-			return "Hyperliquid 钱包地址"
-		}
-		return "Hyperliquid wallet address"
-	case "hyperliquid_unified_account":
-		if lang == "zh" {
-			return "Hyperliquid Unified Account"
-		}
-		return "Hyperliquid unified account"
 	case "aster_user":
 		if lang == "zh" {
 			return "Aster User"
@@ -379,7 +369,6 @@ type exchangeUpdatePatch struct {
 	SecretKey               string
 	Passphrase              string
 	Testnet                 *bool
-	HyperliquidWalletAddr   string
 	AsterUser               string
 	AsterSigner             string
 	AsterPrivateKey         string
@@ -390,7 +379,7 @@ type exchangeUpdatePatch struct {
 
 func (p exchangeUpdatePatch) hasAny() bool {
 	return p.AccountName != "" || p.Enabled != nil || p.APIKey != "" || p.SecretKey != "" ||
-		p.Passphrase != "" || p.Testnet != nil || p.HyperliquidWalletAddr != "" || p.AsterUser != "" ||
+		p.Passphrase != "" || p.Testnet != nil || p.AsterUser != "" ||
 		p.AsterSigner != "" || p.AsterPrivateKey != "" || p.LighterWalletAddr != "" ||
 		p.LighterAPIKeyPrivateKey != "" || p.LighterAPIKeyIndex != nil
 }
@@ -413,9 +402,6 @@ func applyExchangeUpdatePatchToSession(session *skillSession, patch exchangeUpda
 	}
 	if patch.Testnet != nil {
 		setField(session, "testnet", strconv.FormatBool(*patch.Testnet))
-	}
-	if patch.HyperliquidWalletAddr != "" {
-		setField(session, "hyperliquid_wallet_addr", patch.HyperliquidWalletAddr)
 	}
 	if patch.AsterUser != "" {
 		setField(session, "aster_user", patch.AsterUser)
@@ -456,9 +442,6 @@ func mergeExchangeUpdatePatch(base, patch exchangeUpdatePatch) exchangeUpdatePat
 	if patch.Testnet != nil {
 		base.Testnet = patch.Testnet
 	}
-	if patch.HyperliquidWalletAddr != "" {
-		base.HyperliquidWalletAddr = patch.HyperliquidWalletAddr
-	}
 	if patch.AsterUser != "" {
 		base.AsterUser = patch.AsterUser
 	}
@@ -494,7 +477,6 @@ func buildExchangeUpdatePatchFromSession(session skillSession) exchangeUpdatePat
 		parsed := value == "true"
 		patch.Testnet = &parsed
 	}
-	patch.HyperliquidWalletAddr = fieldValue(session, "hyperliquid_wallet_addr")
 	patch.AsterUser = fieldValue(session, "aster_user")
 	patch.AsterSigner = fieldValue(session, "aster_signer")
 	patch.AsterPrivateKey = fieldValue(session, "aster_private_key")
@@ -1989,9 +1971,6 @@ func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64
 		if value := testnetRaw; value != "" {
 			payload["testnet"] = value == "true"
 		}
-		if value := defaultIfEmpty(patch.HyperliquidWalletAddr, fieldValue(session, "hyperliquid_wallet_addr")); value != "" {
-			payload["hyperliquid_wallet_addr"] = value
-		}
 		if value := defaultIfEmpty(patch.AsterUser, fieldValue(session, "aster_user")); value != "" {
 			payload["aster_user"] = value
 		}
@@ -2047,7 +2026,6 @@ func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64
 			asString(payload["api_key"]),
 			asString(payload["secret_key"]),
 			asString(payload["passphrase"]),
-			asString(payload["hyperliquid_wallet_addr"]),
 			asString(payload["aster_user"]),
 			asString(payload["aster_signer"]),
 			asString(payload["aster_private_key"]),

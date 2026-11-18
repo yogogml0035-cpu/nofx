@@ -76,7 +76,7 @@ func TestTraderIDFormat(t *testing.T) {
 		aiModelID  string
 	}{
 		{"Binance + GPT-4", "binance", "gpt-4"},
-		{"Hyperliquid + Claude", "hyperliquid", "claude-3"},
+		{"Gate + Claude", "gate", "claude-3"},
 		{"OKX + Qwen", "okx", "qwen-2.5"},
 	}
 

@@ -6,7 +6,6 @@ import (
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
-	"nofx/provider/hyperliquid"
 	"nofx/store"
 	"nofx/wallet"
 	"strings"
@@ -302,18 +301,15 @@ func normalizeUniverseSymbol(symbol string) string {
 }
 
 // universeBaseKey returns the bare base ticker used for fuzzy candidate
-// matching. The AI sometimes echoes a candidate as "QNTUSDC", "QNT-USDC",
-// "QNTUSDT", or even just "QNT" instead of the canonical "xyz:QNT" we
-// supplied in the prompt. All of those resolve to the same Hyperliquid
-// instrument, so we accept any of them when the base matches an allowed
-// candidate's base.
+// matching. The AI sometimes echoes a candidate as "BTC/USDT", "BTC-USDT",
+// or even just "BTC" instead of the canonical "BTCUSDT" we supplied in the
+// prompt. All of those resolve to the same instrument, so we accept any of
+// them when the base matches an allowed candidate's base.
 func universeBaseKey(symbol string) string {
 	s := strings.ToUpper(strings.TrimSpace(symbol))
 	if s == "" {
 		return ""
 	}
-	// Drop any xyz:/XYZ: prefix.
-	s = strings.TrimPrefix(s, "XYZ:")
 	// Drop common quote suffixes in order of specificity.
 	for _, suf := range []string{"-USDC", "-USDT", "USDC", "USDT", "USD"} {
 		if strings.HasSuffix(s, suf) && len(s) > len(suf) {
@@ -321,8 +317,7 @@ func universeBaseKey(symbol string) string {
 			break
 		}
 	}
-	// Normalize alias (TESLA -> TSLA, ROBINHOOD -> HOOD, etc.).
-	return hyperliquid.NormalizeXYZAlias(s)
+	return s
 }
 
 func isOpenDecision(action string) bool {
@@ -366,8 +361,8 @@ func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decis
 			continue
 		}
 
-		// Fall back to base-level match so AI outputs like "QNTUSDC" still
-		// resolve to candidate "xyz:QNT". Rewrite the decision's symbol to
+		// Fall back to base-level match so AI outputs like "BTC/USDT" still
+		// resolve to candidate "BTCUSDT". Rewrite the decision's symbol to
 		// the canonical form so downstream order placement works.
 		if base := universeBaseKey(d.Symbol); base != "" {
 			if allowedBases[base] || positionBases[base] {
@@ -390,7 +385,7 @@ func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decis
 
 // canonicalUniverseSymbolForBase finds the canonical candidate or position
 // symbol that has the given base. Used to rewrite an AI decision's symbol
-// (e.g. "QNTUSDC") to the form our order pipeline expects ("xyz:QNT").
+// (e.g. "BTC/USDT") to the form our order pipeline expects ("BTCUSDT").
 func canonicalUniverseSymbolForBase(ctx *kernel.Context, base string) string {
 	for _, coin := range ctx.CandidateCoins {
 		if universeBaseKey(coin.Symbol) == base {

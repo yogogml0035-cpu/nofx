@@ -228,7 +228,6 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 		add(&out, "passphrase", displayCatalogFieldName("passphrase", lang), false)
 		add(&out, "testnet", displayCatalogFieldName("testnet", lang), false)
 		add(&out, "enabled", displayCatalogFieldName("enabled", lang), false)
-		add(&out, "hyperliquid_wallet_addr", displayCatalogFieldName("hyperliquid_wallet_addr", lang), false)
 		add(&out, "aster_user", displayCatalogFieldName("aster_user", lang), false)
 		add(&out, "aster_signer", displayCatalogFieldName("aster_signer", lang), false)
 		add(&out, "aster_private_key", displayCatalogFieldName("aster_private_key", lang), false)

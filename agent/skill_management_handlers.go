@@ -190,7 +190,7 @@ func hasExplicitManagementDomainCue(text, domain string) bool {
 	case "trader":
 		return containsAny(lower, []string{"交易员", "trader", "agent"})
 	case "exchange":
-		return containsAny(lower, []string{"交易所", "exchange", "okx", "binance", "bybit", "gate", "kucoin", "hyperliquid"})
+		return containsAny(lower, []string{"交易所", "exchange", "okx", "binance", "bybit", "gate", "kucoin"})
 	case "model":
 		return containsAny(lower, []string{"模型", "model"})
 	case "strategy":
@@ -1378,11 +1378,6 @@ func formatExchangeCreateDraftSummary(lang string, session skillSession) string 
 				fmt.Sprintf("- 已提供 Secret：%t", fieldValue(session, "secret_key") != ""),
 				fmt.Sprintf("- 已提供 Passphrase：%t", fieldValue(session, "passphrase") != ""),
 			)
-		case "hyperliquid":
-			lines = append(lines,
-				fmt.Sprintf("- 已提供 API Key：%t", fieldValue(session, "api_key") != ""),
-				fmt.Sprintf("- Hyperliquid 钱包地址：%s", defaultIfEmpty(fieldValue(session, "hyperliquid_wallet_addr"), "未设置")),
-			)
 		case "aster":
 			lines = append(lines,
 				fmt.Sprintf("- Aster User：%s", defaultIfEmpty(fieldValue(session, "aster_user"), "未设置")),
@@ -1424,11 +1419,6 @@ func formatExchangeCreateDraftSummary(lang string, session skillSession) string 
 			fmt.Sprintf("- API key provided: %t", fieldValue(session, "api_key") != ""),
 			fmt.Sprintf("- Secret provided: %t", fieldValue(session, "secret_key") != ""),
 			fmt.Sprintf("- Passphrase provided: %t", fieldValue(session, "passphrase") != ""),
-		)
-	case "hyperliquid":
-		lines = append(lines,
-			fmt.Sprintf("- API key provided: %t", fieldValue(session, "api_key") != ""),
-			fmt.Sprintf("- Hyperliquid wallet address: %s", defaultIfEmpty(fieldValue(session, "hyperliquid_wallet_addr"), "not set")),
 		)
 	case "aster":
 		lines = append(lines,
@@ -1920,10 +1910,6 @@ func (a *Agent) describeExchange(storeUserID, lang string, target *EntityReferen
 		addCredentialLine("API Key", "API key present", exchange.HasAPIKey)
 		addCredentialLine("Secret", "Secret present", exchange.HasSecretKey)
 		addCredentialLine("Passphrase", "Passphrase present", exchange.HasPassphrase)
-	case "hyperliquid":
-		addCredentialLine("API Key", "API key present", exchange.HasAPIKey)
-		credentialLinesZh = append(credentialLinesZh, fmt.Sprintf("- Hyperliquid 钱包地址：%s", defaultIfEmpty(exchange.HyperliquidWalletAddr, "未设置")))
-		credentialLinesEn = append(credentialLinesEn, fmt.Sprintf("- Hyperliquid wallet address: %s", defaultIfEmpty(exchange.HyperliquidWalletAddr, "not set")))
 	case "aster":
 		credentialLinesZh = append(credentialLinesZh,
 			fmt.Sprintf("- Aster User：%s", defaultIfEmpty(exchange.AsterUser, "未设置")),
@@ -2158,10 +2144,6 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 		if fieldValue(session, "passphrase") == "" {
 			missing = append(missing, displayCatalogFieldName("passphrase", lang))
 		}
-	case "hyperliquid":
-		if fieldValue(session, "hyperliquid_wallet_addr") == "" {
-			missing = append(missing, "Hyperliquid Wallet")
-		}
 	}
 	if len(missing) > 0 {
 		setSkillDAGStep(&session, "resolve_exchange_type")
@@ -2181,7 +2163,6 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 		apiKey:                  fieldValue(session, "api_key"),
 		secretKey:               fieldValue(session, "secret_key"),
 		passphrase:              fieldValue(session, "passphrase"),
-		hyperliquidWalletAddr:   fieldValue(session, "hyperliquid_wallet_addr"),
 		asterUser:               fieldValue(session, "aster_user"),
 		asterSigner:             fieldValue(session, "aster_signer"),
 		asterPrivateKey:         fieldValue(session, "aster_private_key"),
@@ -2204,7 +2185,7 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 		"exchange_type": exType,
 		"account_name":  accountName,
 	}
-	for _, field := range []string{"api_key", "secret_key", "passphrase", "hyperliquid_wallet_addr", "aster_user", "aster_signer", "aster_private_key", "lighter_wallet_addr", "lighter_api_key_private_key"} {
+	for _, field := range []string{"api_key", "secret_key", "passphrase", "aster_user", "aster_signer", "aster_private_key", "lighter_wallet_addr", "lighter_api_key_private_key"} {
 		if value := fieldValue(session, field); value != "" {
 			args[field] = value
 		}

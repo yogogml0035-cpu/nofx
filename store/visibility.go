@@ -2,7 +2,7 @@ package store
 
 import "strings"
 
-func MissingRequiredExchangeCredentialFields(exchangeType, apiKey, secretKey, passphrase, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterAPIKeyPrivateKey string) []string {
+func MissingRequiredExchangeCredentialFields(exchangeType, apiKey, secretKey, passphrase, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterAPIKeyPrivateKey string) []string {
 	switch strings.ToLower(strings.TrimSpace(exchangeType)) {
 	case "binance", "bybit", "gate", "indodax":
 		return missingNamedFields(
@@ -14,11 +14,6 @@ func MissingRequiredExchangeCredentialFields(exchangeType, apiKey, secretKey, pa
 			namedField{"api_key", apiKey},
 			namedField{"secret_key", secretKey},
 			namedField{"passphrase", passphrase},
-		)
-	case "hyperliquid":
-		return missingNamedFields(
-			namedField{"api_key", apiKey},
-			namedField{"hyperliquid_wallet_addr", hyperliquidWalletAddr},
 		)
 	case "aster":
 		return missingNamedFields(
@@ -69,7 +64,6 @@ func IsVisibleExchange(exchange *Exchange) bool {
 		strings.TrimSpace(string(exchange.APIKey)) != "" ||
 		strings.TrimSpace(string(exchange.SecretKey)) != "" ||
 		strings.TrimSpace(string(exchange.Passphrase)) != "" ||
-		strings.TrimSpace(exchange.HyperliquidWalletAddr) != "" ||
 		strings.TrimSpace(exchange.AsterUser) != "" ||
 		strings.TrimSpace(exchange.AsterSigner) != "" ||
 		strings.TrimSpace(string(exchange.AsterPrivateKey)) != "" ||

@@ -66,7 +66,7 @@
     "用户明确指定模型、交易所或策略时，若该资源不存在、被禁用、配置不完整或钱包余额不足，必须说明具体原因并让用户确认修复或替换；不得静默换成另一个资源。",
     "若用户指定 claw402 作为模型，但 claw402 钱包余额为 0 USDC，应提示先充值或确认临时改用其他可用模型；不得说成 claw402 未启用，除非 enabled 确实为 false。",
     "启动交易员前，绑定的模型必须已启用且完整，绑定的交易所也必须已启用且通过对应交易所的完整性校验，否则拒绝启动并明确指出缺哪一项。",
-    "若绑定的是 OKX 交易所，启用前必须已有 passphrase；若绑定的是 Hyperliquid，启用前必须已有 wallet_addr；若绑定的是 Aster，启用前必须已有 user、signer、private_key；若绑定的是 Lighter，启用前必须已有 wallet_addr 和 api_key_private_key。",
+    "若绑定的是 OKX 交易所，启用前必须已有 passphrase；若绑定的是 Aster，启用前必须已有 user、signer、private_key；若绑定的是 Lighter，启用前必须已有 wallet_addr 和 api_key_private_key。",
     "启动（start）和停止（stop）操作属于高风险操作，必须先向用户确认再执行。",
     "删除（delete）操作不可逆，必须先向用户确认再执行。"
   ],

@@ -39,7 +39,7 @@ type TradeRecord struct {
 }
 
 // Trader Unified trader interface
-// Supports multiple trading platforms (Binance, Hyperliquid, etc.)
+// Supports multiple trading platforms (Binance, Bybit, OKX, Gate, etc.)
 type Trader interface {
 	// GetBalance Get account balance
 	GetBalance() (map[string]interface{}, error)
