@@ -290,11 +290,6 @@ export const faqCategories: FAQCategory[] = [
         answerKey: 'faqStrategyStudioAnswer',
       },
       {
-        id: 'backtest-lab',
-        questionKey: 'faqBacktestLab',
-        answerKey: 'faqBacktestLabAnswer',
-      },
-      {
         id: 'competition-mode',
         questionKey: 'faqCompetitionMode',
         answerKey: 'faqCompetitionModeAnswer',

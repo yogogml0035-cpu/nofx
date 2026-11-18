@@ -2,9 +2,9 @@ package store
 
 import "testing"
 
-// 验证 SourceType 枚举收窄后 default 重定向 static（旧 hyper_* 值一律归一为 static）
+// 验证 SourceType 枚举收窄后 default 重定向 static（历史遗留值与任意未知值一律归一为 static）
 func TestNormalizeProductSchemaRedirectsLegacySourceTypesToStatic(t *testing.T) {
-	for _, legacy := range []string{"hyper_rank", "hyper_all", "hyper_main", "hyperrank", "unknown_source"} {
+	for _, legacy := range []string{"unknown_source", "legacy_ranking", "dynamic_ranking", "random_garbage"} {
 		cfg := StrategyConfig{CoinSource: CoinSourceConfig{SourceType: legacy, StaticCoins: []string{"BTCUSDT"}}}
 		cfg.NormalizeProductSchema()
 		if cfg.CoinSource.SourceType != "static" {
