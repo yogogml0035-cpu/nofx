@@ -188,6 +188,7 @@ export function StrategyStudioPage() {
   } | null>(null)
   const [isRunningAiTest, setIsRunningAiTest] = useState(false)
   const gridConfigCacheRef = useRef<Record<string, GridStrategyConfig>>({})
+  const aiConfigCacheRef = useRef<Record<string, AIStrategyConfig>>({})
   const selectedStrategyIDRef = useRef<string>('')
   const hasChangesRef = useRef(false)
 
@@ -293,6 +294,14 @@ export function StrategyStudioPage() {
       ...editingConfig.grid_config,
     }
   }, [selectedStrategy?.id, editingConfig?.grid_config])
+
+  useEffect(() => {
+    if (!selectedStrategy?.id || !editingConfig?.ai_config) return
+
+    aiConfigCacheRef.current[selectedStrategy.id] = {
+      ...editingConfig.ai_config,
+    }
+  }, [selectedStrategy?.id, editingConfig?.ai_config])
 
   // Track previous language to detect actual changes
   const prevLanguageRef = useRef(language)
@@ -631,16 +640,22 @@ export function StrategyStudioPage() {
   ) => {
     if (selectedStrategy?.is_default) return
 
-    const cachedGridConfig = selectedStrategy?.id
-      ? gridConfigCacheRef.current[selectedStrategy.id]
+    const strategyId = selectedStrategy?.id || ''
+    const cachedGridConfig = strategyId
+      ? gridConfigCacheRef.current[strategyId]
       : null
+    // 切走前先解析当前可用的 ai_config：缓存优先，其次遗留的平铺字段。
+    const restorableAIConfig =
+      (strategyId ? aiConfigCacheRef.current[strategyId] : undefined) ??
+      (editingConfig ? getAIConfig(editingConfig) : null) ??
+      editingConfig?.ai_config
 
     setEditingConfig((prev) => {
       if (!prev) return prev
 
       if (strategyType === 'ai_trading') {
-        if (selectedStrategy?.id && prev.grid_config) {
-          gridConfigCacheRef.current[selectedStrategy.id] = {
+        if (strategyId && prev.grid_config) {
+          gridConfigCacheRef.current[strategyId] = {
             ...prev.grid_config,
           }
         }
@@ -648,9 +663,15 @@ export function StrategyStudioPage() {
         return {
           ...prev,
           strategy_type: 'ai_trading',
-          ai_config: getAIConfig(prev) || prev.ai_config,
+          ai_config: restorableAIConfig,
           // Use null so the field is preserved in JSON and backend merge can actually clear it.
           grid_config: null,
+        }
+      }
+
+      if (strategyId && prev.ai_config) {
+        aiConfigCacheRef.current[strategyId] = {
+          ...prev.ai_config,
         }
       }
 
@@ -667,6 +688,38 @@ export function StrategyStudioPage() {
     setAiTestResult(null)
     setHasChanges(true)
   }
+
+  // ai_trading 策略缺少 ai_config 时（类型切换后无可恢复配置、遗留平铺字段被
+  // normalize 剥离、或导入的配置不完整），币种来源等分区会渲染成空且不可编辑。
+  // 这里统一拉取后端默认配置补齐，与新建策略走同一条路径。
+  useEffect(() => {
+    if (!token) return
+    if (editingConfig?.strategy_type !== 'ai_trading') return
+    if (editingConfig.ai_config) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/strategies/default-config?lang=${language}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (!response.ok) return
+        const defaultConfig = normalizeStrategyConfig(await response.json())
+        if (cancelled || !defaultConfig.ai_config) return
+        setEditingConfig((prev) =>
+          prev && prev.strategy_type === 'ai_trading' && !prev.ai_config
+            ? { ...prev, ai_config: defaultConfig.ai_config }
+            : prev
+        )
+      } catch (err) {
+        console.error('Failed to fill default ai_config:', err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token, language, editingConfig?.strategy_type, editingConfig?.ai_config])
 
   // Fetch prompt preview
   const fetchPromptPreview = async () => {
