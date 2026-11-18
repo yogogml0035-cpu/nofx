@@ -11,7 +11,6 @@ import (
 	"nofx/logger"
 	"nofx/security"
 	"nofx/store"
-	"nofx/wallet"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,8 +33,6 @@ type SafeModelConfig struct {
 	HasAPIKey       bool   `json:"has_api_key"`
 	CustomAPIURL    string `json:"customApiUrl"`    // Custom API URL (usually not sensitive)
 	CustomModelName string `json:"customModelName"` // Custom model name (not sensitive)
-	WalletAddress   string `json:"walletAddress,omitempty"`
-	BalanceUSDC     string `json:"balanceUsdc,omitempty"`
 }
 
 // ModelConfigUpdate is a single model's update payload. It is a named type
@@ -97,17 +94,6 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			HasAPIKey:       model.APIKey != "",
 			CustomAPIURL:    model.CustomAPIURL,
 			CustomModelName: model.CustomModelName,
-		}
-
-		if model.Provider == "claw402" {
-			if privateKey := strings.TrimSpace(model.APIKey.String()); privateKey != "" {
-				if walletAddress, addrErr := walletAddressFromPrivateKey(privateKey); addrErr == nil {
-					safeModel.WalletAddress = walletAddress
-					safeModel.BalanceUSDC = wallet.QueryUSDCBalanceStr(walletAddress)
-				} else {
-					logger.Warnf("⚠️ Failed to derive claw402 wallet address for model %s: %v", model.ID, addrErr)
-				}
-			}
 		}
 
 		safeModels = append(safeModels, safeModel)
@@ -247,9 +233,6 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
 		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
 		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.7"},
-		{"id": "blockrun-base", "name": "BlockRun (Base Wallet)", "provider": "blockrun-base", "defaultModel": "auto"},
-		{"id": "blockrun-sol", "name": "BlockRun (Solana Wallet)", "provider": "blockrun-sol", "defaultModel": "auto"},
-		{"id": "claw402", "name": "Claw402 (Base USDC)", "provider": "claw402", "defaultModel": "deepseek-v4-flash"},
 	}
 
 	c.JSON(http.StatusOK, supportedModels)

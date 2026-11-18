@@ -1985,12 +1985,6 @@ func (a *Agent) describeModel(storeUserID, lang string, target *EntityReference)
 			fmt.Sprintf("- URL：%s", defaultIfEmpty(model.CustomAPIURL, "未设置")),
 			fmt.Sprintf("- Model Name：%s", defaultIfEmpty(model.CustomModelName, "未设置")),
 		}
-		if strings.TrimSpace(model.WalletAddress) != "" {
-			lines = append(lines, fmt.Sprintf("- 钱包地址：%s", model.WalletAddress))
-		}
-		if strings.TrimSpace(model.BalanceUSDC) != "" {
-			lines = append(lines, fmt.Sprintf("- 钱包余额：%s USDC", model.BalanceUSDC))
-		}
 		return strings.Join(lines, "\n"), true
 	}
 	lines := []string{
@@ -2000,12 +1994,6 @@ func (a *Agent) describeModel(storeUserID, lang string, target *EntityReference)
 		fmt.Sprintf("- API key present: %t", model.HasAPIKey),
 		fmt.Sprintf("- URL: %s", defaultIfEmpty(model.CustomAPIURL, "not set")),
 		fmt.Sprintf("- Model name: %s", defaultIfEmpty(model.CustomModelName, "not set")),
-	}
-	if strings.TrimSpace(model.WalletAddress) != "" {
-		lines = append(lines, fmt.Sprintf("- Wallet address: %s", model.WalletAddress))
-	}
-	if strings.TrimSpace(model.BalanceUSDC) != "" {
-		lines = append(lines, fmt.Sprintf("- Wallet balance: %s USDC", model.BalanceUSDC))
 	}
 	return strings.Join(lines, "\n"), true
 }
@@ -2346,8 +2334,6 @@ func credentialLooksCompatibleWithProvider(provider, value string) bool {
 	}
 
 	switch provider {
-	case "claw402", "blockrun-base", "blockrun-sol":
-		return hexCredentialPattern.MatchString(value)
 	case "openai":
 		return openAIAPIKeyPattern.MatchString(value)
 	default:

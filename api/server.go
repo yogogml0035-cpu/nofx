@@ -192,8 +192,6 @@ func (s *Server) setupRoutes() {
 		{
 			// Logout (add to blacklist)
 			s.route(protected, "POST", "/logout", "Logout (blacklist token)", s.handleLogout)
-			s.route(protected, "POST", "/onboarding/beginner", "Prepare beginner claw402 wallet and default model", s.handleBeginnerOnboarding)
-			s.route(protected, "GET", "/onboarding/beginner/current", "Get current beginner claw402 wallet", s.handleCurrentBeginnerWallet)
 			s.route(protected, "GET", "/agent/preferences", "Get persistent agent preferences", s.handleGetAgentPreferences)
 			s.route(protected, "POST", "/agent/preferences", "Create persistent agent preference", s.handleCreateAgentPreference)
 			s.route(protected, "DELETE", "/agent/preferences/:id", "Delete persistent agent preference", s.handleDeleteAgentPreference)
@@ -206,7 +204,7 @@ func (s *Server) setupRoutes() {
 			// Server IP query (requires authentication, for whitelist configuration)
 			s.route(protected, "GET", "/server-ip", "Get server public IP (for exchange whitelist)", s.handleGetServerIP)
 
-			// AI500 index board (cached; routed through claw402 when configured)
+			// AI500 index board (cached; direct nofxos data source)
 			s.route(protected, "GET", "/ai500", "AI500 index board (?limit=20)", s.handleAI500List)
 
 			// AI trader management
