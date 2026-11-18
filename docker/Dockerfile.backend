@@ -9,6 +9,8 @@
 ARG GO_VERSION=1.25-alpine
 ARG ALPINE_VERSION=latest
 ARG TA_LIB_VERSION=0.4.0
+# Go 模块代理（国内网络构建时可传 --build-arg GOPROXY=https://goproxy.cn,direct）
+ARG GOPROXY=https://proxy.golang.org,direct
 
 # ──────────────────────────────────────────────────────────────
 # TA-Lib Build Stage (shared across builds)
@@ -37,6 +39,8 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-${TA_LIB_VERSION}-src.
 # Backend Build Stage (Go Application)
 # ──────────────────────────────────────────────────────────────
 FROM golang:${GO_VERSION} AS backend-builder
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
 
 RUN apk update && apk add --no-cache git make gcc g++ musl-dev
 
