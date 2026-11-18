@@ -11,7 +11,9 @@ NOFX is an AI-powered cryptocurrency trading bot that uses large language models
 
 ### Which exchanges are supported?
 - ✅ Binance Futures
-- ✅ Hyperliquid
+- ✅ Gate Futures
+- ✅ Aster DEX
+- ✅ Lighter DEX
 - 🚧 More exchanges coming soon
 
 ### Is NOFX profitable?
@@ -35,7 +37,7 @@ No! NOFX has a web UI for all configuration. However, basic command line knowled
 
 ### How do I get API keys?
 1. **Binance**: Account → API Management → Create API → Enable Futures
-2. **Hyperliquid**: Visit [Hyperliquid App](https://app.hyperliquid.xyz/) → API Settings
+2. **Gate**: Account → API Management → Create API → Enable Futures
 
 ### Should I use a subaccount?
 **Recommended**: Yes, use a subaccount dedicated to NOFX for better risk isolation. However, note that some subaccounts have restrictions (e.g., 5x max leverage on Binance).

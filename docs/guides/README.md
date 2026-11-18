@@ -89,7 +89,7 @@ Run multiple AI models simultaneously:
 
 ### Exchange Integration
 - Binance Futures (CEX)
-- Hyperliquid (DEX)
+- Gate Futures (CEX)
 - Aster DEX (Binance-compatible)
 
 ---

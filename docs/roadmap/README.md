@@ -23,7 +23,7 @@ NOFX is on a mission to become the **Universal AI Trading Operating System** for
 
 - **Credential Management**
   - [ ] Implement AES-256 encryption for API keys in database
-  - [ ] Add encryption for private keys (Hyperliquid, Aster)
+  - [ ] Add encryption for private keys (Aster, Lighter)
   - [ ] Use hardware security module (HSM) support for production
   - [ ] Implement key rotation mechanism
   - [ ] Add audit logging for all credential access
@@ -83,12 +83,10 @@ NOFX is on a mission to become the **Universal AI Trading Operating System** for
   - [ ] Unified CEX interface for easy addition of new exchanges
 
 - **Decentralized Perpetual Exchanges (Perp-DEX)**
-  - [x] **Hyperliquid** (Ethereum L1) - High-performance orderbook DEX (✅ Supported)
   - [x] **Aster** (Multi-chain) - Binance-compatible API DEX (✅ Supported)
   - [ ] **Lighter** (Arbitrum) - Gasless orderbook DEX with off-chain matching
   - [ ] **EdgeX** (Multi-chain) - Professional derivatives DEX
   - [ ] Unified DEX interface for consistent integration
-  - [ ] Enhanced Hyperliquid integration (testnet support, advanced order types)
   - [ ] Enhanced Aster integration (cross-chain support, wallet management)
 
 - **Spot + Futures Support**

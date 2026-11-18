@@ -254,14 +254,7 @@ func GetBoxData(symbol string) (*BoxData, error) {
 	symbol = Normalize(symbol)
 
 	// Fetch 500 1h klines
-	var klines []Kline
-	var err error
-
-	if IsXyzDexAsset(symbol) {
-		klines, err = getKlinesFromHyperliquid(symbol, "1h", LongBoxPeriod)
-	} else {
-		klines, err = getKlinesFromCoinAnk(symbol, "1h", LongBoxPeriod)
-	}
+	klines, err := getKlinesFromCoinAnk(symbol, "1h", "binance", LongBoxPeriod)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get 1h klines: %w", err)

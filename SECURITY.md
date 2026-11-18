@@ -177,7 +177,6 @@ iptables -A INPUT -p tcp --dport 8080 -j DROP
 - Use IP whitelist
 
 ### 5. Test on Testnet First
-- Hyperliquid: Use testnet mode
 - Binance: Use testnet API (https://testnet.binancefuture.com)
 - Never test with real funds initially
 
@@ -417,7 +416,6 @@ iptables -A INPUT -p tcp --dport 8080 -j DROP
 - 使用 IP 白名单
 
 ### 5. 先在测试网上测试
-- Hyperliquid：使用测试网模式
 - Binance：使用测试网 API (https://testnet.binancefuture.com)
 - 最初永远不要用真实资金测试
 

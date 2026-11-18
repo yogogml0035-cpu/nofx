@@ -3,8 +3,8 @@
 <h1 align="center">NOFX</h1>
 
 <p align="center">
-  <strong>面向全球市场的 AI 交易终端。</strong><br/>
-  <strong>覆盖美股、大宗商品、外汇与加密市场的研究、策略生成、执行与监控。</strong>
+  <strong>面向加密永续合约市场的 AI 交易终端。</strong><br/>
+  <strong>覆盖加密货币永续合约的研究、策略生成、执行与监控。</strong>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 
 NOFX 是一个开源 AI 交易终端，面向需要统一工作区完成市场研究、策略开发、交易执行与组合监控的活跃交易者。
 
-产品围绕全球高流动性市场设计：美股、大宗商品合约、外汇货币对与数字资产。AI 层将交易意图转化为观察列表、信号、策略逻辑、风控约束与执行工作流。
+产品围绕加密货币永续合约市场设计。AI 层将交易意图转化为观察列表、信号、策略逻辑、风控约束与执行工作流。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
@@ -47,19 +47,11 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## 注册交易所
 
-通过以下链接开通交易账户，可交易加密资产以及平台支持的美股、外汇和大宗商品衍生品市场。这些链接来自 NOFX 合作伙伴计划，可能包含手续费折扣或推荐权益。
+通过以下链接开通加密永续合约交易账户。该链接来自 NOFX 合作伙伴计划，可能包含手续费折扣或推荐权益。
 
 | 交易所 | 状态 | 享手续费折扣注册 |
 | :--- | :---: | :--- |
-| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [注册](https://www.binance.com/join?ref=NOFXENG) |
-| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [注册](https://partner.bybit.com/b/83856) |
-| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [注册](https://www.okx.com/join/1865360) |
-| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [注册](https://app.hyperliquid.xyz/join/AITRADING) |
-| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [注册](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [注册](https://www.kucoin.com/r/broker/CXEV7XKK) |
 | <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [注册](https://www.gatenode.xyz/share/VQBGUAxY) |
-| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster** | ✅ | [注册](https://www.asterdex.com/en/referral/fdfc0e) |
-| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [注册](https://app.lighter.xyz/?referral=68151432) |
 
 ---
 
@@ -79,19 +71,15 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## 市场
 
-**美股 · 大宗商品 · 外汇 · 加密资产**
+**加密货币永续合约**
 
-NOFX 按多资产工作流组织研究、策略构建、执行与监控，而不是停留在单一交易所界面。
+NOFX 按加密永续合约工作流组织研究、策略构建、执行与监控，而不是停留在单一交易所界面。
 
 ---
 
 ## AI 模型接入
 
-NOFX 自动通过 [Claw402](https://claw402.ai) 路由 AI 推理请求。用户无需配置大模型供应商、管理 API Key 或维护独立 AI 账户。终端按需按次调用 Claw402 的 AI 模型基础设施，并通过官方折扣通道完成路由。
-
-| 提供商 | 接入 |
-| :--- | :--- |
-| **Claw402** | [通过官方折扣通道按需使用 AI 模型](https://claw402.ai) |
+NOFX 通过标准 API Key 供应商接入 AI 模型。在模型设置中配置您自己的供应商密钥（DeepSeek、OpenAI、Claude、Gemini、Qwen、Kimi、Grok、MiniMax），终端即可按需路由推理请求。
 
 ---
 
@@ -99,9 +87,9 @@ NOFX 自动通过 [Claw402](https://claw402.ai) 路由 AI 推理请求。用户�
 
 | 能力 | 描述 |
 | :--- | :--- |
-| **AI 交易终端** | 面向美股、大宗商品、外汇与加密资产的一体化工作区 |
-| **AI 模型接入** | 通过 Claw402 自动接入支持的模型供应商 |
-| **交易所连接** | Binance、Bybit、OKX、Hyperliquid、Bitget、KuCoin、Gate、Aster、Lighter |
+| **AI 交易终端** | 面向加密永续合约工作流的一体化工作区 |
+| **AI 模型接入** | 自带 API Key，支持 8 家供应商（DeepSeek、OpenAI、Claude 等） |
+| **交易所连接** | Binance、Bybit、OKX、Bitget、KuCoin、Gate、Indodax、Aster、Lighter |
 | **策略工作室** | 市场范围、指标、风控与策略逻辑 |
 | **模型竞赛** | 比较 AI 交易员的实时表现与排行榜 |
 | **Telegram Agent** | 通过聊天控制和监控交易助手 |
@@ -207,10 +195,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## 配置
 
-**新手模式**：引导式 onboarding 帮助新用户完成模型访问、交易所连接、策略配置与首次部署。
-
-**进阶模式**：
-
 1. 配置 AI 模型访问
 2. 连接交易所凭证
 3. 构建或导入策略
@@ -246,7 +230,7 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ┌─────────────────────────────────────────────────┐
     │                 Trading Terminal                 │
     │        React + TypeScript + TradingView          │
-    │      US Stocks · Commodities · Forex · Crypto    │
+    │            Crypto Perpetual Futures              │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
     ├──────────────┬──────────────┬───────────────────┤
@@ -254,12 +238,12 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     │    Engine     │    Agent     │   Risk Controls   │
     ├──────────────┴──────────────┴───────────────────┤
     │                 AI Model Layer                    │
-    │    Unified provider access through Claw402        │
-    │    Model routing · payment · execution support    │
+    │      API-key providers (BYO key, 8 vendors)       │
+    │    Model routing · execution support              │
     ├─────────────────────────────────────────────────┤
     │              Exchange Connectivity                │
-    │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
-    │ KuCoin · Gate · Aster · Lighter                  │
+    │ Binance · Bybit · OKX · Bitget · KuCoin          │
+    │ Gate · Indodax · Aster · Lighter                 │
     └─────────────────────────────────────────────────┘
 ```
 

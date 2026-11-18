@@ -55,7 +55,7 @@ B. 明确的不收集列表
 任何第三方交易所（如 Binance）的 API 密钥
 任何第三方 AI 服务（如 DeepSeek, Qwen）的 API 密钥
 您的 API 密钥对应的密钥 (Secret Keys)
-您的加密货币私钥（例如，用于 Hyperliquid 或 Aster DEX 的以太坊私钥）
+您的加密货币私钥（例如，用于 Aster DEX 或 Lighter DEX 的以太坊私钥）
 您的钱包**“助记词”**（Secret Phrase）
 您的交易历史、持仓情况、账户余额或任何其他财务信息
 您在“软件”本地实例中配置的任何个人数据

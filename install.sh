@@ -266,7 +266,7 @@ print_success() {
     echo -e "${YELLOW}Next Steps:${NC}"
     echo "  1. Open http://${SERVER_IP}:3000 in your browser"
     echo "  2. Configure AI Models (DeepSeek, OpenAI, etc.)"
-    echo "  3. Configure Exchanges (Binance, Hyperliquid, etc.)"
+    echo "  3. Configure Exchanges (Binance, Gate, etc.)"
     echo "  4. Create a Strategy in Strategy Studio"
     echo "  5. Create a Trader and start trading!"
     echo ""

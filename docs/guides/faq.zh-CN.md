@@ -11,7 +11,9 @@ NOFX 是一个 AI 驱动的加密货币交易机器人，使用大语言模型�
 
 ### 支持哪些交易所？
 - ✅ 币安合约（Binance Futures）
-- ✅ Hyperliquid
+- ✅ Gate 合约（Gate Futures）
+- ✅ Aster DEX
+- ✅ Lighter DEX
 - 🚧 更多交易所开发中
 
 ### NOFX 能盈利吗？
@@ -35,7 +37,7 @@ AI 交易是**实验性**的，**不保证盈利**。请始终用小额资金测
 
 ### 如何获取 API 密钥？
 1. **币安**：账户 → API 管理 → 创建 API → 启用合约
-2. **Hyperliquid**：访问 [Hyperliquid App](https://app.hyperliquid.xyz/) → API 设置
+2. **Gate**：账户 → API 管理 → 创建 API → 启用合约
 
 ### 应该使用子账户吗？
 **推荐**：是的，使用专门的子账户运行 NOFX 可以更好地隔离风险。但请注意，某些子账户有限制（例如币安子账户最高 5 倍杠杆）。

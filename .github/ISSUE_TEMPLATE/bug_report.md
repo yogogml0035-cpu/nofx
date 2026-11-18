@@ -102,7 +102,7 @@ Paste backend logs here (last 50-100 lines around the error)
 - **Node.js Version:** [run: `node -v`]
 
 **Trading Setup:**
-- **Exchange:** [Binance / Hyperliquid / Aster]
+- **Exchange:** [Binance / Gate / Aster]
 - **Account Type:** [Main Account / Subaccount]
 - **Position Mode:** [Hedge Mode (Dual) / One-way Mode] ← **Important for trading bugs!**
 - **AI Model:** [DeepSeek / Qwen / Custom]
