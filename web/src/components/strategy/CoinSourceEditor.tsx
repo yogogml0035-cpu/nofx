@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, Check, Globe2, Search, Star, X } from 'lucide-react'
+import { Check, Globe2, Search, Star, X } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
@@ -23,26 +23,7 @@ interface MarketSymbol {
 
 const t = (language: string, zh: string, en: string) => (language === 'zh' ? zh : en)
 
-const categoryLabels: Record<string, string> = {
-  stock: 'Stocks',
-  commodity: 'Commodities',
-  index: 'Indices',
-  forex: 'FX',
-  pre_ipo: 'Pre-IPO',
-  crypto: 'Crypto',
-}
-
-const categoryOrder = ['stock', 'commodity', 'index', 'forex', 'pre_ipo', 'crypto']
-
-const rankDirections = [
-  { value: 'gainers', labelZh: '涨幅榜', labelEn: 'Gainers' },
-  { value: 'losers', labelZh: '跌幅榜', labelEn: 'Losers' },
-  { value: 'volume', labelZh: '成交额榜', labelEn: 'Volume' },
-] as const
-
 const SELECTED_MARKET_LIMIT = 10
-const RANK_LIMIT = 10
-const DEFAULT_RANK_LIMIT = 5
 const CATALOG_DISPLAY_LIMIT = 120
 
 function formatCompactNumber(value?: number) {
@@ -62,7 +43,6 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
   const [loadingSymbols, setLoadingSymbols] = useState(false)
   const [symbolError, setSymbolError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<string>('all')
 
   useEffect(() => {
     let cancelled = false
@@ -70,7 +50,7 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
       setLoadingSymbols(true)
       setSymbolError(null)
       try {
-        const res = await fetch(`${API_BASE}/api/symbols?exchange=hyperliquid-xyz`)
+        const res = await fetch(`${API_BASE}/api/symbols?exchange=gate`)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
         const rows: MarketSymbol[] = data.symbols || []
@@ -97,7 +77,6 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
   const filteredSymbols = useMemo(() => {
     const q = query.trim().toLowerCase()
     return symbols
-      .filter((symbol) => category === 'all' || (symbol.category || 'crypto') === category)
       .filter((symbol) => {
         if (!q) return true
         return [symbol.symbol, symbol.display, symbol.name, symbol.category]
@@ -105,20 +84,7 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
           .some((v) => String(v).toLowerCase().includes(q))
       })
       .slice(0, CATALOG_DISPLAY_LIMIT)
-  }, [symbols, query, category])
-
-  const rankedPreview = useMemo(() => {
-    const rankCategory = config.hyper_rank_category || 'stock'
-    const rankDirection = config.hyper_rank_direction || 'gainers'
-    const rankLimit = Math.min(Math.max(config.hyper_rank_limit || DEFAULT_RANK_LIMIT, 1), RANK_LIMIT)
-    const filtered = symbols.filter((symbol) => rankCategory === 'all' || (symbol.category || 'crypto') === rankCategory)
-    const sorted = [...filtered].sort((a, b) => {
-      if (rankDirection === 'losers') return (a.change_24h_pct || 0) - (b.change_24h_pct || 0)
-      if (rankDirection === 'volume') return (b.volume_24h || 0) - (a.volume_24h || 0)
-      return (b.change_24h_pct || 0) - (a.change_24h_pct || 0)
-    })
-    return sorted.slice(0, rankLimit)
-  }, [symbols, config.hyper_rank_category, config.hyper_rank_direction, config.hyper_rank_limit])
+  }, [symbols, query])
 
   const chooseSource = (sourceType: CoinSourceConfig['source_type']) => {
     if (disabled) return
@@ -128,28 +94,6 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
       use_ai500: false,
       use_oi_top: false,
       use_oi_low: false,
-      use_hyper_all: false,
-      use_hyper_main: false,
-      hyper_rank_category: config.hyper_rank_category || 'stock',
-      hyper_rank_direction: config.hyper_rank_direction || 'gainers',
-      hyper_rank_limit: Math.min(Math.max(config.hyper_rank_limit || DEFAULT_RANK_LIMIT, 1), RANK_LIMIT),
-    })
-  }
-
-  const updateRank = (patch: Partial<CoinSourceConfig>) => {
-    if (disabled) return
-    onChange({
-      ...config,
-      source_type: 'hyper_rank',
-      use_ai500: false,
-      use_oi_top: false,
-      use_oi_low: false,
-      use_hyper_all: false,
-      use_hyper_main: false,
-      hyper_rank_category: config.hyper_rank_category || 'stock',
-      hyper_rank_direction: config.hyper_rank_direction || 'gainers',
-      hyper_rank_limit: Math.min(Math.max(config.hyper_rank_limit || DEFAULT_RANK_LIMIT, 1), RANK_LIMIT),
-      ...patch,
     })
   }
 
@@ -161,8 +105,6 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
       use_ai500: false,
       use_oi_top: false,
       use_oi_low: false,
-      use_hyper_all: false,
-      use_hyper_main: false,
       static_coins: [...selectedCoins, symbol.symbol],
     })
   }
@@ -183,14 +125,14 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
             <div className="flex items-center gap-2 text-nofx-text">
               <Globe2 className="w-5 h-5 text-sky-300" />
               <h3 className="font-semibold">
-                {t(language, 'Hyperliquid 原生标的', 'Native Hyperliquid universe')}
+                {t(language, '加密货币标的', 'Crypto markets')}
               </h3>
             </div>
             <p className="mt-1 text-xs text-nofx-text-muted">
               {t(
                 language,
-                '只使用 Hyperliquid 实时 Universe / K 线 / 标记价格；不混入外部聚合数据。',
-                'Uses Hyperliquid live universe, candles and mark prices only; no external aggregate datasets are mixed in.'
+                '从 Gate USDT 永续合约清单中选择交易标的；清单按 24h 成交额排序。',
+                'Pick trading symbols from the Gate USDT perpetual list, sorted by 24h volume.'
               )}
             </p>
           </div>
@@ -202,12 +144,6 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
 
       <div className="grid gap-3 md:grid-cols-2">
         {[
-          {
-            value: 'hyper_rank' as const,
-            icon: BarChart3,
-            title: t(language, '动态榜单', 'Dynamic ranking'),
-            desc: t(language, '美股/大宗/指数/FX/Crypto 的涨幅榜、跌幅榜、成交额榜；默认 Top 5，最多 Top 10', 'Gainers, losers and volume rankings by asset class; default Top 5, max Top 10'),
-          },
           {
             value: 'static' as const,
             icon: Star,
@@ -238,80 +174,6 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
           )
         })}
       </div>
-
-      {config.source_type === 'hyper_rank' && (
-        <div className="space-y-3 rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-nofx-text">{t(language, '榜单规则', 'Ranking rule')}</div>
-              <div className="text-xs text-nofx-text-muted">{t(language, '动态选出当前榜单前 N 个；默认 Top 5，最多 Top 10。下方仍显示全量可见标的，可手动改成自选。', 'Select current top N dynamically; default Top 5, max Top 10. The full visible market catalog remains below for manual selection.')}</div>
-            </div>
-            <select
-              value={Math.min(Math.max(config.hyper_rank_limit || DEFAULT_RANK_LIMIT, 1), RANK_LIMIT)}
-              disabled={disabled}
-              onChange={(e) => updateRank({ hyper_rank_limit: Math.min(Number(e.target.value) || DEFAULT_RANK_LIMIT, RANK_LIMIT) })}
-              className="rounded-lg border border-violet-300/20 bg-nofx-bg px-3 py-1.5 text-sm text-nofx-text"
-            >
-              {Array.from({ length: RANK_LIMIT }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>Top {n}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-            {[...categoryOrder, 'all'].map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                disabled={disabled}
-                onClick={() => updateRank({ hyper_rank_category: cat as CoinSourceConfig['hyper_rank_category'] })}
-                className={`rounded-xl border px-3 py-2 text-xs transition-all ${
-                  (config.hyper_rank_category || 'stock') === cat
-                    ? 'border-sky-300/70 bg-sky-400/10 text-sky-100'
-                    : 'border-white/10 bg-white/[0.02] text-nofx-text-muted hover:text-white'
-                }`}
-              >
-                {cat === 'all' ? t(language, '全部', 'All') : categoryLabels[cat] || cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-3">
-            {rankDirections.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                disabled={disabled}
-                onClick={() => updateRank({ hyper_rank_direction: item.value })}
-                className={`rounded-xl border px-3 py-2 text-sm transition-all ${
-                  (config.hyper_rank_direction || 'gainers') === item.value
-                    ? 'border-violet-300/70 bg-violet-400/10 text-violet-100'
-                    : 'border-white/10 bg-white/[0.02] text-nofx-text-muted hover:text-white'
-                }`}
-              >
-                {t(language, item.labelZh, item.labelEn)}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-            {rankedPreview.map((symbol, index) => (
-              <div key={symbol.symbol} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                <div className="text-[11px] text-nofx-text-muted">#{index + 1}</div>
-                <div className="mt-1 text-sm font-semibold text-nofx-text">{displaySymbol(symbol)}</div>
-                <div className="mt-2 flex items-center justify-between text-[11px]">
-                  <span className="text-nofx-text-muted">Vol {formatCompactNumber(symbol.volume_24h)}</span>
-                  {typeof symbol.change_24h_pct === 'number' && (
-                    <span className={symbol.change_24h_pct >= 0 ? 'text-nofx-success' : 'text-nofx-danger'}>
-                      {symbol.change_24h_pct >= 0 ? '+' : ''}{symbol.change_24h_pct.toFixed(2)}%
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="space-y-4">
           <div>
@@ -345,27 +207,13 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
                   value={query}
                   disabled={disabled}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t(language, '搜索 SAMSUNG / TESLA / GOLD…', 'Search SAMSUNG / TESLA / GOLD…')}
+                  placeholder={t(language, '搜索 BTC / ETH / SOL…', 'Search BTC / ETH / SOL…')}
                   className="w-full rounded-xl border border-white/10 bg-nofx-bg py-2 pl-9 pr-3 text-sm text-nofx-text outline-none focus:border-sky-400/50"
                 />
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {['all', ...categoryOrder].map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setCategory(cat)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] transition-colors ${
-                      category === cat ? 'bg-sky-400 text-black' : 'bg-white/5 text-nofx-text-muted hover:text-white'
-                    }`}
-                  >
-                    {cat === 'all' ? t(language, '全部', 'All') : categoryLabels[cat] || cat}
-                  </button>
-                ))}
-              </div>
             </div>
 
-            {loadingSymbols && <div className="py-8 text-center text-sm text-nofx-text-muted">{t(language, '加载 Hyperliquid 标的中…', 'Loading Hyperliquid markets…')}</div>}
+            {loadingSymbols && <div className="py-8 text-center text-sm text-nofx-text-muted">{t(language, '加载 Gate 标的中…', 'Loading Gate markets…')}</div>}
             {symbolError && <div className="py-6 text-center text-sm text-nofx-danger">{symbolError}</div>}
 
             {!loadingSymbols && !symbolError && (
@@ -388,7 +236,7 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="text-sm font-semibold text-nofx-text">{displaySymbol(symbol)}</div>
-                          <div className="mt-0.5 text-[11px] text-nofx-text-muted">{categoryLabels[symbol.category || 'crypto'] || symbol.category || 'Crypto'}</div>
+                          <div className="mt-0.5 text-[11px] text-nofx-text-muted">{symbol.name || 'Crypto'}</div>
                         </div>
                         {selected && <Check className="w-4 h-4 text-sky-300" />}
                       </div>

@@ -6,10 +6,8 @@ import { useAuth } from '../../../contexts/AuthContext'
 const agents = [
   {
     name: 'ALPHA-1',
-    // ... (rest of agents array remains, but I can't skip lines in replacement content easily without context. Wait, let's just replace the top section)
-    // Actually, I'll use multi_replace for targeted cleanup.
-    class: 'US_STOCKS',
-    desc: 'Large-cap momentum and breakout trading.',
+    class: 'BTC_BREAKOUT',
+    desc: 'BTC momentum and breakout trading.',
     apy: '142%',
     winRate: '68%',
     risk: 'HIGH',
@@ -20,8 +18,8 @@ const agents = [
   },
   {
     name: 'BETA-X',
-    class: 'MACRO_FX',
-    desc: 'FX trend and macro regime allocation.',
+    class: 'MAJOR_ALTS',
+    desc: 'ETH/SOL trend and regime allocation.',
     apy: '89%',
     winRate: '55%',
     risk: 'MED',
@@ -32,8 +30,8 @@ const agents = [
   },
   {
     name: 'GAMMA-RAY',
-    class: 'PRE_IPO',
-    desc: 'Private-market momentum basket engine.',
+    class: 'MEME_SCANNER',
+    desc: 'High-volatility meme momentum engine.',
     apy: '24%',
     winRate: '99%',
     risk: 'LOW',
@@ -80,7 +78,7 @@ export default function AgentGrid() {
             </h2>
           </div>
           <div className="font-mono text-right text-xs text-zinc-500 max-w-xs">
-            CREATE AGENTS FOR US STOCKS, COMMODITIES, FX AND PRE-IPO MARKETS. DESCRIBE THE STRATEGY IN ONE SENTENCE.
+            CREATE AGENTS FOR CRYPTO PERPETUAL MARKETS. DESCRIBE THE STRATEGY IN ONE SENTENCE.
           </div>
         </div>
 

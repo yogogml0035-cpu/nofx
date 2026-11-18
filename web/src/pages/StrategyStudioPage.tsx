@@ -105,32 +105,6 @@ const normalizeStrategyConfig = (config: StrategyConfig): StrategyConfig => {
   }
 }
 
-const isHyperliquidCoinSource = (source?: AIStrategyConfig['coin_source']) => {
-  if (!source) return false
-  return source.source_type === 'hyper_all' || source.source_type === 'hyper_main' || source.source_type === 'hyper_rank' || source.use_hyper_all || source.use_hyper_main
-}
-
-const stripNofxOSDataForHyperliquid = (config: StrategyConfig): StrategyConfig => {
-  const normalized = normalizeStrategyConfig(config)
-  if (!normalized.ai_config || !isHyperliquidCoinSource(normalized.ai_config.coin_source)) return normalized
-  return {
-    ...normalized,
-    ai_config: {
-      ...normalized.ai_config,
-      indicators: {
-        ...normalized.ai_config.indicators,
-        nofxos_api_key: '',
-        enable_quant_data: false,
-        enable_quant_oi: false,
-        enable_quant_netflow: false,
-        enable_oi_ranking: false,
-        enable_netflow_ranking: false,
-        enable_price_ranking: false,
-      },
-    },
-  }
-}
-
 export function StrategyStudioPage() {
   const { token } = useAuth()
   const { language } = useLanguage()
@@ -572,7 +546,7 @@ export function StrategyStudioPage() {
     try {
       // Always sync the config language with the current interface language
       const configWithLanguage = {
-        ...stripNofxOSDataForHyperliquid(editingConfig),
+        ...normalizeStrategyConfig(editingConfig),
         language: language as 'zh' | 'en',
       }
       const response = await fetch(

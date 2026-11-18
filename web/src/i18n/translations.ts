@@ -220,22 +220,6 @@ export const translations = {
     enterSigner: 'Enter Signer Address',
     enterSecretKey: 'Enter Secret Key',
     enterPassphrase: 'Enter Passphrase',
-    hyperliquidPrivateKeyDesc:
-      'Hyperliquid uses private key for trading authentication',
-    hyperliquidWalletAddressDesc:
-      'Wallet address corresponding to the private key',
-    // Hyperliquid Agent Wallet (New Security Model)
-    hyperliquidAgentWalletTitle: 'Hyperliquid Agent Wallet Configuration',
-    hyperliquidAgentWalletDesc:
-      'Use Agent Wallet for secure trading: Agent wallet signs transactions (balance ~0), Main wallet holds funds (never expose private key)',
-    hyperliquidAgentPrivateKey: 'Agent Private Key',
-    enterHyperliquidAgentPrivateKey: 'Enter Agent wallet private key',
-    hyperliquidAgentPrivateKeyDesc:
-      'Agent wallet private key for signing transactions (keep balance near 0 for security)',
-    hyperliquidMainWalletAddress: 'Main Wallet Address',
-    enterHyperliquidMainWalletAddress: 'Enter Main wallet address',
-    hyperliquidMainWalletAddressDesc:
-      'Main wallet address that holds your trading funds (never expose its private key)',
     // Aster API Pro Configuration
     asterApiProTitle: 'Aster API Pro Wallet Configuration',
     asterApiProDesc:
@@ -278,7 +262,6 @@ export const translations = {
     lighterPrivateKeyImported: 'LIGHTER private key imported',
 
     // Exchange names
-    hyperliquidExchangeName: 'Hyperliquid',
     asterExchangeName: 'Aster DEX',
 
     // Secure input
@@ -341,10 +324,10 @@ export const translations = {
     clearSelection: 'Clear All',
     confirmSelection: 'Confirm',
     tradingSymbolsDescription:
-      'Empty = use default symbols. Use USDT perps (e.g., BTCUSDT, ETHUSDT) or Hyperliquid XYZ USDC markets (e.g., TSLA-USDC)',
+      'Empty = use default symbols. Use USDT perps (e.g., BTCUSDT, ETHUSDT)',
     btcEthLeverageValidation: 'BTC/ETH leverage must be between 1-50x',
     altcoinLeverageValidation: 'Altcoin leverage must be between 1-20x',
-    invalidSymbolFormat: 'Invalid symbol format: {symbol}, use USDT perps or SYMBOL-USDC',
+    invalidSymbolFormat: 'Invalid symbol format: {symbol}, use USDT perps',
 
     // System Prompt Templates
     systemPromptTemplate: 'System Prompt Template',
@@ -368,7 +351,7 @@ export const translations = {
       'Hansen custom strategy, maximize Sharpe ratio, for professional traders',
     promptDescNof1: '🌐 NoF1 English Framework',
     promptDescNof1Content:
-      'Hyperliquid exchange specialist, English prompts, maximize risk-adjusted returns',
+      'Crypto perpetuals specialist, English prompts, maximize risk-adjusted returns',
     promptDescTaroLong: '📈 Taro Long Position Strategy',
     promptDescTaroLongContent:
       'Data-driven decisions, multi-dimensional validation, continuous learning evolution, long position specialist',
@@ -494,7 +477,7 @@ export const translations = {
     loginNow: 'Sign in now',
     forgotPassword: 'Forgot password?',
     forgotAccount: 'Forgot account?',
-    forgotAccountConfirm: '⚠️ This will permanently delete EVERYTHING: users, traders, strategies, AI model API keys, exchange API keys, and your CLAW402 wallet. Export anything you need to keep (especially wallet private keys) BEFORE continuing. Re-registration will NOT restore them. Continue?',
+    forgotAccountConfirm: '⚠️ This will permanently delete EVERYTHING: users, traders, strategies, AI model API keys, and exchange API keys. Export anything you need to keep BEFORE continuing. Re-registration will NOT restore them. Continue?',
     forgotAccountSuccess: 'Account reset successful! You can now register a new account.',
     rememberMe: 'Remember me',
     resetPassword: 'Reset Password',
@@ -616,7 +599,7 @@ export const translations = {
       'git clone https://github.com/NoFxAiOS/nofx and switch to dev branch to test new features.',
     step2Title: 'Configure Environment',
     step2Desc:
-      'Frontend setup for exchange APIs (like Binance, Hyperliquid), AI models and custom prompts.',
+      'Frontend setup for exchange APIs (like Binance, Gate), AI models and custom prompts.',
     step3Title: 'Deploy & Run',
     step3Desc:
       'One-click Docker deployment, start AI agents. Note: High-risk market, only test with money you can afford to lose.',
@@ -694,7 +677,7 @@ export const translations = {
 
     faqSupportedExchanges: 'Which exchanges are supported?',
     faqSupportedExchangesAnswer:
-      'CEX (Centralized): Binance Futures, Bybit, OKX, Bitget. DEX (Decentralized): Hyperliquid, Aster DEX, Lighter. Each exchange has different features - Binance has the most liquidity, Hyperliquid is fully on-chain with no KYC required. Check the documentation for setup guides for each exchange.',
+      'CEX (Centralized): Binance Futures, Bybit, OKX, Bitget, Gate, KuCoin, Indodax. DEX (Decentralized): Aster DEX, Lighter. Each exchange has different features - Binance has the most liquidity, Aster and Lighter are fully on-chain. Check the documentation for setup guides for each exchange.',
 
     faqSupportedAIModels: 'Which AI models are supported?',
     faqSupportedAIModelsAnswer:
@@ -736,15 +719,11 @@ export const translations = {
 
     faqConfigureExchanges: 'How do I configure exchange connections?',
     faqConfigureExchangesAnswer:
-      'Go to Config page → Exchanges section. Click "Add Exchange", select exchange type, and enter credentials. For CEX (Binance/Bybit/OKX): Need API Key + Secret Key (+ Passphrase for OKX). For DEX (Hyperliquid/Aster/Lighter): Need wallet address and private key. Always enable only necessary permissions (Futures Trading) and consider IP whitelisting.',
+      'Go to Config page → Exchanges section. Click "Add Exchange", select exchange type, and enter credentials. For CEX (Binance/Bybit/OKX): Need API Key + Secret Key (+ Passphrase for OKX). For DEX (Aster/Lighter): Need wallet address and API key private key. Always enable only necessary permissions (Futures Trading) and consider IP whitelisting.',
 
     faqBinanceAPISetup: 'How do I set up Binance API correctly?',
     faqBinanceAPISetupAnswer:
       'Important steps: 1) Create API key in Binance → API Management; 2) Enable ONLY "Enable Futures" permission; 3) Consider adding IP whitelist for security; 4) CRITICAL: Switch to Hedge Mode (双向持仓) in Futures settings → Preferences → Position Mode; 5) Ensure funds are in Futures wallet (not Spot). Common error -4061 means you need Hedge Mode.',
-
-    faqHyperliquidSetup: 'How do I set up Hyperliquid?',
-    faqHyperliquidSetupAnswer:
-      'Hyperliquid is a decentralized exchange requiring wallet authentication. Steps: 1) Go to app.hyperliquid.xyz; 2) Connect your wallet; 3) Generate an API wallet (recommended) or use your main wallet; 4) Copy the wallet address and private key; 5) In NOFX, add Hyperliquid exchange with these credentials. No KYC required, fully on-chain.',
 
     faqCreateStrategy: 'How do I create a trading strategy?',
     faqCreateStrategyAnswer:
@@ -1225,42 +1204,15 @@ export const translations = {
       selectModel: 'Select Model',
       configure: 'Configure',
       configureApi: 'Configure API',
-      configureWallet: 'Configure Wallet',
       chooseProvider: 'Choose Your AI Provider',
-      claw402EntryDesc: 'Recommended default path. Use Base USDC pay-per-call instead of managing API keys.',
       otherApiEntry: 'Other API Providers',
       otherApiEntryDesc: 'Use your own API key for OpenAI, Claude, Gemini, DeepSeek, and more.',
-      payPerCall: 'Pay-per-call USDC · All AI Models · No API Key',
       recommended: 'Best',
-      allModelsClaw: 'Pay-per-call with USDC — supports all major AI models',
       selectAiModel: 'Choose AI Model',
-      allModelsUnified: 'All models unified via Claw402. Switch anytime after setup.',
-      setupWallet: 'Setup Wallet',
-      walletInfo: 'Claw402 uses USDC on Base chain. You need an EVM wallet.',
-      exportKey: 'Export private key from MetaMask, Rabby, etc.',
-      dedicatedWallet: 'Recommended: create a dedicated wallet with a small USDC balance',
-      walletPrivateKey: 'Wallet Private Key (Base Chain EVM)',
-      privateKeyNote: 'Private key is only used locally for signing. Never uploaded. No ETH or gas needed.',
-      howToFundUsdc: 'How to Fund USDC',
-      fundStep1: 'Withdraw USDC from exchange (Binance/OKX/Coinbase) to your wallet',
-      fundStep2: 'Select Base network (very low fees)',
-      fundStep3: '$5-10 USDC lasts a long time (~$0.003/call)',
       back: 'Back',
       startTrading: 'Start Trading',
       modelsConfigured: 'Models with gold badge are already configured',
-      getStarted: 'Get Started',
       getApiKey: 'Get API Key',
-      walletPrivateKeyLabel: 'Wallet Private Key *',
-      selectModelLabel: 'Select Model',
-      validating: 'Validating...',
-      walletAddress: 'Wallet Address',
-      usdcBalance: 'Base USDC Balance',
-      claw402Connected: 'claw402 Connected',
-      claw402Unreachable: 'claw402 Unreachable',
-      depositUsdc: 'Deposit USDC to this address on Base chain',
-      invalidKeyPrefix: 'Please add 0x at the beginning',
-      invalidKeyLength: 'Should be 66 characters, currently',
-      invalidKeyChars: 'Contains invalid characters',
       testConnection: 'Test Connection',
       testingConnection: 'Testing...',
     },
@@ -1587,19 +1539,6 @@ export const translations = {
     enterUser: '输入用户名',
     enterSigner: '输入签名者地址',
     enterPassphrase: '输入Passphrase',
-    hyperliquidPrivateKeyDesc: 'Hyperliquid 使用私钥进行交易认证',
-    hyperliquidWalletAddressDesc: '与私钥对应的钱包地址',
-    // Hyperliquid 代理钱包 (新安全模型)
-    hyperliquidAgentWalletTitle: 'Hyperliquid 代理钱包配置',
-    hyperliquidAgentWalletDesc:
-      '使用代理钱包安全交易：代理钱包用于签名（餘額~0），主钱包持有资金（永不暴露私钥）',
-    hyperliquidAgentPrivateKey: '代理私钥',
-    enterHyperliquidAgentPrivateKey: '输入代理钱包私钥',
-    hyperliquidAgentPrivateKeyDesc: '代理钱包仅有交易权限，无法提现',
-    hyperliquidMainWalletAddress: '主钱包地址',
-    enterHyperliquidMainWalletAddress: '输入主钱包地址',
-    hyperliquidMainWalletAddressDesc:
-      '持有交易资金的主钱包地址（永不暴露其私钥）',
     // Aster API Pro 配置
     asterApiProTitle: 'Aster API Pro 代理钱包配置',
     asterApiProDesc:
@@ -1637,7 +1576,6 @@ export const translations = {
     lighterPrivateKeyImported: 'LIGHTER 私鑰已導入',
 
     // Exchange names
-    hyperliquidExchangeName: 'Hyperliquid',
     asterExchangeName: 'Aster DEX',
 
     // Secure input
@@ -1693,7 +1631,7 @@ export const translations = {
     clearSelection: '清空选择',
     confirmSelection: '确认选择',
     tradingSymbolsDescription:
-      '留空 = 使用默认币种。支持 USDT 合约（如：BTCUSDT, ETHUSDT）或 Hyperliquid XYZ USDC 标的（如：TSLA-USDC）',
+      '留空 = 使用默认币种。支持 USDT 合约（如：BTCUSDT, ETHUSDT）',
     btcEthLeverageValidation: 'BTC/ETH杠杆必须在1-50倍之间',
     altcoinLeverageValidation: '山寨币杠杆必须在1-20倍之间',
     invalidSymbolFormat: '无效的币种格式：{symbol}，请使用 USDT 合约或 SYMBOL-USDC',
@@ -1719,7 +1657,7 @@ export const translations = {
     promptDescHansenContent: 'Hansen 定制策略，最大化夏普比率，专业交易者专用',
     promptDescNof1: '🌐 NoF1 英文框架',
     promptDescNof1Content:
-      'Hyperliquid 交易所专用，英文提示词，风险调整回报最大化',
+      '加密货币永续专用，英文提示词，风险调整回报最大化',
     promptDescTaroLong: '📈 Taro 长仓策略',
     promptDescTaroLongContent:
       '数据驱动决策，多维度验证，持续学习进化，长仓专用',
@@ -1830,7 +1768,7 @@ export const translations = {
     loginNow: '立即登录',
     forgotPassword: '忘记密码？',
     forgotAccount: '忘记账户？',
-    forgotAccountConfirm: '⚠️ 这将永久删除全部数据：用户、Trader、策略、AI 模型 API Key、交易所 API Key，以及您的 CLAW402 钱包。请务必在继续前导出需要保留的内容（尤其是钱包私钥）。重新注册不会恢复任何数据。确定要继续吗？',
+    forgotAccountConfirm: '⚠️ 这将永久删除全部数据：用户、Trader、策略、AI 模型 API Key、交易所 API Key。请务必在继续前导出需要保留的内容。重新注册不会恢复任何数据。确定要继续吗？',
     forgotAccountSuccess: '账户已重置！现在可以注册新账户了。',
     rememberMe: '记住我',
     resetPassword: '重置密码',
@@ -1941,7 +1879,7 @@ export const translations = {
       'git clone https://github.com/NoFxAiOS/nofx 并切换到 dev 分支测试新功能。',
     step2Title: '配置环境',
     step2Desc:
-      '前端设置交易所 API（如 Binance、Hyperliquid）、AI 模型和自定义提示词。',
+      '前端设置交易所 API（如 Binance、Gate）、AI 模型和自定义提示词。',
     step3Title: '部署与运行',
     step3Desc:
       '一键 Docker 部署，启动 AI 代理。注意：高风险市场，仅用闲钱测试。',
@@ -2015,7 +1953,7 @@ export const translations = {
 
     faqSupportedExchanges: '支持哪些交易所？',
     faqSupportedExchangesAnswer:
-      'CEX（中心化）：币安合约、Bybit、OKX、Bitget。DEX（去中心化）：Hyperliquid、Aster DEX、Lighter。每个交易所有不同特点 - 币安流动性最好，Hyperliquid 完全链上无需 KYC。查看文档获取各交易所的设置指南。',
+      'CEX（中心化）：币安合约、Bybit、OKX、Bitget、Gate、KuCoin、Indodax。DEX（去中心化）：Aster DEX、Lighter。每个交易所有不同特点 - 币安流动性最好，Aster 与 Lighter 完全链上。查看文档获取各交易所的设置指南。',
 
     faqSupportedAIModels: '支持哪些 AI 模型？',
     faqSupportedAIModelsAnswer:
@@ -2057,15 +1995,11 @@ export const translations = {
 
     faqConfigureExchanges: '如何配置交易所连接？',
     faqConfigureExchangesAnswer:
-      '进入配置页面 → 交易所部分。点击"添加交易所"，选择类型并输入凭证。CEX（币安/Bybit/OKX）：需要 API Key + Secret Key（OKX 还需要 Passphrase）。DEX（Hyperliquid/Aster/Lighter）：需要钱包地址和私钥。务必只启用必要权限（合约交易）并考虑 IP 白名单。',
+      '进入配置页面 → 交易所部分。点击"添加交易所"，选择类型并输入凭证。CEX（币安/Bybit/OKX）：需要 API Key + Secret Key（OKX 还需要 Passphrase）。DEX（Aster/Lighter）：需要钱包地址和 API Key 私钥。务必只启用必要权限（合约交易）并考虑 IP 白名单。',
 
     faqBinanceAPISetup: '如何正确设置币安 API？',
     faqBinanceAPISetupAnswer:
       '重要步骤：1）在币安 → API 管理中创建 API 密钥；2）仅启用"启用合约"权限；3）考虑添加 IP 白名单增强安全；4）关键：在合约设置 → 偏好设置 → 持仓模式中切换为双向持仓模式；5）确保资金在合约钱包（不是现货）。-4061 错误表示需要双向持仓模式。',
-
-    faqHyperliquidSetup: '如何设置 Hyperliquid？',
-    faqHyperliquidSetupAnswer:
-      'Hyperliquid 是去中心化交易所，需要钱包认证。步骤：1）访问 app.hyperliquid.xyz；2）连接钱包；3）生成 API 钱包（推荐）或使用主钱包；4）复制钱包地址和私钥；5）在 NOFX 中添加 Hyperliquid 交易所并填入凭证。无需 KYC，完全链上。',
 
     faqCreateStrategy: '如何创建交易策略？',
     faqCreateStrategyAnswer:
@@ -2536,42 +2470,15 @@ export const translations = {
       selectModel: '选择模型',
       configure: '配置',
       configureApi: '配置 API',
-      configureWallet: '配置钱包',
       chooseProvider: '选择 AI 模型提供商',
-      claw402EntryDesc: '默认推荐走这条路。直接用 Base USDC 按次付费，不需要自己管理 API Key。',
       otherApiEntry: '其他 API 模型',
       otherApiEntryDesc: '如果你已经有自己的 OpenAI、Claude、Gemini、DeepSeek 等 API Key，再从这里进入。',
-      payPerCall: 'USDC 按次付费 · 支持全部 AI 模型 · 无需 API Key',
       recommended: '推荐',
-      allModelsClaw: '用 USDC 按次付费，支持所有主流 AI 模型',
       selectAiModel: '① 选择 AI 模型',
-      allModelsUnified: '所有模型通过 Claw402 统一调用，创建后可随时切换',
-      setupWallet: '② 设置钱包',
-      walletInfo: '💡 Claw402 使用 Base 链上的 USDC 付费，你需要一个 EVM 钱包',
-      exportKey: '可以用 MetaMask、Rabby 等钱包导出私钥',
-      dedicatedWallet: '建议新建一个专用钱包，充入少量 USDC 即可',
-      walletPrivateKey: '钱包私钥（Base 链 EVM）',
-      privateKeyNote: '私钥仅在本地签名使用，不会上传或发送交易。无需 ETH，无 Gas 费用。',
-      howToFundUsdc: '如何充值 USDC',
-      fundStep1: '从交易所（Binance / OKX / Coinbase）提 USDC 到你的钱包地址',
-      fundStep2: '选择 Base 网络（手续费极低）',
-      fundStep3: '充入 $5-10 USDC 即可使用很长时间（约 $0.003/次调用）',
       back: '返回',
       startTrading: '开始交易',
       modelsConfigured: '带金色标记的模型已配置',
-      getStarted: '开始使用',
       getApiKey: '获取 API Key',
-      walletPrivateKeyLabel: '钱包私钥 *',
-      selectModelLabel: '选择模型',
-      validating: '验证中...',
-      walletAddress: '钱包地址',
-      usdcBalance: 'Base USDC 余额',
-      claw402Connected: 'claw402 已连接',
-      claw402Unreachable: 'claw402 不可达',
-      depositUsdc: '请往此地址充值 Base 链 USDC',
-      invalidKeyPrefix: '请在开头加 0x',
-      invalidKeyLength: '应为 66 个字符，当前',
-      invalidKeyChars: '包含非法字符',
       testConnection: '测试连接',
       testingConnection: '测试中...',
     },
@@ -2895,17 +2802,6 @@ export const translations = {
     enterSigner: 'Masukkan Alamat Penandatangan',
     enterSecretKey: 'Masukkan Secret Key',
     enterPassphrase: 'Masukkan Passphrase',
-    hyperliquidPrivateKeyDesc: 'Hyperliquid menggunakan private key untuk autentikasi trading',
-    hyperliquidWalletAddressDesc: 'Alamat wallet yang sesuai dengan private key',
-    hyperliquidAgentWalletTitle: 'Konfigurasi Agent Wallet Hyperliquid',
-    hyperliquidAgentWalletDesc:
-      'Gunakan Agent Wallet untuk trading aman: Agent wallet menandatangani transaksi (saldo ~0), Wallet utama menyimpan dana (jangan pernah ekspos private key)',
-    hyperliquidAgentPrivateKey: 'Agent Private Key',
-    enterHyperliquidAgentPrivateKey: 'Masukkan private key agent wallet',
-    hyperliquidAgentPrivateKeyDesc: 'Private key agent wallet untuk menandatangani transaksi (jaga saldo mendekati 0 untuk keamanan)',
-    hyperliquidMainWalletAddress: 'Alamat Wallet Utama',
-    enterHyperliquidMainWalletAddress: 'Masukkan alamat wallet utama',
-    hyperliquidMainWalletAddressDesc: 'Alamat wallet utama yang menyimpan dana trading Anda (jangan pernah ekspos private key-nya)',
     asterApiProTitle: 'Konfigurasi Wallet API Pro Aster',
     asterApiProDesc:
       'Gunakan wallet API Pro untuk trading aman: Wallet API menandatangani transaksi, wallet utama menyimpan dana (jangan pernah ekspos private key wallet utama)',
@@ -2932,7 +2828,6 @@ export const translations = {
     lighterV1Description: 'Mode Dasar - Fungsionalitas terbatas, hanya framework pengujian',
     lighterV2Description: 'Mode Lengkap - Mendukung penandatanganan Poseidon2 dan trading nyata',
     lighterPrivateKeyImported: 'Private key LIGHTER telah diimpor',
-    hyperliquidExchangeName: 'Hyperliquid',
     asterExchangeName: 'Aster DEX',
     secureInputButton: 'Input Aman',
     secureInputReenter: 'Masukkan Ulang dengan Aman',
@@ -2977,7 +2872,7 @@ export const translations = {
     selectedSymbolsCount: '{count} simbol dipilih',
     clearSelection: 'Hapus Semua',
     confirmSelection: 'Konfirmasi',
-    tradingSymbolsDescription: 'Kosong = gunakan simbol default. Gunakan perp USDT (misal BTCUSDT, ETHUSDT) atau market Hyperliquid XYZ USDC (misal TSLA-USDC)',
+    tradingSymbolsDescription: 'Kosong = gunakan simbol default. Gunakan perp USDT (misal BTCUSDT, ETHUSDT)',
     btcEthLeverageValidation: 'Leverage BTC/ETH harus antara 1-50x',
     altcoinLeverageValidation: 'Leverage Altcoin harus antara 1-20x',
     invalidSymbolFormat: 'Format simbol tidak valid: {symbol}, gunakan perp USDT atau SYMBOL-USDC',
@@ -2997,7 +2892,7 @@ export const translations = {
     promptDescHansen: '🎯 Strategi Hansen',
     promptDescHansenContent: 'Strategi kustom Hansen, maksimalkan rasio Sharpe, untuk trader profesional',
     promptDescNof1: '🌐 Framework NoF1 English',
-    promptDescNof1Content: 'Spesialis bursa Hyperliquid, prompt bahasa Inggris, maksimalkan return yang disesuaikan risiko',
+    promptDescNof1Content: 'Spesialis perp kripto, prompt bahasa Inggris, maksimalkan return yang disesuaikan risiko',
     promptDescTaroLong: '📈 Strategi Taro Long Position',
     promptDescTaroLongContent: 'Keputusan berbasis data, validasi multi-dimensi, evolusi pembelajaran berkelanjutan, spesialis posisi long',
     loading: 'Memuat...',
@@ -3101,7 +2996,7 @@ export const translations = {
     loginNow: 'Masuk sekarang',
     forgotPassword: 'Lupa kata sandi?',
     forgotAccount: 'Lupa akun?',
-    forgotAccountConfirm: '⚠️ Ini akan MENGHAPUS PERMANEN semua data: pengguna, trader, strategi, kunci API model AI, kunci API bursa, dan dompet CLAW402 Anda. Ekspor apa pun yang ingin Anda simpan (terutama kunci privat dompet) SEBELUM melanjutkan. Pendaftaran ulang TIDAK akan memulihkannya. Lanjutkan?',
+    forgotAccountConfirm: '⚠️ Ini akan MENGHAPUS PERMANEN semua data: pengguna, trader, strategi, kunci API model AI, dan kunci API bursa. Ekspor apa pun yang ingin Anda simpan SEBELUM melanjutkan. Pendaftaran ulang TIDAK akan memulihkannya. Lanjutkan?',
     forgotAccountSuccess: 'Akun berhasil direset! Anda sekarang dapat mendaftar akun baru.',
     rememberMe: 'Ingat saya',
     resetPassword: 'Reset Kata Sandi',
@@ -3195,7 +3090,7 @@ export const translations = {
     step1Title: 'Clone Repository GitHub',
     step1Desc: 'git clone https://github.com/NoFxAiOS/nofx dan beralih ke branch dev untuk menguji fitur baru.',
     step2Title: 'Konfigurasi Lingkungan',
-    step2Desc: 'Setup frontend untuk API bursa (seperti Binance, Hyperliquid), model AI dan prompt kustom.',
+    step2Desc: 'Setup frontend untuk API bursa (seperti Binance, Gate), model AI dan prompt kustom.',
     step3Title: 'Deploy & Jalankan',
     step3Desc: 'Deployment Docker satu klik, mulai agen AI. Catatan: Pasar berisiko tinggi, hanya uji dengan uang yang bisa Anda rugi.',
     step4Title: 'Optimalkan & Kontribusi',
@@ -3246,7 +3141,7 @@ export const translations = {
     faqIsProfitable: 'Apakah NOFX menguntungkan?',
     faqIsProfitableAnswer: 'Trading AI bersifat eksperimental dan TIDAK dijamin menguntungkan. Futures kripto sangat volatil dan berisiko. NOFX dirancang untuk tujuan edukasi dan riset. Kami sangat menyarankan: mulai dengan jumlah kecil (10-50 USDT), jangan investasi melebihi yang sanggup Anda rugi, uji sebelum trading nyata.',
     faqSupportedExchanges: 'Bursa mana yang didukung?',
-    faqSupportedExchangesAnswer: 'CEX (Tersentralisasi): Binance Futures, Bybit, OKX, Bitget. DEX (Terdesentralisasi): Hyperliquid, Aster DEX, Lighter. Setiap bursa memiliki fitur berbeda - Binance memiliki likuiditas terbesar, Hyperliquid sepenuhnya on-chain tanpa KYC.',
+    faqSupportedExchangesAnswer: 'CEX (Tersentralisasi): Binance Futures, Bybit, OKX, Bitget, Gate, KuCoin, Indodax. DEX (Terdesentralisasi): Aster DEX, Lighter. Setiap bursa memiliki fitur berbeda - Binance memiliki likuiditas terbesar, Aster dan Lighter sepenuhnya on-chain.',
     faqSupportedAIModels: 'Model AI mana yang didukung?',
     faqSupportedAIModelsAnswer: 'NOFX mendukung 7+ model AI: DeepSeek (direkomendasikan untuk biaya/performa), Qwen, OpenAI (GPT), Claude, Gemini, Grok, dan Kimi. Anda juga dapat menggunakan endpoint API yang kompatibel dengan OpenAI.',
     faqSystemRequirements: 'Apa persyaratan sistem?',
@@ -3269,8 +3164,6 @@ export const translations = {
     faqConfigureExchangesAnswer: 'Buka halaman Konfigurasi → bagian Bursa. Klik "Tambah Bursa", pilih jenis, dan masukkan kredensial. Aktifkan hanya izin yang diperlukan (Trading Futures).',
     faqBinanceAPISetup: 'Bagaimana cara mengatur API Binance dengan benar?',
     faqBinanceAPISetupAnswer: 'Langkah penting: 1) Buat API key di Binance → Manajemen API; 2) Aktifkan HANYA izin "Enable Futures"; 3) PENTING: Beralih ke Hedge Mode di pengaturan Futures; 4) Pastikan dana di dompet Futures.',
-    faqHyperliquidSetup: 'Bagaimana cara mengatur Hyperliquid?',
-    faqHyperliquidSetupAnswer: 'Hyperliquid adalah bursa terdesentralisasi. Langkah: 1) Kunjungi app.hyperliquid.xyz; 2) Hubungkan wallet; 3) Buat API wallet; 4) Salin alamat dan private key; 5) Tambahkan di NOFX. Tanpa KYC.',
     faqCreateStrategy: 'Bagaimana cara membuat strategi trading?',
     faqCreateStrategyAnswer: 'Buka Strategy Studio: 1) Sumber Koin; 2) Indikator teknikal; 3) Kontrol Risiko; 4) Prompt Kustom (opsional). Simpan dan tetapkan ke trader.',
     faqCreateTrader: 'Bagaimana cara membuat dan memulai trader?',
@@ -3652,42 +3545,15 @@ export const translations = {
       selectModel: 'Pilih Model',
       configure: 'Konfigurasi',
       configureApi: 'Konfigurasi API',
-      configureWallet: 'Konfigurasi Wallet',
       chooseProvider: 'Pilih Penyedia AI Anda',
-      claw402EntryDesc: 'Jalur default yang direkomendasikan. Gunakan Base USDC bayar per panggilan tanpa mengelola API key.',
       otherApiEntry: 'Penyedia API Lain',
       otherApiEntryDesc: 'Gunakan API key Anda sendiri untuk OpenAI, Claude, Gemini, DeepSeek, dan lainnya.',
-      payPerCall: 'Bayar per panggilan USDC · Semua Model AI · Tanpa API Key',
       recommended: 'Terbaik',
-      allModelsClaw: 'Bayar per panggilan dengan USDC — mendukung semua model AI utama',
       selectAiModel: 'Pilih Model AI',
-      allModelsUnified: 'Semua model terpadu via Claw402. Ganti kapan saja setelah setup.',
-      setupWallet: 'Setup Wallet',
-      walletInfo: 'Claw402 menggunakan USDC di Base chain. Anda memerlukan wallet EVM.',
-      exportKey: 'Ekspor private key dari MetaMask, Rabby, dll.',
-      dedicatedWallet: 'Disarankan: buat wallet khusus dengan saldo USDC kecil',
-      walletPrivateKey: 'Private Key Wallet (Base Chain EVM)',
-      privateKeyNote: 'Private key hanya digunakan untuk signing lokal. Tidak pernah diunggah. Tidak perlu ETH atau gas.',
-      howToFundUsdc: 'Cara Mengisi USDC',
-      fundStep1: 'Tarik USDC dari exchange (Binance/OKX/Coinbase) ke wallet Anda',
-      fundStep2: 'Pilih jaringan Base (biaya sangat rendah)',
-      fundStep3: '$5-10 USDC cukup untuk waktu lama (~$0.003/panggilan)',
       back: 'Kembali',
       startTrading: 'Mulai Trading',
       modelsConfigured: 'Model dengan lencana emas sudah dikonfigurasi',
-      getStarted: 'Mulai',
       getApiKey: 'Dapatkan API Key',
-      walletPrivateKeyLabel: 'Private Key Wallet *',
-      selectModelLabel: 'Pilih Model',
-      validating: 'Memvalidasi...',
-      walletAddress: 'Alamat Wallet',
-      usdcBalance: 'Saldo Base USDC',
-      claw402Connected: 'claw402 Terhubung',
-      claw402Unreachable: 'claw402 Tidak Dapat Dijangkau',
-      depositUsdc: 'Deposit USDC ke alamat ini di Base chain',
-      invalidKeyPrefix: 'Tambahkan 0x di awal',
-      invalidKeyLength: 'Harus 66 karakter, saat ini',
-      invalidKeyChars: 'Mengandung karakter tidak valid',
       testConnection: 'Tes Koneksi',
       testingConnection: 'Menguji...',
     },

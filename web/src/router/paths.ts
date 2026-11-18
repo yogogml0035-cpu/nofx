@@ -16,7 +16,6 @@ export const ROUTES = {
   login: '/login',
   register: '/register',
   setup: '/setup',
-  welcome: '/welcome',
   faq: '/faq',
   resetPassword: '/reset-password',
   settings: '/settings',
@@ -56,7 +55,6 @@ export function getCurrentPageForPath(pathname: string): Page | undefined {
   switch (pathname) {
     case ROUTES.agent:
       return 'agent'
-    case ROUTES.welcome:
     case ROUTES.traders:
       return 'traders'
     case ROUTES.dashboard:

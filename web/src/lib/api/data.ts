@@ -44,7 +44,7 @@ export interface AI500ListResponse {
 }
 
 export const dataApi = {
-  async getSymbols(exchange = 'hyperliquid-xyz'): Promise<SymbolListResponse> {
+  async getSymbols(exchange = 'gate'): Promise<SymbolListResponse> {
     const result = await httpClient.get<SymbolListResponse>(
       `${API_BASE}/symbols?exchange=${encodeURIComponent(exchange)}`
     )

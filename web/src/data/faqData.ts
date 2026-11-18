@@ -139,11 +139,6 @@ export const faqCategories: FAQCategory[] = [
         answerKey: 'faqBinanceAPISetupAnswer',
       },
       {
-        id: 'hyperliquid-setup',
-        questionKey: 'faqHyperliquidSetup',
-        answerKey: 'faqHyperliquidSetupAnswer',
-      },
-      {
         id: 'create-strategy',
         questionKey: 'faqCreateStrategy',
         answerKey: 'faqCreateStrategyAnswer',

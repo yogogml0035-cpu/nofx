@@ -37,7 +37,7 @@ interface ChartWithOrdersProps {
   interval?: string // 1m, 5m, 15m, 1h, 4h, 1d
   traderID?: string // Used to fetch orders for this trader
   height?: number
-  exchange?: string // Exchange type: binance, bybit, okx, bitget, hyperliquid, aster, lighter
+  exchange?: string // Exchange type: binance, bybit, okx, bitget, gate, aster, lighter
 }
 
 export function ChartWithOrders({

@@ -38,7 +38,7 @@ const indicatorCards = [
 ] as const
 
 const marketContextCards = [
-  { key: 'enable_volume', label: 'Volume', hint: 'from Hyperliquid candle volume', color: '#c084fc' },
+  { key: 'enable_volume', label: 'Volume', hint: 'from exchange candle volume', color: '#c084fc' },
   { key: 'enable_oi', label: 'Open Interest', hint: 'native exchange context when available', color: '#34d399' },
   { key: 'enable_funding_rate', label: 'Funding', hint: 'perp funding context', color: '#fbbf24' },
 ] as const
@@ -50,7 +50,7 @@ export function IndicatorEditor({ config, onChange, disabled, language }: Indica
     if (disabled) return
     onChange({
       ...config,
-      // Ensure the simplified Hyperliquid strategy editor never enables NofxOSAI-only datasets.
+      // Simplified strategy editor works on exchange-native data only.
       nofxos_api_key: '',
       enable_quant_data: false,
       enable_quant_oi: false,
@@ -99,8 +99,8 @@ export function IndicatorEditor({ config, onChange, disabled, language }: Indica
         <p className="mt-1 text-xs leading-5 text-nofx-text-muted">
           {t(
             language,
-            'AI 只喂 Hyperliquid 原生 K 线、成交量、资金费率/持仓等交易所可用数据；不再混入外部聚合数据。',
-            'AI uses native Hyperliquid candles, volume, funding/OI when available. External aggregate datasets are not mixed in.'
+            'AI 只喂交易所原生 K 线、成交量、资金费率/持仓等交易所可用数据；不混入外部聚合数据。',
+            'AI uses native exchange candles, volume, funding/OI when available. External aggregate datasets are not mixed in.'
           )}
         </p>
       </div>
@@ -117,7 +117,7 @@ export function IndicatorEditor({ config, onChange, disabled, language }: Indica
               </span>
             </div>
             <p className="mt-1 text-xs text-nofx-text-muted">
-              {t(language, '来自 Hyperliquid candleSnapshot。最多选择 4 个时间周期。', 'From Hyperliquid candleSnapshot. Select up to 4 timeframes.')}
+              {t(language, '来自交易所 K 线数据。最多选择 4 个时间周期。', 'From exchange candle data. Select up to 4 timeframes.')}
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-nofx-text-muted">
