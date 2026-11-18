@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/11-18-remove-hyperliquid/prd.md", "reason": "父任务跨子任务验收清单——本子任务即该清单的执行者；D3/D5 数据重置与凭据脱敏约束"}
+{"file": ".trellis/tasks/11-18-remove-hyperliquid/design.md", "reason": "数据重置方案（保留 users 表）与 Gate e2e 风险对策（最小张数、只读先行）"}

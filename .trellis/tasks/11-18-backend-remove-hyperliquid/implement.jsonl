@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/11-18-remove-hyperliquid/prd.md", "reason": "父任务决策记录（D1-D6）与对抗式审查结论，删除范围的最终依据"}
+{"file": ".trellis/tasks/11-18-remove-hyperliquid/design.md", "reason": "父任务跨切面技术决策、终态契约与保留边界（AI500/AICharge/setup 流保留，blockrun 同轨删除）"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端规范索引入口"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层删除时的数据流思考清单"}

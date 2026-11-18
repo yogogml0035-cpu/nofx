@@ -139,3 +139,6 @@ PR_DESCRIPTION.md
 .agents/
 skills-lock.json
 img.png
+
+# 本地中间产物（检查点 diff、连通性脚本、DB 备份等）
+scratch/

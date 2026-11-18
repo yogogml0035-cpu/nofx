@@ -1,0 +1,28 @@
+{
+  "id": "backend-remove-hyperliquid",
+  "name": "backend-remove-hyperliquid",
+  "title": "后端删除 Hyperliquid 交易所实现",
+  "description": "删除 provider/trader 两个 hyperliquid 包、钱包与 xyz 路由、store 三列、agent/kernel/manager/market/auto_trader 分支、go-hyperliquid 依赖与全部相关测试，go build/test 全绿且后端 grep 归零",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Hsikey",
+  "assignee": "Hsikey",
+  "createdAt": "2026-11-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "11-18-remove-hyperliquid",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "status": "planning"
+  }
+}

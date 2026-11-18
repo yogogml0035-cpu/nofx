@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/11-18-remove-hyperliquid/prd.md", "reason": "父任务决策记录（D6 claw402/模式删除）与保留边界（AI500 直连、AICharge、setup 流不得误删）"}
+{"file": ".trellis/tasks/11-18-remove-hyperliquid/design.md", "reason": "跨切面决策表：blockrun 同轨删除、NewStrategyEngine 签名收敛、wallet/mcp 包孤儿审计规则"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端规范索引入口"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层删除时的数据流思考清单"}

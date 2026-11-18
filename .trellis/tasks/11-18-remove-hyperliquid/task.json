@@ -1,0 +1,32 @@
+{
+  "id": "remove-hyperliquid",
+  "name": "remove-hyperliquid",
+  "title": "彻底移除 Hyperliquid：代码、前端与文档全量清理",
+  "description": "删除 Hyperliquid 交易所在代码、前端、文档、营销层的全部逻辑与痕迹，剩余 9 所平权，本地数据重置仅保留登录账号，营销推荐位仅保留 Gate，并以 Gate 子账户完成端到端验证",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Hsikey",
+  "assignee": "Hsikey",
+  "createdAt": "2026-11-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-18-backend-remove-hyperliquid",
+    "11-18-docs-marketing-cleanup",
+    "11-18-integration-reset-e2e",
+    "11-18-backend-remove-claw402-mode",
+    "11-18-frontend-purge"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
