@@ -3,8 +3,8 @@
 <h1 align="center">NOFX</h1>
 
 <p align="center">
-  <strong>글로벌 시장을 위한 AI 트레이딩 터미널.</strong><br/>
-  <strong>미국 주식, 원자재, 외환, 암호화폐 리서치, 전략 생성, 실행, 모니터링.</strong>
+  <strong>암호화폐 영구선물 시장을 위한 AI 트레이딩 터미널.</strong><br/>
+  <strong>암호화폐 영구선물의 리서치, 전략 생성, 실행, 모니터링.</strong>
 </p>
 
 <p align="center">
@@ -33,31 +33,23 @@
 
 NOFX는 시장 리서치, 전략 개발, 거래 실행, 포트폴리오 모니터링을 하나의 워크스페이스에서 처리하는 오픈소스 AI 트레이딩 터미널입니다.
 
-제품은 미국 주식, 원자재 계약, FX 페어, 디지털 자산 등 글로벌 유동성 시장을 중심으로 설계되었습니다. AI 레이어는 거래 의도를 워치리스트, 신호, 전략 로직, 리스크 제어, 실행 워크플로로 변환합니다.
+제품은 암호화폐 영구선물 시장을 중심으로 설계되었습니다. AI 레이어는 거래 의도를 워치리스트, 신호, 전략 로직, 리스크 제어, 실행 워크플로로 변환합니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-**http://127.0.0.1:3000** 을 엽니다.
+**http://127.0.0.1:3000**을 엽니다.
 
 ---
 
 ## 거래소 등록
 
-아래 링크를 통해 암호화폐와 지원되는 미국 주식, FX, 원자재 파생상품 시장용 거래 계정을 개설할 수 있습니다. 이 링크는 NOFX 파트너 프로그램을 통해 제공되며 수수료 할인 또는 추천 혜택이 포함될 수 있습니다.
+아래 링크를 통해 암호화폐 영구선물 거래 계정을 개설할 수 있습니다. 이 링크는 NOFX 파트너 프로그램을 통해 제공되며 수수료 할인 또는 추천 혜택이 포함될 수 있습니다.
 
 | 거래소 | 상태 | 수수료 할인 등록 |
 | :--- | :---: | :--- |
-| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [등록](https://www.binance.com/join?ref=NOFXENG) |
-| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [등록](https://partner.bybit.com/b/83856) |
-| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [등록](https://www.okx.com/join/1865360) |
-| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [등록](https://app.hyperliquid.xyz/join/AITRADING) |
-| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [등록](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [등록](https://www.kucoin.com/r/broker/CXEV7XKK) |
 | <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [등록](https://www.gatenode.xyz/share/VQBGUAxY) |
-| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster** | ✅ | [등록](https://www.asterdex.com/en/referral/fdfc0e) |
-| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [등록](https://app.lighter.xyz/?referral=68151432) |
 
 ---
 
@@ -77,19 +69,15 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## 시장
 
-**미국 주식 · 원자재 · 외환 · 암호화폐**
+**암호화폐 영구선물**
 
-NOFX는 단일 거래소 화면이 아니라 멀티에셋 리서치, 전략 구축, 실행, 모니터링 워크플로를 중심으로 구성됩니다.
+NOFX는 단일 거래소 화면이 아니라 암호화폐 영구선물 리서치, 전략 구축, 실행, 모니터링 워크플로를 중심으로 구성됩니다.
 
 ---
 
 ## AI 모델 액세스
 
-NOFX는 AI 추론을 [Claw402](https://claw402.ai)를 통해 자동 라우팅합니다. 사용자는 모델 제공업체를 설정하거나 API 키를 관리하거나 별도 AI 계정을 유지할 필요가 없습니다. 터미널은 Claw402의 사용량 기반 인프라를 통해 지원 모델에 온디맨드로 접근하며 공식 할인 채널로 트래픽을 라우팅합니다.
-
-| 제공업체 | 액세스 |
-| :--- | :--- |
-| **Claw402** | [공식 할인으로 사용량 기반 AI 모델 이용](https://claw402.ai) |
+NOFX는 표준 API 키 공급자를 통해 AI 모델에 연결합니다. 모델 설정에서 자체 공급자 키(DeepSeek, OpenAI, Claude, Gemini, Qwen, Kimi, Grok, MiniMax)를 구성하면 터미널이 온디맨드로 추론을 라우팅합니다.
 
 ---
 
@@ -97,9 +85,9 @@ NOFX는 AI 추론을 [Claw402](https://claw402.ai)를 통해 자동 라우팅합
 
 | 기능 | 설명 |
 | :--- | :--- |
-| **AI 트레이딩 터미널** | 미국 주식, 원자재, 외환, 암호화폐 워크플로를 위한 통합 워크스페이스 |
-| **AI 모델 액세스** | Claw402를 통해 지원 모델 제공업체에 자동 연결 |
-| **거래소 연결** | Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, Lighter |
+| **AI 트레이딩 터미널** | 암호화폐 영구선물 워크플로를 위한 통합 워크스페이스 |
+| **AI 모델 액세스** | API 키 지참 방식으로 8개 공급자 지원 (DeepSeek, OpenAI, Claude 등) |
+| **거래소 연결** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Indodax, Aster, Lighter |
 | **Strategy Studio** | 시장 유니버스, 지표, 리스크 제어, 전략 로직 |
 | **모델 경쟁** | AI 트레이더의 실시간 성과와 리더보드 비교 |
 | **Telegram Agent** | 채팅으로 트레이딩 어시스턴트 제어 및 모니터링 |
@@ -205,10 +193,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## 설정
 
-**초보자 모드**: 가이드 온보딩이 모델 액세스, 거래소 연결, 전략 설정, 첫 배포까지 안내합니다.
-
-**고급 모드**:
-
 1. AI 모델 액세스 설정
 2. 거래소 인증 정보 연결
 3. 전략 생성 또는 가져오기
@@ -244,7 +228,7 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ┌─────────────────────────────────────────────────┐
     │                 Trading Terminal                 │
     │        React + TypeScript + TradingView          │
-    │      US Stocks · Commodities · Forex · Crypto    │
+    │            Crypto Perpetual Futures              │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
     ├──────────────┬──────────────┬───────────────────┤
@@ -252,12 +236,12 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     │    Engine     │    Agent     │   Risk Controls   │
     ├──────────────┴──────────────┴───────────────────┤
     │                 AI Model Layer                    │
-    │    Unified provider access through Claw402        │
-    │    Model routing · payment · execution support    │
+    │      API-key providers (BYO key, 8 vendors)       │
+    │    Model routing · execution support              │
     ├─────────────────────────────────────────────────┤
     │              Exchange Connectivity                │
-    │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
-    │ KuCoin · Gate · Aster · Lighter                  │
+    │ Binance · Bybit · OKX · Bitget · KuCoin          │
+    │ Gate · Indodax · Aster · Lighter                 │
     └─────────────────────────────────────────────────┘
 ```
 

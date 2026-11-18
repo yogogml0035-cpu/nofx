@@ -53,7 +53,7 @@ When you download, install, and use the self-hosted "Software," we absolutely do
 Any API keys for third-party exchanges (such as Binance)
 Any API keys for third-party AI services (such as DeepSeek, Qwen)
 Your API secret keys corresponding to your API keys
-Your cryptocurrency private keys (e.g., Ethereum private keys for Hyperliquid or Aster DEX)
+Your cryptocurrency private keys (e.g., Ethereum private keys for Aster DEX or Lighter DEX)
 Your wallet "secret phrases" (mnemonic phrases)
 Your trading history, positions, account balances, or any other financial information
 Any personal data you configure in your local instance of the "Software"

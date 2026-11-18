@@ -3,8 +3,8 @@
 <h1 align="center">NOFX</h1>
 
 <p align="center">
-  <strong>AI trading terminal for global markets.</strong><br/>
-  <strong>Research, strategy generation, execution, and monitoring for US stocks, commodities, forex, and crypto.</strong>
+  <strong>AI trading terminal for crypto perpetual markets.</strong><br/>
+  <strong>Research, strategy generation, execution, and monitoring for crypto perpetual futures.</strong>
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@
 
 NOFX is an open-source AI trading terminal for active traders who want one workspace for market research, strategy development, execution, and portfolio monitoring.
 
-The product is built around global liquid markets: US equities, commodity contracts, FX pairs, and digital assets. The AI layer helps translate market intent into watchlists, signals, strategy logic, risk controls, and execution workflows.
+The product is built around crypto perpetual futures markets. The AI layer helps translate market intent into watchlists, signals, strategy logic, risk controls, and execution workflows.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
@@ -45,19 +45,11 @@ Open **http://127.0.0.1:3000**.
 
 ## Register exchanges
 
-Use the links below to open trading accounts for crypto and supported US stock, FX, and commodity derivative markets. These routes are part of NOFX partner programs and may include fee discounts or referral benefits.
+Use the link below to open a crypto perpetual trading account. This route is part of the NOFX partner program and may include fee discounts or referral benefits.
 
 | Exchange                                                                                                                      | Status | Register with fee discount                                                          |
 | :---------------------------------------------------------------------------------------------------------------------------- | :----: | :---------------------------------------------------------------------------------- |
-| <img src="web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance**       |   ✅   | [Register](https://www.binance.com/join?ref=NOFXENG)                                |
-| <img src="web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit**           |   ✅   | [Register](https://partner.bybit.com/b/83856)                                       |
-| <img src="web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX**               |   ✅   | [Register](https://www.okx.com/join/1865360)                                        |
-| <img src="web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** |   ✅   | [Register](https://app.hyperliquid.xyz/join/AITRADING)                              |
-| <img src="web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget**         |   ✅   | [Register](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin**         |   ✅   | [Register](https://www.kucoin.com/r/broker/CXEV7XKK)                                |
 | <img src="web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate**             |   ✅   | [Register](https://www.gatenode.xyz/share/VQBGUAxY)                                 |
-| <img src="web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster**           |   ✅   | [Register](https://www.asterdex.com/en/referral/fdfc0e)                             |
-| <img src="web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter**       |   ✅   | [Register](https://app.lighter.xyz/?referral=68151432)                              |
 
 ---
 
@@ -77,19 +69,15 @@ Use the links below to open trading accounts for crypto and supported US stock, 
 
 ## Markets
 
-**US Stocks · Commodities · Forex · Crypto**
+**Crypto Perpetual Futures**
 
-NOFX organizes research, strategy construction, execution, and monitoring around multi-asset workflows instead of single-venue screens.
+NOFX organizes research, strategy construction, execution, and monitoring around crypto perpetual workflows instead of single-venue screens.
 
 ---
 
 ## AI model access
 
-NOFX routes AI inference through [Claw402](https://claw402.ai) automatically. Users do not need to configure model providers, manage API keys, or maintain separate AI accounts. The terminal accesses supported models on demand through Claw402's pay-as-you-go infrastructure, with traffic routed through the official discounted channel.
-
-| Provider | Access |
-| :------- | :----- |
-| **Claw402** | [Access pay-as-you-go AI models with official discount](https://claw402.ai) |
+NOFX connects to AI models through standard API-key providers. Configure your own provider keys (DeepSeek, OpenAI, Claude, Gemini, Qwen, Kimi, Grok, MiniMax) in the model settings, and the terminal routes inference on demand.
 
 ---
 
@@ -97,9 +85,9 @@ NOFX routes AI inference through [Claw402](https://claw402.ai) automatically. Us
 
 | Capability                  | Description                                                                 |
 | :-------------------------- | :-------------------------------------------------------------------------- |
-| **AI trading terminal**     | Unified workspace for US stocks, commodities, forex, and crypto workflows   |
-| **AI model access**         | Unified model access through Claw402-supported providers                    |
-| **Exchange connectivity**   | Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, and Lighter  |
+| **AI trading terminal**     | Unified workspace for crypto perpetual workflows                             |
+| **AI model access**         | Bring your own API key for 8 providers (DeepSeek, OpenAI, Claude, and more)  |
+| **Exchange connectivity**   | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Indodax, Aster, and Lighter       |
 | **Strategy Studio**         | Market universes, indicators, risk controls, and strategy logic             |
 | **Model competition**       | Compare model-driven traders with live performance and leaderboard tracking  |
 | **Telegram agent**          | Control and monitor the trading assistant through chat                      |
@@ -244,7 +232,7 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ┌─────────────────────────────────────────────────┐
     │                 Trading Terminal                 │
     │        React + TypeScript + TradingView          │
-    │      US Stocks · Commodities · Forex · Crypto    │
+    │            Crypto Perpetual Futures              │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
     ├──────────────┬──────────────┬───────────────────┤
@@ -252,12 +240,12 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     │    Engine     │    Agent     │   Risk Controls   │
     ├──────────────┴──────────────┴───────────────────┤
     │                 AI Model Layer                    │
-    │    Unified provider access through Claw402        │
-    │    Model routing · payment · execution support    │
+    │      API-key providers (BYO key, 8 vendors)       │
+    │    Model routing · execution support              │
     ├─────────────────────────────────────────────────┤
     │              Exchange Connectivity                │
-    │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
-    │ KuCoin · Gate · Aster · Lighter                  │
+    │ Binance · Bybit · OKX · Bitget · KuCoin          │
+    │ Gate · Indodax · Aster · Lighter                 │
     └─────────────────────────────────────────────────┘
 ```
 

@@ -13,7 +13,7 @@ NOFX 是一个支持加密货币和美股市场的全栈 AI 交易平台：
 - **后端:** Go (Gin 框架, SQLite)
 - **前端:** React/TypeScript (Vite, TailwindCSS)
 - **AI 模型:** DeepSeek, Qwen, OpenAI (GPT-5.2), Claude, Gemini, Grok, Kimi
-- **交易所:** Binance, Bybit, OKX, Hyperliquid, Aster, Lighter
+- **交易所:** Binance, Bybit, OKX, Gate, Aster, Lighter
 
 ---
 

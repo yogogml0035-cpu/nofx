@@ -3,8 +3,8 @@
 <h1 align="center">NOFX</h1>
 
 <p align="center">
-  <strong>Thiết bị đầu cuối giao dịch AI cho thị trường toàn cầu.</strong><br/>
-  <strong>Nghiên cứu, tạo chiến lược, thực thi và giám sát cho cổ phiếu Mỹ, hàng hóa, ngoại hối và crypto.</strong>
+  <strong>Thiết bị đầu cuối giao dịch AI cho thị trường hợp đồng tương lai vĩnh viễn crypto.</strong><br/>
+  <strong>Nghiên cứu, tạo chiến lược, thực thi và giám sát cho hợp đồng tương lai vĩnh viễn crypto.</strong>
 </p>
 
 <p align="center">
@@ -33,31 +33,23 @@
 
 NOFX là thiết bị đầu cuối giao dịch AI mã nguồn mở cho các trader cần một không gian làm việc thống nhất để nghiên cứu thị trường, phát triển chiến lược, thực thi giao dịch và giám sát danh mục.
 
-Sản phẩm tập trung vào các thị trường thanh khoản toàn cầu: cổ phiếu Mỹ, hợp đồng hàng hóa, cặp FX và tài sản số. Lớp AI chuyển ý định giao dịch thành watchlist, tín hiệu, logic chiến lược, kiểm soát rủi ro và workflow thực thi.
+Sản phẩm tập trung vào thị trường hợp đồng tương lai vĩnh viễn crypto. Lớp AI chuyển ý định giao dịch thành watchlist, tín hiệu, logic chiến lược, kiểm soát rủi ro và workflow thực thi.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-**http://127.0.0.1:3000** 을 엽니다.
+Mở **http://127.0.0.1:3000**.
 
 ---
 
 ## Đăng ký sàn giao dịch
 
-Sử dụng các liên kết bên dưới để mở tài khoản giao dịch cho crypto và các thị trường phái sinh cổ phiếu Mỹ, FX, hàng hóa được hỗ trợ. Các tuyến này thuộc chương trình đối tác NOFX và có thể bao gồm ưu đãi phí hoặc quyền lợi giới thiệu.
+Sử dụng liên kết bên dưới để mở tài khoản giao dịch hợp đồng tương lai vĩnh viễn crypto. Tuyến này thuộc chương trình đối tác NOFX và có thể bao gồm ưu đãi phí hoặc quyền lợi giới thiệu.
 
 | Sàn | Trạng thái | Đăng ký kèm ưu đãi phí |
 | :--- | :---: | :--- |
-| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [Đăng ký](https://www.binance.com/join?ref=NOFXENG) |
-| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [Đăng ký](https://partner.bybit.com/b/83856) |
-| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [Đăng ký](https://www.okx.com/join/1865360) |
-| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [Đăng ký](https://app.hyperliquid.xyz/join/AITRADING) |
-| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [Đăng ký](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [Đăng ký](https://www.kucoin.com/r/broker/CXEV7XKK) |
 | <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [Đăng ký](https://www.gatenode.xyz/share/VQBGUAxY) |
-| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster** | ✅ | [Đăng ký](https://www.asterdex.com/en/referral/fdfc0e) |
-| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [Đăng ký](https://app.lighter.xyz/?referral=68151432) |
 
 ---
 
@@ -77,19 +69,15 @@ Sử dụng các liên kết bên dưới để mở tài khoản giao dịch ch
 
 ## Thị trường
 
-**Cổ phiếu Mỹ · Hàng hóa · Ngoại hối · Crypto**
+**Hợp đồng tương lai vĩnh viễn crypto**
 
-NOFX tổ chức nghiên cứu, xây dựng chiến lược, thực thi và giám sát theo workflow đa tài sản thay vì một màn hình sàn đơn lẻ.
+NOFX tổ chức nghiên cứu, xây dựng chiến lược, thực thi và giám sát theo workflow hợp đồng tương lai vĩnh viễn crypto thay vì một màn hình sàn đơn lẻ.
 
 ---
 
 ## Truy cập mô hình AI
 
-NOFX tự động định tuyến AI inference qua [Claw402](https://claw402.ai). Người dùng không cần cấu hình nhà cung cấp mô hình, quản lý API key hoặc duy trì tài khoản AI riêng. Terminal truy cập các mô hình được hỗ trợ theo nhu cầu qua hạ tầng pay-as-you-go của Claw402 và định tuyến qua kênh ưu đãi chính thức.
-
-| Nhà cung cấp | Truy cập |
-| :--- | :--- |
-| **Claw402** | [Truy cập mô hình AI pay-as-you-go với ưu đãi chính thức](https://claw402.ai) |
+NOFX kết nối tới các mô hình AI qua nhà cung cấp API key tiêu chuẩn. Cấu hình key nhà cung cấp của bạn (DeepSeek, OpenAI, Claude, Gemini, Qwen, Kimi, Grok, MiniMax) trong cài đặt mô hình, và terminal sẽ định tuyến inference theo nhu cầu.
 
 ---
 
@@ -97,9 +85,9 @@ NOFX tự động định tuyến AI inference qua [Claw402](https://claw402.ai)
 
 | Năng lực | Mô tả |
 | :--- | :--- |
-| **AI trading terminal** | Không gian làm việc thống nhất cho cổ phiếu Mỹ, hàng hóa, ngoại hối và crypto |
-| **Truy cập mô hình AI** | Tự động kết nối nhà cung cấp được hỗ trợ qua Claw402 |
-| **Kết nối sàn** | Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, Lighter |
+| **AI trading terminal** | Không gian làm việc thống nhất cho workflow hợp đồng tương lai vĩnh viễn crypto |
+| **Truy cập mô hình AI** | Mang theo API key riêng cho 8 nhà cung cấp (DeepSeek, OpenAI, Claude, v.v.) |
+| **Kết nối sàn** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Indodax, Aster, Lighter |
 | **Strategy Studio** | Universe thị trường, chỉ báo, kiểm soát rủi ro và logic chiến lược |
 | **Cạnh tranh mô hình** | So sánh AI trader bằng hiệu suất live và bảng xếp hạng |
 | **Telegram Agent** | Điều khiển và giám sát trợ lý giao dịch qua chat |
@@ -205,10 +193,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## Thiết lập
 
-**Chế độ người mới**: onboarding có hướng dẫn giúp người dùng mới hoàn tất truy cập mô hình, kết nối sàn, cấu hình chiến lược và lần triển khai đầu tiên.
-
-**Chế độ nâng cao**:
-
 1. Cấu hình truy cập mô hình AI
 2. Kết nối thông tin xác thực sàn
 3. Xây dựng hoặc import chiến lược
@@ -244,7 +228,7 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ┌─────────────────────────────────────────────────┐
     │                 Trading Terminal                 │
     │        React + TypeScript + TradingView          │
-    │      US Stocks · Commodities · Forex · Crypto    │
+    │            Crypto Perpetual Futures              │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
     ├──────────────┬──────────────┬───────────────────┤
@@ -252,12 +236,12 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     │    Engine     │    Agent     │   Risk Controls   │
     ├──────────────┴──────────────┴───────────────────┤
     │                 AI Model Layer                    │
-    │    Unified provider access through Claw402        │
-    │    Model routing · payment · execution support    │
+    │      API-key providers (BYO key, 8 vendors)       │
+    │    Model routing · execution support              │
     ├─────────────────────────────────────────────────┤
     │              Exchange Connectivity                │
-    │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
-    │ KuCoin · Gate · Aster · Lighter                  │
+    │ Binance · Bybit · OKX · Bitget · KuCoin          │
+    │ Gate · Indodax · Aster · Lighter                 │
     └─────────────────────────────────────────────────┘
 ```
 

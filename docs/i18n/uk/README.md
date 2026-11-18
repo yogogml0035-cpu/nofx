@@ -3,8 +3,8 @@
 <h1 align="center">NOFX</h1>
 
 <p align="center">
-  <strong>AI-термінал для глобальних ринків.</strong><br/>
-  <strong>Дослідження, генерація стратегій, виконання та моніторинг для акцій США, сировинних товарів, FX і криптоактивів.</strong>
+  <strong>AI-термінал для ринку криптовалютних безстрокових ф'ючерсів.</strong><br/>
+  <strong>Дослідження, генерація стратегій, виконання та моніторинг для криптовалютних безстрокових ф'ючерсів.</strong>
 </p>
 
 <p align="center">
@@ -33,31 +33,23 @@
 
 NOFX — open-source AI-термінал для активних трейдерів, яким потрібен єдиний робочий простір для аналізу ринків, розробки стратегій, виконання угод і моніторингу портфеля.
 
-Продукт орієнтований на ліквідні глобальні ринки: акції США, товарні контракти, валютні пари й цифрові активи. AI-шар перетворює торговий намір на watchlists, сигнали, логіку стратегії, ризик-контроль і робочі процеси виконання.
+Продукт орієнтований на ринок криптовалютних безстрокових ф'ючерсів. AI-шар перетворює торговий намір на watchlists, сигнали, логіку стратегії, ризик-контроль і робочі процеси виконання.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-**http://127.0.0.1:3000** 을 엽니다.
+Відкрийте **http://127.0.0.1:3000**.
 
 ---
 
 ## Реєстрація на біржах
 
-Скористайтеся посиланнями нижче, щоб відкрити торгові акаунти для крипторинків і підтримуваних деривативів на акції США, FX та сировинні товари. Ці маршрути належать до партнерських програм NOFX і можуть містити знижки на комісії або реферальні переваги.
+Скористайтеся посиланням нижче, щоб відкрити торговий акаунт для криптовалютних безстрокових ф'ючерсів. Цей маршрут належить до партнерської програми NOFX і може містити знижки на комісії або реферальні переваги.
 
 | Біржа | Статус | Реєстрація зі знижкою |
 | :--- | :---: | :--- |
-| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [Реєстрація](https://www.binance.com/join?ref=NOFXENG) |
-| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [Реєстрація](https://partner.bybit.com/b/83856) |
-| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [Реєстрація](https://www.okx.com/join/1865360) |
-| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [Реєстрація](https://app.hyperliquid.xyz/join/AITRADING) |
-| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [Реєстрація](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [Реєстрація](https://www.kucoin.com/r/broker/CXEV7XKK) |
 | <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [Реєстрація](https://www.gatenode.xyz/share/VQBGUAxY) |
-| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster** | ✅ | [Реєстрація](https://www.asterdex.com/en/referral/fdfc0e) |
-| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [Реєстрація](https://app.lighter.xyz/?referral=68151432) |
 
 ---
 
@@ -77,33 +69,29 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## Ринки
 
-**Акції США · Сировинні товари · FX · Криптоактиви**
+**Криптовалютні безстрокові ф'ючерси**
 
-NOFX организует исследования, построение стратегий, исполнение и мониторинг вокруг мультиактивных рабочих процессов, а не вокруг одного торгового экрана.
+NOFX організовує дослідження, побудову стратегій, виконання та моніторинг навколо робочих процесів криптовалютних безстрокових ф'ючерсів, а не навколо одного торгового екрана.
 
 ---
 
 ## Доступ до AI-моделей
 
-NOFX автоматично маршрутизує AI inference через [Claw402](https://claw402.ai). Користувачам не потрібно налаштовувати провайдерів моделей, керувати API-ключами або підтримувати окремі AI-акаунти. Термінал звертається до підтримуваних моделей на вимогу через pay-as-you-go інфраструктуру Claw402 та офіційний канал зі знижкою.
-
-| Провайдер | Доступ |
-| :--- | :--- |
-| **Claw402** | [Доступ до AI-моделей pay-as-you-go з офіційною знижкою](https://claw402.ai) |
+NOFX підключається до AI-моделей через стандартних провайдерів API-ключів. Налаштуйте власні ключі провайдерів (DeepSeek, OpenAI, Claude, Gemini, Qwen, Kimi, Grok, MiniMax) у налаштуваннях моделей, і термінал маршрутизуватиме інференс на вимогу.
 
 ---
 
 ## Можливості
 
-| Возможность | Описание |
+| Можливість | Опис |
 | :--- | :--- |
-| **AI trading terminal** | Единое рабочее пространство для акций США, сырья, FX и криптоактивов |
-| **Доступ к AI-моделям** | Автоматический доступ к поддерживаемым провайдерам через Claw402 |
-| **Подключение бирж** | Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, Lighter |
-| **Strategy Studio** | Рыночные универсумы, индикаторы, риск-контроль и логика стратегий |
-| **Соревнование моделей** | Сравнение AI-трейдеров по live-результатам и таблице лидеров |
-| **Telegram Agent** | Управление и мониторинг ассистента через чат |
-| **Портфельный дашборд** | Позиции, P/L, история исполнения и логи решений модели |
+| **AI торговий термінал** | Єдиний робочий простір для робочих процесів криптовалютних безстрокових ф'ючерсів |
+| **Доступ до AI-моделей** | Власний API-ключ для 8 провайдерів (DeepSeek, OpenAI, Claude та ін.) |
+| **Підключення бірж** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Indodax, Aster, Lighter |
+| **Strategy Studio** | Ринкові всесвіти, індикатори, ризик-контроль і логіка стратегій |
+| **Змагання моделей** | Порівняння AI-трейдерів за live-результатами та таблицею лідерів |
+| **Telegram Agent** | Керування та моніторинг асистента через чат |
+| **Портфельний дашборд** | Позиції, P/L, історія виконання та логи рішень моделі |
 
 ---
 
@@ -205,17 +193,13 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## Настройка
 
-**Режим для новичков**: пошаговый onboarding проводит через доступ к моделям, подключение биржи, настройку стратегии и первый запуск.
+1. Налаштуйте доступ до AI-моделей
+2. Підключіть облікові дані біржі
+3. Створіть або імпортуйте стратегію
+4. Створіть профіль AI-трейдера
+5. Запустіть, моніторте та покращуйте через дашборд
 
-**Продвинутый режим**:
-
-1. Настройте доступ к AI-моделям
-2. Подключите учетные данные биржи
-3. Создайте или импортируйте стратегию
-4. Создайте профиль AI-трейдера
-5. Запустите, мониторьте и улучшайте через дашборд
-
-Все настройки доступны в Web UI по адресу **http://127.0.0.1:3000**.
+Усі налаштування доступні у Web UI за адресою **http://127.0.0.1:3000**.
 
 ---
 
@@ -244,7 +228,7 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ┌─────────────────────────────────────────────────┐
     │                 Trading Terminal                 │
     │        React + TypeScript + TradingView          │
-    │      US Stocks · Commodities · Forex · Crypto    │
+    │            Crypto Perpetual Futures              │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
     ├──────────────┬──────────────┬───────────────────┤
@@ -252,12 +236,12 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     │    Engine     │    Agent     │   Risk Controls   │
     ├──────────────┴──────────────┴───────────────────┤
     │                 AI Model Layer                    │
-    │    Unified provider access through Claw402        │
-    │    Model routing · payment · execution support    │
+    │      API-key providers (BYO key, 8 vendors)       │
+    │    Model routing · execution support              │
     ├─────────────────────────────────────────────────┤
     │              Exchange Connectivity                │
-    │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
-    │ KuCoin · Gate · Aster · Lighter                  │
+    │ Binance · Bybit · OKX · Bitget · KuCoin          │
+    │ Gate · Indodax · Aster · Lighter                 │
     └─────────────────────────────────────────────────┘
 ```
 

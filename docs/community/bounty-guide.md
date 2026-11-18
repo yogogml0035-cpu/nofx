@@ -15,15 +15,7 @@
 
 4. **填写 Issue 内容**
 
-#### Hyperliquid 集成 Issue：
-
-```markdown
-标题：[BOUNTY] Integrate Hyperliquid Exchange Support 🚀
-
-内容：复制 INTEGRATION_BOUNTY_HYPERLIQUID.md 的全部内容
-```
-
-#### Aster 集成 Issue：
+#### 交易所集成 Issue 示例：
 
 ```markdown
 标题：[BOUNTY] Integrate Aster Exchange Support 🚀
@@ -51,13 +43,7 @@ brew install gh  # macOS
 # 登录
 gh auth login
 
-# 创建 Hyperliquid 集成 Issue
-gh issue create \
-  --title "[BOUNTY] Integrate Hyperliquid Exchange Support 🚀" \
-  --body-file INTEGRATION_BOUNTY_HYPERLIQUID.md \
-  --label "enhancement,bounty,help wanted"
-
-# 创建 Aster 集成 Issue
+# 创建交易所集成 Issue
 gh issue create \
   --title "[BOUNTY] Integrate Aster Exchange Support 🚀" \
   --body-file INTEGRATION_BOUNTY_ASTER.md \
@@ -72,7 +58,7 @@ gh issue create \
 在 Issue 开头写明：
 ```markdown
 ## 💰 Bounty Reward
-- **$500 USD** for complete Hyperliquid integration
+- **$500 USD** for complete exchange integration
 - **Bonus $200** for websocket real-time data support
 - **Bonus $100** for comprehensive tests and docs
 ```
@@ -114,7 +100,7 @@ gh issue create \
 ```
 🚀 $500 Bounty! 🚀
 
-Looking for devs to integrate Hyperliquid exchange into NOFX AI Trading System
+Looking for devs to integrate a new exchange into NOFX AI Trading System
 
 ✅ Add perpetual contracts support
 ✅ Unified API interface
