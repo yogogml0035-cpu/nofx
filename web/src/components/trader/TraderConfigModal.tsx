@@ -23,13 +23,13 @@ function getStrategyAIConfig(strategy: Strategy) {
   )
 }
 
-// 交易所注册链接配置
+// 交易所注册链接配置：仅 Gate 保留推荐位（D4），其余为官方注册页
 const EXCHANGE_REGISTRATION_LINKS: Record<string, { url: string; hasReferral?: boolean }> = {
-  binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
-  okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
-  bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
-  aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
-  lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
+  binance: { url: 'https://www.binance.com/join' },
+  okx: { url: 'https://www.okx.com/join' },
+  bybit: { url: 'https://www.bybit.com/register' },
+  aster: { url: 'https://www.asterdex.com' },
+  lighter: { url: 'https://app.lighter.xyz' },
 }
 // 表单内部状态类型
 interface FormState {

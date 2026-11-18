@@ -323,8 +323,6 @@ export const translations = {
     selectedSymbolsCount: 'Selected {count} symbols',
     clearSelection: 'Clear All',
     confirmSelection: 'Confirm',
-    tradingSymbolsDescription:
-      'Empty = use default symbols. Use USDT perps (e.g., BTCUSDT, ETHUSDT)',
     btcEthLeverageValidation: 'BTC/ETH leverage must be between 1-50x',
     altcoinLeverageValidation: 'Altcoin leverage must be between 1-20x',
     invalidSymbolFormat: 'Invalid symbol format: {symbol}, use USDT perps',
@@ -350,8 +348,6 @@ export const translations = {
     promptDescHansenContent:
       'Hansen custom strategy, maximize Sharpe ratio, for professional traders',
     promptDescNof1: '🌐 NoF1 English Framework',
-    promptDescNof1Content:
-      'Crypto perpetuals specialist, English prompts, maximize risk-adjusted returns',
     promptDescTaroLong: '📈 Taro Long Position Strategy',
     promptDescTaroLongContent:
       'Data-driven decisions, multi-dimensional validation, continuous learning evolution, long position specialist',
@@ -1630,8 +1626,6 @@ export const translations = {
     selectedSymbolsCount: '已选择 {count} 个币种',
     clearSelection: '清空选择',
     confirmSelection: '确认选择',
-    tradingSymbolsDescription:
-      '留空 = 使用默认币种。支持 USDT 合约（如：BTCUSDT, ETHUSDT）',
     btcEthLeverageValidation: 'BTC/ETH杠杆必须在1-50倍之间',
     altcoinLeverageValidation: '山寨币杠杆必须在1-20倍之间',
     invalidSymbolFormat: '无效的币种格式：{symbol}，请使用 USDT 合约或 SYMBOL-USDC',
@@ -1656,8 +1650,6 @@ export const translations = {
     promptDescHansen: '🎯 Hansen 策略',
     promptDescHansenContent: 'Hansen 定制策略，最大化夏普比率，专业交易者专用',
     promptDescNof1: '🌐 NoF1 英文框架',
-    promptDescNof1Content:
-      '加密货币永续专用，英文提示词，风险调整回报最大化',
     promptDescTaroLong: '📈 Taro 长仓策略',
     promptDescTaroLongContent:
       '数据驱动决策，多维度验证，持续学习进化，长仓专用',
@@ -2872,7 +2864,6 @@ export const translations = {
     selectedSymbolsCount: '{count} simbol dipilih',
     clearSelection: 'Hapus Semua',
     confirmSelection: 'Konfirmasi',
-    tradingSymbolsDescription: 'Kosong = gunakan simbol default. Gunakan perp USDT (misal BTCUSDT, ETHUSDT)',
     btcEthLeverageValidation: 'Leverage BTC/ETH harus antara 1-50x',
     altcoinLeverageValidation: 'Leverage Altcoin harus antara 1-20x',
     invalidSymbolFormat: 'Format simbol tidak valid: {symbol}, gunakan perp USDT atau SYMBOL-USDC',
@@ -2892,7 +2883,6 @@ export const translations = {
     promptDescHansen: '🎯 Strategi Hansen',
     promptDescHansenContent: 'Strategi kustom Hansen, maksimalkan rasio Sharpe, untuk trader profesional',
     promptDescNof1: '🌐 Framework NoF1 English',
-    promptDescNof1Content: 'Spesialis perp kripto, prompt bahasa Inggris, maksimalkan return yang disesuaikan risiko',
     promptDescTaroLong: '📈 Strategi Taro Long Position',
     promptDescTaroLongContent: 'Keputusan berbasis data, validasi multi-dimensi, evolusi pembelajaran berkelanjutan, spesialis posisi long',
     loading: 'Memuat...',

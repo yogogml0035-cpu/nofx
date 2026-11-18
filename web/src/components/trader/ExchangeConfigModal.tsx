@@ -190,16 +190,17 @@ export function ExchangeConfigModal({
     ? selectedExchange?.exchange_type
     : selectedExchangeType
 
+  // 注册引导链接：仅 Gate 保留推荐位（D4），其余交易所用官方注册页（无返佣参数）
   const exchangeRegistrationLinks: Record<string, { url: string; hasReferral?: boolean }> = {
-    binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
-    okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
-    bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
-    bitget: { url: 'https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172', hasReferral: true },
+    binance: { url: 'https://www.binance.com/join' },
+    okx: { url: 'https://www.okx.com/join' },
+    bybit: { url: 'https://www.bybit.com/register' },
+    bitget: { url: 'https://www.bitget.com/register' },
     gate: { url: 'https://www.gatenode.xyz/share/VQBGUAxY', hasReferral: true },
-    kucoin: { url: 'https://www.kucoin.com/r/broker/CXEV7XKK', hasReferral: true },
-    aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
-    lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
-    indodax: { url: 'https://indodax.com/ref/Saep23/1', hasReferral: true },
+    kucoin: { url: 'https://www.kucoin.com/register' },
+    aster: { url: 'https://www.asterdex.com' },
+    lighter: { url: 'https://app.lighter.xyz' },
+    indodax: { url: 'https://indodax.com/register' },
   }
 
   // Initialize form when editing
