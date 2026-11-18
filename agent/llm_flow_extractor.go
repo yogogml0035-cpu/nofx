@@ -451,14 +451,6 @@ func providerExplicitlyMentionedInText(provider, text string) bool {
 	}
 	spec, _ := modelProviderSpecByID(provider)
 	candidates := []string{provider, strings.ToLower(strings.TrimSpace(spec.DisplayName))}
-	switch provider {
-	case "blockrun-base":
-		candidates = append(candidates, "blockrun", "blockrun base", "base wallet")
-	case "blockrun-sol":
-		candidates = append(candidates, "blockrun", "blockrun sol", "solana wallet")
-	case "claw402":
-		candidates = append(candidates, "claw 402")
-	}
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
 		if candidate != "" && strings.Contains(lower, candidate) {

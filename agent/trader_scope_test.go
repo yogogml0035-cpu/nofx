@@ -65,9 +65,9 @@ func TestGetDecisionsToolReturnsRecentTraderDecisionEvidence(t *testing.T) {
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 	traderCfg := &store.Trader{
-		ID:                  "trader-claw402",
+		ID:                  "trader-alpha",
 		UserID:              "default",
-		Name:                "claw402",
+		Name:                "alpha",
 		AIModelID:           "model-1",
 		ExchangeID:          "exchange-1",
 		InitialBalance:      6.21,
@@ -107,8 +107,8 @@ func TestGetDecisionsToolReturnsRecentTraderDecisionEvidence(t *testing.T) {
 		t.Fatalf("seed rejected decision: %v", err)
 	}
 
-	raw := a.toolGetDecisions("default", `{"trader_name":"claw402","limit":2}`)
-	for _, want := range []string{"claw402", "BTCUSDT", "wait", "wait succeeded", "opening amount too small", "must be ≥60.00 USDT"} {
+	raw := a.toolGetDecisions("default", `{"trader_name":"alpha","limit":2}`)
+	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "opening amount too small", "must be ≥60.00 USDT"} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("expected decision evidence %q in tool response, got: %s", want, raw)
 		}
@@ -123,9 +123,9 @@ func TestTraderDiagnosisReadsDecisionsInsteadOfAskingUserForScreenshot(t *testin
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 	traderCfg := &store.Trader{
-		ID:                  "trader-claw402",
+		ID:                  "trader-alpha",
 		UserID:              "default",
-		Name:                "claw402",
+		Name:                "alpha",
 		AIModelID:           "model-1",
 		ExchangeID:          "exchange-1",
 		InitialBalance:      6.21,
@@ -152,8 +152,8 @@ func TestTraderDiagnosisReadsDecisionsInsteadOfAskingUserForScreenshot(t *testin
 		t.Fatalf("seed decision: %v", err)
 	}
 
-	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的claw402交易员一直不开单呢")
-	for _, want := range []string{"claw402 是运行的", "主动选择等待", "入场标准", "该怎么办"} {
+	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
+	for _, want := range []string{"alpha 是运行的", "主动选择等待", "入场标准", "该怎么办"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected diagnosis to include %q, got: %s", want, reply)
 		}
@@ -173,9 +173,9 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 	traderCfg := &store.Trader{
-		ID:                  "trader-claw402",
+		ID:                  "trader-alpha",
 		UserID:              "default",
-		Name:                "claw402",
+		Name:                "alpha",
 		AIModelID:           "model-1",
 		ExchangeID:          "exchange-1",
 		InitialBalance:      6.21,
@@ -199,7 +199,7 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 		t.Fatalf("seed decision: %v", err)
 	}
 
-	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的claw402交易员一直不开单呢")
+	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
 	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 28.00 USDT", "最小下单要求 60.00 USDT", "增加账户资金", "不能手动修改"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected diagnosis to include %q, got: %s", want, reply)
@@ -218,13 +218,13 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
-	llm := &staticAIClient{response: "claw402 的最终原因是账户资金太小，最近想开 BTCUSDT 空单但金额低于最小下单要求。该怎么办：增加账户资金，或换更适合小资金的策略/标的。"}
+	llm := &staticAIClient{response: "alpha 的最终原因是账户资金太小，最近想开 BTCUSDT 空单但金额低于最小下单要求。该怎么办：增加账户资金，或换更适合小资金的策略/标的。"}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 	a.SetAIClient(llm)
 	traderCfg := &store.Trader{
-		ID:                  "trader-claw402",
+		ID:                  "trader-alpha",
 		UserID:              "default",
-		Name:                "claw402",
+		Name:                "alpha",
 		AIModelID:           "model-1",
 		ExchangeID:          "exchange-1",
 		InitialBalance:      6.21,
@@ -246,7 +246,7 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		t.Fatalf("seed decision: %v", err)
 	}
 
-	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的claw402交易员一直不开单呢")
+	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
 	if reply != llm.response {
 		t.Fatalf("expected LLM diagnosis response, got: %s", reply)
 	}
@@ -254,7 +254,7 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		t.Fatalf("expected LLM request to be captured")
 	}
 	prompt := llm.lastRequest.Messages[1].Content
-	for _, want := range []string{"Evidence JSON", "claw402", "BTCUSDT", "opening amount too small", "decision_json"} {
+	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "opening amount too small", "decision_json"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("expected LLM evidence prompt to include %q, got: %s", want, prompt)
 		}

@@ -270,28 +270,6 @@ func parseSkillError(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-func modelWalletBalanceHint(model *store.AIModel) string {
-	if model == nil || !agentProviderSupportsUSDCBalance(model.Provider) {
-		return ""
-	}
-	privateKey := strings.TrimSpace(string(model.APIKey))
-	if privateKey == "" {
-		return "钱包未配置"
-	}
-	walletAddress, err := agentWalletAddressFromPrivateKey(privateKey)
-	if err != nil || strings.TrimSpace(walletAddress) == "" {
-		return "钱包私钥无效"
-	}
-	balance, err := agentQueryUSDCBalanceCached(walletAddress)
-	if err != nil {
-		return "钱包余额暂时无法读取"
-	}
-	if balance <= 0 {
-		return "钱包余额 0 USDC，需充值后才能稳定调用"
-	}
-	return fmt.Sprintf("钱包余额 %.4g USDC", balance)
-}
-
 func (a *Agent) loadEnabledModelOptions(storeUserID string) []traderSkillOption {
 	if a.store == nil {
 		return nil
@@ -309,7 +287,6 @@ func (a *Agent) loadEnabledModelOptions(storeUserID string) []traderSkillOption 
 		hint := strings.Join(cleanStringList([]string{
 			strings.TrimSpace(model.CustomModelName),
 			strings.TrimSpace(model.Provider),
-			modelWalletBalanceHint(model),
 		}), " / ")
 		out = append(out, traderSkillOption{ID: model.ID, Name: name, Hint: hint, Enabled: model.Enabled})
 	}

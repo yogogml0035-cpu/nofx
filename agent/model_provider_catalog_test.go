@@ -5,17 +5,13 @@ import (
 	"testing"
 )
 
-func TestModelProviderChoicePromptIncludesRecommendationWithoutAutoSelection(t *testing.T) {
+func TestModelProviderChoicePromptListsAPIKeyProviders(t *testing.T) {
 	msg := modelProviderChoicePrompt("zh")
 	for _, want := range []string{
 		"可选模型 provider",
-		"claw402",
 		"DeepSeek",
 		"OpenAI",
-		"并列可选",
-		"blockrun-base",
-		"直接创建 Base 钱包",
-		"直接扫码充值/支付",
+		"API Key",
 		"请先告诉我你想用哪个 provider",
 	} {
 		if !strings.Contains(msg, want) {
@@ -27,31 +23,42 @@ func TestModelProviderChoicePromptIncludesRecommendationWithoutAutoSelection(t *
 	}
 }
 
-func TestModelProviderCredentialGuidanceForClaw402MentionsConfigPageWalletFlow(t *testing.T) {
-	msg := modelProviderCredentialGuidance("zh", "claw402")
+func TestModelProviderCredentialGuidanceForAPIKeyProvider(t *testing.T) {
+	msg := modelProviderCredentialGuidance("zh", "deepseek")
+	if !strings.Contains(msg, "API Key") {
+		t.Fatalf("expected guidance to mention API Key, got: %s", msg)
+	}
+}
+
+func TestModelProviderDetailedGuidanceForAPIKeyProvider(t *testing.T) {
+	msg := modelProviderDetailedGuidance("zh", "deepseek")
 	for _, want := range []string{
-		"Base 链 EVM 钱包私钥",
-		"配置页的模型配置里选择 `claw402`",
-		"快速创建钱包",
-		"充值入口",
+		"DeepSeek",
+		"deepseek-chat",
+		"API Key",
 	} {
 		if !strings.Contains(msg, want) {
-			t.Fatalf("expected guidance to contain %q, got: %s", want, msg)
+			t.Fatalf("expected detailed guidance to contain %q, got: %s", want, msg)
 		}
 	}
 }
 
-func TestModelProviderDetailedGuidanceForClaw402MentionsBeginnerFlow(t *testing.T) {
-	msg := modelProviderDetailedGuidance("zh", "claw402")
-	for _, want := range []string{
-		"优先推荐",
-		"按次付费",
-		"Base USDC 钱包支付",
-		"直接创建 Base 钱包",
-		"直接扫码充值/支付",
-	} {
-		if !strings.Contains(msg, want) {
-			t.Fatalf("expected detailed guidance to contain %q, got: %s", want, msg)
+func TestSupportedModelProvidersAreAPIKeyOnly(t *testing.T) {
+	ids := supportedModelProviderIDs()
+	expected := []string{"deepseek", "qwen", "openai", "claude", "gemini", "grok", "kimi", "minimax"}
+	if len(ids) != len(expected) {
+		t.Fatalf("provider count = %d, want %d: %v", len(ids), len(expected), ids)
+	}
+	for _, want := range expected {
+		found := false
+		for _, id := range ids {
+			if id == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected provider %q in %v", want, ids)
 		}
 	}
 }

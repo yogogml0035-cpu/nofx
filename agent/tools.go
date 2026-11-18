@@ -418,7 +418,7 @@ func modelConfigFieldsSchema() map[string]any {
 		},
 		"provider": map[string]any{
 			"type":        "string",
-			"description": "Provider slug such as openai, claude, gemini, deepseek, qwen, kimi, grok, minimax, claw402, blockrun-base, or blockrun-sol.",
+			"description": "Provider slug such as openai, claude, gemini, deepseek, qwen, kimi, grok, or minimax.",
 		},
 		"name": map[string]any{
 			"type":        "string",
@@ -430,11 +430,11 @@ func modelConfigFieldsSchema() map[string]any {
 		},
 		"api_key": map[string]any{
 			"type":        "string",
-			"description": "Provider credential. For standard providers this is an API key; for claw402/blockrun it is the wallet private key. Sensitive and never returned in full.",
+			"description": "Provider credential (API key). Sensitive and never returned in full.",
 		},
 		"custom_api_url": map[string]any{
 			"type":        "string",
-			"description": "Custom API base URL or endpoint override. Optional for standard providers; not used by claw402/blockrun.",
+			"description": "Custom API base URL or endpoint override. Optional for standard providers.",
 		},
 		"custom_model_name": map[string]any{
 			"type":        "string",
@@ -984,8 +984,6 @@ type safeModelToolConfig struct {
 	HasAPIKey       bool   `json:"has_api_key"`
 	CustomAPIURL    string `json:"custom_api_url,omitempty"`
 	CustomModelName string `json:"custom_model_name,omitempty"`
-	WalletAddress   string `json:"wallet_address,omitempty"`
-	BalanceUSDC     string `json:"balance_usdc,omitempty"`
 }
 
 type safeTraderToolConfig struct {
@@ -1155,7 +1153,7 @@ func extractTraderInitialBalance(balanceInfo map[string]interface{}) (float64, b
 }
 
 func safeModelForTool(model *store.AIModel) safeModelToolConfig {
-	safeModel := safeModelToolConfig{
+	return safeModelToolConfig{
 		ID:              model.ID,
 		Name:            model.Name,
 		Provider:        model.Provider,
@@ -1164,18 +1162,6 @@ func safeModelForTool(model *store.AIModel) safeModelToolConfig {
 		CustomAPIURL:    model.CustomAPIURL,
 		CustomModelName: model.CustomModelName,
 	}
-	if agentProviderSupportsUSDCBalance(model.Provider) {
-		privateKey := strings.TrimSpace(string(model.APIKey))
-		if privateKey != "" {
-			if walletAddress, err := agentWalletAddressFromPrivateKey(privateKey); err == nil && strings.TrimSpace(walletAddress) != "" {
-				safeModel.WalletAddress = walletAddress
-				if balance, balanceErr := agentQueryUSDCBalanceCached(walletAddress); balanceErr == nil {
-					safeModel.BalanceUSDC = fmt.Sprintf("%.6f", balance)
-				}
-			}
-		}
-	}
-	return safeModel
 }
 
 func modelConfigUsable(provider, modelID, apiKey, customAPIURL, customModelName string) bool {

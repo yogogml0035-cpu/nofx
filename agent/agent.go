@@ -18,13 +18,10 @@ import (
 	"sync"
 	"time"
 
-	gethcrypto "github.com/ethereum/go-ethereum/crypto"
-
 	"nofx/manager"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
-	"nofx/wallet"
 )
 
 type Agent struct {
@@ -53,11 +50,6 @@ type Config struct {
 	AllowTradeExecution bool     `json:"allow_trade_execution"`
 	BriefTimes          []int    `json:"brief_times"`
 }
-
-var (
-	agentWalletAddressFromPrivateKey = walletAddressFromPrivateKey
-	agentQueryUSDCBalanceCached      = wallet.QueryUSDCBalanceCached
-)
 
 func DefaultConfig() *Config {
 	return &Config{
@@ -158,8 +150,6 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 				"has_api_key", len(model.APIKey) > 0,
 				"custom_api_url", strings.TrimSpace(model.CustomAPIURL),
 				"custom_model_name", strings.TrimSpace(model.CustomModelName),
-				"prefer_model_with_balance", candidate.preferModelWithBalance,
-				"wallet_balance_usdc", candidate.balanceUSDC,
 			)
 
 			apiKey := strings.TrimSpace(string(model.APIKey))
@@ -167,8 +157,8 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 			modelName := strings.TrimSpace(model.CustomModelName)
 			provider := strings.ToLower(strings.TrimSpace(model.Provider))
 
-			// Use the provider registry for providers like claw402 that have their own
-			// client implementation (x402 payment, custom auth, etc.).
+			// Use the provider registry for providers that have their own
+			// client implementation (custom auth, non-standard endpoints, etc.).
 			if client := mcp.NewAIClientByProvider(provider); client != nil {
 				if modelName == "" {
 					modelName = model.ID
@@ -204,9 +194,7 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 }
 
 type agentModelCandidate struct {
-	model                  *store.AIModel
-	preferModelWithBalance bool
-	balanceUSDC            float64
+	model *store.AIModel
 }
 
 func rankAgentModelCandidates(models []*store.AIModel) []agentModelCandidate {
@@ -215,23 +203,12 @@ func rankAgentModelCandidates(models []*store.AIModel) []agentModelCandidate {
 		if model == nil {
 			continue
 		}
-		candidate := agentModelCandidate{model: model}
-		if balance, ok := agentModelUSDCBalance(model); ok && balance > 0 {
-			candidate.preferModelWithBalance = true
-			candidate.balanceUSDC = balance
-		}
-		candidates = append(candidates, candidate)
+		candidates = append(candidates, agentModelCandidate{model: model})
 	}
 
 	sort.SliceStable(candidates, func(i, j int) bool {
 		left := candidates[i]
 		right := candidates[j]
-		if left.preferModelWithBalance != right.preferModelWithBalance {
-			return left.preferModelWithBalance
-		}
-		if left.balanceUSDC != right.balanceUSDC {
-			return left.balanceUSDC > right.balanceUSDC
-		}
 		leftUpdatedAt := time.Time{}
 		rightUpdatedAt := time.Time{}
 		if left.model != nil {
@@ -257,34 +234,6 @@ func rankAgentModelCandidates(models []*store.AIModel) []agentModelCandidate {
 	return candidates
 }
 
-func agentModelUSDCBalance(model *store.AIModel) (float64, bool) {
-	if model == nil || !agentProviderSupportsUSDCBalance(model.Provider) {
-		return 0, false
-	}
-	privateKey := strings.TrimSpace(string(model.APIKey))
-	if privateKey == "" {
-		return 0, false
-	}
-	walletAddress, err := agentWalletAddressFromPrivateKey(privateKey)
-	if err != nil || strings.TrimSpace(walletAddress) == "" {
-		return 0, false
-	}
-	balance, err := agentQueryUSDCBalanceCached(walletAddress)
-	if err != nil || balance <= 0 {
-		return 0, false
-	}
-	return balance, true
-}
-
-func agentProviderSupportsUSDCBalance(provider string) bool {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "claw402", "blockrun-base":
-		return true
-	default:
-		return false
-	}
-}
-
 func agentModelHasUsableAPIKey(model *store.AIModel) bool {
 	if model == nil {
 		return false
@@ -306,23 +255,6 @@ func agentModelHasUsableAPIKey(model *store.AIModel) bool {
 	return envKey != "" && strings.TrimSpace(os.Getenv(envKey)) != ""
 }
 
-func walletAddressFromPrivateKey(privateKey string) (string, error) {
-	key := strings.TrimSpace(privateKey)
-	if !strings.HasPrefix(key, "0x") {
-		return "", fmt.Errorf("private key must start with 0x")
-	}
-	if len(key) != 66 {
-		return "", fmt.Errorf("private key must be 66 characters")
-	}
-
-	privateKeyObj, err := gethcrypto.HexToECDSA(strings.TrimPrefix(key, "0x"))
-	if err != nil {
-		return "", err
-	}
-
-	return gethcrypto.PubkeyToAddress(privateKeyObj.PublicKey).Hex(), nil
-}
-
 func resolveModelRuntimeConfig(provider, customAPIURL, customModelName, fallbackModelID string) (string, string) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	customAPIURL = strings.TrimSpace(customAPIURL)
@@ -342,7 +274,6 @@ func resolveModelRuntimeConfig(provider, customAPIURL, customModelName, fallback
 		"grok":     {url: "https://api.x.ai/v1", model: "grok-3-latest"},
 		"kimi":     {url: "https://api.moonshot.ai/v1", model: "moonshot-v1-auto"},
 		"minimax":  {url: "https://api.minimax.chat/v1", model: "MiniMax-M2.5"},
-		"claw402":  {url: "https://claw402.ai", model: "deepseek"},
 	}
 
 	if customAPIURL == "" {
@@ -440,9 +371,6 @@ func (a *Agent) handleMessageForStoreUser(ctx context.Context, storeUserID strin
 	if reply, handled := a.handleTradeConfirmation(ctx, userID, text, lang); handled {
 		return reply, nil
 	}
-	if reply, handled := a.handleModelWalletBalanceQuestion(storeUserID, lang, text); handled {
-		return reply, nil
-	}
 
 	// Everything else goes through the planner and tool system.
 	return a.thinkAndAct(ctx, storeUserID, userID, lang, text)
@@ -485,12 +413,6 @@ func (a *Agent) handleMessageStreamForStoreUser(ctx context.Context, storeUserID
 		return "🧹 Conversation history cleared.", nil
 	}
 	if reply, handled := a.handleTradeConfirmation(ctx, userID, text, lang); handled {
-		if onEvent != nil {
-			emitStreamText(onEvent, reply)
-		}
-		return reply, nil
-	}
-	if reply, handled := a.handleModelWalletBalanceQuestion(storeUserID, lang, text); handled {
 		if onEvent != nil {
 			emitStreamText(onEvent, reply)
 		}
@@ -958,7 +880,7 @@ func aiServiceFailureGuidance(lang, reason string) string {
 			return "这不是“未配置模型”。当前启用模型已经连到了上游，但上游明确拒绝登录，原因是账号被禁用/封禁（USER_IS_BANNED）。请检查当前启用模型配置对应的账号或 API Key，换一个可用账号/API Key，或切换到另一个已启用模型后再试。"
 		}
 		if looksLikeAuthFailure {
-			return "这不是“未配置模型”。当前启用模型已经连到了上游，但鉴权失败了。请检查当前启用模型的 API Key、钱包凭证、provider 账号状态和 custom_api_url 是否匹配；修复凭证或切换到另一个可用模型后再试。"
+			return "这不是“未配置模型”。当前启用模型已经连到了上游，但鉴权失败了。请检查当前启用模型的 API Key、provider 账号状态和 custom_api_url 是否匹配；修复凭证或切换到另一个可用模型后再试。"
 		}
 		if looksLikeUpstreamEmptyOutput {
 			return "这不是“未配置模型”。这次更像是上游模型没有返回有效内容，当前 provider 把它包装成了 429 / rate_limit_error。更可能原因是上游临时限流、服务拥塞、模型空响应，或 provider 网关没有拿到有效结果；不应优先归因成“余额不足”。请先重试一次；如果持续出现，再检查当前启用模型的 provider 状态、限流配额、网关日志，或先切换到另一个可用模型。"
@@ -975,7 +897,7 @@ func aiServiceFailureGuidance(lang, reason string) string {
 		return "This is not a missing-model issue. The active model reached the upstream provider, but login was rejected because the account is banned (USER_IS_BANNED). Check the active model account/API key, replace it with a usable credential, or switch to another enabled model."
 	}
 	if looksLikeAuthFailure {
-		return "This is not a missing-model issue. The active model reached the upstream provider, but authentication failed. Check the active model API key, wallet credential, provider account status, and custom_api_url, or switch to another enabled model."
+		return "This is not a missing-model issue. The active model reached the upstream provider, but authentication failed. Check the active model API key, provider account status, and custom_api_url, or switch to another enabled model."
 	}
 	if looksLikeUpstreamEmptyOutput {
 		return "This is not a missing-model issue. The upstream model appears to have returned no usable output, and the provider wrapped it as a 429 / rate_limit_error. The more likely causes are temporary throttling, upstream congestion, an empty model response, or a gateway that did not receive a valid result. Do not treat this as an insufficient-balance issue first. Retry once, then check the active provider status, rate limits, gateway logs, or switch to another model."

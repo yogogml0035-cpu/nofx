@@ -23,7 +23,7 @@ var (
 	genericAPIKeyPattern   = regexp.MustCompile(`^[A-Za-z0-9_\-]{8,}$`)
 	hexCredentialPattern   = regexp.MustCompile(`^(0x)?[A-Fa-f0-9]{16,}$`)
 	supportedModelProvider = map[string]struct{}{
-		"openai": {}, "deepseek": {}, "claude": {}, "gemini": {}, "qwen": {}, "kimi": {}, "grok": {}, "minimax": {}, "claw402": {}, "blockrun-base": {}, "blockrun-sol": {},
+		"openai": {}, "deepseek": {}, "claude": {}, "gemini": {}, "qwen": {}, "kimi": {}, "grok": {}, "minimax": {},
 	}
 )
 
