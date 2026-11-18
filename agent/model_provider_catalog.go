@@ -24,7 +24,7 @@ func supportedModelProviders() []modelProviderSpec {
 		{ID: "gemini", DisplayName: "Google Gemini", DefaultModel: "gemini-3-pro-preview", CredentialLabelZH: "API Key", CredentialLabelEN: "API key", SupportsCustomAPIURL: true, SupportsCustomModel: true},
 		{ID: "grok", DisplayName: "Grok (xAI)", DefaultModel: "grok-3-latest", CredentialLabelZH: "API Key", CredentialLabelEN: "API key", SupportsCustomAPIURL: true, SupportsCustomModel: true},
 		{ID: "kimi", DisplayName: "Kimi (Moonshot)", DefaultModel: "moonshot-v1-auto", CredentialLabelZH: "API Key", CredentialLabelEN: "API key", SupportsCustomAPIURL: true, SupportsCustomModel: true},
-		{ID: "minimax", DisplayName: "MiniMax", DefaultModel: "MiniMax-M2.5", CredentialLabelZH: "API Key", CredentialLabelEN: "API key", SupportsCustomAPIURL: true, SupportsCustomModel: true},
+		{ID: "minimax", DisplayName: "MiniMax", DefaultModel: "MiniMax-M2.7", CredentialLabelZH: "API Key", CredentialLabelEN: "API key", SupportsCustomAPIURL: true, SupportsCustomModel: true},
 	}
 }
 
@@ -95,10 +95,10 @@ func modelProviderSummaryList(lang string) string {
 	parts := make([]string, 0, len(supportedModelProviders()))
 	for _, spec := range supportedModelProviders() {
 		if lang == "zh" {
-			parts = append(parts, fmt.Sprintf("%s（默认 %s）", spec.ID, spec.DefaultModel))
+			parts = append(parts, fmt.Sprintf("%s（默认 %s）", spec.DisplayName, spec.DefaultModel))
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%s (default %s)", spec.ID, spec.DefaultModel))
+		parts = append(parts, fmt.Sprintf("%s (default %s)", spec.DisplayName, spec.DefaultModel))
 	}
 	if lang == "zh" {
 		return strings.Join(parts, "、")

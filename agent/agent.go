@@ -880,7 +880,7 @@ func aiServiceFailureGuidance(lang, reason string) string {
 			return "这不是“未配置模型”。当前启用模型已经连到了上游，但上游明确拒绝登录，原因是账号被禁用/封禁（USER_IS_BANNED）。请检查当前启用模型配置对应的账号或 API Key，换一个可用账号/API Key，或切换到另一个已启用模型后再试。"
 		}
 		if looksLikeAuthFailure {
-			return "这不是“未配置模型”。当前启用模型已经连到了上游，但鉴权失败了。请检查当前启用模型的 API Key、钱包凭证、provider 账号状态和 custom_api_url 是否匹配；修复凭证或切换到另一个可用模型后再试。"
+			return "这不是“未配置模型”。当前启用模型已经连到了上游，但鉴权失败了。请检查当前启用模型的 API Key、provider 账号状态和 custom_api_url 是否匹配；修复凭证或切换到另一个可用模型后再试。"
 		}
 		if looksLikeUpstreamEmptyOutput {
 			return "这不是“未配置模型”。这次更像是上游模型没有返回有效内容，当前 provider 把它包装成了 429 / rate_limit_error。更可能原因是上游临时限流、服务拥塞、模型空响应，或 provider 网关没有拿到有效结果；不应优先归因成“余额不足”。请先重试一次；如果持续出现，再检查当前启用模型的 provider 状态、限流配额、网关日志，或先切换到另一个可用模型。"
