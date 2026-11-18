@@ -193,10 +193,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## Setup
 
-**Beginner mode**: Guided onboarding walks new users through model selection, exchange connection, strategy setup, and first deployment.
-
-**Advanced mode**:
-
 1. Configure AI model access
 2. Connect exchange credentials
 3. Build or import a strategy

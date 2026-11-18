@@ -195,10 +195,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## 配置
 
-**新手模式**：引导式 onboarding 帮助新用户完成模型访问、交易所连接、策略配置与首次部署。
-
-**进阶模式**：
-
 1. 配置 AI 模型访问
 2. 连接交易所凭证
 3. 构建或导入策略

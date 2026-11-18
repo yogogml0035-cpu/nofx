@@ -193,10 +193,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## セットアップ
 
-**初心者モード**：ガイド付き onboarding により、モデルアクセス、取引所接続、戦略設定、初回デプロイまで進められます。
-
-**上級モード**：
-
 1. AI モデルアクセスを設定
 2. 取引所の認証情報を接続
 3. 戦略を構築またはインポート
