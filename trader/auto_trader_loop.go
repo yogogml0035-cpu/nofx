@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"nofx/kernel"
@@ -574,6 +575,15 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		},
 		Positions:      positionInfos,
 		CandidateCoins: candidateCoins,
+	}
+
+	// 6.5 Market environment context (per-strategy opt-in; parallel fetch, fail-soft)
+	if strategyConfig.MarketContext.MarketContextEnabled() && strategyConfig.StrategyType != "grid_trading" {
+		envCtx, envCancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer envCancel()
+		ctx.MarketEnv = at.fetchMarketEnvSnapshot(envCtx, strategyConfig.MarketContext)
+		logger.Infof("🌐 [%s] Market environment context assembled (overview=%t fear_greed=%t news_sentiment=%t)",
+			at.name, strategyConfig.MarketContext.Overview, strategyConfig.MarketContext.FearGreed, strategyConfig.MarketContext.NewsSentiment)
 	}
 
 	// 7. Add recent closed trades (if store is available)

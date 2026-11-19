@@ -89,6 +89,7 @@ type Context struct {
 	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
 	MarketDataMap      map[string]*market.Data            `json:"-"`
 	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
+	MarketEnv          *MarketEnvSnapshot                 `json:"-"`
 	BTCETHLeverage     int                                `json:"-"`
 	AltcoinLeverage    int                                `json:"-"`
 	Timeframes         []string                           `json:"-"`

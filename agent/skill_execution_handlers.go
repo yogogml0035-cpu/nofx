@@ -677,6 +677,11 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "排除币种"
 		}
 		return "excluded coins"
+	case "market_context":
+		if lang == "zh" {
+			return "市场环境上下文"
+		}
+		return "market context"
 	case "primary_count":
 		if lang == "zh" {
 			return "K线数量"
@@ -824,6 +829,24 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		cfg.CoinSource.StaticCoins = cleanStringList(strings.Split(value, ","))
 	case "excluded_coins":
 		cfg.CoinSource.ExcludedCoins = cleanStringList(strings.Split(value, ","))
+	case "market_context":
+		// flat-key 布尔组合语法："overview,fear_greed" / "off"（全关）
+		valueLower := strings.ToLower(strings.TrimSpace(value))
+		if valueLower == "off" || valueLower == "false" || value == "" {
+			cfg.MarketContext = store.MarketContextConfig{}
+			return nil
+		}
+		cfg.MarketContext = store.MarketContextConfig{}
+		for _, part := range strings.Split(valueLower, ",") {
+			switch strings.TrimSpace(part) {
+			case "overview":
+				cfg.MarketContext.Overview = true
+			case "fear_greed":
+				cfg.MarketContext.FearGreed = true
+			case "news_sentiment":
+				cfg.MarketContext.NewsSentiment = true
+			}
+		}
 	case "min_confidence":
 		parsed, err := strconv.Atoi(value)
 		if err != nil {
@@ -1106,6 +1129,8 @@ func strategyFieldKeywords(field string) []string {
 		return []string{"静态币种", "固定币种", "选币", "static coins"}
 	case "excluded_coins":
 		return []string{"排除币", "排除币种", "excluded coins"}
+	case "market_context":
+		return []string{"市场环境", "market context", "市场上下文"}
 	case "strategy_type":
 		return []string{"策略类型", "strategy type", "网格策略", "grid strategy", "ai策略"}
 	case "symbol":
@@ -1251,6 +1276,8 @@ func strategyFieldExplicitlyMentioned(text, field string) bool {
 			keywords = []string{"静态币", "固定币", "static coins", "static symbols"}
 		case "excluded_coins":
 			keywords = []string{"排除币", "排除币种", "excluded coins", "exclude coins"}
+		case "market_context":
+			keywords = []string{"市场环境", "market context", "市场上下文"}
 		case "enable_all_core_indicators":
 			keywords = []string{"核心指标"}
 		}

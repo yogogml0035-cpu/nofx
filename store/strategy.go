@@ -442,6 +442,7 @@ type StrategyConfig struct {
 	CustomPrompt   string               `json:"-"`
 	RiskControl    RiskControlConfig    `json:"-"`
 	PromptSections PromptSectionsConfig `json:"-"`
+	MarketContext  MarketContextConfig  `json:"-"`
 
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
@@ -454,6 +455,20 @@ type AIStrategyConfig struct {
 	CustomPrompt   string               `json:"custom_prompt,omitempty"`
 	RiskControl    RiskControlConfig    `json:"risk_control"`
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
+	MarketContext  MarketContextConfig  `json:"market_context"`
+}
+
+// MarketContextConfig 市场环境上下文勾选（决策时注入对应 Gate 数据段）。
+// 零值 = 全关 = 不注入（默认关闭是产品语义，非历史兼容）。仅 ai_trading 有效。
+type MarketContextConfig struct {
+	Overview      bool `json:"overview,omitempty"`       // 市场总览
+	FearGreed     bool `json:"fear_greed,omitempty"`     // 恐惧贪婪指数
+	NewsSentiment bool `json:"news_sentiment,omitempty"` // 新闻+社交情绪
+}
+
+// MarketContextEnabled 任一勾选即启用
+func (m MarketContextConfig) MarketContextEnabled() bool {
+	return m.Overview || m.FearGreed || m.NewsSentiment
 }
 
 // MarshalJSON writes the product-facing strategy schema:
@@ -483,6 +498,7 @@ func (c StrategyConfig) MarshalJSON() ([]byte, error) {
 			CustomPrompt:   c.CustomPrompt,
 			RiskControl:    c.RiskControl,
 			PromptSections: c.PromptSections,
+			MarketContext:  c.MarketContext,
 		}
 	}
 
@@ -520,6 +536,7 @@ func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
 		c.CustomPrompt = raw.AIConfig.CustomPrompt
 		c.RiskControl = raw.AIConfig.RiskControl
 		c.PromptSections = raw.AIConfig.PromptSections
+		c.MarketContext = raw.AIConfig.MarketContext
 	} else {
 		if raw.CoinSource != nil {
 			c.CoinSource = *raw.CoinSource
@@ -1063,6 +1080,11 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 	}
 
 	breakdown.MarketData = totalMarketChars / 4 // numeric data: ~4 chars per token
+
+	// --- Market Environment Context（勾选即计入，软上限约 600 tokens）---
+	if c.MarketContext.MarketContextEnabled() && c.StrategyType != "grid_trading" {
+		breakdown.MarketData += 600
+	}
 
 	// --- Total with 15% safety margin ---
 	subtotal := breakdown.SystemPrompt + breakdown.MarketData + breakdown.FixedOverhead

@@ -305,6 +305,15 @@ func strategyConfigSchema() map[string]any {
 							"excluded_coins": stringArraySchema("Coin symbols to exclude from the candidate list."),
 						},
 					},
+					"market_context": map[string]any{
+						"type":        "object",
+						"description": "Optional market environment context injected into the AI decision prompt. All default to false (off).",
+						"properties": map[string]any{
+							"overview":       map[string]any{"type": "boolean", "description": "Inject market overview (total cap, volume, BTC price/dominance, altcoin season)."},
+							"fear_greed":     map[string]any{"type": "boolean", "description": "Inject fear & greed index with server-derived 24h change."},
+							"news_sentiment": map[string]any{"type": "boolean", "description": "Inject BTC news headlines and social sentiment score."},
+						},
+					},
 					"indicators": map[string]any{
 						"type": "object",
 						"properties": map[string]any{

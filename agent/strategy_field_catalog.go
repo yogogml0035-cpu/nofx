@@ -78,6 +78,7 @@ func manualStrategyEditableFieldKeysForType(strategyType string) []string {
 		return append(common,
 			"static_coins",
 			"excluded_coins",
+			"market_context",
 			"primary_timeframe",
 			"primary_count",
 			"selected_timeframes",
