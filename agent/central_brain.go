@@ -1181,6 +1181,11 @@ func strategyProductDefaultTemplateResource(lang, strategyType string) map[strin
 					"trading_frequency": cfg.PromptSections.TradingFrequency,
 					"entry_standards":   cfg.PromptSections.EntryStandards,
 				},
+				"market_context": map[string]any{
+					"overview":       cfg.MarketContext.Overview,
+					"fear_greed":     cfg.MarketContext.FearGreed,
+					"news_sentiment": cfg.MarketContext.NewsSentiment,
+				},
 				"custom_prompt": cfg.CustomPrompt,
 			},
 			"non_fields": []string{
