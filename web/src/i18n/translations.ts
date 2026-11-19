@@ -942,6 +942,10 @@ export const translations = {
 
     // Data Page
     dataCenter: 'Data Center',
+    marketContext: {
+      title: 'Market Environment Context',
+      desc: 'Opt-in Gate market context injected into the AI decision prompt (overview / fear & greed / news & sentiment).',
+    },
     dataPage: {
       refresh: 'Refresh',
       loading: 'Loading…',
@@ -2193,6 +2197,10 @@ export const translations = {
 
     // Data Page
     dataCenter: '数据中心',
+    marketContext: {
+      title: '市场环境上下文',
+      desc: '勾选后决策时向 AI 注入对应 Gate 市场数据（总览 / 恐惧贪婪 / 新闻与情绪）。',
+    },
     dataPage: {
       refresh: '刷新',
       loading: '加载中…',
@@ -3256,6 +3264,10 @@ export const translations = {
 
     // Data Page
     dataCenter: 'Data Center',
+    marketContext: {
+      title: 'Konteks Lingkungan Pasar',
+      desc: 'Konteks pasar Gate opt-in yang dimasukkan ke prompt keputusan AI (ikhtisar / ketakutan & keserakahan / berita & sentimen).',
+    },
     dataPage: {
       refresh: 'Segarkan',
       loading: 'Memuat…',
