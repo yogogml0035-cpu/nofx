@@ -178,7 +178,7 @@ up:
 	sleep 15
 	docker compose ps
 	@echo "❤️ Backend health (http://127.0.0.1:$${NOFX_BACKEND_PORT:-8080})..."
-	curl -sf "http://127.0.0.1:$${NOFX_BACKEND_PORT:-8080}/api/config" > /dev/null && echo "backend OK"
+	curl -sf "http://127.0.0.1:$${NOFX_BACKEND_PORT:-8080}/api/health" > /dev/null && echo "backend OK"
 	@echo "❤️ Frontend entry (http://127.0.0.1:$${NOFX_FRONTEND_PORT:-3000})..."
 	curl -sf "http://127.0.0.1:$${NOFX_FRONTEND_PORT:-3000}/" > /dev/null && echo "frontend OK"
 	@echo "✅ up completed"
