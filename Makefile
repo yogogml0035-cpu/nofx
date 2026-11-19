@@ -151,3 +151,34 @@ deps-frontend:
 	@echo "📦 Installing frontend dependencies..."
 	cd web && npm install
 	@echo "✅ Frontend dependencies installed"
+
+# =============================================================================
+# Local CI & delivery（送测固件；宿主无 Go，go 门禁走 docker golang:1.25-alpine）
+# =============================================================================
+
+# 本地完整门禁：回归 + 构建 + 镜像构建（候选 push 前必须全绿）
+ci-local:
+	@echo "🧪 [1/5] Backend tests (docker golang:1.25-alpine)..."
+	docker run --rm -v "$$PWD":/app -v nofx-gocache:/go -w /app golang:1.25-alpine sh -c "apk add --no-cache gcc musl-dev >/dev/null 2>&1 && CGO_ENABLED=1 GOPROXY=https://goproxy.cn,direct go test -count=1 ./..."
+	@echo "🧪 [2/5] Frontend tests..."
+	cd web && npm run test
+	@echo "🔨 [3/5] Backend build..."
+	docker run --rm -v "$$PWD":/app -v nofx-gocache:/go -w /app golang:1.25-alpine sh -c "apk add --no-cache gcc musl-dev >/dev/null 2>&1 && CGO_ENABLED=1 GOPROXY=https://goproxy.cn,direct go build -o nofx ."
+	@echo "🔨 [4/5] Frontend build..."
+	cd web && npm run build
+	@echo "🐳 [5/5] Docker images build..."
+	docker compose build
+	@echo "✅ ci-local passed"
+
+# 送测启动：rebuild 后 compose up、迁移随启动执行、服务健康 + 前后端入口检查
+# 端口隔离：NOFX_BACKEND_PORT / NOFX_FRONTEND_PORT（默认 8080/3000）
+up:
+	docker compose up -d --build
+	@echo "⏳ Waiting for services (startup runs DB migrations)..."
+	sleep 15
+	docker compose ps
+	@echo "❤️ Backend health (http://127.0.0.1:$${NOFX_BACKEND_PORT:-8080})..."
+	curl -sf "http://127.0.0.1:$${NOFX_BACKEND_PORT:-8080}/api/config" > /dev/null && echo "backend OK"
+	@echo "❤️ Frontend entry (http://127.0.0.1:$${NOFX_FRONTEND_PORT:-3000})..."
+	curl -sf "http://127.0.0.1:$${NOFX_FRONTEND_PORT:-3000}/" > /dev/null && echo "frontend OK"
+	@echo "✅ up completed"
