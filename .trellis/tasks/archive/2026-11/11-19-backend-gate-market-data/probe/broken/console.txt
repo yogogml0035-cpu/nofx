@@ -1,0 +1,13 @@
+===== 断网点 GATEMCP_ENDPOINT=http://127.0.0.1:9 =====
+overview        HTTP 502 body={"error":"Gate MCP upstream unreachable"}
+fear-greed      HTTP 502 body={"error":"Gate MCP upstream unreachable"}
+news            HTTP 502 body={"error":"Gate MCP upstream unreachable"}
+announcements   HTTP 502 body={"error":"Gate MCP upstream unreachable"}
+sentiment       HTTP 502 body={"error":"Gate MCP upstream unreachable"}
+liquidations    HTTP 200 body={"count":3,"hotspots":[{"contract":"SOXL_USDT","value":133308.4,"count":3,"long_amount":0,"short_amo
+
+===== /api/symbols（不受 MCP 断链影响）=====
+HTTP 200
+symbols total = 1033
+
+===== /api/market/liquidations（不受 MCP 断链影响，见上）=====
