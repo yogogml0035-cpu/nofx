@@ -1,5 +1,3 @@
-<p align="center"><strong>Được hỗ trợ bởi <a href="https://vergex.trade">vergex.trade</a></strong></p>
-
 <h1 align="center">NOFX</h1>
 
 <p align="center">
@@ -281,10 +279,7 @@ NOFX ghi nhận các đóng góp có ý nghĩa và dự định thưởng cho co
 
 | | |
 | :--- | :--- |
-| Website | [vergex.trade](https://vergex.trade) |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore) |
 | Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@vergex_ai](https://x.com/vergex_ai) |
 
 > **Cảnh báo rủi ro**: Giao dịch tự động có rủi ro đáng kể. Hãy dùng kích thước vị thế phù hợp, hiểu từng venue và không giao dịch số vốn bạn không thể mất.
 

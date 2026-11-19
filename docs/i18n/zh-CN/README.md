@@ -1,5 +1,3 @@
-<p align="center"><strong>由 <a href="https://vergex.trade">vergex.trade</a> 支持</strong></p>
-
 <h1 align="center">NOFX</h1>
 
 <p align="center">
@@ -283,10 +281,7 @@ NOFX 会记录有价值的贡献，并计划在生态增长后回馈贡献者。
 
 | | |
 | :--- | :--- |
-| 官网 | [vergex.trade](https://vergex.trade) |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore) |
 | Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@vergex_ai](https://x.com/vergex_ai) |
 
 > **风险提示**：自动化交易存在重大风险。请控制仓位，理解每个交易场所的机制，不要投入无法承受损失的资金。
 
