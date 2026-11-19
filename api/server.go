@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"nofx/provider/gatemcp"
 )
 
 // Server HTTP API server
@@ -24,6 +25,7 @@ type Server struct {
 	store                     *store.Store
 	cryptoHandler             *CryptoHandler
 	exchangeAccountStateCache *ExchangeAccountStateCache
+	gateMCP                   *gatemcp.Client // Gate MCP 取数客户端；nil 时 handler 用进程单例（测试注入点）
 	httpServer                *http.Server
 	port                      int
 	telegramReloadCh          chan<- struct{} // signal Telegram bot to reload
@@ -167,6 +169,14 @@ func (s *Server) setupRoutes() {
 		// Market data (no authentication required)
 		s.route(api, "GET", "/klines", "Candlestick data (?symbol=&interval=&limit=)", s.handleKlines)
 		s.route(api, "GET", "/symbols", "Available trading symbols", s.handleSymbols)
+
+		// Gate market data (no authentication required; upstream TTL-cached, fails fast as 502 with public category)
+		s.route(api, "GET", "/market/overview", "Gate market overview", s.handleMarketOverview)
+		s.route(api, "GET", "/market/fear-greed", "Fear & Greed index (change_24h derived server-side, null on cold start)", s.handleMarketFearGreed)
+		s.route(api, "GET", "/market/news", "BTC news top N (?limit= default 20 max 50)", s.handleMarketNews)
+		s.route(api, "GET", "/market/announcements", "Market announcements top N (?limit= default 10 max 50)", s.handleMarketAnnouncements)
+		s.route(api, "GET", "/market/sentiment", "Social sentiment (?coin= default BTC)", s.handleMarketSentiment)
+		s.route(api, "GET", "/market/liquidations", "Liquidation hotspots (30min rolling window, top 20)", s.handleMarketLiquidations)
 
 		// Public strategy market (no authentication required)
 		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)

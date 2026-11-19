@@ -5,15 +5,15 @@
 ## 步骤
 
 1. [x] MCP 可达性、协议与参数矩阵探针（规划阶段完成）：`/mcp/info`、`/mcp/news` 直连 200；overview 含恐惧贪婪（字段集实证，无板块数据）；**news 参数定稿：仅传 coin 不传 query（query 全矩阵 total:0）**；市场级标题用 exchange_announcements；/mcp/news 共 17 工具实测后采用 4 个；go-sdk v1.8.0 经 goproxy.cn 可取
-2. [ ] `go.mod` 引入 `github.com/modelcontextprotocol/go-sdk@v1.8.0`；SDK 形态冒烟（Docker 内最小 main 对 /mcp/info 调一次）：v1.8.0 真实 API（`StreamableClientTransport` 结构体 → `NewClient` → `Connect` → `session.CallTool`）；**验证 standalone SSE GET 行为（405/重连风暴则 `DisableStandaloneSSE:true`）与 session Close/重建无泄漏**
-3. [ ] 新建 `provider/gatemcp/`：Client（两个 server 懒连接 + `GATEMCP_ENDPOINT` 覆盖）+ 五个取数函数 + TTL 缓存 + singleflight 合并 + 恐惧贪婪 24h 历史环
-4. [ ] 裁剪视图类型 + 纯函数裁剪器（依据 research/ 真实返回；news 用 coin-only 定稿参数）
-5. [ ] `provider/gate/symbols.go`：SymbolInfo 加 `funding_rate`（小数语义、无 omitempty）+ ListSymbols TTL 缓存
-6. [ ] `provider/gate/liquidations.go`：聚合器（ListLiquidatedOrders + From 水位重叠 + 方向拆分 + 去重键）+ fake puller 单测
-7. [ ] `api/handler_market.go` 六端点（502 语义）+ `api/server.go` 公开注册；`main.go` 在 server.Start() 前拉起聚合 goroutine（ctx 接 Shutdown；启动先拉一次再进 60s tick）
-8. [ ] 单测补齐（缓存/历史环/裁剪/映射/聚合/handler 502 传递）
-9. [ ] Docker 门禁：build + test 全绿
-10. [ ] 运行时探针：Docker 内交叉编译 `GOOS=darwin GOARCH=arm64 go build -o scratch/nofx-bin .` 后宿主起临时后端，curl 六端点 + `/api/symbols`（验 funding_rate 抽查 5 合约）；断网点：`GATEMCP_ENDPOINT=http://127.0.0.1:9` 重起复测六端点 502；输出留档任务目录 `probe/`
+2. [x] `go.mod` 引入 `github.com/modelcontextprotocol/go-sdk@v1.8.0`（已锁定）；SDK 冒烟通过：`StreamableClientTransport` 结构体 → `NewClient` → `Connect(ctx, t, nil)` → `session.CallTool`；standalone SSE GET 无报错/无重连风暴（无需 DisableStandaloneSSE），Close 幂等正常。实证差异：Client 侧 Transport 无导出 Logger 字段，日志统一走 ClientOptions.Logger
+3. [x] 新建 `provider/gatemcp/`：Client（两个 server 懒连接 + `GATEMCP_ENDPOINT` 覆盖 + 出错 Close 重建）+ 五个取数函数 + TTL 缓存 + singleflight 合并 + 恐惧贪婪 24h 历史环
+4. [x] 裁剪视图类型 + 纯函数裁剪器（依据 research/ 真实返回；news 用 coin-only 定稿参数；时间戳 flexInt64 兼容数字/数字字符串——运行时探针实证 announcements 的 publish_time 全为数字字符串）
+5. [x] `provider/gate/symbols.go`：SymbolInfo 加 `funding_rate`（小数语义、无 omitempty）+ ListSymbols 45s TTL 缓存（singleflight 合并）
+6. [x] `provider/gate/liquidations.go`：聚合器 + fake puller 单测。**实施修订（运行时探针实证）**：gateapi-go v6.104.3 的 FuturesLiqOrder 模型与真实返回不兼容（left/size 均为字符串且 size 可带小数如 "-1.4"，int64 模型整批反序列化失败），改为直接 HTTP GET + rawLiqOrder 字符串字段解析；方向语义实证 size>0 = 多头被清算
+7. [x] `api/handler_market.go` 六端点（502 语义）+ `api/server.go` 公开注册；`main.go` 在 server.Start() 前拉起聚合 goroutine（ctx 接 Shutdown；启动先拉一次再进 60s tick）
+8. [x] 单测补齐（缓存 TTL/singleflight/标注、历史环、裁剪器+flexInt64、funding_rate 映射+无 omitempty、symbols 缓存、聚合去重/窗口/水位/重试、handler 路由/200/502 类别/400 参数/limit 钳制）——三包 -race 全绿
+9. [x] Docker 门禁：CGO_ENABLED=1 `go build ./...` + `go test -count=1 ./...` 全模块 23 包全绿（trader/store 等含 sqlite 的包需 CGO；alpine 需 apk add gcc musl-dev）
+10. [x] 运行时探针：宿主无 Go 且 sqlite 需 CGO，改为容器内 CGO 编译 linux/arm64 并容器化运行（端口 18090、DB 隔离）。正向：六端点全 200 真实数据，funding_rate 1033 合约全量携带（BTC_USDT=-3.82e-05 等 5 合约抽查非空）；断网点 `GATEMCP_ENDPOINT=http://127.0.0.1:9`：五个 MCP 端点 502 + `{"error":"Gate MCP upstream unreachable"}`，`/api/symbols` 与 `/api/market/liquidations` 不受影响（200）。留档 `probe/ok/` 与 `probe/broken/`
 
 ## 验证命令
 

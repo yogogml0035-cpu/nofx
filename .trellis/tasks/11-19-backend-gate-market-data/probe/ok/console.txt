@@ -1,0 +1,34 @@
+===== GET /api/market/overview =====
+HTTP 200
+{"total_market_cap":1283843560000,"market_cap_change_24h":0.3,"total_volume_24h":220887122000,"btc_dominance":58.93,"eth_dominance":10.13,"btc_price":63739.7,"fear_greed_index":12,"fear_greed_label":"Extreme Fear","ahr999":0.2961,"altcoin_season_index":57,"active_coins_count":3153,"updated_at":"2026-11-19T08:00:00Z"}
+
+===== GET /api/market/fear-greed =====
+HTTP 200
+{"value":12,"label":"Extreme Fear","change_24h":null,"first_seen_at":"2026-11-19T10:20:30.775759585Z","updated_at":"2026-11-19T08:00:00Z"}
+
+===== GET /api/market/news =====
+HTTP 200
+{"count":20,"items":[{"title":"过去24小时全网合约爆仓8.54亿美元，主爆多单","url":"https://followin.io/zh-Hans/feed/28625210","source":"followin","published_at":1794670200,"sentiment":"neu"},{"title":"过去4小时全网爆仓9.55亿美元，多单爆仓8.70亿美元","url":"https://followin.io/zh-Hans/feed/28607993","source":"followin","published_at":1794550020,"sentiment":"neu"},{"title":"分析：加密总市值自 10 月初以来蒸发约 8000 亿美元，市场流动性承�
+
+===== GET /api/market/announcements =====
+HTTP 200
+{"count":10,"items":[{"title":"KuCoin Futures to Convert Pre-IPO Contract to Standard Stock Index Perpetual Contract for ANTUSDT","url":"https://www.kucoin.com/announcement/en-kucoin-futures-to-convert-pre-ipo-contract-to-standard-stock-index-perpetual-contract-for-antusdt","source":"kucoin","published_at":1795138020},{"title":"CLARITY Act Stalls: What Crypto Regulation Looks Like in 2027","url":"https://www.btse.com/blog/clarity-act-stalled-crypto-regulation-2027/","source":"btse","published_at
+
+===== GET /api/market/sentiment =====
+HTTP 200
+{"coin":"BTC","overall_sentiment":-0.28899999,"sentiment_label":"negative","mention_count":22,"positive_ratio":0.272727,"negative_ratio":0.727273,"neutral_ratio":0,"top_tweets":[{"author":"https://x.com/i/user/3222562058","content":"ETFs sold $306,000,000 in $BTC and 39,830,000 in $ETH yesterday. Anthropic IPO listing is happening today, and IMO, most of the institutional selling was to participate in this IPO. I guess we could see some institutional buying in the coming days/weeks.","url":"http
+
+===== GET /api/market/liquidations =====
+HTTP 200
+{"count":2,"hotspots":[{"contract":"SOXL_USDT","value":598.51,"count":1,"long_amount":0,"short_amount":598.51},{"contract":"SOXS_USDT","value":31.523999999999997,"count":1,"long_amount":31.523999999999997,"short_amount":0}],"updated_at":"2026-11-19T10:20:17Z","window_seconds":1800,"window_start":"2026-11-19T09:50:40Z"}
+
+===== GET /api/symbols (funding_rate 抽查) =====
+HTTP 200
+symbols total=1033 with_funding_rate_key=1033
+BTC_USDT: funding_rate=-3.82e-05 mark_price=63869.3
+ETH_USDT: funding_rate=1.73e-05 mark_price=1808.16
+SOL_USDT: funding_rate=-1.24e-05 mark_price=74.58
+DOGE_USDT: funding_rate=2.31e-05 mark_price=0.0594
+XRP_USDT: funding_rate=9.7e-06 mark_price=0.9836
+
+===== 探针完成 =====
