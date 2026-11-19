@@ -70,7 +70,7 @@
 
 ### Git
 - [ ] Commits follow conventional format
-- [ ] Rebased on latest `dev` branch
+- [ ] Feature starts from `origin/main` and targets `main`
 - [ ] No merge conflicts
 
 ---

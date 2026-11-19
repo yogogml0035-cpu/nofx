@@ -317,7 +317,7 @@ A PR should be approved when:
 5. **Process**
    - ✅ All CI checks pass
    - ✅ All review comments addressed
-   - ✅ Rebased on latest dev branch
+   - ✅ The feature starts from `origin/main` and targets `main`
 
 ---
 

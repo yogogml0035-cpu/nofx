@@ -54,7 +54,7 @@ gh label create "priority: critical" --color "d73a4a" --description "Critical pr
 name: Sync Labels
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev-offline]
     paths:
       - '.github/labels.yml'
 

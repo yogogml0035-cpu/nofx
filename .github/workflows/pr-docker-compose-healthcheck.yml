@@ -5,7 +5,7 @@ on:
   pull_request:
     branches:
       - main
-      - dev
+      - dev-offline
     paths:
       - 'docker-compose.yml'
       - 'docker/Dockerfile.backend'

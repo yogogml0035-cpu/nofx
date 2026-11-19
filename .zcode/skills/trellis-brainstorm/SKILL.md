@@ -31,13 +31,16 @@ Use this skill during Phase 1 planning to turn the user's request into clear req
 
 Use this skill only after task-creation consent has been given and the user is ready to enter Trellis planning.
 
-If no task exists yet, create one:
+If no task exists yet, first understand the requirements and whether a parent task is needed. Follow AGENTS.md to fetch `origin` and create the root feature worktree from the latest `origin/main`. Run the following in that worktree:
 
 ```bash
-TASK_DIR=$(python3 ./.trellis/scripts/task.py create "<short task title>" --description "<one-line summary>" --slug <slug>)
+TASK_DIR=$(python3 ./.trellis/scripts/task.py create "<short task title>" --description "<one-line summary>" --slug <slug> --base-branch main)
+python3 ./.trellis/scripts/task.py set-branch "$TASK_DIR" "$(git branch --show-current)"
 ```
 
 Use a concise title from the user's request. Both the title and `--description` must be non-empty — `create` rejects blanks, and a record with either one empty is refused at archive. Use a slug without a date prefix. `task.py create` adds the `MM-DD-` directory prefix automatically.
+
+Plan child tasks in the parent feature worktree. Pass `--parent <parent-dir> --base-branch <parent-feature> --no-start` when creating each child record. Follow the worktree rules in `.trellis/workflow.md` when starting the child.
 
 `task.py create` creates the default `prd.md`. Update that file with the current understanding before asking follow-up questions.
 

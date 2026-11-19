@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
     branches:
-      - dev
+      - dev-offline
       - main
 
 # Default permissions for all jobs

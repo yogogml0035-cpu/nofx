@@ -4,6 +4,8 @@
 
 ## Core Principles
 
+The repository-wide branch, worktree, Docker, and delivery rules apply to both Trellis and direct development. Use Trellis for task planning, execution, and archival when the user chooses it. [AGENTS.md](../AGENTS.md)
+
 1. **Plan before code** — figure out what to do before you start
 2. **Specs injected, not remembered** — guidelines are injected via hook/skill, not recalled from memory
 3. **Persist everything** — research, decisions, and lessons all go to files; conversations get compacted, files don't
@@ -43,7 +45,7 @@ Every task has its own directory under `.trellis/tasks/{MM-DD-name}/` holding `t
 
 ```bash
 # Task lifecycle
-python3 ./.trellis/scripts/task.py create "<title>" [--slug <name>] [--parent <dir>]
+python3 ./.trellis/scripts/task.py create "<title>" --description "<summary>" --slug <name> --base-branch main
 python3 ./.trellis/scripts/task.py start <name>          # set active task (session-scoped when available)
 python3 ./.trellis/scripts/task.py current --source      # show active task and source
 python3 ./.trellis/scripts/task.py finish                # clear active task (triggers after_finish hooks)
@@ -62,15 +64,13 @@ python3 ./.trellis/scripts/task.py validate <name>
 
 # Task metadata
 python3 ./.trellis/scripts/task.py set-branch <name> <branch>
-python3 ./.trellis/scripts/task.py set-base-branch <name> <branch>    # PR target
+python3 ./.trellis/scripts/task.py set-base-branch <name> <branch>    # main for a root task, the parent feature for a child
 python3 ./.trellis/scripts/task.py set-scope <name> <scope>
 
 # Hierarchy (parent/child)
 python3 ./.trellis/scripts/task.py add-subtask <parent> <child>
 python3 ./.trellis/scripts/task.py remove-subtask <parent> <child>
 
-# PR creation
-python3 ./.trellis/scripts/task.py create-pr [name] [--dry-run]
 ```
 
 > Run `python3 ./.trellis/scripts/task.py --help` to see the authoritative, up-to-date list.
@@ -149,14 +149,14 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 ```
 Phase 1: Plan    → classify, get task-creation consent, then write planning artifacts
 Phase 2: Execute → implement only after task status is in_progress
-Phase 3: Finish  → verify, update spec, commit, and wrap up
+Phase 3: Finish  → verify, commit, and follow the task's delivery path
 ```
 
 ### Request Triage
 
-- Simple conversation or small task: ask only whether this turn should create a Trellis task. If the user says no, skip Trellis for this session.
-- Complex task: ask whether you may create a Trellis task and enter planning. If the user says no, do not do broad inline implementation; explain, clarify scope, or suggest a smaller split.
-- User approval to create a task is not approval to start implementation. Planning still happens first.
+- Continue existing work in its original worktree. Answer read-only questions directly.
+- Honor the user's choice of Trellis or direct development. Obtain consent before creating a Trellis task. For direct development, follow the root feature workflow. [AGENTS.md](../AGENTS.md)
+- Request implementation approval after completing the Trellis plan.
 
 ### Planning Artifacts
 
@@ -168,18 +168,17 @@ Phase 3: Finish  → verify, update spec, commit, and wrap up
 
 ### Parent / Child Task Trees
 
-Use a parent task when one user request contains several independently verifiable deliverables. The parent task owns the source requirement set, the task map, cross-child acceptance criteria, and final integration review; it normally should not be the implementation target unless it also has direct work.
+Use a parent task when one user request contains several independently verifiable deliverables. The parent owns the requirement set, task map, cross-child acceptance criteria, and final integration review. Create the parent feature and worktree from the latest fetched `origin/main` before creating Trellis documents.
 
-Use child tasks for deliverables that can be planned, implemented, checked, and archived independently. Parent/child structure is not a dependency system: if one child must wait for another, write that ordering in the child `prd.md` / `implement.md` and keep each child's acceptance criteria testable.
+Plan child tasks in the parent's worktree and record their order in `implement.md`. Commit the plans there. At each child's actual start, create its local branch and worktree from the latest parent commit after its predecessors have been merged. Start that task in the child worktree. Each child passes its full gates and merges locally into the parent before its branch and worktree are removed.
 
-Create new children with `task.py create "<title>" --slug <name> --parent <parent-dir>`. Link existing tasks with `task.py add-subtask <parent> <child>`, and unlink mistakes with `task.py remove-subtask <parent> <child>`.
+Create new children with `task.py create "<title>" --description "<summary>" --slug <name> --parent <parent-dir> --base-branch <parent-feature> --no-start`. Link existing tasks with `task.py add-subtask <parent> <child>`.
 
 <!-- Per-turn breadcrumb: shown when there is no active task (before Phase 1) -->
 
 [workflow-state:no_task]
-No active task. First classify the current turn and ask for task-creation consent before creating any Trellis task.
-Simple conversation / small task: ask only whether this turn should create a Trellis task. If the user says no, skip Trellis for this session.
-Complex task: ask the user if you can create a Trellis task and enter the planning phase. If the user says no, explain, clarify scope, or suggest a smaller split.
+No active Trellis task here. Check existing feature worktrees before starting new work. Follow AGENTS.md for the branch, worktree, and delivery rules for every feature.
+Honor the user's choice of direct development or Trellis. Obtain consent before creating a Trellis task. Fetch origin, start the root worktree from origin/main, then create Trellis documents in that worktree with base_branch=main. Read-only questions need no task.
 [/workflow-state:no_task]
 
 <!-- Per-turn breadcrumb: shown when the active task record cannot be read. -->
@@ -203,7 +202,7 @@ Preserve existing task fields and artifacts. If the correct status cannot be det
 [workflow-state:planning]
 Load `trellis-brainstorm`; stay in planning.
 Lightweight: `prd.md` can be enough. Complex: finish `prd.md`, `design.md`, and `implement.md`; ask for review before `task.py start`.
-Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
+Plan in the root feature worktree. Record child order and dependencies there. Create each child worktree from the latest parent feature at actual start and activate the child there.
 Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research manifests before start.
 [/workflow-state:planning]
 
@@ -216,7 +215,7 @@ Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research mani
 [workflow-state:planning-inline]
 Load `trellis-brainstorm`; stay in planning.
 Lightweight: `prd.md` can be enough. Complex: finish `prd.md`, `design.md`, and `implement.md`; ask for review before `task.py start`.
-Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
+Plan in the root feature worktree. Record child order and dependencies there. Create each child worktree from the latest parent feature at actual start and activate the child there.
 Inline mode: skip jsonl curation; Phase 2 reads artifacts/specs via `trellis-before-dev`.
 [/workflow-state:planning-inline]
 
@@ -235,7 +234,8 @@ Sub-agent dispatch protocol applies to all platforms and all sub-agents, includi
 
 [workflow-state:in_progress]
 Tools: `trellis-implement` / `trellis-research` are sub-agent types only (Task/Agent tool, NOT Skill; there is no skill by these names). `trellis-update-spec` is a skill. `trellis-check` exists as both; prefer the Agent form when verifying after code changes.
-Flow: `trellis-implement` -> `trellis-check` -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
+Flow: `trellis-implement` -> `trellis-check` -> `trellis-update-spec` -> commit (Phase 3.4) -> delivery (Phase 3.5).
+Children pass full gates, merge locally into the parent, and are archived and cleaned up there. All children complete before the parent receives adversarial multi-agent review and end-to-end acceptance. Push the accepted root feature, then integrate locally into dev-offline after synchronizing its remote branch and main. The user pushes dev-offline and deploys and validates the Docker test version. Archive the root after that result and retain its branches and worktree for production integration.
 Main-session default: dispatch implement/check sub-agents. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
 Dispatch prompt starts with `Active task: <task path from task.py current>`. Read context: jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`.
 [/workflow-state:in_progress]
@@ -246,8 +246,8 @@ Dispatch prompt starts with `Active task: <task path from task.py current>`. Rea
      instead of dispatching sub-agents. -->
 
 [workflow-state:in_progress-inline]
-Flow: `trellis-before-dev` -> edit -> `trellis-check` -> validation -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
-Do not dispatch implement/check sub-agents in inline mode.
+Flow: `trellis-before-dev` -> edit -> `trellis-check` -> validation -> `trellis-update-spec` -> commit (Phase 3.4) -> delivery (Phase 3.5).
+Use inline implementation and iteration checks. At parent delivery, run the project's adversarial multi-agent review and end-to-end acceptance. Phase 3.5 handles local child integration, root feature publication and local dev-offline integration, and archival after the user validates the deployed test version.
 Read context: `prd.md` -> `design.md if present` -> `implement.md if present`, plus relevant spec/research loaded by skills.
 [/workflow-state:in_progress-inline]
 
@@ -255,7 +255,7 @@ Read context: `prd.md` -> `design.md if present` -> `implement.md if present`, p
 - 3.2 Debug retrospective `[on demand]`
 - 3.3 Spec update `[required · once]`
 - 3.4 Commit changes `[required · once]`
-- 3.5 Wrap-up reminder
+- 3.5 Integrate and wrap up
 
 > Note: step 3.1 was folded into 2.2 (last-iteration full-scope check) and 3.4 (commit preamble). Numbering kept stable to avoid breaking external references.
 
@@ -268,7 +268,7 @@ Read context: `prd.md` -> `design.md if present` -> `implement.md if present`, p
      channel as the live blocks. -->
 
 [workflow-state:completed]
-Code committed. Run `/trellis:finish-work`; if dirty, return to Phase 3.4 first.
+Follow Phase 3.5 to finish the task's delivery path. For a root task, keep its branch and worktree until the user merges the source feature into main and cleans up.
 [/workflow-state:completed]
 
 ### Rules
@@ -301,7 +301,7 @@ When a user request matches one of these intents inside an active task, route fi
 
 ### Guardrails
 
-- Task creation approval is not implementation approval; implementation waits for `task.py start` after artifact review.
+- For the Trellis path, implementation begins at `task.py start` after artifact review.
 - PRD-only is valid for lightweight tasks; complex tasks need `design.md` + `implement.md`.
 - Planning must be persisted to task artifacts; checks must run before reporting completion.
 
@@ -322,15 +322,16 @@ Goal: classify the request, get task-creation consent when a task is needed, and
 
 #### 1.0 Create task `[required · once]`
 
-Create the task directory only after task-creation consent. The command sets status to `planning`, writes `task.json`, creates a default `prd.md`, and auto-targets the new task when session identity is available:
+After the initial requirements and task split are understood and the user has consented to Trellis, fetch `origin`. Create the root feature branch and worktree from the latest `origin/main` as specified in AGENTS.md. Run the following in that worktree. The command sets status to `planning`, creates `task.json` and `prd.md`, and selects the task when session identity is available. [AGENTS.md](../AGENTS.md)
 
 ```bash
-python3 ./.trellis/scripts/task.py create "<task title>" --slug <name>
+python3 ./.trellis/scripts/task.py create "<task title>" --description "<summary>" --slug <name> --base-branch main
+python3 ./.trellis/scripts/task.py set-branch <task-dir> "$(git branch --show-current)"
 ```
 
 `--slug` is the human-readable name only. Do **not** include the `MM-DD-` date prefix; `task.py create` adds that prefix automatically.
 
-For task trees, create the parent task first and then create each child with `--parent <parent-dir>`. Do not start the parent just because children exist; start the child that owns the next independently verifiable deliverable.
+For a task tree, create the parent first and plan its children in that worktree with `--parent <parent-dir> --base-branch <parent-feature> --no-start`. Keep the child branch unassigned until its worktree exists. Commit the plans to the parent before creating the first child worktree.
 
 After this command succeeds, the per-turn breadcrumb auto-switches to `[workflow-state:planning]`, telling the AI to stay in planning.
 
@@ -446,9 +447,10 @@ Skip this step. Context is loaded directly by the `trellis-before-dev` skill in 
 
 #### 1.4 Activate task `[required · once]`
 
-After artifact review, flip the task status to `in_progress`:
+After artifact review, verify the checked-out branch against the task. For a child, first create its worktree from the latest parent commit and run the following in that child worktree.
 
 ```bash
+python3 ./.trellis/scripts/task.py set-branch <task-dir> "$(git branch --show-current)"
 python3 ./.trellis/scripts/task.py start <task-dir>
 ```
 
@@ -567,10 +569,12 @@ If issues are found → fix → re-check, until green.
 
 **Final pass (before Phase 3.4 commit)**: the last 2.2 of a task must run full-scope, not just on the latest implement chunk. List all affected packages with `python3 ./.trellis/scripts/get_context.py --mode packages`, then load each package's spec index Quality Check section. This catches cross-layer / multi-package issues a mid-iteration local 2.2 cannot.
 
+Every child runs its full gates before merging into the parent. After all children are integrated, the parent receives multi-agent adversarial review of the combined changes. Fix the findings on the parent branch, then run the complete end-to-end acceptance across all child tasks and the full project gates.
+
 #### 2.3 Rollback `[on demand]`
 
 - `check` reveals a prd defect → return to Phase 1, fix `prd.md`, then redo 2.1
-- Implementation went wrong → revert code, redo 2.1
+- Implementation needs correction → restore the affected files by editing them, then redo 2.1
 - Need more research → research (same as Phase 1.2), write findings into `research/`
 
 ---
@@ -599,59 +603,15 @@ Update the docs under `.trellis/spec/` accordingly. Even if the conclusion is "n
 
 #### 3.4 Commit changes `[required · once]`
 
-**Spec-sync preamble**: before drafting commits, ask: did this task fix a bug or surface non-obvious knowledge that should land in `.trellis/spec/` so future-you (or future-AI) doesn't repeat the mistake? If yes, return to Phase 3.3 first — spec writes belong in the same task's commit batch, not as a forgotten follow-up.
+Review the relevant spec changes, `git status --short`, and `git diff --check` in the task worktree. Stage only the task's files and commit the validated changes in coherent batches. Follow any user instruction to handle commits manually. Record the candidate SHA and the gates that passed.
 
-The AI drives a batched commit of this task's code changes so `/finish-work` can run cleanly afterwards. Goal: produce work commits FIRST, then bookkeeping (archive + journal) commits land after — never interleaved.
+Publish stable root feature checkpoints to the matching remote feature branch. Child commits stay local until they are integrated into the parent. Follow Phase 3.5 for the final root candidate and the local test handoff.
 
-**Step-by-step**:
+#### 3.5 Integrate and wrap up
 
-1. **Inspect dirty state**:
-   ```bash
-   git status --porcelain
-   ```
-   Snapshot every dirty path. If the working tree is clean, skip to 3.5.
-
-2. **Learn commit style** from recent history (so drafted messages blend in):
-   ```bash
-   git log --oneline -5
-   ```
-   Note the prefix convention (`feat:` / `fix:` / `chore:` / `docs:` ...), language (中文/English), and length style.
-
-3. **Classify dirty files into two groups**:
-   - **AI-edited this session** — files you wrote/edited via Edit/Write/Bash tool calls in this session. You know what changed and why.
-   - **Unrecognized** — dirty files you did NOT touch this session (could be the user's manual edits, leftover WIP from a previous session, or unrelated work). Do NOT silently include these.
-
-4. **Draft a commit plan**. Group AI-edited files into logical commits (1 commit per coherent change unit, not 1 commit per file). Each entry: `<commit message>` + file list. List unrecognized files separately at the bottom.
-
-5. **Present the plan once, ask for one-shot confirmation**. Format:
-   ```
-   Proposed commits (in order):
-     1. <message>
-        - <file>
-        - <file>
-     2. <message>
-        - <file>
-
-   Unrecognized dirty files (NOT in any commit — confirm include/exclude):
-     - <file>
-     - <file>
-
-   Reply 'ok' / '行' to execute. Reply with edits, or '我自己来' / 'manual' to abort.
-   ```
-
-6. **On confirmation**: run `git add <files>` + `git commit -m "<msg>"` for each batch in order. Do not amend. Do not push.
-
-7. **On rejection** (user replies "不行" / "我自己来" / "manual" / any pushback on the plan): stop. Do not attempt a second plan. The user will commit by hand; you skip ahead to 3.5 once they confirm.
-
-**Rules**:
-- No `git commit --amend` anywhere — three-stage three-commit flow (work commits → archive commit → journal commit).
-- Never push to remote in this step.
-- If the user wants different message wording but accepts the file grouping, edit the message and re-confirm once — but if they reject the grouping, exit to manual mode.
-- The batched plan is one prompt; do not prompt per commit.
-
-#### 3.5 Wrap-up reminder
-
-After the above, remind the user they can run `/finish-work` to wrap up (archive the task, record the session).
+1. **Child task.** After the full gate passes, merge the child commits into the parent worktree and verify the result. Archive the child in the parent worktree and commit its records there. Verify that the parent contains the completed child commits, then remove the clean child worktree and delete the merged local child branch. This step uses local Git only. Start the next child from the updated parent.
+2. **Independent task or parent.** For a parent, complete the combined review and acceptance from Phase 2.2. Ensure the final accepted commit is pushed to the corresponding remote feature branch. The main session integrates it into local `dev-offline` after fetching `origin`, aligning `dev-offline`, and merging the latest `origin/main`. Resolve integration conflicts in that worktree. Record the source and integration SHAs. The user runs the integrated worktree, pushes `dev-offline`, and manually deploys and validates the test version. [AGENTS.md](../AGENTS.md)
+3. **Root closure.** When the user confirms the deployed test version passed, archive the task and record the tested commits in the original feature worktree. Push the archive and journal commits to the same feature branch. Keep the local and remote feature branch and worktree until the user merges the selected feature into `main` and cleans it up.
 
 ---
 
@@ -664,13 +624,13 @@ This section is for developers who want to modify the Trellis workflow itself. A
 Edit the corresponding step's walkthrough body in the Phase 1 / 2 / 3 sections above. Critical invariants:
 - No active task must triage first and ask for task-creation consent before creating a Trellis task.
 - Planning must distinguish lightweight PRD-only tasks from complex tasks that require `prd.md`, `design.md`, and `implement.md` before start.
-- Every required execution path must keep the Phase 3.4 commit reminder reachable before `/trellis:finish-work`.
+- Every required execution path must reach the Phase 3.4 commit and the Phase 3.5 integration and archival rules.
 
 All tag blocks live in the `## Phase Index` section above, immediately after each phase summary:
 
 | Scope | Corresponding tag |
 |---|---|
-| No active task (before Phase 1) | `[workflow-state:no_task]` (after the Phase Index ASCII art) |
+| No active task (before Phase 1) | `[workflow-state:no_task]` (after the Phase Index) |
 | Active task record unreadable | `[workflow-state:task_error]` (repair the existing task before continuing) |
 | All of Phase 1 (task created → ready for implementation) | `[workflow-state:planning]` (after Phase 1 summary) |
 | Codex inline Phase 1 | `[workflow-state:planning-inline]` |
