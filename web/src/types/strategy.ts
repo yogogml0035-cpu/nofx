@@ -60,6 +60,14 @@ export interface AIStrategyConfig {
   custom_prompt?: string;
   risk_control: RiskControlConfig;
   prompt_sections?: PromptSectionsConfig;
+  market_context?: MarketContextConfig;
+}
+
+// 市场环境上下文勾选（决策时注入对应 Gate 数据段）；零值 = 全关
+export interface MarketContextConfig {
+  overview?: boolean;
+  fear_greed?: boolean;
+  news_sentiment?: boolean;
 }
 
 // Grid trading specific configuration

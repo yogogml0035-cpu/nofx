@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -117,5 +118,60 @@ func TestStrategyConfigNormalizeProductSchemaForLLMLabels(t *testing.T) {
 		if merged.Indicators.Klines.SelectedTimeframes[i] != want[i] {
 			t.Fatalf("selected_timeframes = %+v, want %+v", merged.Indicators.Klines.SelectedTimeframes, want)
 		}
+	}
+}
+
+// MarketContext 序列化往返：设置 → Marshal → Unmarshal → 值保持
+// （StoreConfig JSON 是自定义 Marshal/Unmarshal，接线遗漏会静默丢失——本测试即防线）
+func TestMarketContextRoundTrip(t *testing.T) {
+	cfg := GetDefaultStrategyConfig("zh")
+	cfg.MarketContext = MarketContextConfig{
+		Overview:      true,
+		FearGreed:     true,
+		NewsSentiment: true,
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	// ai_config.market_context 键必须出现在 JSON 中（接线证明）
+	if !strings.Contains(string(data), `"market_context"`) {
+		t.Fatalf("market_context key missing from marshaled JSON: %s", data)
+	}
+
+	var reloaded StrategyConfig
+	if err := json.Unmarshal(data, &reloaded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !reloaded.MarketContext.Overview || !reloaded.MarketContext.FearGreed || !reloaded.MarketContext.NewsSentiment {
+		t.Fatalf("market context flags lost on round trip: %+v", reloaded.MarketContext)
+	}
+
+	// 零值默认：新配置全关
+	fresh := GetDefaultStrategyConfig("en")
+	if fresh.MarketContext.MarketContextEnabled() {
+		t.Fatalf("default config must have market context disabled: %+v", fresh.MarketContext)
+	}
+
+	// grid_trading 语义上不暴露（JSON 中仍可存在但引擎忽略；此处仅验证 marshal 不 panic）
+	grid := GetDefaultStrategyConfig("zh")
+	grid.StrategyType = "grid_trading"
+	if _, err := json.Marshal(grid); err != nil {
+		t.Fatalf("marshal grid: %v", err)
+	}
+}
+
+// EstimateTokens：勾选 market_context 计入约 600 token 上限
+func TestEstimateTokensMarketContextIncluded(t *testing.T) {
+	base := GetDefaultStrategyConfig("en")
+	without := base.EstimateTokens()
+
+	withMC := base
+	withMC.MarketContext = MarketContextConfig{Overview: true, FearGreed: true, NewsSentiment: true}
+	with := withMC.EstimateTokens()
+
+	if with.Total <= without.Total {
+		t.Fatalf("market context must add tokens: with=%d without=%d", with.Total, without.Total)
 	}
 }

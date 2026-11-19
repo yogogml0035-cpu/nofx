@@ -27,6 +27,7 @@ import {
   Send,
   Download,
   Upload,
+  Globe,
 } from 'lucide-react'
 import type {
   Strategy,
@@ -37,6 +38,7 @@ import type {
 } from '../types'
 import { confirmToast, notify } from '../lib/notify'
 import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
+import { MarketContextEditor } from '../components/strategy/MarketContextEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 
@@ -127,6 +129,7 @@ export function StrategyStudioPage() {
   const [expandedSections, setExpandedSections] = useState({
     gridConfig: true,
     coinSource: true,
+    marketContext: false,
     indicators: false,
     riskControl: false,
     promptSections: false,
@@ -795,6 +798,21 @@ export function StrategyStudioPage() {
         <CoinSourceEditor
           config={currentAIConfig.coin_source}
           onChange={(coinSource) => updateAIConfig('coin_source', coinSource)}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
+      ),
+    },
+    {
+      key: 'marketContext' as const,
+      icon: Globe,
+      color: '#38BDF8',
+      title: language === 'zh' ? '市场环境上下文' : 'Market Context',
+      forStrategyType: 'ai_trading' as const,
+      content: currentAIConfig && (
+        <MarketContextEditor
+          config={currentAIConfig.market_context || {}}
+          onChange={(marketContext) => updateAIConfig('market_context', marketContext)}
           disabled={selectedStrategy?.is_default}
           language={language}
         />

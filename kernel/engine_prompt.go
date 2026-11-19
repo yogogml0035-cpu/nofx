@@ -529,6 +529,10 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sb.WriteString("Current Positions: None\n\n")
 	}
 
+	// Market environment context (between Current Positions and Candidate Coins;
+	// only for strategies with market_context enabled and ai_trading)
+	WriteMarketEnv(&sb, ctx.MarketEnv, *e.config, e.GetLanguage())
+
 	// Candidate coins (exclude coins already in positions to avoid duplicate data)
 	positionSymbols := make(map[string]bool)
 	for _, pos := range ctx.Positions {
