@@ -1,0 +1,76 @@
+initialize: HTTP 200
+
+[search_news coin=BTC] HTTP 200
+  keys: ['query', 'coin', 'start_time', 'end_time', 'from', 'to', 'sort_by', 'top_total_score', 'limit', 'page', 'page_size', 'similarity_score', 'total', 'count']
+  total: 0
+  count: 0
+  items: list[0]
+
+[search_news coin only] HTTP 200
+  keys: ['coin', 'start_time', 'end_time', 'from', 'to', 'sort_by', 'top_total_score', 'limit', 'page', 'page_size', 'total', 'count', 'items', 'duration_ms']
+  total: 5
+  count: 5
+  items: list[5]
+    首条: {'app_id': 'data_processer', 'create_time': 1794540180, 'distance': 0, 'id': '28606163', 'metadata':
+
+[search_news time_range=7d] HTTP 200
+  keys: ['query', 'time_range', 'start_time', 'end_time', 'from', 'to', 'sort_by', 'top_total_score', 'limit', 'page', 'page_size', 'similarity_score', 'total', 'count']
+  total: 0
+  count: 0
+  items: list[0]
+
+[search_news lang=zh] HTTP 200
+  keys: ['query', 'lang', 'start_time', 'end_time', 'from', 'to', 'sort_by', 'top_total_score', 'limit', 'page', 'page_size', 'similarity_score', 'total', 'count']
+  total: 0
+  count: 0
+  items: list[0]
+
+[search_news platform] HTTP 200
+  keys: ['query', 'platform', 'start_time', 'end_time', 'from', 'to', 'sort_by', 'top_total_score', 'limit', 'page', 'page_size', 'similarity_score', 'total', 'count']
+  total: 0
+  count: 0
+  items: list[0]
+
+[latest_events 默认] HTTP 200
+  keys: ['time_range', 'limit', 'total', 'count', 'items', 'duration_ms']
+  total: 0
+  count: 0
+  items: list[0]
+
+[latest_events BTC] HTTP 200
+  keys: ['coin', 'time_range', 'limit', 'total', 'count', 'items', 'duration_ms']
+  total: 0
+  count: 0
+  items: list[0]
+
+[exchange_announcements gate] HTTP 200
+  keys: ['exchange', 'limit', 'total', 'count', 'items', 'duration_ms']
+  total: 5
+  count: 5
+  items: list[5]
+    首条: Futures Dual Prize Pool Challenge: Share 55,000 USDT in Automatically Credited Rewards, Up to 6,256...
+
+[exchange_announcements 全部] HTTP 200
+  keys: ['limit', 'total', 'count', 'items', 'duration_ms']
+  total: 5
+  count: 5
+  items: list[5]
+    首条: CLARITY Act Stalls: What Crypto Regulation Looks Like in 2027
+
+[hot_topics BTC] HTTP 200
+  keys: ['coin', 'window', 'topics', 'generated_at', 'hide_reason', 'trace_id', 'duration_ms']
+  topics: list[4]
+    首条: {'topic_id': 'BTC_1795078207_macro_or_news_reaction', 'topic_key': 'macro_or_news_reaction', 'topic_
+
+[web_search bitcoin] HTTP 200
+  keys: ['query', 'mode', 'time_range', 'lang', 'summary', 'key_points', 'cited_sources', 'model', 'disclaimer', 'source', 'total', 'count', 'items', 'duration_ms']
+  total: 5
+  count: 5
+  items: list[5]
+    首条: Bitcoin Holds Steady Amid ETF Inflows
+
+[search_ugc bitcoin] HTTP 200
+  keys: ['query', 'platform', 'domain', 'quality_tier', 'time_range', 'sort_by', 'limit', 'total', 'count', 'items', 'duration_ms']
+  total: 0
+  count: 0
+  items: list[0]
