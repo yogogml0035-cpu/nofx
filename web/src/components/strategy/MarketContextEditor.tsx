@@ -15,34 +15,10 @@ export function MarketContextEditor({
   disabled,
   language,
 }: MarketContextEditorProps) {
-  const toggles: Array<{
-    key: keyof MarketContextConfig
-    zh: string
-    en: string
-    zhDesc: string
-    enDesc: string
-  }> = [
-    {
-      key: 'overview',
-      zh: '市场总览',
-      en: 'Market Overview',
-      zhDesc: '总市值/成交/BTC 价格与占比/山寨季指数',
-      enDesc: 'Total cap, volume, BTC price & dominance, altcoin season',
-    },
-    {
-      key: 'fear_greed',
-      zh: '恐惧贪婪指数',
-      en: 'Fear & Greed Index',
-      zhDesc: '当前值 + 标签 + 24h 派生变化（数据积累期显示 —）',
-      enDesc: 'Current value + label + server-derived 24h change',
-    },
-    {
-      key: 'news_sentiment',
-      zh: '新闻与社交情绪',
-      en: 'News & Social Sentiment',
-      zhDesc: 'BTC 新闻标题与整体情绪分',
-      enDesc: 'BTC news headlines and overall sentiment score',
-    },
+  const toggles: Array<{ key: keyof MarketContextConfig }> = [
+    { key: 'overview' },
+    { key: 'fear_greed' },
+    { key: 'news_sentiment' },
   ]
 
   return (
@@ -60,8 +36,9 @@ export function MarketContextEditor({
         </div>
 
         <div className="mt-3 space-y-2">
-          {toggles.map(({ key, zh, en, zhDesc, enDesc }) => {
+          {toggles.map(({ key }) => {
             const checked = !!config[key]
+            const labelKey = key === 'fear_greed' ? 'fearGreed' : key === 'news_sentiment' ? 'newsSentiment' : 'overview'
             return (
               <label
                 key={key}
@@ -80,10 +57,10 @@ export function MarketContextEditor({
                 />
                 <span>
                   <span className="block text-xs font-medium text-nofx-text">
-                    {language === 'zh' ? zh : en}
+                    {t(`marketContext.${labelKey}Label`, language as 'en' | 'zh' | 'id')}
                   </span>
                   <span className="block text-[11px] text-nofx-text-muted">
-                    {language === 'zh' ? zhDesc : enDesc}
+                    {t(`marketContext.${labelKey}Desc`, language as 'en' | 'zh' | 'id')}
                   </span>
                 </span>
               </label>

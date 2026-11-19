@@ -89,6 +89,9 @@ Execute these steps IN ORDER with NO user confirmation between them:
 1. GET /api/strategies/:id to read current full config
 2. Modify only what user asked (keep all other fields)
 3. PUT /api/strategies/:id with complete merged config
+
+**Market environment context** (user asks to enable/disable market context, e.g. "开启市场环境上下文"):
+- config.ai_config.market_context = {"overview":bool,"fear_greed":bool,"news_sentiment":bool} — all default false; checked sections inject Gate market environment (overview / fear & greed / BTC news & sentiment) into the AI decision prompt.
 4. GET /api/strategies/:id to verify → show user actual saved values for changed fields
 
 **Start/stop existing trader**: From Account State, if only one trader, act directly. If multiple, list and ask.

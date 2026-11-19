@@ -259,7 +259,7 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 			case "grid_trading":
 				configPatchDescription += " Current strategy_type is grid_trading: use only top-level strategy_type, grid_config, and language. Do not output ai_config or AI fields such as coin_source, indicators, risk_control, timeframes, confidence, or prompt_sections."
 			case "ai_trading":
-				configPatchDescription += " Current strategy_type is ai_trading: use top-level strategy_type, ai_config, and language. Put coin_source, indicators, risk_control, prompt_sections, and custom_prompt inside ai_config. Do not output grid_config."
+				configPatchDescription += " Current strategy_type is ai_trading: use top-level strategy_type, ai_config, and language. Put coin_source, indicators, risk_control, prompt_sections, market_context, and custom_prompt inside ai_config; market_context is an object of booleans {\"overview\",\"fear_greed\",\"news_sentiment\"} (all default false) that opts Gate market environment sections into the AI decision prompt. Do not output grid_config."
 			default:
 				configPatchDescription += " Include strategy_type first when the user chooses AI or grid; after strategy_type is known, use only the config branch for that type: grid_config for grid, ai_config for AI."
 			}

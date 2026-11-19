@@ -945,6 +945,12 @@ export const translations = {
     marketContext: {
       title: 'Market Environment Context',
       desc: 'Opt-in Gate market context injected into the AI decision prompt (overview / fear & greed / news & sentiment).',
+      overviewLabel: 'Market Overview',
+      overviewDesc: 'Total cap, volume, BTC price & dominance, altcoin season',
+      fearGreedLabel: 'Fear & Greed Index',
+      fearGreedDesc: 'Current value + label + server-derived 24h change',
+      newsSentimentLabel: 'News & Social Sentiment',
+      newsSentimentDesc: 'BTC news headlines and overall sentiment score',
     },
     dataPage: {
       refresh: 'Refresh',
@@ -2200,6 +2206,12 @@ export const translations = {
     marketContext: {
       title: '市场环境上下文',
       desc: '勾选后决策时向 AI 注入对应 Gate 市场数据（总览 / 恐惧贪婪 / 新闻与情绪）。',
+      overviewLabel: '市场总览',
+      overviewDesc: '总市值/成交/BTC 价格与占比/山寨季指数',
+      fearGreedLabel: '恐惧贪婪指数',
+      fearGreedDesc: '当前值 + 标签 + 24h 派生变化（数据积累期显示 —）',
+      newsSentimentLabel: '新闻与社交情绪',
+      newsSentimentDesc: 'BTC 新闻标题与整体情绪分',
     },
     dataPage: {
       refresh: '刷新',
@@ -3267,6 +3279,12 @@ export const translations = {
     marketContext: {
       title: 'Konteks Lingkungan Pasar',
       desc: 'Konteks pasar Gate opt-in yang dimasukkan ke prompt keputusan AI (ikhtisar / ketakutan & keserakahan / berita & sentimen).',
+      overviewLabel: 'Ikhtisar Pasar',
+      overviewDesc: 'Total kapitalisasi/volume/harga & dominasi BTC/musim altcoin',
+      fearGreedLabel: 'Indeks Ketakutan & Keserakahan',
+      fearGreedDesc: 'Nilai saat ini + label + perubahan 24h turunan server',
+      newsSentimentLabel: 'Berita & Sentimen Sosial',
+      newsSentimentDesc: 'Judul berita BTC dan skor sentimen keseluruhan',
     },
     dataPage: {
       refresh: 'Segarkan',

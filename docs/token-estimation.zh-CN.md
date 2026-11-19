@@ -22,10 +22,10 @@
 整体结构：
 
 ```
-total = (staticTokens + N × perCoinTokens) × 1.15
+total = (staticTokens + N × perCoinTokens + marketContextTokens) × 1.15
 ```
 
-其中 `1.15` 为 15% 安全边际。
+其中 `1.15` 为 15% 安全边际；`marketContextTokens = 600`——仅 ai_trading 策略勾选市场环境上下文（`ai_config.market_context` 任一项）时计入，注入节带 600 token 软上限截断，全不勾选为 0。
 
 ### 静态部分（与候选币数量无关）
 

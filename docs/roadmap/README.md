@@ -176,7 +176,6 @@ NOFX is on a mission to become the **Universal AI Trading Operating System** for
 - [ ] Troubleshooting playbook
 
 #### 2.3 Community Features
-- [ ] Public strategy marketplace (share/sell strategies)
 - [ ] Leaderboard with verified performance
 - [ ] Community forum integration
 - [ ] Bug bounty program

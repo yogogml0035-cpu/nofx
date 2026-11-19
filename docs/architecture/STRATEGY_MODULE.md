@@ -266,6 +266,7 @@ minConfidence := config.RiskControl.MinConfidence            // Default: 75
 3. Account Info            [Equity, balance%, PnL%, margin%, positions]
 4. Recent Trades           [Last 10 closed trades]
 5. Current Positions       [Detailed position data + indicators]
+5.5 Market Environment Context [Opt-in Gate context: overview / fear & greed / news & sentiment — only when ai_config.market_context has checked items; unavailable sources render placeholder lines]
 6. Candidate Coins         [Full market data]
 ```
 

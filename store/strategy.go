@@ -330,7 +330,7 @@ func normalizeStrategyConfigPatch(patch map[string]any) {
 		}
 	}
 
-	aiKeys := []string{"coin_source", "indicators", "risk_control", "prompt_sections", "custom_prompt"}
+	aiKeys := []string{"coin_source", "indicators", "risk_control", "prompt_sections", "market_context", "custom_prompt"}
 	for _, key := range aiKeys {
 		value, ok := patch[key]
 		if !ok {

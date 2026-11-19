@@ -363,7 +363,8 @@ StrategyConfig fields:
   prompt_sections.role_definition: describe the AI's trading persona and goal
   prompt_sections.trading_frequency: guidelines on how often to trade
   prompt_sections.entry_standards: conditions that must align before entering a position
-  prompt_sections.decision_process: step-by-step decision-making framework`,
+  prompt_sections.decision_process: step-by-step decision-making framework
+  ai_config.market_context: {"overview":bool,"fear_greed":bool,"news_sentiment":bool} — all default false; checked sections inject Gate market environment (overview / fear & greed / BTC news & sentiment) into the AI decision prompt. These keys live INSIDE ai_config; flat top-level market_context is also accepted and normalized into ai_config.`,
 				s.handleCreateStrategy)
 			s.routeWithSchema(protected, "PUT", "/strategies/:id", "Update an existing strategy — WORKFLOW: 1) GET /api/strategies/:id first to read current config 2) Merge your changes into the full config 3) PUT with complete merged config 4) GET again to verify saved values",
 				`Body: {"name":"<string>","description":"<string>","config":<complete StrategyConfig — same structure as POST /api/strategies>}
