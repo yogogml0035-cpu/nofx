@@ -173,7 +173,8 @@ ci-local:
 # 送测启动：rebuild 后 compose up、迁移随启动执行、服务健康 + 前后端入口检查
 # 端口隔离：NOFX_BACKEND_PORT / NOFX_FRONTEND_PORT（默认 8080/3000）
 up:
-	docker compose up -d --build --build-arg GOPROXY=https://goproxy.cn,direct
+	docker compose build --build-arg GOPROXY=https://goproxy.cn,direct
+	docker compose up -d
 	@echo "⏳ Waiting for services (startup runs DB migrations)..."
 	sleep 15
 	docker compose ps
