@@ -33,17 +33,6 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 	return warnings
 }
 
-func attachPublishConfig(config *store.StrategyConfig, strategy *store.Strategy) {
-	if config == nil || strategy == nil {
-		return
-	}
-	config.ClampLimits()
-	config.PublishConfig = &store.PublishStrategyConfig{
-		IsPublic:      strategy.IsPublic,
-		ConfigVisible: strategy.ConfigVisible,
-	}
-}
-
 // handleEstimateTokens estimates token usage for a strategy config (no auth required, pure computation)
 func (s *Server) handleEstimateTokens(c *gin.Context) {
 	var req struct {
@@ -56,44 +45,6 @@ func (s *Server) handleEstimateTokens(c *gin.Context) {
 
 	estimate := req.Config.EstimateTokens()
 	c.JSON(http.StatusOK, estimate)
-}
-
-// handlePublicStrategies Get public strategies for strategy market (no auth required)
-func (s *Server) handlePublicStrategies(c *gin.Context) {
-	strategies, err := s.store.Strategy().ListPublic()
-	if err != nil {
-		SafeInternalError(c, "Failed to get public strategies", err)
-		return
-	}
-
-	// Convert to frontend format with visibility control
-	result := make([]gin.H, 0, len(strategies))
-	for _, st := range strategies {
-		item := gin.H{
-			"id":             st.ID,
-			"name":           st.Name,
-			"description":    st.Description,
-			"author_email":   "", // Will be filled if we have user info
-			"is_public":      st.IsPublic,
-			"config_visible": st.ConfigVisible,
-			"created_at":     st.CreatedAt,
-			"updated_at":     st.UpdatedAt,
-		}
-
-		// Only include config if config_visible is true
-		if st.ConfigVisible {
-			var config store.StrategyConfig
-			json.Unmarshal([]byte(st.Config), &config)
-			attachPublishConfig(&config, st)
-			item["config"] = config
-		}
-
-		result = append(result, item)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"strategies": result,
-	})
 }
 
 // handleGetStrategies Get strategy list
@@ -115,19 +66,16 @@ func (s *Server) handleGetStrategies(c *gin.Context) {
 	for _, st := range strategies {
 		var config store.StrategyConfig
 		json.Unmarshal([]byte(st.Config), &config)
-		attachPublishConfig(&config, st)
 
 		result = append(result, gin.H{
-			"id":             st.ID,
-			"name":           st.Name,
-			"description":    st.Description,
-			"is_active":      st.IsActive,
-			"is_default":     st.IsDefault,
-			"is_public":      st.IsPublic,
-			"config_visible": st.ConfigVisible,
-			"config":         config,
-			"created_at":     st.CreatedAt,
-			"updated_at":     st.UpdatedAt,
+			"id":          st.ID,
+			"name":        st.Name,
+			"description": st.Description,
+			"is_active":   st.IsActive,
+			"is_default":  st.IsDefault,
+			"config":      config,
+			"created_at":  st.CreatedAt,
+			"updated_at":  st.UpdatedAt,
 		})
 	}
 
@@ -154,7 +102,6 @@ func (s *Server) handleGetStrategy(c *gin.Context) {
 
 	var config store.StrategyConfig
 	json.Unmarshal([]byte(strategy.Config), &config)
-	attachPublishConfig(&config, strategy)
 
 	c.JSON(http.StatusOK, gin.H{
 		"id":          strategy.ID,
@@ -178,12 +125,10 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	}
 
 	var req struct {
-		Name          string                `json:"name" binding:"required"`
-		Description   string                `json:"description"`
-		Lang          string                `json:"lang"`   // "zh" or "en", used when config is omitted
-		Config        *store.StrategyConfig `json:"config"` // optional — uses default if omitted
-		IsPublic      bool                  `json:"is_public"`
-		ConfigVisible bool                  `json:"config_visible"`
+		Name        string                `json:"name" binding:"required"`
+		Description string                `json:"description"`
+		Lang        string                `json:"lang"`   // "zh" or "en", used when config is omitted
+		Config      *store.StrategyConfig `json:"config"` // optional — uses default if omitted
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -202,17 +147,6 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	}
 	beforeClamp := *req.Config
 	req.Config.ClampLimits()
-	hadPublishConfig := req.Config.PublishConfig != nil
-	isPublic := req.IsPublic
-	configVisible := req.ConfigVisible
-	if hadPublishConfig {
-		isPublic = req.Config.PublishConfig.IsPublic
-		configVisible = req.Config.PublishConfig.ConfigVisible
-	}
-	req.Config.PublishConfig = &store.PublishStrategyConfig{
-		IsPublic:      isPublic,
-		ConfigVisible: configVisible,
-	}
 
 	// Serialize configuration
 	configJSON, err := json.Marshal(req.Config)
@@ -228,10 +162,7 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 		Description: req.Description,
 		IsActive:    false,
 		IsDefault:   false,
-		IsPublic:    isPublic,
-		// Existing default is true; keep that behavior when no explicit publish config is sent.
-		ConfigVisible: configVisible || !hadPublishConfig,
-		Config:        string(configJSON),
+		Config:      string(configJSON),
 	}
 
 	if err := s.store.Strategy().Create(strategy); err != nil {
@@ -279,11 +210,9 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	}
 
 	var req struct {
-		Name          string          `json:"name"`
-		Description   string          `json:"description"`
-		Config        json.RawMessage `json:"config"` // raw JSON so we can merge
-		IsPublic      bool            `json:"is_public"`
-		ConfigVisible bool            `json:"config_visible"`
+		Name        string          `json:"name"`
+		Description string          `json:"description"`
+		Config      json.RawMessage `json:"config"` // raw JSON so we can merge
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -331,13 +260,11 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	}
 
 	strategy := &store.Strategy{
-		ID:            strategyID,
-		UserID:        userID,
-		Name:          name,
-		Description:   description,
-		Config:        string(configJSON),
-		IsPublic:      req.IsPublic,
-		ConfigVisible: req.ConfigVisible,
+		ID:          strategyID,
+		UserID:      userID,
+		Name:        name,
+		Description: description,
+		Config:      string(configJSON),
 	}
 
 	if err := s.store.Strategy().Update(strategy); err != nil {
@@ -460,7 +387,6 @@ func (s *Server) handleGetActiveStrategy(c *gin.Context) {
 
 	var config store.StrategyConfig
 	json.Unmarshal([]byte(strategy.Config), &config)
-	attachPublishConfig(&config, strategy)
 
 	c.JSON(http.StatusOK, gin.H{
 		"id":          strategy.ID,

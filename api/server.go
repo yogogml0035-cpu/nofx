@@ -178,8 +178,7 @@ func (s *Server) setupRoutes() {
 		s.route(api, "GET", "/market/sentiment", "Social sentiment (?coin= default BTC)", s.handleMarketSentiment)
 		s.route(api, "GET", "/market/liquidations", "Liquidation hotspots (30min rolling window, top 20)", s.handleMarketLiquidations)
 
-		// Public strategy market (no authentication required)
-		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)
+		// Strategy config utilities (no authentication required)
 		s.route(api, "POST", "/strategies/estimate-tokens", "Estimate token usage for a strategy config", s.handleEstimateTokens)
 
 		// Authentication related routes (no authentication required).

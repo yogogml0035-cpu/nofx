@@ -160,18 +160,16 @@ func toolsByName(names []string, compactStrategy bool) []mcp.Tool {
 }
 
 func compactManageStrategyTool(tool mcp.Tool) mcp.Tool {
-	tool.Function.Description = "List, query, delete, activate, duplicate, create, or update strategy templates. Planning schema is compact; use action plus strategy_id/name/description/lang/is_public/config_visible, and include config only when the user explicitly provides strategy config fields."
+	tool.Function.Description = "List, query, delete, activate, duplicate, create, or update strategy templates. Planning schema is compact; use action plus strategy_id/name/description/lang, and include config only when the user explicitly provides strategy config fields."
 	tool.Function.Parameters = map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"action":         map[string]any{"type": "string", "enum": []string{"list", "create", "update", "delete", "activate", "duplicate", "get_default_config"}},
-			"strategy_id":    map[string]any{"type": "string"},
-			"name":           map[string]any{"type": "string"},
-			"description":    map[string]any{"type": "string"},
-			"lang":           map[string]any{"type": "string", "enum": []string{"zh", "en"}},
-			"is_public":      map[string]any{"type": "boolean"},
-			"config_visible": map[string]any{"type": "boolean"},
-			"config":         map[string]any{"type": "object", "description": "Strategy config patch. Use precise field paths/objects from the user request; omit when listing/querying/deleting/activating/duplicating."},
+			"action":      map[string]any{"type": "string", "enum": []string{"list", "create", "update", "delete", "activate", "duplicate", "get_default_config"}},
+			"strategy_id": map[string]any{"type": "string"},
+			"name":        map[string]any{"type": "string"},
+			"description": map[string]any{"type": "string"},
+			"lang":        map[string]any{"type": "string", "enum": []string{"zh", "en"}},
+			"config":      map[string]any{"type": "object", "description": "Strategy config patch. Use precise field paths/objects from the user request; omit when listing/querying/deleting/activating/duplicating."},
 		},
 		"required": []string{"action"},
 	}
@@ -396,14 +394,6 @@ func strategyConfigSchema() map[string]any {
 					"use_maker_only":          map[string]any{"type": "boolean"},
 					"enable_direction_adjust": map[string]any{"type": "boolean"},
 					"direction_bias_ratio":    map[string]any{"type": "number", "minimum": 0.55, "maximum": 0.9, "description": "Manual page range 0.55-0.90 (shown as 55%-90%)."},
-				},
-			},
-			"publish_config": map[string]any{
-				"type":        "object",
-				"description": "Shared publish settings for both AI and grid strategies.",
-				"properties": map[string]any{
-					"is_public":      map[string]any{"type": "boolean"},
-					"config_visible": map[string]any{"type": "boolean"},
 				},
 			},
 		},
@@ -650,13 +640,11 @@ func buildAgentTools() []mcp.Tool {
 							"type": "string",
 							"enum": []string{"list", "create", "update", "delete", "activate", "duplicate", "get_default_config"},
 						},
-						"strategy_id":    map[string]any{"type": "string"},
-						"name":           map[string]any{"type": "string"},
-						"description":    map[string]any{"type": "string"},
-						"lang":           map[string]any{"type": "string", "enum": []string{"zh", "en"}},
-						"is_public":      map[string]any{"type": "boolean"},
-						"config_visible": map[string]any{"type": "boolean"},
-						"config":         strategyConfigSchema(),
+						"strategy_id": map[string]any{"type": "string"},
+						"name":        map[string]any{"type": "string"},
+						"description": map[string]any{"type": "string"},
+						"lang":        map[string]any{"type": "string", "enum": []string{"zh", "en"}},
+						"config":      strategyConfigSchema(),
 					},
 					"required": []string{"action"},
 				},
@@ -1000,15 +988,13 @@ type safeTraderToolConfig struct {
 }
 
 type safeStrategyToolConfig struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Description   string         `json:"description"`
-	IsActive      bool           `json:"is_active"`
-	IsDefault     bool           `json:"is_default"`
-	IsPublic      bool           `json:"is_public"`
-	ConfigVisible bool           `json:"config_visible"`
-	Config        map[string]any `json:"config,omitempty"`
-	HasConfig     bool           `json:"has_config"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	IsActive    bool           `json:"is_active"`
+	IsDefault   bool           `json:"is_default"`
+	Config      map[string]any `json:"config,omitempty"`
+	HasConfig   bool           `json:"has_config"`
 }
 
 var sensitiveToolKeys = map[string]struct{}{
@@ -1189,14 +1175,12 @@ func safeTraderForTool(trader *store.Trader, isRunning bool) safeTraderToolConfi
 
 func safeStrategyForTool(strategy *store.Strategy) safeStrategyToolConfig {
 	out := safeStrategyToolConfig{
-		ID:            strategy.ID,
-		Name:          strategy.Name,
-		Description:   strategy.Description,
-		IsActive:      strategy.IsActive,
-		IsDefault:     strategy.IsDefault,
-		IsPublic:      strategy.IsPublic,
-		ConfigVisible: strategy.ConfigVisible,
-		HasConfig:     strings.TrimSpace(strategy.Config) != "",
+		ID:          strategy.ID,
+		Name:        strategy.Name,
+		Description: strategy.Description,
+		IsActive:    strategy.IsActive,
+		IsDefault:   strategy.IsDefault,
+		HasConfig:   strings.TrimSpace(strategy.Config) != "",
 	}
 	if out.HasConfig {
 		var cfg map[string]any
@@ -1948,8 +1932,6 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		Name          string         `json:"name"`
 		Description   string         `json:"description"`
 		Lang          string         `json:"lang"`
-		IsPublic      *bool          `json:"is_public"`
-		ConfigVisible *bool          `json:"config_visible"`
 		AllowClamped  bool           `json:"allow_clamped_update"`
 		Confirmed     bool           `json:"confirmed"`
 		Config        map[string]any `json:"config"`
@@ -2008,15 +1990,13 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			return fmt.Sprintf(`{"error":"failed to serialize strategy config: %s"}`, err)
 		}
 		record := &store.Strategy{
-			ID:            fmt.Sprintf("strategy_%d", time.Now().UnixNano()),
-			UserID:        storeUserID,
-			Name:          name,
-			Description:   strings.TrimSpace(args.Description),
-			IsActive:      false,
-			IsDefault:     false,
-			IsPublic:      args.IsPublic != nil && *args.IsPublic,
-			ConfigVisible: args.ConfigVisible == nil || *args.ConfigVisible,
-			Config:        string(configJSON),
+			ID:          fmt.Sprintf("strategy_%d", time.Now().UnixNano()),
+			UserID:      storeUserID,
+			Name:        name,
+			Description: strings.TrimSpace(args.Description),
+			IsActive:    false,
+			IsDefault:   false,
+			Config:      string(configJSON),
 		}
 		if err := a.store.Strategy().Create(record); err != nil {
 			return fmt.Sprintf(`{"error":"failed to create strategy: %s"}`, err)
@@ -2056,14 +2036,6 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		if trimmed := strings.TrimSpace(args.Description); trimmed != "" {
 			description = trimmed
 		}
-		isPublic := existing.IsPublic
-		if args.IsPublic != nil {
-			isPublic = *args.IsPublic
-		}
-		configVisible := existing.ConfigVisible
-		if args.ConfigVisible != nil {
-			configVisible = *args.ConfigVisible
-		}
 		configJSON := existing.Config
 		var warnings []string
 		if len(args.Config) > 0 {
@@ -2090,13 +2062,11 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			configJSON = string(normalized)
 		}
 		record := &store.Strategy{
-			ID:            existing.ID,
-			UserID:        storeUserID,
-			Name:          name,
-			Description:   description,
-			IsPublic:      isPublic,
-			ConfigVisible: configVisible,
-			Config:        configJSON,
+			ID:          existing.ID,
+			UserID:      storeUserID,
+			Name:        name,
+			Description: description,
+			Config:      configJSON,
 		}
 		if err := a.store.Strategy().Update(record); err != nil {
 			return fmt.Sprintf(`{"error":"failed to update strategy: %s"}`, err)

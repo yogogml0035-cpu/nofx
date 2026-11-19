@@ -419,8 +419,6 @@ func filterLegacyStrategyCreateFieldsForType(session *skillSession, strategyType
 	for _, key := range []string{
 		"name",
 		"description",
-		"is_public",
-		"config_visible",
 		"lang",
 		"strategy_type",
 		strategyCreateDraftConfigField,
@@ -442,7 +440,7 @@ func resetLegacyStrategyCreateSessionForType(session *skillSession, strategyType
 		return
 	}
 	keep := map[string]string{}
-	for _, key := range []string{"name", "description", "is_public", "config_visible", "lang"} {
+	for _, key := range []string{"name", "description", "lang"} {
 		if value := fieldValue(*session, key); strings.TrimSpace(value) != "" {
 			keep[key] = value
 		}
@@ -606,7 +604,7 @@ func strategyCreateFinalConfirmationReady(session skillSession) bool {
 func strategyCreateHasExplicitConfigBeyondType(session skillSession) bool {
 	for _, key := range manualStrategyEditableFieldKeys() {
 		switch key {
-		case "name", "description", "is_public", "config_visible", "strategy_type":
+		case "name", "description", "strategy_type":
 			continue
 		}
 		if strings.TrimSpace(fieldValue(session, key)) != "" {
@@ -1121,8 +1119,6 @@ func formatStrategyCreateFinalConfirmation(lang string, session skillSession, cf
 			}
 			lines = append(lines,
 				"- 类型：网格策略",
-				fmt.Sprintf("- 发布到策略市场：%t", fieldValue(session, "is_public") == "true"),
-				fmt.Sprintf("- 发布后配置可见：%t", fieldValue(session, "config_visible") != "false"),
 				fmt.Sprintf("- 交易对：%s", defaultIfEmpty(grid.Symbol, "未设置")),
 				fmt.Sprintf("- 网格数量：%d", grid.GridCount),
 				fmt.Sprintf("- 总投入：%.2f USDT", grid.TotalInvestment),
@@ -1142,8 +1138,6 @@ func formatStrategyCreateFinalConfirmation(lang string, session skillSession, cf
 		default:
 			lines = append(lines,
 				"- 类型：AI 策略",
-				fmt.Sprintf("- 发布到策略市场：%t", fieldValue(session, "is_public") == "true"),
-				fmt.Sprintf("- 发布后配置可见：%t", fieldValue(session, "config_visible") != "false"),
 				fmt.Sprintf("- 选币来源：%s", defaultIfEmpty(cfg.CoinSource.SourceType, "未设置")),
 			)
 			lines = append(lines, formatAICoinSourceSummaryZH(cfg)...)
@@ -1703,25 +1697,11 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 		customPromptPreview = string(runes[:120]) + "..."
 	}
 
-	publishStatusZh := "未发布"
-	publishStatusEn := "private"
-	if strategy.IsPublic {
-		publishStatusZh = "已发布到市场"
-		publishStatusEn = "public"
-	}
-	configVisibleZh := "隐藏"
-	configVisibleEn := "hidden"
-	if strategy.ConfigVisible {
-		configVisibleZh = "可见"
-		configVisibleEn = "visible"
-	}
-
 	if lang == "zh" {
 		lines := []string{
 			fmt.Sprintf("策略“%s”概览：", name),
 			fmt.Sprintf("- 类型：%s", defaultIfEmpty(strings.TrimSpace(cfg.StrategyType), "ai_trading")),
 			fmt.Sprintf("- 语言：%s", defaultIfEmpty(strings.TrimSpace(cfg.Language), "zh")),
-			fmt.Sprintf("- 发布设置：%s；配置%s", publishStatusZh, configVisibleZh),
 		}
 		if strings.TrimSpace(strategy.Description) != "" {
 			lines = append(lines, fmt.Sprintf("- 描述：%s", strings.TrimSpace(strategy.Description)))
@@ -1778,7 +1758,6 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 		fmt.Sprintf("Strategy %q overview:", name),
 		fmt.Sprintf("- Type: %s", defaultIfEmpty(strings.TrimSpace(cfg.StrategyType), "ai_trading")),
 		fmt.Sprintf("- Language: %s", defaultIfEmpty(strings.TrimSpace(cfg.Language), "en")),
-		fmt.Sprintf("- Publish settings: %s; config %s", publishStatusEn, configVisibleEn),
 	}
 	if strings.TrimSpace(strategy.Description) != "" {
 		lines = append(lines, fmt.Sprintf("- Description: %s", strings.TrimSpace(strategy.Description)))

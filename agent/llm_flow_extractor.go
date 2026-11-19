@@ -257,9 +257,9 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 			configPatchDescription := "Partial StrategyConfig JSON patch inferred from the user's strategy intent. Use exact product schema values, not display labels: source_type must be one of static, ai500, oi_top, oi_low; strategy_type must be ai_trading or grid_trading; selected_timeframes must be a JSON array of strings, not a JSON-encoded string."
 			switch explicitStrategyCreateType(session) {
 			case "grid_trading":
-				configPatchDescription += " Current strategy_type is grid_trading: use only top-level strategy_type, grid_config, publish_config, and language. Do not output ai_config or AI fields such as coin_source, indicators, risk_control, timeframes, confidence, or prompt_sections."
+				configPatchDescription += " Current strategy_type is grid_trading: use only top-level strategy_type, grid_config, and language. Do not output ai_config or AI fields such as coin_source, indicators, risk_control, timeframes, confidence, or prompt_sections."
 			case "ai_trading":
-				configPatchDescription += " Current strategy_type is ai_trading: use top-level strategy_type, ai_config, publish_config, and language. Put coin_source, indicators, risk_control, prompt_sections, and custom_prompt inside ai_config. Do not output grid_config."
+				configPatchDescription += " Current strategy_type is ai_trading: use top-level strategy_type, ai_config, and language. Put coin_source, indicators, risk_control, prompt_sections, and custom_prompt inside ai_config. Do not output grid_config."
 			default:
 				configPatchDescription += " Include strategy_type first when the user chooses AI or grid; after strategy_type is known, use only the config branch for that type: grid_config for grid, ai_config for AI."
 			}
