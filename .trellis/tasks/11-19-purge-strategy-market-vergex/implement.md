@@ -13,7 +13,7 @@
 7. [x] `npm --prefix web run build && npm --prefix web run test` 全绿（tsc+vite ✓，vitest 116/116）→ commit
 8. [x] 文档营销：README 头部背书与链接表、六语言 i18n README、CLA.md Contact 行
 9. [x] 全量 grep 复跑归零：词表二 `IsPublic|"is_public"` Go 域零命中；词表一 tracked 内容排除集外零命中（rg 的 `./.git` 命中为 worktree 指针文件内路径字符串，非仓库语义；git grep 终验确认）→ commit
-10. [ ] 浏览器探针（临时后端 + 前端 dev）：导航/404/跳转/占位页/策略编辑器截图留档任务目录 `probe/`
+10. [x] 浏览器探针（临时后端 + 前端 dev）：导航/404/跳转/占位页/策略编辑器截图留档任务目录 `probe/`
 
 ## 验证命令
 

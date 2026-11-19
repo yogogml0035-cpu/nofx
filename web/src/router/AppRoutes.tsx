@@ -23,6 +23,7 @@ import { LandingPage } from '../pages/LandingPage'
 import { DataPage } from '../pages/DataPage'
 import { AgentChatPage } from '../pages/AgentChatPage'
 import { SettingsPage } from '../pages/SettingsPage'
+import { PageNotFound } from '../pages/PageNotFound'
 import { StrategyStudioPage } from '../pages/StrategyStudioPage'
 import { TraderDashboardPage } from '../pages/TraderDashboardPage'
 import { useAuth } from '../contexts/AuthContext'
@@ -506,7 +507,7 @@ export function AppRoutes() {
             )
           }
         />
-        <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
+        <Route path="*" element={<PageNotFound />} />
       </Routes>
     </>
   )
