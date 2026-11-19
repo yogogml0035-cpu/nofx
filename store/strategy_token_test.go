@@ -14,8 +14,7 @@ func TestEstimateTokens_DefaultConfig(t *testing.T) {
 	}
 
 	// Breakdown should sum approximately to total (before 15% margin)
-	subtotal := est.Breakdown.SystemPrompt + est.Breakdown.MarketData +
-		est.Breakdown.RankingData + est.Breakdown.QuantData + est.Breakdown.FixedOverhead
+	subtotal := est.Breakdown.SystemPrompt + est.Breakdown.MarketData + est.Breakdown.FixedOverhead
 	expectedTotal := subtotal * 115 / 100
 	if est.Total != expectedTotal {
 		t.Errorf("total %d != breakdown subtotal %d * 1.15 = %d", est.Total, subtotal, expectedTotal)
@@ -51,7 +50,6 @@ func TestEstimateTokens_ZhVsEn(t *testing.T) {
 func TestEstimateTokens_HighConfig(t *testing.T) {
 	config := GetDefaultStrategyConfig("en")
 	// Push config to extremes (beyond clamped limits)
-	config.CoinSource.SourceType = "static"
 	config.CoinSource.StaticCoins = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "XRPUSDT"}
 	config.Indicators.Klines.SelectedTimeframes = []string{"1m", "3m", "5m", "15m", "1h", "4h"}
 	config.Indicators.Klines.PrimaryCount = 100
@@ -96,17 +94,10 @@ func TestGetContextLimit(t *testing.T) {
 func TestGetEffectiveCoinCount(t *testing.T) {
 	config := StrategyConfig{
 		CoinSource: CoinSourceConfig{
-			SourceType:  "static",
 			StaticCoins: []string{"BTCUSDT", "ETHUSDT"},
 		},
 	}
 	if got := config.getEffectiveCoinCount(); got != 2 {
 		t.Errorf("static coin count = %d, want 2", got)
-	}
-
-	config.CoinSource.SourceType = "ai500"
-	config.CoinSource.AI500Limit = 5
-	if got := config.getEffectiveCoinCount(); got != 5 {
-		t.Errorf("ai500 coin count = %d, want 5", got)
 	}
 }

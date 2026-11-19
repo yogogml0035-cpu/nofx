@@ -43,7 +43,7 @@ func TestStrategyConfigMarshalSeparatesGridAndAIConfig(t *testing.T) {
 func TestStrategyConfigUnmarshalLegacyFlatAIConfig(t *testing.T) {
 	raw := []byte(`{
 		"strategy_type":"ai_trading",
-		"coin_source":{"source_type":"static","static_coins":["ETHUSDT"]},
+		"coin_source":{"static_coins":["ETHUSDT"]},
 		"indicators":{"klines":{"primary_timeframe":"15m"}},
 		"risk_control":{"max_positions":2,"min_confidence":80},
 		"prompt_sections":{"entry_standards":"trend only"},
@@ -54,7 +54,7 @@ func TestStrategyConfigUnmarshalLegacyFlatAIConfig(t *testing.T) {
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		t.Fatalf("unmarshal legacy flat config: %v", err)
 	}
-	if cfg.CoinSource.SourceType != "static" || len(cfg.CoinSource.StaticCoins) != 1 || cfg.CoinSource.StaticCoins[0] != "ETHUSDT" {
+	if len(cfg.CoinSource.StaticCoins) != 1 || cfg.CoinSource.StaticCoins[0] != "ETHUSDT" {
 		t.Fatalf("legacy coin source was not normalized: %+v", cfg.CoinSource)
 	}
 	if cfg.Indicators.Klines.PrimaryTimeframe != "15m" {
@@ -83,7 +83,7 @@ func TestStrategyConfigNormalizeProductSchemaForLLMLabels(t *testing.T) {
 		"strategy_type": "AI 策略",
 		"ai_config": map[string]any{
 			"coin_source": map[string]any{
-				"source_type": "AI500",
+				"static_coins": []any{"BTCUSDT", "ETHUSDT"},
 			},
 			"indicators": map[string]any{
 				"klines": map[string]any{
@@ -103,11 +103,8 @@ func TestStrategyConfigNormalizeProductSchemaForLLMLabels(t *testing.T) {
 	if merged.StrategyType != "ai_trading" {
 		t.Fatalf("strategy_type = %q, want ai_trading", merged.StrategyType)
 	}
-	if merged.CoinSource.SourceType != "ai500" {
-		t.Fatalf("source_type = %q, want ai500", merged.CoinSource.SourceType)
-	}
-	if !merged.CoinSource.UseAI500 || merged.CoinSource.UseOITop || merged.CoinSource.UseOILow {
-		t.Fatalf("coin source flags not normalized: %+v", merged.CoinSource)
+	if len(merged.CoinSource.StaticCoins) != 2 {
+		t.Fatalf("static coins not normalized: %+v", merged.CoinSource)
 	}
 	if merged.Indicators.Klines.PrimaryTimeframe != "1m" {
 		t.Fatalf("primary_timeframe = %q, want 1m", merged.Indicators.Klines.PrimaryTimeframe)

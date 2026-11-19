@@ -274,7 +274,7 @@ func TestTraderDomainPrimerExplainsInternalConfigBoundary(t *testing.T) {
 	}
 }
 
-func TestStrategyDomainPrimerKeepsSourceCountsWithinEditorBounds(t *testing.T) {
+func TestStrategyDomainPrimerKeepsStaticListWithinEditorBounds(t *testing.T) {
 	primer := buildSkillDomainPrimerForSession("zh", skillSession{
 		Name:   "strategy_management",
 		Action: "create",
@@ -283,8 +283,7 @@ func TestStrategyDomainPrimerKeepsSourceCountsWithinEditorBounds(t *testing.T) {
 		},
 	})
 	for _, want := range []string{
-		"AI500/OI Top/OI Low 选币数量范围 1～10",
-		"没有 mixed/混合模式",
+		"static_coins 最多 10 个",
 		"BTC/ETH 最大杠杆 1～20",
 		"min_confidence 50～100",
 	} {
@@ -301,9 +300,14 @@ func TestStrategyConfigSchemaOnlyExposesEditorCoinSourceFields(t *testing.T) {
 	aiProperties := aiConfig["properties"].(map[string]any)
 	coinSource := aiProperties["coin_source"].(map[string]any)
 	coinProperties := coinSource["properties"].(map[string]any)
-	ai500 := coinProperties["ai500_limit"].(map[string]any)
-	if ai500["maximum"] != 10 {
-		t.Fatalf("expected AI500 maximum 10, got %+v", ai500)
+	if len(coinProperties) != 2 {
+		t.Fatalf("coin source schema must expose exactly static_coins/excluded_coins, got: %+v", coinProperties)
+	}
+	if _, ok := coinProperties["static_coins"]; !ok {
+		t.Fatalf("expected static_coins in coin source schema: %+v", coinProperties)
+	}
+	if _, ok := coinProperties["excluded_coins"]; !ok {
+		t.Fatalf("expected excluded_coins in coin source schema: %+v", coinProperties)
 	}
 }
 
@@ -545,9 +549,7 @@ func TestStrategyUpdateUsesExplicitTargetOverCurrentReference(t *testing.T) {
 
 	patch := map[string]any{
 		"coin_source": map[string]any{
-			"source_type": "ai500",
-			"use_ai500":   true,
-			"ai500_limit": 5,
+			"static_coins": []any{"BTCUSDT", "ETHUSDT"},
 		},
 		"custom_prompt": "强趋势做多策略：只寻找强趋势多头机会。",
 	}
@@ -741,7 +743,7 @@ func TestBuildTraderCreateMissingPromptListsAllMissingSlots(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	if err := st.Strategy().Create(&store.Strategy{
-		ID:          "strategy-ai500",
+		ID:          "strategy-steady",
 		UserID:      "default",
 		Name:        "稳重策略",
 		Description: "test",
@@ -817,11 +819,7 @@ func TestStrategyCreateUsesConfigPatch(t *testing.T) {
 	patch := map[string]any{
 		"strategy_type": "ai_trading",
 		"coin_source": map[string]any{
-			"source_type":  "static",
 			"static_coins": []any{"BTCUSDT"},
-			"use_ai500":    false,
-			"use_oi_low":   true,
-			"oi_low_limit": 1,
 		},
 		"risk_control": map[string]any{
 			"max_positions":         1,
@@ -876,14 +874,8 @@ func TestStrategyCreateUsesConfigPatch(t *testing.T) {
 	if err := json.Unmarshal([]byte(created.Config), &cfg); err != nil {
 		t.Fatalf("unmarshal config: %v", err)
 	}
-	if cfg.CoinSource.SourceType != "static" || len(cfg.CoinSource.StaticCoins) != 1 || cfg.CoinSource.StaticCoins[0] != "BTCUSDT" {
+	if len(cfg.CoinSource.StaticCoins) != 1 || cfg.CoinSource.StaticCoins[0] != "BTCUSDT" {
 		t.Fatalf("expected BTC static coin source, got %+v", cfg.CoinSource)
-	}
-	if cfg.CoinSource.UseAI500 {
-		t.Fatalf("expected AI500 disabled for explicit BTC strategy")
-	}
-	if cfg.CoinSource.UseOILow {
-		t.Fatalf("expected OI low disabled when source_type is static, got %+v", cfg.CoinSource)
 	}
 	if cfg.RiskControl.MaxPositions != 3 || cfg.RiskControl.MinConfidence != 80 {
 		t.Fatalf("expected risk patch to apply, got %+v", cfg.RiskControl)
@@ -1079,7 +1071,9 @@ func TestStrategyCreateSwitchingTypeDropsPreviousTemplateFields(t *testing.T) {
 	aiPatch := map[string]any{
 		"strategy_type": "ai_trading",
 		"ai_config": map[string]any{
-			"coin_source": map[string]any{"source_type": "ai500"},
+			"coin_source": map[string]any{
+				"static_coins": []any{"BTCUSDT"},
+			},
 			"risk_control": map[string]any{
 				"min_confidence":        80,
 				"min_risk_reward_ratio": 3,
@@ -1102,7 +1096,7 @@ func TestStrategyCreateSwitchingTypeDropsPreviousTemplateFields(t *testing.T) {
 	if !strings.Contains(reply, "还缺") || !strings.Contains(reply, "交易对") {
 		t.Fatalf("expected grid missing fields after type switch, got: %s", reply)
 	}
-	if strings.Contains(reply, "AI500") || strings.Contains(reply, "置信度") {
+	if strings.Contains(reply, "置信度") {
 		t.Fatalf("type switch should not reuse AI fields or default BTC summary, got: %s", reply)
 	}
 	strategies, err := st.Strategy().List("default")
@@ -1126,7 +1120,9 @@ func TestActiveStrategyCreateFilterIsolatesTemplateOnTypeSwitch(t *testing.T) {
 			strategyCreateConfigPatchField: map[string]any{
 				"strategy_type": "ai_trading",
 				"ai_config": map[string]any{
-					"coin_source": map[string]any{"source_type": "ai500"},
+					"coin_source": map[string]any{
+						"static_coins": []any{"BTCUSDT"},
+					},
 				},
 			},
 		},
@@ -1136,14 +1132,14 @@ func TestActiveStrategyCreateFilterIsolatesTemplateOnTypeSwitch(t *testing.T) {
 		strategyCreateConfigPatchField: map[string]any{
 			"strategy_type": "grid_trading",
 			"grid_config":   map[string]any{"symbol": "ETHUSDT"},
-			"ai_config":     map[string]any{"coin_source": map[string]any{"source_type": "ai500"}},
+			"ai_config":     map[string]any{"coin_source": map[string]any{"static_coins": []any{"BTCUSDT"}}},
 		},
 	}, "zh")
 	mergeExtractedData(&session, filtered)
 	if got := session.CollectedFields["strategy_type"]; got != "grid_trading" {
 		t.Fatalf("expected switched strategy type, got %+v", session.CollectedFields)
 	}
-	if _, ok := session.CollectedFields["source_type"]; ok {
+	if _, ok := session.CollectedFields["static_coins"]; ok {
 		t.Fatalf("expected AI-only flat fields to be dropped, got %+v", session.CollectedFields)
 	}
 	patch := session.CollectedFields[strategyCreateConfigPatchField].(map[string]any)
@@ -1221,7 +1217,7 @@ func TestAllowedStrategyCreateFieldsUseConfigPatchOnly(t *testing.T) {
 			t.Fatalf("expected grid field %q in specs", expected)
 		}
 	}
-	for _, unexpected := range []string{"symbol", "grid_count", "total_investment", "source_type", "selected_timeframes", "min_confidence", "min_risk_reward_ratio"} {
+	for _, unexpected := range []string{"symbol", "grid_count", "total_investment", "static_coins", "selected_timeframes", "min_confidence", "min_risk_reward_ratio"} {
 		if gridKeys[unexpected] {
 			t.Fatalf("strategy create specs should not expose template field %q outside config_patch", unexpected)
 		}
@@ -1280,9 +1276,7 @@ func TestStrategyCreateConfirmationForcesSynchronousExecutionRoute(t *testing.T)
 		"strategy_type": "ai_trading",
 		"ai_config": map[string]any{
 			"coin_source": map[string]any{
-				"source_type": "ai500",
-				"use_ai500":   true,
-				"ai500_limit": 5,
+				"static_coins": []any{"BTCUSDT", "ETHUSDT"},
 			},
 			"indicators": map[string]any{
 				"klines": map[string]any{
@@ -1307,7 +1301,7 @@ func TestStrategyCreateConfirmationForcesSynchronousExecutionRoute(t *testing.T)
 		SkillName:  "strategy_management",
 		ActionName: "create",
 		CollectedFields: map[string]any{
-			"name":                         "AI500高频交易",
+			"name":                         "高频交易策略",
 			"strategy_type":                "ai_trading",
 			strategyCreateConfigPatchField: string(rawPatch),
 		},
@@ -1319,13 +1313,13 @@ func TestStrategyCreateConfirmationForcesSynchronousExecutionRoute(t *testing.T)
 		t.Run(confirmation, func(t *testing.T) {
 			sessionCopy := session
 			sessionCopy.CollectedFields = map[string]any{
-				"name":                         "AI500高频交易",
+				"name":                         "高频交易策略",
 				"strategy_type":                "ai_trading",
 				strategyCreateConfigPatchField: string(rawPatch),
 			}
 			decision := activeSessionStepDecision{
 				Route: "ask_user",
-				Reply: "好的，正在为你创建“AI500高频交易”策略……",
+				Reply: "好的，正在为你创建“高频交易策略”……",
 			}
 
 			if !maybeForceStrategyCreateExecutionOnConfirmation("zh", confirmation, &sessionCopy, &decision) {
@@ -1346,9 +1340,7 @@ func TestStrategyCreateConfirmationForcesExecutionWithoutPriorPromptPhrase(t *te
 		"strategy_type": "ai_trading",
 		"ai_config": map[string]any{
 			"coin_source": map[string]any{
-				"source_type": "ai500",
-				"use_ai500":   true,
-				"ai500_limit": 5,
+				"static_coins": []any{"BTCUSDT", "ETHUSDT"},
 			},
 			"indicators": map[string]any{
 				"klines": map[string]any{
@@ -1373,7 +1365,7 @@ func TestStrategyCreateConfirmationForcesExecutionWithoutPriorPromptPhrase(t *te
 		SkillName:  "strategy_management",
 		ActionName: "create",
 		CollectedFields: map[string]any{
-			"name":                         "高频稳健AI500",
+			"name":                         "高频稳健策略",
 			"strategy_type":                "ai_trading",
 			strategyCreateConfigPatchField: string(rawPatch),
 		},
@@ -1383,7 +1375,7 @@ func TestStrategyCreateConfirmationForcesExecutionWithoutPriorPromptPhrase(t *te
 	}
 	decision := activeSessionStepDecision{
 		Route: "ask_user",
-		Reply: "好的，马上为你创建“高频稳健AI500”策略。",
+		Reply: "好的，马上为你创建“高频稳健策略”。",
 	}
 	if !maybeForceStrategyCreateExecutionOnConfirmation("zh", "确认创建", &session, &decision) {
 		t.Fatalf("expected ready strategy confirmation to force execute even without prior prompt phrase")
@@ -1406,9 +1398,7 @@ func TestUnifiedPlannedAgentCannotStealActiveStrategyCreateConfirmation(t *testi
 		"strategy_type": "ai_trading",
 		"ai_config": map[string]any{
 			"coin_source": map[string]any{
-				"source_type": "ai500",
-				"use_ai500":   true,
-				"ai500_limit": 5,
+				"static_coins": []any{"BTCUSDT", "ETHUSDT"},
 			},
 			"indicators": map[string]any{
 				"klines": map[string]any{
@@ -1432,7 +1422,7 @@ func TestUnifiedPlannedAgentCannotStealActiveStrategyCreateConfirmation(t *testi
 	userID := int64(42)
 	session := newActiveSkillSession(userID, "strategy_management", "create")
 	session.CollectedFields = map[string]any{
-		"name":                         "AI500高频",
+		"name":                         "高频策略",
 		"strategy_type":                "ai_trading",
 		"awaiting_final_confirmation":  true,
 		strategyCreateConfigPatchField: string(rawPatch),
@@ -1465,12 +1455,12 @@ func TestStrategyCreateRepairPromiseIsNotReturnedOnConfirmation(t *testing.T) {
 		t.Fatalf("create store: %v", err)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
-	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"好的，马上为你创建AI500高频稳健策略。","extracted_data":{}}`})
+	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"好的，马上为你创建高频稳健策略。","extracted_data":{}}`})
 
 	userID := int64(42)
 	session := newActiveSkillSession(userID, "strategy_management", "create")
 	session.CollectedFields = map[string]any{
-		"name":          "AI500高频",
+		"name":          "高频策略",
 		"strategy_type": "ai_trading",
 	}
 	session.LocalHistory = []chatMessage{
@@ -1568,7 +1558,7 @@ func TestStrategyCreateAIReplyRejectsNonTemplateInvestmentQuestion(t *testing.T)
 		SkillName:  "strategy_management",
 		ActionName: "create",
 		CollectedFields: map[string]any{
-			"name":          "AI500稳健",
+			"name":          "稳健策略",
 			"strategy_type": "ai_trading",
 		},
 	}
@@ -1592,7 +1582,7 @@ func TestStrategyCreateOptionsQuestionExplainsCurrentMissingField(t *testing.T) 
 		SkillName:  "strategy_management",
 		ActionName: "create",
 		CollectedFields: map[string]any{
-			"name":          "AI500高频交易",
+			"name":          "高频交易策略",
 			"strategy_type": "ai_trading",
 		},
 	}
@@ -1600,7 +1590,7 @@ func TestStrategyCreateOptionsQuestionExplainsCurrentMissingField(t *testing.T) 
 	if !blocked {
 		t.Fatalf("expected options question to be handled")
 	}
-	for _, want := range []string{"AI500", "OI Top", "OI Low", "静态币种"} {
+	for _, want := range []string{"静态币种"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected source options to include %q, got: %s", want, reply)
 		}
@@ -1611,8 +1601,8 @@ func TestStrategyCreateOptionsQuestionExplainsCurrentMissingField(t *testing.T) 
 }
 
 func TestStrategyCreateMissingFieldsIncludeInlineOptions(t *testing.T) {
-	reply := formatStrategyCreateConfigNeeded("zh", "source_type,primary_timeframe,btceth_max_leverage,min_confidence,trading_frequency")
-	for _, want := range []string{"AI500", "OI Top", "OI Low", "静态币种", "1m", "1h", "1～20", "50～100", "每天最多"} {
+	reply := formatStrategyCreateConfigNeeded("zh", "static_coins,primary_timeframe,btceth_max_leverage,min_confidence,trading_frequency")
+	for _, want := range []string{"静态币种", "1m", "1h", "1～20", "50～100", "每天最多"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected missing-field prompt to include option/range %q, got: %s", want, reply)
 		}
@@ -1636,12 +1626,12 @@ func TestStrategyCreateConfigPatchReplyUsesStructuredMissingFields(t *testing.T)
 		SkillName:  "strategy_management",
 		ActionName: "create",
 		CollectedFields: map[string]any{
-			"name":          "AI500高频交易",
+			"name":          "高频交易策略",
 			"strategy_type": "ai_trading",
 			strategyCreateConfigPatchField: map[string]any{
 				"strategy_type": "ai_trading",
 				"ai_config": map[string]any{
-					"coin_source": map[string]any{"source_type": "ai500", "use_ai500": true, "ai500_limit": 5},
+					"coin_source": map[string]any{"static_coins": []any{"BTCUSDT", "ETHUSDT"}},
 					"risk_control": map[string]any{
 						"min_confidence": 70,
 					},
@@ -1674,20 +1664,20 @@ func TestStrategyCreateFirstStageConfigProgressUsesStructuredMissingFields(t *te
 		t.Fatalf("create store: %v", err)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
-	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"收到，AI500 和最低置信度 80 是你指定的；其他我建议按高频稳健来定：主周期 3m，多周期 3m/5m/15m，BTC/ETH 3倍，山寨币 2倍，最小盈亏比 2。","extracted_data":{}}`})
+	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"收到，静态币种和最低置信度 80 是你指定的；其他我建议按高频稳健来定：主周期 3m，多周期 3m/5m/15m，BTC/ETH 3倍，山寨币 2倍，最小盈亏比 2。","extracted_data":{}}`})
 
 	session := ActiveSkillSession{
 		UserID:     42,
 		SkillName:  "strategy_management",
 		ActionName: "create",
 		CollectedFields: map[string]any{
-			"name":          "高频稳健AI500",
+			"name":          "高频稳健策略",
 			"strategy_type": "ai_trading",
 			strategyCreateConfigProgressThisTurnField: true,
 			strategyCreateConfigPatchField: map[string]any{
 				"strategy_type": "ai_trading",
 				"ai_config": map[string]any{
-					"coin_source": map[string]any{"source_type": "ai500", "use_ai500": true},
+					"coin_source": map[string]any{"static_coins": []any{"BTCUSDT"}},
 					"risk_control": map[string]any{
 						"min_confidence": 80,
 					},
@@ -1695,7 +1685,7 @@ func TestStrategyCreateFirstStageConfigProgressUsesStructuredMissingFields(t *te
 			},
 		},
 	}
-	reply, handled, err := a.driveActiveSession(context.Background(), "default", 42, "zh", "选币选AI500，最新置信度80，其他你定，能高频交易稳定就行", session, nil)
+	reply, handled, err := a.driveActiveSession(context.Background(), "default", 42, "zh", "选币选 BTCUSDT，最新置信度80，其他你定，能高频交易稳定就行", session, nil)
 	if err != nil {
 		t.Fatalf("drive active session: %v", err)
 	}
@@ -1720,12 +1710,12 @@ func TestStrategyCreateConfirmationUsesModelRepairForPriorStyleProposal(t *testi
 		t.Fatalf("create store: %v", err)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
-	a.SetAIClient(&staticAIClient{response: `{"route":"execute_skill","extracted_data":{"config_patch":{"strategy_type":"ai_trading","ai_config":{"coin_source":{"source_type":"ai500","use_ai500":true,"ai500_limit":3},"indicators":{"klines":{"primary_timeframe":"1m","primary_count":20,"selected_timeframes":["1m","5m","15m"],"enable_multi_timeframe":true,"enable_raw_klines":true},"enable_volume":true,"enable_oi":true,"enable_funding_rate":true,"enable_quant_data":true},"risk_control":{"btc_eth_max_leverage":5,"altcoin_max_leverage":5,"min_confidence":75,"min_risk_reward_ratio":3},"prompt_sections":{"trading_frequency":"高频但不过度交易：目标每小时 1-3 笔；单笔持仓通常 10-30 分钟。","entry_standards":"只在短周期趋势、成交量/OI、资金费率或排行信号形成共振时入场。"}}}}}`})
+	a.SetAIClient(&staticAIClient{response: `{"route":"execute_skill","extracted_data":{"config_patch":{"strategy_type":"ai_trading","ai_config":{"coin_source":{"static_coins":["BTCUSDT","ETHUSDT"]},"indicators":{"klines":{"primary_timeframe":"1m","primary_count":20,"selected_timeframes":["1m","5m","15m"],"enable_multi_timeframe":true,"enable_raw_klines":true},"enable_volume":true,"enable_oi":true,"enable_funding_rate":true},"risk_control":{"btc_eth_max_leverage":5,"altcoin_max_leverage":5,"min_confidence":75,"min_risk_reward_ratio":3},"prompt_sections":{"trading_frequency":"高频但不过度交易：目标每小时 1-3 笔；单笔持仓通常 10-30 分钟。","entry_standards":"只在短周期趋势、成交量/OI、资金费率形成共振时入场。"}}}}}`})
 
 	userID := int64(42)
 	session := newActiveSkillSession(userID, "strategy_management", "create")
 	session.CollectedFields = map[string]any{
-		"name":          "AI500极致稳定高频",
+		"name":          "极致稳定高频策略",
 		"strategy_type": "ai_trading",
 	}
 	session.LocalHistory = []chatMessage{
@@ -1753,8 +1743,8 @@ func TestStrategyCreateConfirmationUsesModelRepairForPriorStyleProposal(t *testi
 	if err := json.Unmarshal([]byte(strategies[0].Config), &cfg); err != nil {
 		t.Fatalf("unmarshal config: %v", err)
 	}
-	if cfg.CoinSource.SourceType != "ai500" || cfg.Indicators.Klines.PrimaryTimeframe != "1m" {
-		t.Fatalf("expected model-repaired AI500 1m strategy, got %+v", cfg)
+	if len(cfg.CoinSource.StaticCoins) != 2 || cfg.Indicators.Klines.PrimaryTimeframe != "1m" {
+		t.Fatalf("expected model-repaired static-coin 1m strategy, got %+v", cfg)
 	}
 }
 

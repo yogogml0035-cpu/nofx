@@ -100,7 +100,7 @@ func buildSkillDomainPrimer(lang, skillName string) string {
 				"### 策略配置领域约束",
 				"- 本领域只处理策略模板。",
 				"- strategy_type 选项：ai_trading、grid_trading。",
-				"- 用户提到 AI500、OI Top、OI Low、静态币种/固定币种这类选币来源时，属于 ai_trading。",
+				"- 用户提到静态币种/固定币种这类选币来源时，属于 ai_trading。",
 				"- 策略类型确定后，只能使用当前类型的产品编辑页模板。",
 				"- 策略类型未确定时，只判断类型，不要展示或混合任一分支的具体配置字段。",
 				"- 关键字段：" + strings.Join(fields, "、"),
@@ -110,7 +110,7 @@ func buildSkillDomainPrimer(lang, skillName string) string {
 			"### Strategy Config Domain Guard",
 			"- This domain only handles strategy templates.",
 			"- strategy_type options: ai_trading, grid_trading.",
-			"- AI500, OI Top, OI Low, and static coin-source requests imply ai_trading.",
+			"- Static coin-source requests imply ai_trading.",
 			"- Once strategy_type is known, use only that product editor template.",
 			"- Before strategy_type is known, only determine the type; do not show or mix concrete fields from either branch.",
 			"- Key fields: " + strings.Join(fields, ", "),
@@ -134,9 +134,9 @@ func buildSkillDomainPrimerForSession(lang string, session skillSession) string 
 			return strings.Join([]string{
 				"### AI 策略模板",
 				"- 只使用 ai_trading 模板：strategy_type + ai_config。",
-				"- config_patch 必须使用产品 schema 原值，不要使用展示文案：strategy_type=ai_trading；source_type 只能是 static、ai500、oi_top、oi_low；没有 mixed/混合模式。",
+				"- config_patch 必须使用产品 schema 原值，不要使用展示文案：strategy_type=ai_trading；币源就是静态清单 static_coins（最多 10 个）。",
 				"- 时间周期必须输出为产品枚举字符串，例如 1m、3m、5m、15m、1h；selected_timeframes 必须是字符串数组，例如 [\"1m\",\"5m\",\"15m\"]，不要输出 JSON 字符串。",
-				"- AI500/OI Top/OI Low 选币数量范围 1～10；static_coins 最多 10 个；selected_timeframes 最多 4 个；primary_count 10～30。",
+				"- selected_timeframes 最多 4 个；primary_count 10～30。",
 				"- BTC/ETH 最大杠杆 1～20；山寨币最大杠杆 1～20；min_confidence 50～100；min_risk_reward_ratio 1～10。",
 				"- AI 策略创建方案不要展示或询问非 AI 模板字段：投入金额、每笔固定投入、止损、日亏损限制、最大回撤、网格字段。",
 			}, "\n")
@@ -158,9 +158,9 @@ func buildSkillDomainPrimerForSession(lang string, session skillSession) string 
 		return strings.Join([]string{
 			"### AI Strategy Template",
 			"- Use only ai_trading: strategy_type + ai_config.",
-			"- config_patch must use product schema raw values, not display labels: strategy_type=ai_trading; source_type is only static, ai500, oi_top, or oi_low; no mixed mode.",
+			"- config_patch must use product schema raw values, not display labels: strategy_type=ai_trading; the coin source is the static list static_coins (at most 10 symbols).",
 			"- Timeframes must be product enum strings such as 1m, 3m, 5m, 15m, 1h; selected_timeframes must be a JSON string array such as [\"1m\",\"5m\",\"15m\"], not a JSON-encoded string.",
-			"- AI500/OI source counts 1-10; static_coins at most 10; selected_timeframes at most 4; primary_count 10-30.",
+			"- selected_timeframes at most 4; primary_count 10-30.",
 			"- BTC/ETH leverage 1-20; altcoin leverage 1-20; min_confidence 50-100; min_risk_reward_ratio 1-10.",
 			"- Do not show or ask for non-AI-template fields in AI strategy drafts: investment amount, fixed per-trade amount, stop loss, daily loss limit, max drawdown, or grid fields.",
 		}, "\n")
