@@ -283,7 +283,8 @@ func TestStrategyDomainPrimerKeepsStaticListWithinEditorBounds(t *testing.T) {
 		},
 	})
 	for _, want := range []string{
-		"static_coins 最多 10 个",
+		"static_coins",
+		"最多 10 个",
 		"BTC/ETH 最大杠杆 1～20",
 		"min_confidence 50～100",
 	} {
@@ -1590,7 +1591,7 @@ func TestStrategyCreateOptionsQuestionExplainsCurrentMissingField(t *testing.T) 
 	if !blocked {
 		t.Fatalf("expected options question to be handled")
 	}
-	for _, want := range []string{"静态币种"} {
+	for _, want := range []string{"静态清单", "BTCUSDT"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected source options to include %q, got: %s", want, reply)
 		}
