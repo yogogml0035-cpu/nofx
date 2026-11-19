@@ -5,8 +5,6 @@ export interface Strategy {
   description: string;
   is_active: boolean;
   is_default: boolean;
-  is_public: boolean;           // 是否在策略市场公开
-  config_visible: boolean;      // 配置参数是否公开可见
   config: StrategyConfig;
   created_at: string;
   updated_at: string;
@@ -54,7 +52,6 @@ export interface StrategyConfig {
   prompt_sections?: PromptSectionsConfig;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')
   grid_config?: GridStrategyConfig | null;
-  publish_config?: PublishStrategyConfig;
 }
 
 export interface AIStrategyConfig {
@@ -63,11 +60,6 @@ export interface AIStrategyConfig {
   custom_prompt?: string;
   risk_control: RiskControlConfig;
   prompt_sections?: PromptSectionsConfig;
-}
-
-export interface PublishStrategyConfig {
-  is_public: boolean;
-  config_visible: boolean;
 }
 
 // Grid trading specific configuration

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { ShieldAlert, ArrowLeft, Twitter, Send, Lock } from 'lucide-react'
+import { ShieldAlert, ArrowLeft, Send, Lock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { OFFICIAL_LINKS } from '../../constants/branding'
 
@@ -98,16 +98,7 @@ export function WhitelistFullPage({ onBack }: WhitelistFullPageProps) {
                 RETURN TO LOGIN
               </button>
 
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <a
-                  href={OFFICIAL_LINKS.twitter}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 py-2 border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors text-[10px] uppercase"
-                >
-                  <Twitter className="w-3 h-3" />
-                  Updates
-                </a>
+              <div className="grid grid-cols-1 gap-3 mt-4">
                 <a
                   href={OFFICIAL_LINKS.telegram}
                   target="_blank"

@@ -252,20 +252,6 @@ export const indicator = {
 };
 
 // ============================================================================
-// PUBLISH SETTINGS TRANSLATIONS (8 keys)
-// ============================================================================
-export const publishSettings = {
-  publishToMarket: { zh: '发布到策略市场', en: 'Publish to Market', es: 'Publicar al Mercado' },
-  publishDesc: { zh: '策略将在市场公开展示，其他用户可发现并使用', en: 'Strategy will be publicly visible in the marketplace', es: 'Visible públicamente' },
-  showConfig: { zh: '公开配置参数', en: 'Show Config', es: 'Mostrar Config' },
-  showConfigDesc: { zh: '允许他人查看和复制详细配置', en: 'Allow others to view and clone config details', es: 'Permitir clonación' },
-  private: { zh: '私有', en: 'PRIVATE', es: 'PRIVADO' },
-  public: { zh: '公开', en: 'PUBLIC', es: 'PÚBLICO' },
-  hidden: { zh: '隐藏', en: 'HIDDEN', es: 'OCULTO' },
-  visible: { zh: '可见', en: 'VISIBLE', es: 'VISIBLE' },
-};
-
-// ============================================================================
 // CHART TABS TRANSLATIONS (4 keys)
 // ============================================================================
 export const chartTabs = {
@@ -294,7 +280,6 @@ export const zhStrategy = {
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(promptSections).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(indicator).map(([k, v]) => [k, v.zh])),
-  ...Object.fromEntries(Object.entries(publishSettings).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(chartTabs).map(([k, v]) => [k, v.zh])),
 };
 
@@ -305,7 +290,6 @@ export const enStrategy = {
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(promptSections).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(indicator).map(([k, v]) => [k, v.en])),
-  ...Object.fromEntries(Object.entries(publishSettings).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(chartTabs).map(([k, v]) => [k, v.en])),
 };
 
@@ -316,6 +300,5 @@ export const esStrategy = {
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(promptSections).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(indicator).map(([k, v]) => [k, v.es])),
-  ...Object.fromEntries(Object.entries(publishSettings).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(chartTabs).map(([k, v]) => [k, v.es])),
 };
