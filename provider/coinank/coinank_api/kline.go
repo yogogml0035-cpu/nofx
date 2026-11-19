@@ -18,6 +18,7 @@ const MainApiUrl = "https://api.coinank.com"
 // Kline open free kline from coinank
 func Kline(ctx context.Context, symbol string, exchange coinank_enum.Exchange, ts int64, side coinank_enum.Side, size int,
 	interval coinank_enum.Interval) ([]coinank.KlineResult, error) {
+	symbol = normalizePairSymbol(symbol, exchange)
 	paramsMap := make(map[string]string, 6)
 	paramsMap["symbol"] = symbol
 	paramsMap["exchange"] = string(exchange)

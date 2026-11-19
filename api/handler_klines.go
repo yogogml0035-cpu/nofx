@@ -65,8 +65,7 @@ func (s *Server) handleKlines(c *gin.Context) {
 			return
 		}
 	default:
-		// Crypto exchanges via CoinAnk
-		symbol = market.Normalize(symbol)
+		// Crypto exchanges via CoinAnk（各交易所合约符号形态由 coinank_api.Kline 统一归一）
 		klines, err = s.getKlinesFromCoinank(symbol, interval, exchange, limit)
 		if err != nil {
 			SafeInternalError(c, "Get klines from CoinAnk", err)
@@ -153,32 +152,25 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 		return nil, fmt.Errorf("unsupported interval for coinank: %s", interval)
 	}
 
-	// Convert symbol format for different exchanges
-	// OKX uses "BTC-USDT-SWAP" format instead of "BTCUSDT"
-	apiSymbol := symbol
-	if coinankExchange == coinank_enum.Okex {
-		// Convert BTCUSDT -> BTC-USDT-SWAP
-		if strings.HasSuffix(symbol, "USDT") {
-			base := strings.TrimSuffix(symbol, "USDT")
-			apiSymbol = fmt.Sprintf("%s-USDT-SWAP", base)
-		}
-	}
-
 	// Call coinank free/open API (no authentication required)
 	ctx := context.Background()
 	ts := time.Now().UnixMilli()
 	// Use "To" side to search backward from current time (get historical klines)
-	coinankKlines, err := coinank_api.Kline(ctx, apiSymbol, coinankExchange, ts, coinank_enum.To, limit, coinankInterval)
-	if err != nil {
-		// Free API doesn't support all exchanges (e.g., OKX, Bitget)
+	coinankKlines, err := coinank_api.Kline(ctx, symbol, coinankExchange, ts, coinank_enum.To, limit, coinankInterval)
+	if err != nil || len(coinankKlines) == 0 {
+		// Free API doesn't support all exchanges/coins (empty data falls back too)
 		// Fallback to Binance data as reference
 		if coinankExchange != coinank_enum.Binance {
-			logger.Warnf("⚠️ CoinAnk free API doesn't support %s, falling back to Binance data", coinankExchange)
+			if err != nil {
+				logger.Warnf("⚠️ CoinAnk free API doesn't support %s (%v), falling back to Binance data", coinankExchange, err)
+			} else {
+				logger.Warnf("⚠️ CoinAnk %s data empty for %s, falling back to Binance data", coinankExchange, symbol)
+			}
 			coinankKlines, err = coinank_api.Kline(ctx, symbol, coinank_enum.Binance, ts, coinank_enum.To, limit, coinankInterval)
 			if err != nil {
 				return nil, fmt.Errorf("coinank API error (fallback): %w", err)
 			}
-		} else {
+		} else if err != nil {
 			return nil, fmt.Errorf("coinank API error: %w", err)
 		}
 	}
