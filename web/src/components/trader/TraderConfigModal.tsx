@@ -335,10 +335,9 @@ export function TraderConfigModal({
                     return (
                       <div className="grid grid-cols-2 gap-2 text-xs text-[#848E9C]">
                         <div>
-                          {t('coinSource', language)}: {aiConfig.coin_source.source_type === 'static' ? (language === 'zh' ? '自选标的' : 'Selected symbols') :
-                            aiConfig.coin_source.source_type === 'ai500' ? 'AI500' :
-                            aiConfig.coin_source.source_type === 'oi_top' ? 'OI Top' :
-                            aiConfig.coin_source.source_type === 'oi_low' ? 'OI Low' : '-'}
+                          {t('coinSource', language)}: {(aiConfig.coin_source.static_coins?.length || 0) > 0
+                            ? (language === 'zh' ? `自选 ${aiConfig.coin_source.static_coins!.length} 个标的` : `${aiConfig.coin_source.static_coins!.length} selected symbols`)
+                            : (language === 'zh' ? '自选标的' : 'Selected symbols')}
                         </div>
                         <div>
                           {t('marginLimit', language)}: {((aiConfig.risk_control?.max_margin_usage || 0.9) * 100).toFixed(0)}%

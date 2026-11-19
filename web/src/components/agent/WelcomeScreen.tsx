@@ -2,7 +2,6 @@ import { motion } from 'framer-motion'
 import {
   Zap,
   Lightbulb,
-  Search,
   Bot,
 } from 'lucide-react'
 
@@ -23,13 +22,11 @@ export function WelcomeScreen({ language, onSend }: WelcomeScreenProps) {
     ? [
         { icon: <Bot size={18} />, title: '创建加密 Agent', subtitle: '强势标的 + 严格风控', cmd: '创建一个加密货币趋势交易 Agent，默认选择强势标的，严格风控' },
         { icon: <Zap size={18} />, title: '一句话建策略', subtitle: '从想法到 Agent', cmd: '我想做 BTC 强趋势突破，帮我生成策略和Agent' },
-        { icon: <Search size={18} />, title: 'AI500 精选', subtitle: '查看 AI 评分精选币种', cmd: '展示 AI500 精选币种' },
         { icon: <Lightbulb size={18} />, title: '行情策略建议', subtitle: 'BTC/ETH/主流币', cmd: '当前 BTC、ETH 行情适合什么策略？' },
       ]
     : [
         { icon: <Bot size={18} />, title: 'Create Crypto Agent', subtitle: 'Strong symbols + strict risk', cmd: 'Create a crypto trend-following agent with strong symbols and strict risk control' },
         { icon: <Zap size={18} />, title: 'One-line strategy', subtitle: 'Idea to agent', cmd: 'I want a BTC breakout strategy; build the strategy and agent' },
-        { icon: <Search size={18} />, title: 'AI500 Picks', subtitle: 'AI-scored coin selection', cmd: 'Show me the AI500 picks' },
         { icon: <Lightbulb size={18} />, title: 'Market strategy', subtitle: 'BTC/ETH/majors', cmd: 'What strategy fits BTC and ETH now?' },
       ]
 
