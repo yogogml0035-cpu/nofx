@@ -154,3 +154,31 @@ func TestWriteMarketEnvTruncatesNews(t *testing.T) {
 		t.Fatalf("output exceeds soft limit: %d runes", len([]rune(out)))
 	}
 }
+
+// 决策 prompt 集成：勾选策略 BuildUserPrompt 含注入段；未勾选不含
+func TestBuildUserPromptIncludesMarketEnvWhenEnabled(t *testing.T) {
+	cfg := enConfig()
+	engine := NewStrategyEngine(&cfg)
+	snap := fullSnapshot()
+	snap.NewsTitles = []string{"BTC ETF inflow hits record"}
+	ctx := &Context{
+		MarketEnv:      snap,
+		CandidateCoins: []CandidateCoin{{Symbol: "BTCUSDT", Sources: []string{"static"}}},
+	}
+
+	out := engine.BuildUserPrompt(ctx)
+	if !strings.Contains(out, "## Market Environment Context") {
+		t.Fatalf("prompt must contain market env section")
+	}
+	if !strings.Contains(out, "BTC ETF inflow hits record") {
+		t.Fatalf("prompt must contain market env news title")
+	}
+
+	// 未勾选：同快照也不注入
+	cfg.MarketContext = store.MarketContextConfig{}
+	engine2 := NewStrategyEngine(&cfg)
+	out2 := engine2.BuildUserPrompt(ctx)
+	if strings.Contains(out2, "## Market Environment Context") {
+		t.Fatalf("prompt must NOT contain market env section when disabled")
+	}
+}
