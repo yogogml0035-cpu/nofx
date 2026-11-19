@@ -498,17 +498,15 @@ type StrategyStore struct {
 
 // Strategy strategy configuration
 type Strategy struct {
-	ID            string    `gorm:"primaryKey" json:"id"`
-	UserID        string    `gorm:"column:user_id;not null;default:'';index" json:"user_id"`
-	Name          string    `gorm:"not null" json:"name"`
-	Description   string    `gorm:"default:''" json:"description"`
-	IsActive      bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
-	IsDefault     bool      `gorm:"column:is_default;default:false" json:"is_default"`
-	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`    // whether visible in strategy market
-	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"` // whether config details are visible
-	Config        string    `gorm:"not null;default:'{}'" json:"config"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID          string    `gorm:"primaryKey" json:"id"`
+	UserID      string    `gorm:"column:user_id;not null;default:'';index" json:"user_id"`
+	Name        string    `gorm:"not null" json:"name"`
+	Description string    `gorm:"default:''" json:"description"`
+	IsActive    bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
+	IsDefault   bool      `gorm:"column:is_default;default:false" json:"is_default"`
+	Config      string    `gorm:"not null;default:'{}'" json:"config"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (Strategy) TableName() string { return "strategies" }
@@ -531,11 +529,6 @@ type StrategyConfig struct {
 
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
-
-	// Publish settings are shared by AI and grid strategies. The database still
-	// stores the authoritative booleans on Strategy, but config JSON may carry
-	// this object for agent/frontend schema consistency.
-	PublishConfig *PublishStrategyConfig `json:"publish_config,omitempty"`
 }
 
 // AIStrategyConfig contains fields only used by AI trading strategies.
@@ -547,14 +540,8 @@ type AIStrategyConfig struct {
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
 }
 
-// PublishStrategyConfig contains settings shared by all strategy types.
-type PublishStrategyConfig struct {
-	IsPublic      bool `json:"is_public"`
-	ConfigVisible bool `json:"config_visible"`
-}
-
 // MarshalJSON writes the product-facing strategy schema:
-// strategy_type + grid_config or ai_config + shared publish_config.
+// strategy_type + grid_config or ai_config.
 func (c StrategyConfig) MarshalJSON() ([]byte, error) {
 	strategyType := strings.TrimSpace(c.StrategyType)
 	if strategyType == "" {
@@ -562,15 +549,13 @@ func (c StrategyConfig) MarshalJSON() ([]byte, error) {
 	}
 
 	out := struct {
-		StrategyType  string                 `json:"strategy_type"`
-		Language      string                 `json:"language,omitempty"`
-		AIConfig      *AIStrategyConfig      `json:"ai_config,omitempty"`
-		GridConfig    *GridStrategyConfig    `json:"grid_config,omitempty"`
-		PublishConfig *PublishStrategyConfig `json:"publish_config,omitempty"`
+		StrategyType string              `json:"strategy_type"`
+		Language     string              `json:"language,omitempty"`
+		AIConfig     *AIStrategyConfig   `json:"ai_config,omitempty"`
+		GridConfig   *GridStrategyConfig `json:"grid_config,omitempty"`
 	}{
-		StrategyType:  strategyType,
-		Language:      c.Language,
-		PublishConfig: c.PublishConfig,
+		StrategyType: strategyType,
+		Language:     c.Language,
 	}
 
 	if strategyType == "grid_trading" {
@@ -592,16 +577,15 @@ func (c StrategyConfig) MarshalJSON() ([]byte, error) {
 // top-level AI fields are normalized into the Go compatibility fields.
 func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
 	type rawStrategyConfig struct {
-		StrategyType  string                 `json:"strategy_type"`
-		Language      string                 `json:"language"`
-		AIConfig      *AIStrategyConfig      `json:"ai_config"`
-		GridConfig    *GridStrategyConfig    `json:"grid_config"`
-		PublishConfig *PublishStrategyConfig `json:"publish_config"`
+		StrategyType string              `json:"strategy_type"`
+		Language     string              `json:"language"`
+		AIConfig     *AIStrategyConfig   `json:"ai_config"`
+		GridConfig   *GridStrategyConfig `json:"grid_config"`
 
 		CoinSource     *CoinSourceConfig     `json:"coin_source"`
 		Indicators     *IndicatorConfig      `json:"indicators"`
 		CustomPrompt   *string               `json:"custom_prompt"`
-		RiskControl    *RiskControlConfig    `json:"risk_control"`
+		RiskControl    *RiskControlConfig     `json:"risk_control"`
 		PromptSections *PromptSectionsConfig `json:"prompt_sections"`
 	}
 
@@ -613,7 +597,6 @@ func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
 	c.StrategyType = raw.StrategyType
 	c.Language = raw.Language
 	c.GridConfig = raw.GridConfig
-	c.PublishConfig = raw.PublishConfig
 
 	if raw.AIConfig != nil {
 		c.CoinSource = raw.AIConfig.CoinSource
@@ -956,12 +939,10 @@ func (s *StrategyStore) Update(strategy *Strategy) error {
 	return s.db.Model(&Strategy{}).
 		Where("id = ? AND user_id = ?", strategy.ID, strategy.UserID).
 		Updates(map[string]interface{}{
-			"name":           strategy.Name,
-			"description":    strategy.Description,
-			"config":         strategy.Config,
-			"is_public":      strategy.IsPublic,
-			"config_visible": strategy.ConfigVisible,
-			"updated_at":     time.Now().UTC(),
+			"name":        strategy.Name,
+			"description": strategy.Description,
+			"config":      strategy.Config,
+			"updated_at":  time.Now().UTC(),
 		}).Error
 }
 
@@ -994,18 +975,6 @@ func (s *StrategyStore) List(userID string) ([]*Strategy, error) {
 	var strategies []*Strategy
 	err := s.db.Where("user_id = ? OR is_default = ?", userID, true).
 		Order("is_default DESC, created_at DESC").
-		Find(&strategies).Error
-	if err != nil {
-		return nil, err
-	}
-	return strategies, nil
-}
-
-// ListPublic get all public strategies for the strategy market
-func (s *StrategyStore) ListPublic() ([]*Strategy, error) {
-	var strategies []*Strategy
-	err := s.db.Where("is_public = ?", true).
-		Order("created_at DESC").
 		Find(&strategies).Error
 	if err != nil {
 		return nil, err

@@ -532,8 +532,8 @@ func TestStrategyUpdateUsesExplicitTargetOverCurrentReference(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	for _, strategy := range []*store.Strategy{
-		{ID: "strategy-short", UserID: "default", Name: "BTC趋势做空", ConfigVisible: true, Config: string(rawCfg)},
-		{ID: "strategy-long", UserID: "default", Name: "AI500 做多策略", ConfigVisible: true, Config: string(rawCfg)},
+		{ID: "strategy-short", UserID: "default", Name: "BTC趋势做空", Config: string(rawCfg)},
+		{ID: "strategy-long", UserID: "default", Name: "趋势做多策略", Config: string(rawCfg)},
 	} {
 		if err := st.Strategy().Create(strategy); err != nil {
 			t.Fatalf("seed strategy %s: %v", strategy.ID, err)
@@ -549,7 +549,7 @@ func TestStrategyUpdateUsesExplicitTargetOverCurrentReference(t *testing.T) {
 			"use_ai500":   true,
 			"ai500_limit": 5,
 		},
-		"custom_prompt": "AI500 强做多策略：只寻找强趋势多头机会。",
+		"custom_prompt": "强趋势做多策略：只寻找强趋势多头机会。",
 	}
 	rawPatch, _ := json.Marshal(patch)
 	session := skillSession{
@@ -563,7 +563,7 @@ func TestStrategyUpdateUsesExplicitTargetOverCurrentReference(t *testing.T) {
 		"default",
 		userID,
 		"zh",
-		"我想基于AI500 做多策略来调整成更强的做多逻辑",
+		"我想基于趋势做多策略来调整成更强的做多逻辑",
 		session,
 		"strategy_management",
 		"update_config",
@@ -584,10 +584,10 @@ func TestStrategyUpdateUsesExplicitTargetOverCurrentReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load long strategy: %v", err)
 	}
-	if strings.Contains(shortStrategy.Config, "强做多") {
+	if strings.Contains(shortStrategy.Config, "强趋势做多") {
 		t.Fatalf("current reference strategy was incorrectly updated: %s", shortStrategy.Config)
 	}
-	if !strings.Contains(longStrategy.Config, "强做多") {
+	if !strings.Contains(longStrategy.Config, "强趋势做多") {
 		t.Fatalf("explicitly named strategy was not updated: %s", longStrategy.Config)
 	}
 }
@@ -607,11 +607,10 @@ func TestStrategyUpdateDoesNotInferTargetFromCurrentReference(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	if err := st.Strategy().Create(&store.Strategy{
-		ID:            "strategy-short",
-		UserID:        "default",
-		Name:          "BTC趋势做空",
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		ID:      "strategy-short",
+		UserID:  "default",
+		Name:    "BTC趋势做空",
+		Config:  string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -667,11 +666,10 @@ func TestBulkStrategyDeleteRequiresConfirmationBeforeDeleting(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	if err := st.Strategy().Create(&store.Strategy{
-		ID:            "strategy-custom",
-		UserID:        "default",
-		Name:          "自定义策略",
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		ID:      "strategy-custom",
+		UserID:  "default",
+		Name:    "自定义策略",
+		Config:  string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -743,13 +741,11 @@ func TestBuildTraderCreateMissingPromptListsAllMissingSlots(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	if err := st.Strategy().Create(&store.Strategy{
-		ID:            "strategy-ai500",
-		UserID:        "default",
-		Name:          "AI500稳重策略",
-		Description:   "test",
-		IsPublic:      false,
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		ID:          "strategy-ai500",
+		UserID:      "default",
+		Name:        "稳重策略",
+		Description: "test",
+		Config:      string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}

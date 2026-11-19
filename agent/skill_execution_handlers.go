@@ -577,16 +577,6 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "描述"
 		}
 		return "description"
-	case "is_public":
-		if lang == "zh" {
-			return "发布到市场"
-		}
-		return "publish to market"
-	case "config_visible":
-		if lang == "zh" {
-			return "配置可见"
-		}
-		return "config visible"
 	case "max_positions":
 		if lang == "zh" {
 			return "最大持仓"
@@ -890,7 +880,7 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		ensureGridConfig().DailyLossLimitPct = parsed
 	case "use_maker_only":
 		ensureGridConfig().UseMakerOnly = value == "true"
-	case "description", "is_public", "config_visible":
+	case "description":
 		return nil
 	case "max_positions":
 		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
@@ -1290,10 +1280,6 @@ func strategyFieldKeywords(field string) []string {
 		return []string{"maker only", "只挂maker", "仅maker"}
 	case "description":
 		return []string{"描述", "description"}
-	case "is_public":
-		return []string{"发布到市场", "公开", "publish"}
-	case "config_visible":
-		return []string{"配置可见", "显示配置", "config visible"}
 	case "nofxos_api_key":
 		return []string{"nofxos api key", "nofxos key", "api key"}
 	case "role_definition":
@@ -2665,13 +2651,11 @@ func (a *Agent) persistStrategyConfigUpdate(storeUserID string, userID int64, la
 		return "I ran into a problem while preparing that strategy config: " + err.Error()
 	}
 	raw, _ := json.Marshal(map[string]any{
-		"action":         "update",
-		"strategy_id":    strategy.ID,
-		"name":           strategy.Name,
-		"description":    strategy.Description,
-		"is_public":      strategy.IsPublic,
-		"config_visible": strategy.ConfigVisible,
-		"config":         json.RawMessage(rawConfig),
+		"action":      "update",
+		"strategy_id": strategy.ID,
+		"name":        strategy.Name,
+		"description": strategy.Description,
+		"config":      json.RawMessage(rawConfig),
 	})
 	resp := a.toolManageStrategy(storeUserID, string(raw))
 	a.clearSkillSession(userID)

@@ -1,5 +1,3 @@
-<p align="center"><strong>Backed by <a href="https://vergex.trade">vergex.trade</a></strong></p>
-
 <h1 align="center">NOFX</h1>
 
 <p align="center">
@@ -281,10 +279,7 @@ NOFX tracks meaningful contributions and intends to reward contributors as the e
 
 |           |                                                       |
 | :-------- | :---------------------------------------------------- |
-| Website   | [vergex.trade](https://vergex.trade)                  |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore)  |
 | Telegram  | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter   | [@vergex_ai](https://x.com/vergex_ai)                 |
 
 > **Risk warning**: Automated trading involves substantial risk. Use appropriate position sizing, understand each exchange venue, and do not trade funds you cannot afford to lose.
 

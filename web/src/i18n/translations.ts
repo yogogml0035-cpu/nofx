@@ -974,34 +974,6 @@ export const translations = {
     // Data Page
     dataCenter: 'Data Center',
 
-    // Strategy Market Page
-    strategyMarket: {
-      title: 'STRATEGY MARKET',
-      subtitle: 'GLOBAL STRATEGY DATABASE',
-      description: 'Discover, analyze, and clone high-performance trading algorithms',
-      search: 'SEARCH PARAMETERS...',
-      all: 'ALL PROTOCOLS',
-      popular: 'TRENDING',
-      recent: 'LATEST',
-      myStrategies: 'MY LIBRARY',
-      noStrategies: 'NO SIGNAL',
-      noStrategiesDesc: 'No strategic signals detected in this frequency',
-      author: 'OPERATOR',
-      createdAt: 'TIMESTAMP',
-      viewConfig: 'DECRYPT CONFIG',
-      hideConfig: 'ENCRYPT',
-      copyConfig: 'CLONE CONFIG',
-      copied: 'COPIED',
-      configHidden: 'ENCRYPTED',
-      configHiddenDesc: 'Configuration parameters encrypted',
-      indicators: 'INDICATORS',
-      maxPositions: 'POS_LIMIT',
-      maxLeverage: 'LEV_MAX',
-      shareYours: 'UPLOAD_STRATEGY',
-      makePublic: 'PUBLISH',
-      loading: 'INITIALIZING...',
-    },
-
     // Strategy Studio Page
     strategyStudio: {
       title: 'Strategy Studio',
@@ -1043,7 +1015,6 @@ export const translations = {
       duration: 'Duration',
       noModel: 'Please configure AI model first',
       testNote: 'Test with real AI, no trading',
-      publishSettings: 'Publish',
       newStrategyName: 'New Strategy',
       strategyCopy: 'Strategy Copy',
       strategyDeleted: 'Strategy deleted',
@@ -1062,7 +1033,6 @@ export const translations = {
       export: 'Export',
       duplicate: 'Duplicate',
       deleteTooltip: 'Delete',
-      public: 'Public',
       addDescription: 'Add strategy description...',
       unsaved: 'Unsaved',
       discardChanges: 'Discard',
@@ -2239,34 +2209,6 @@ export const translations = {
     // Data Page
     dataCenter: '数据中心',
 
-    // Strategy Market Page
-    strategyMarket: {
-      title: '策略市场',
-      subtitle: 'STRATEGY MARKETPLACE',
-      description: '发现、学习并复用社区精英交易员的策略配置',
-      search: '搜索参数...',
-      all: '全部协议',
-      popular: '热门配置',
-      recent: '最新提交',
-      myStrategies: '我的库',
-      noStrategies: '无信号',
-      noStrategiesDesc: '当前频段未检测到策略信号',
-      author: 'OPERATOR',
-      createdAt: 'TIMESTAMP',
-      viewConfig: 'DECRYPT CONFIG',
-      hideConfig: 'ENCRYPT',
-      copyConfig: 'CLONE CONFIG',
-      copied: 'COPIED',
-      configHidden: 'ENCRYPTED',
-      configHiddenDesc: '配置参数已加密',
-      indicators: 'INDICATORS',
-      maxPositions: 'POS_LIMIT',
-      maxLeverage: 'LEV_MAX',
-      shareYours: 'UPLOAD_STRATEGY',
-      makePublic: 'PUBLISH',
-      loading: 'INITIALIZING...',
-    },
-
     // Strategy Studio Page
     strategyStudio: {
       title: '策略工作室',
@@ -2308,7 +2250,6 @@ export const translations = {
       duration: '耗时',
       noModel: '请先配置 AI 模型',
       testNote: '使用真实 AI 模型测试，不执行交易',
-      publishSettings: '发布设置',
       newStrategyName: '新策略',
       strategyCopy: '策略副本',
       strategyDeleted: '策略已删除',
@@ -2327,7 +2268,6 @@ export const translations = {
       export: '导出',
       duplicate: '复制',
       deleteTooltip: '删除',
-      public: '公开',
       addDescription: '添加策略简介...',
       unsaved: '未保存',
       discardChanges: '撤销',
@@ -3312,34 +3252,6 @@ export const translations = {
     // Data Page
     dataCenter: 'Data Center',
 
-    // Strategy Market Page
-    strategyMarket: {
-      title: 'PASAR STRATEGI',
-      subtitle: 'DATABASE STRATEGI GLOBAL',
-      description: 'Temukan, analisis, dan kloning algoritma trading berperforma tinggi',
-      search: 'CARI PARAMETER...',
-      all: 'SEMUA PROTOKOL',
-      popular: 'TREN',
-      recent: 'TERBARU',
-      myStrategies: 'PERPUSTAKAAN SAYA',
-      noStrategies: 'TIDAK ADA SINYAL',
-      noStrategiesDesc: 'Tidak ada sinyal strategis terdeteksi pada frekuensi ini',
-      author: 'OPERATOR',
-      createdAt: 'TIMESTAMP',
-      viewConfig: 'DEKRIPSI CONFIG',
-      hideConfig: 'ENKRIPSI',
-      copyConfig: 'KLON CONFIG',
-      copied: 'DISALIN',
-      configHidden: 'TERENKRIPSI',
-      configHiddenDesc: 'Parameter konfigurasi terenkripsi',
-      indicators: 'INDIKATOR',
-      maxPositions: 'BATAS_POS',
-      maxLeverage: 'LEV_MAKS',
-      shareYours: 'UNGGAH_STRATEGI',
-      makePublic: 'PUBLIKASI',
-      loading: 'MENGINISIALISASI...',
-    },
-
     // Strategy Studio Page
     strategyStudio: {
       title: 'Studio Strategi',
@@ -3381,7 +3293,6 @@ export const translations = {
       duration: 'Durasi',
       noModel: 'Silakan konfigurasi model AI terlebih dahulu',
       testNote: 'Uji dengan AI nyata, tanpa trading',
-      publishSettings: 'Publikasi',
       newStrategyName: 'Strategi Baru',
       strategyCopy: 'Salinan Strategi',
       strategyDeleted: 'Strategi dihapus',
@@ -3400,7 +3311,6 @@ export const translations = {
       export: 'Ekspor',
       duplicate: 'Duplikat',
       deleteTooltip: 'Hapus',
-      public: 'Publik',
       addDescription: 'Tambah deskripsi strategi...',
       unsaved: 'Belum Disimpan',
       discardChanges: 'Buang',

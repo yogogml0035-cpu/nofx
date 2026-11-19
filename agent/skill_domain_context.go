@@ -133,7 +133,7 @@ func buildSkillDomainPrimerForSession(lang string, session skillSession) string 
 		case "ai_trading":
 			return strings.Join([]string{
 				"### AI 策略模板",
-				"- 只使用 ai_trading 模板：strategy_type + ai_config + publish_config。",
+				"- 只使用 ai_trading 模板：strategy_type + ai_config。",
 				"- config_patch 必须使用产品 schema 原值，不要使用展示文案：strategy_type=ai_trading；source_type 只能是 static、ai500、oi_top、oi_low；没有 mixed/混合模式。",
 				"- 时间周期必须输出为产品枚举字符串，例如 1m、3m、5m、15m、1h；selected_timeframes 必须是字符串数组，例如 [\"1m\",\"5m\",\"15m\"]，不要输出 JSON 字符串。",
 				"- AI500/OI Top/OI Low 选币数量范围 1～10；static_coins 最多 10 个；selected_timeframes 最多 4 个；primary_count 10～30。",
@@ -143,7 +143,7 @@ func buildSkillDomainPrimerForSession(lang string, session skillSession) string 
 		case "grid_trading":
 			return strings.Join([]string{
 				"### 网格策略模板",
-				"- 只使用 grid_trading 模板：strategy_type + grid_config + publish_config；config_patch 必须使用产品 schema 原值，strategy_type=grid_trading。",
+				"- 只使用 grid_trading 模板：strategy_type + grid_config；config_patch 必须使用产品 schema 原值，strategy_type=grid_trading。",
 				"- 交易对选项：BTCUSDT、ETHUSDT、SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT。",
 				"- grid_count 5～50；total_investment 最小 100；leverage 1～5；atr_multiplier 1～5。",
 				"- total_investment 是用户实际投入/保证金预算，不是杠杆后的名义仓位；最大名义仓位约等于 total_investment × leverage。用户说“投入/总投入/本金/保证金”时默认映射到 total_investment。",
@@ -157,7 +157,7 @@ func buildSkillDomainPrimerForSession(lang string, session skillSession) string 
 	case "ai_trading":
 		return strings.Join([]string{
 			"### AI Strategy Template",
-			"- Use only ai_trading: strategy_type + ai_config + publish_config.",
+			"- Use only ai_trading: strategy_type + ai_config.",
 			"- config_patch must use product schema raw values, not display labels: strategy_type=ai_trading; source_type is only static, ai500, oi_top, or oi_low; no mixed mode.",
 			"- Timeframes must be product enum strings such as 1m, 3m, 5m, 15m, 1h; selected_timeframes must be a JSON string array such as [\"1m\",\"5m\",\"15m\"], not a JSON-encoded string.",
 			"- AI500/OI source counts 1-10; static_coins at most 10; selected_timeframes at most 4; primary_count 10-30.",
@@ -167,7 +167,7 @@ func buildSkillDomainPrimerForSession(lang string, session skillSession) string 
 	case "grid_trading":
 		return strings.Join([]string{
 			"### Grid Strategy Template",
-			"- Use only grid_trading: strategy_type + grid_config + publish_config; config_patch must use product schema raw values with strategy_type=grid_trading.",
+			"- Use only grid_trading: strategy_type + grid_config; config_patch must use product schema raw values with strategy_type=grid_trading.",
 			"- Symbol options: BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT.",
 			"- grid_count 5-50; total_investment >=100; leverage 1-5; atr_multiplier 1-5.",
 			"- total_investment is the user's actual capital/margin budget, not leveraged notional exposure; maximum notional exposure is approximately total_investment * leverage. When the user says investment, capital, amount to put in, or margin, map it to total_investment by default.",

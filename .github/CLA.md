@@ -48,5 +48,3 @@ This Agreement is governed by international copyright treaties including:
 ---
 
 By signing this CLA, you acknowledge that you have read and agree to these terms.
-
-**Contact**: contact@vergex.trade

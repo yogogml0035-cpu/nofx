@@ -4,8 +4,6 @@ func manualStrategyEditableFieldKeys() []string {
 	return []string{
 		"name",
 		"description",
-		"is_public",
-		"config_visible",
 		"strategy_type",
 		"symbol",
 		"grid_count",
@@ -75,8 +73,6 @@ func manualStrategyEditableFieldKeysForType(strategyType string) []string {
 	common := []string{
 		"name",
 		"description",
-		"is_public",
-		"config_visible",
 		"strategy_type",
 	}
 	switch strategyType {
@@ -156,8 +152,6 @@ func agentStrategyUpdatableFieldKeys() []string {
 	return []string{
 		"name",
 		"description",
-		"is_public",
-		"config_visible",
 		"strategy_type",
 		"symbol",
 		"grid_count",

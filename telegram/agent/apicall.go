@@ -64,7 +64,6 @@ var botAPIAllowlist = []allowedRoute{
 	{"GET", regexp.MustCompile(`^/api/strategies(/[^/]+)?$`)},
 	{"GET", regexp.MustCompile(`^/api/strategies/active$`)},
 	{"GET", regexp.MustCompile(`^/api/strategies/default-config$`)},
-	{"GET", regexp.MustCompile(`^/api/strategies/public$`)},
 	{"GET", regexp.MustCompile(`^/api/my-traders$`)},
 	{"GET", regexp.MustCompile(`^/api/traders$`)},
 	{"GET", regexp.MustCompile(`^/api/traders/[^/]+/config$`)},

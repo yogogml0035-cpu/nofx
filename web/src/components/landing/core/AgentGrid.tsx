@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { TrendingUp, Layers, Zap, Hexagon, Crosshair } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { ROUTES } from '../../../router/paths'
 import { useAuth } from '../../../contexts/AuthContext'
 
 const agents = [
@@ -48,9 +49,9 @@ export default function AgentGrid() {
 
   const handleInitialize = () => {
     if (user) {
-      navigate('/strategy-market')
+      navigate(ROUTES.traders)
     } else {
-      navigate('/login')
+      navigate(ROUTES.login)
     }
   }
 

@@ -478,7 +478,7 @@ Rules:
 - If the message is only a question, explanation request, greeting, or unrelated text, answer it without inventing config_patch.
 - Do not silently fill missing fields when the user has not authorized it. But if the user explicitly says things like "你帮我定 / 你推荐 / 按稳健高频设计 / 其他你定", that is authorization for the Agent to design the remaining fields. In that case you must produce a recommended config_patch based on the current strategy template and field limits, and explain which values came from the user versus which values are Agent recommendations.
 - The product editor template is the source of truth. Use only fields from the selected product template.
-- If the user switches strategy type, set extracted_data.strategy_type to the new type and discard fields from the previous type. Keep only shared fields such as name/description/publish settings.
+- If the user switches strategy type, set extracted_data.strategy_type to the new type and discard fields from the previous type. Keep only shared fields such as name/description.
 - In NOFXi product schema, AI500/OI Top/OI Low/static coin-source requests are ai_trading, not grid_trading.
 - Strategy creation is chat-executable. Do not tell the user to click a web/app button, open a page, or manually create it elsewhere.
 - Do not claim the strategy was created and do not promise future execution ("马上创建", "正在创建", "稍后通知"). This step only repairs state or asks for missing information.
@@ -902,7 +902,7 @@ func activeSessionSpecificRules(session skillSession) string {
 	switch session.Action {
 	case "create", "update_config":
 		return strings.Join([]string{
-			"- For strategy_management:create/update_config, the selected product editor template is the only schema. Write values only through extracted_data.config_patch, using the current type branch only: ai_trading => strategy_type + ai_config + publish_config; grid_trading => strategy_type + grid_config + publish_config.",
+			"- For strategy_management:create/update_config, the selected product editor template is the only schema. Write values only through extracted_data.config_patch, using the current type branch only: ai_trading => strategy_type + ai_config; grid_trading => strategy_type + grid_config.",
 			"- For strategy_management:create/update_config, config_patch values must be product schema raw values, not user-facing labels. Examples: source_type=\"ai500\" not \"AI500\"; strategy_type=\"ai_trading\" not \"AI 策略\"; selected_timeframes=[\"1m\",\"5m\",\"15m\"] not a JSON string.",
 			"- For strategy_management:create, AI500/OI Top/OI Low/static coin-source requests imply strategy_type=\"ai_trading\". Do not leave strategy type ambiguous in that case.",
 			"- For strategy_management:create/update_config, judge the user's natural-language intent. Explicit values, corrections, constraints, preferences, or requests to recommend/design must become config_patch for every determinable current-template field; pure questions/greetings/acknowledgements must not invent config_patch.",
@@ -1136,10 +1136,6 @@ func strategyProductDefaultTemplateResource(lang, strategyType string) map[strin
 	cfg := store.GetDefaultStrategyConfig(defaultIfEmpty(lang, "zh"))
 	cfg.StrategyType = strings.TrimSpace(strategyType)
 	cfg.ClampLimits()
-	publish := map[string]any{
-		"is_public":      false,
-		"config_visible": true,
-	}
 	switch cfg.StrategyType {
 	case "grid_trading":
 		grid := cfg.GridConfig
@@ -1150,7 +1146,6 @@ func strategyProductDefaultTemplateResource(lang, strategyType string) map[strin
 		return map[string]any{
 			"strategy_type":   "grid_trading",
 			"grid_config":     grid,
-			"publish_config":  publish,
 			"required_fields": strategyCreateMissingGridFields(skillSession{}),
 		}
 	default:
@@ -1192,7 +1187,6 @@ func strategyProductDefaultTemplateResource(lang, strategyType string) map[strin
 				},
 				"custom_prompt": cfg.CustomPrompt,
 			},
-			"publish_config": publish,
 			"non_fields": []string{
 				"investment_amount",
 				"fixed_position_size",
@@ -1390,7 +1384,7 @@ func resetActiveStrategyCreateFieldsForType(s *ActiveSkillSession, strategyType 
 		s.CollectedFields = map[string]any{}
 	}
 	keep := map[string]any{}
-	for _, key := range []string{"name", "description", "is_public", "config_visible", "lang"} {
+	for _, key := range []string{"name", "description", "lang"} {
 		if value, ok := s.CollectedFields[key]; ok {
 			keep[key] = value
 		}
@@ -1443,9 +1437,6 @@ func sanitizeStrategyCreateConfigPatchForType(value any, strategyType string) ma
 	}
 	out := map[string]any{
 		"strategy_type": strategyType,
-	}
-	if publish := mapFromAny(patch["publish_config"]); len(publish) > 0 {
-		out["publish_config"] = publish
 	}
 	switch strategyType {
 	case "grid_trading":
