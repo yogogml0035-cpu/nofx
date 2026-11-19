@@ -59,17 +59,17 @@
 
 grep 词表（排除集：CHANGELOG 双文件、`.trellis/`、`web/node_modules/`、`.nofx-local/`、`scratch/`、`docs/legal/`、`docs/plans/`、`screenshots/`；`.github/` 以 `--hidden` 纳入）：词表一 `vergex|strategy-market|strategy_market|strategyMarket|PublishConfig|publish_config|publishToMarket|strategies/public|handlePublicStrategies|ListPublic|ConfigVisible|config_visible`；词表二（Go 语义）`IsPublic|"is_public"`；词表三（nofxos 数据链）`nofxos|AI500|ai500|oi_top|oi_low|UseAI500|UseOITop|UseOILow|OITop|OILow|NetFlow|netflow|EnableQuantOI|EnableQuantNetflow|EnableQuantData|OIRanking|PriceRanking|quant_data|oi_ranking|price_ranking|GetTopRatedCoins`。各子任务 PRD 词表为准，本表为超集复跑。
 
-- [ ] 三条词表在排除集外归零（词表三与 Coinank 符号零冲突已实证）
-- [ ] `go build ./...`、`go test ./...`（Docker golang:1.25-alpine + GOPROXY=goproxy.cn）、`npm --prefix web run build`、`npm --prefix web run test` 全绿
-- [ ] `GET /api/symbols`（无参默认 gate）响应含 `funding_rate` 且抽查 BTC_USDT 等 5 个合约非空（Gate 原始小数语义）
-- [ ] 六个 `/api/market/overview|fear-greed|news|announcements|sentiment|liquidations` 返回真实 Gate/MCP 数据（curl 探针；news/announcements 允许真实空列表；fear-greed 的 change_24h 冷启动可为 null）
-- [ ] MCP 不可达（`GATEMCP_ENDPOINT=http://127.0.0.1:9`）时 `/api/market/*` 返回 502 + 明确错误类别（fast-fail 实证）
-- [ ] 导航无「策略市场」；Landing Initialize（已登录）跳 `/traders`；`/strategy-market` 路由 404（无重定向兼容）
-- [ ] 「数据」页免登录可看：涨跌幅/成交额/资金费率/清算热点/市场总览/恐惧贪婪/新闻情绪七模块渲染，浏览器探针截图留档
-- [ ] 策略编辑含市场环境上下文勾选组；勾选后决策日志 prompt 含「市场环境上下文」段落，未勾选不含；market_context 序列化往返单测通过
-- [ ] 策略币源编辑器无 AI500/OI 选项，仅静态 Gate 标的清单；Agent 页无 AI500 面板；`GET /api/ai500` 404
-- [ ] 排行榜页面功能不受影响（回归探针：公开榜渲染、参赛开关、equity 曲线）
-- [ ] `/api/klines` 正常返回（Coinank 保留实证）
+- [x] 三条词表在排除集外归零（词表三与 Coinank 符号零冲突已实证）
+- [x] `go build ./...`、`go test ./...`（Docker golang:1.25-alpine + GOPROXY=goproxy.cn）、`npm --prefix web run build`、`npm --prefix web run test` 全绿
+- [x] `GET /api/symbols`（无参默认 gate）响应含 `funding_rate` 且抽查 BTC_USDT 等 5 个合约非空（Gate 原始小数语义）
+- [x] 六个 `/api/market/overview|fear-greed|news|announcements|sentiment|liquidations` 返回真实 Gate/MCP 数据（curl 探针；news/announcements 允许真实空列表；fear-greed 的 change_24h 冷启动可为 null）
+- [x] MCP 不可达（`GATEMCP_ENDPOINT=http://127.0.0.1:9`）时 `/api/market/*` 返回 502 + 明确错误类别（fast-fail 实证）
+- [x] 导航无「策略市场」；Landing Initialize（已登录）跳 `/traders`；`/strategy-market` 路由 404（无重定向兼容）
+- [x] 「数据」页免登录可看：涨跌幅/成交额/资金费率/清算热点/市场总览/恐惧贪婪/新闻情绪七模块渲染，浏览器探针截图留档
+- [x] 策略编辑含市场环境上下文勾选组；勾选后决策日志 prompt 含「市场环境上下文」段落，未勾选不含；market_context 序列化往返单测通过
+- [x] 策略币源编辑器无 AI500/OI 选项，仅静态 Gate 标的清单；Agent 页无 AI500 面板；`GET /api/ai500` 404
+- [x] 排行榜页面功能不受影响（回归探针：公开榜渲染、参赛开关、equity 曲线）
+- [x] `/api/klines` 正常返回（Coinank 保留实证）
 
 ## Non-Goals
 

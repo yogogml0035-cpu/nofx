@@ -22,7 +22,7 @@
 | 2 | 六个 /api/market/* 真实数据 | overview 200（总市值 $1.267T、BTC $63100.1、dominance 58.89%、山寨季 52）；fear-greed 200（value=11 Extreme Fear，change_24h=null 冷启动允许态）；news 200 真实条目；announcements 200 真实条目；sentiment 200（-0.363 negative）；liquidations 200（ETH_USDT 热点 $61335） | curl/market-*.json |
 | 3 | 断链 502 fast-fail（GATEMCP_ENDPOINT=http://127.0.0.1:9 重启） | 五个 MCP 端点全部 502 {"error":"Gate MCP upstream unreachable"}；/api/symbols 与 /api/market/liquidations 200 不受影响 | curl/broken-overview.json |
 | 4 | GET /api/ai500 | 404（路由已删） | curl/ai500.json |
-| 5 | GET /api/klines 正常返回 | BTC_USDT 1h×5 真实 OHLCV（11-19 20:00 O:63919.9 H:63948.2 L:63542 C:63849.7 V:16.7M…，末根为成型中 K 线）；BTCUSDT/Landing hero 形态与显式 exchange=gate 均非空 | curl/klines.json |
+| 5 | GET /api/klines 正常返回 | BTC_USDT 1h×5 真实 OHLCV（11-19 20:00 O:63919.9 H:63948.2 L:63542 C:63849.7 V:16.7M…，末根为成型中 K 线）；BTCUSDT/Landing hero 形态与显式 exchange=gate 均非空（修复后终态代码重采：三形态 200、5/3/3 条非空） | curl/klines-default-gate.json、klines-compact.json、klines-explicit-gate.json |
 
 ### 5 的回流缺陷修复（本任务直接修父分支）
 
@@ -60,4 +60,8 @@
 
 ## 五、主工作区收尾
 
-- `provider/vergex/` 空目录 rmdir（untracked，主工作区执行）——见收尾提交前核验。
+- `provider/vergex/` 空目录 rmdir（untracked，主工作区执行）——已删除。
+
+## 六、独立检查结论（trellis-check 子智能体，2026-11-20）
+
+PASS-with-fixes：无 P0；P1 两项已随本提交修复——① klines 运行时证据曾归档修复前空数组，已以终态代码重采三形态非空输出入库；② 父 PRD「跨子任务验收标准」11 条目已逐条打勾。检查 P2 知会父任务：INITIALIZE→/traders 仅 URL 断言无截图（console 如实标注）；断链 502 仅归档 overview 一份错误体（其余 4 端点为 console 文字记录）；全量门禁留档为结论摘要级（词表/单测/修复本体均有独立复跑实证）。
