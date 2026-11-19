@@ -167,13 +167,13 @@ ci-local:
 	@echo "🔨 [4/5] Frontend build..."
 	cd web && npm run build
 	@echo "🐳 [5/5] Docker images build..."
-	docker compose build
+	docker compose build --build-arg GOPROXY=https://goproxy.cn,direct
 	@echo "✅ ci-local passed"
 
 # 送测启动：rebuild 后 compose up、迁移随启动执行、服务健康 + 前后端入口检查
 # 端口隔离：NOFX_BACKEND_PORT / NOFX_FRONTEND_PORT（默认 8080/3000）
 up:
-	docker compose up -d --build
+	docker compose up -d --build --build-arg GOPROXY=https://goproxy.cn,direct
 	@echo "⏳ Waiting for services (startup runs DB migrations)..."
 	sleep 15
 	docker compose ps
