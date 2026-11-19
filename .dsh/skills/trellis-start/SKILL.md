@@ -47,7 +47,7 @@ From Step 1 you know the current task and status. Check the task directory:
   ```bash
   python3 ./.trellis/scripts/get_context.py --mode phase --step 2.1 --platform dsh
   ```
-- **No active task** → classify first. For simple conversation / small task, ask only whether this turn should create a Trellis task. For complex work, ask whether you may create a Trellis task and enter planning. If the user says no, skip Trellis for this session.
+- **No active task** → check existing feature worktrees before starting new work. Honor the user's choice of Trellis or direct development. Obtain consent before creating a Trellis task and follow `AGENTS.md` for the worktree, Git integration, and delivery rules in either mode.
 
 ---
 

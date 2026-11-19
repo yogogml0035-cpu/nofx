@@ -3,14 +3,14 @@
 
 These instructions are for AI assistants working in this project.
 
-This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
+The Trellis development workflow and its working knowledge live under `.trellis/`:
 
 - `.trellis/workflow.md` — development phases, when to create tasks, skill routing
 - `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
 - `.trellis/workspace/` — per-developer journals and session traces
 - `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
 
-If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
+When using Trellis, prefer the commands available on your platform, such as `/trellis:finish-work` and `/trellis:continue`.
 
 If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
 - `.agents/skills/` — reusable Trellis skills
@@ -19,6 +19,37 @@ If you're using Codex or another agent-capable tool, additional project-scoped h
 Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
 
 <!-- TRELLIS:END -->
+
+# NOFX 开发与交付
+
+以下规则适用于功能、修复、文档及 Trellis 任务。使用 Trellis 时，任务和归档流程见 [.trellis/workflow.md](.trellis/workflow.md)。直接开发沿用本节的分支、验收和交付流程。操作命令见 [Git 工作流规范](docs/Git工作流规范.md)。
+
+## 分支、worktree 与环境
+
+| 分支 | 起点 | 用途 |
+| --- | --- | --- |
+| `main` | 长期分支，接收用户选定并通过测试的源 feature | 生产环境从远端 `main` 指定提交构建或部署 Docker，发布由用户操作 |
+| `dev-offline` | 初始化时取最新 `origin/main`，之后接收最新 `main` 和待测 feature | 可包含多条功能与测试集成修正。测试环境从用户推送的 `dev-offline` 指定提交构建或部署 Docker，发布由用户操作 |
+| `feat/YYYY_MMDD_slug` | `git fetch origin` 后最新的 `origin/main` | 独立 feature 或 Trellis 父任务，有专属 worktree，阶段性提交和最终候选推送同名远端留档 |
+| `feat/YYYY_MMDD_parent--child` | 子任务实际开工时，父 feature 已合入前置子任务的最新提交 | 子任务专属本地分支和 worktree，验收后只合入父 feature |
+
+**`dev-offline` 永远不反向合入任何分支，也不得用作切分支的基线。** 测试集成的合并提交和冲突修复只留在 `dev-offline`。生产候选从独立 feature 或父 feature 取得。
+
+日期是需求开始日，使用有效日期。slug 由小写英文字母、数字和单连字符组成，`--` 用于分隔父子 slug，子分支沿用父分支日期。主工作区检出 `main`。项目工作区同级的 `nofx-wt/` 存放长期 `dev-offline` 和各任务的 worktree，目录名将完整分支名中的 `/` 换成 `-`。接手已有任务时用 `git worktree list` 定位原工作区并继续。
+
+## 开发与验收
+
+1. 开工前 fetch，核对最新 `origin/main` 提交，从该提交建立根 feature 分支和 worktree。首次写入前核对当前目录、检出分支和工作区状态。
+2. 直接开发在该 feature worktree 实施。使用 Trellis 时，先梳理需求与父子划分，再在根 feature worktree 创建任务和规划文档。先提交父任务规划，再基于父分支最新提交为实际开工的子任务建立 worktree。
+3. 子任务默认串行。每个子任务实现收敛后跑该任务的完整门禁，在父 worktree 合入并确认包含其提交，再删除已合并的本地子分支和干净的子 worktree。子任务的收口全程在本地完成，父分支按自身阶段和最终候选推送留档。
+4. 全部子任务合父后，在父 worktree 组织多智能体对抗式审查，修正发现的问题，再运行串联所有子任务的端到端验收和完整项目门禁。独立 feature 在自己的 worktree 完成对应门禁。最终候选提交后先推送同名远端 feature，再进入 `dev-offline`。
+
+## 集成、人工测试与生产合并
+
+1. 根 feature 验收通过后默认集成到本地 `dev-offline`。在其专属 worktree fetch `origin`，获得最新 `origin/dev-offline` 和 `origin/main`。本地落后时只做快进，开始集成时本地提交必须与 `origin/dev-offline` 完全一致。已有未推送候选或历史分叉时保留现场，等该候选同步到远端后再接下一条 feature。
+2. 在 `dev-offline` 先合入本次 fetch 得到的最新 `origin/main`，再合入已推送的源 feature 提交。冲突直接在 `dev-offline` worktree 修复并验证，功能本身的问题回原 feature 修复、验收、推送，再按同一流程重新集成。
+3. 集成完成后交接源 feature SHA、`dev-offline` 候选 SHA、worktree 和已执行的验证。由用户在该 worktree 运行项目并确认，随后手动推送。每次推送前先拉取并纳入最新 `origin/dev-offline`，候选变化时重验后正常推送。测试环境的 Docker 发版和测试结论都由用户操作。
+4. 测试环境通过后，记录实际部署的 `dev-offline` SHA 和对应源 feature SHA，Trellis 根任务据此收口。保留源 feature 的本地分支、远端分支和 worktree。由用户选择经测试的源 feature 合入最新 `main`。确认远端 `main` 已包含该 feature 的全部交付提交后，由用户清理这条 feature 的本地和远端分支及 worktree。
 
 
 # NOFXi 交易智能助手规范

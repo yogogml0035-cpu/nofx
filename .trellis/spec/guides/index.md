@@ -2,6 +2,8 @@
 
 > **Purpose**: Expand your thinking to catch things you might not have considered.
 
+Follow the same branch, worktree, review, and delivery rules with or without Trellis. [AGENTS.md](../../../AGENTS.md)
+
 ---
 
 ## Why Thinking Guides?

@@ -4,14 +4,14 @@ on:
   push:
     branches:
       - main
-      - dev
+      - dev-offline
       - release/stable
     tags:
       - 'v*'
   pull_request:
     branches:
       - main
-      - dev
+      - dev-offline
   workflow_dispatch:
 
 env:
@@ -166,7 +166,7 @@ jobs:
             "${GHCR_IMAGE}:${REF_NAME}-amd64" \
             "${GHCR_IMAGE}:${REF_NAME}-arm64"
 
-          # Only main branch gets the 'latest' tag (not dev)
+          # Publish the production 'latest' tag from main.
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             docker buildx imagetools create -t "${GHCR_IMAGE}:latest" \
               "${GHCR_IMAGE}:${REF_NAME}-amd64" \

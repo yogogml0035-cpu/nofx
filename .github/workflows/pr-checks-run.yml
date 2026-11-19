@@ -11,7 +11,7 @@ name: PR Checks - Run
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [main, dev]
+    branches: [main, dev-offline]
 
 # Read-only permissions - safe for fork PRs
 permissions:

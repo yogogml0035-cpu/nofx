@@ -4,6 +4,8 @@
 
 Thank you for your interest in contributing to NOFX! This document provides guidelines and workflows for contributing to the project.
 
+The Git examples below apply to community contributions to the upstream `NoFxAiOS/nofx` repository. For development and deployment in this repository, follow the local workflow. [NOFX Git workflow](docs/Git工作流规范.md)
+
 ---
 
 ## 📑 Table of Contents

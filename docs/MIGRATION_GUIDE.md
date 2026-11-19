@@ -149,8 +149,8 @@ Files GitHub needs to see:
 ### Cloning/Pulling Latest
 
 ```bash
-# Pull latest changes
-git pull origin dev
+# Update the checked-out branch from its configured upstream
+git pull --ff-only
 
 # Your old bookmarks still work!
 # Git tracked the file moves (git mv)

@@ -30,8 +30,9 @@ Shows the Phase Index (Plan / Execute / Finish) with routing + skill mapping.
 - `status=planning` + required artifacts complete + required jsonl curated or inline mode → **1.4** (ask for start review; only run `task.py start` after user confirms)
 - `status=in_progress` + implementation not started → **2.1**
 - `status=in_progress` + implementation done, not yet checked → **2.2**
-- `status=in_progress` + check passed → **3.3** (spec update) → **3.4** (commit)
-- `status=completed` (rare; usually archived immediately) → archive flow
+- `status=in_progress` + check passed → **3.3** (spec update) → **3.4** (commit) → **3.5** (delivery)
+- Root candidate integrated locally into `dev-offline` → resume from the user test handoff in **3.5**. Archive after the user confirms the deployed test version passed.
+- `status=completed` → follow the closure and retention rules in **3.5**.
 
 Phase rules (full detail in `.trellis/workflow.md`):
 
