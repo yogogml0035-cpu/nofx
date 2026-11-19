@@ -1,6 +1,12 @@
 # NOFX Makefile for testing and development
 
-.PHONY: help test test-backend test-frontend test-coverage clean
+# dev-offline worktree 隔离端口（export 后 docker compose 读取，健康检查同源）
+NOFX_BACKEND_PORT ?= 18080
+NOFX_FRONTEND_PORT ?= 1188
+export NOFX_BACKEND_PORT
+export NOFX_FRONTEND_PORT
+
+.PHONY: help test test-backend test-frontend test-coverage clean ci-local up
 
 # Default target
 help:
