@@ -3,6 +3,7 @@ package gate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -80,6 +81,16 @@ type rawLiqOrder struct {
 // liqPullFunc 单次拉取（from 为窗口起点；limit 为服务端单页上限）；可注入替换供测试
 type liqPullFunc func(ctx context.Context, from time.Time, limit int32) ([]rawLiqOrder, error)
 
+// liqHTTPError 服务端返回非 200 的错误（降档重试只针对这类参数/限流拒绝）
+type liqHTTPError struct {
+	status int
+	body   string
+}
+
+func (e *liqHTTPError) Error() string {
+	return fmt.Sprintf("gate liquidation HTTP %d: %s", e.status, e.body)
+}
+
 // LiquidationAggregator 清算事件滚动窗口聚合器
 type LiquidationAggregator struct {
 	mu            sync.Mutex
@@ -144,9 +155,13 @@ func (a *LiquidationAggregator) pullOnce(ctx context.Context) {
 
 	orders, err := a.pull(ctx, from, liqPullLimit)
 	if err != nil {
-		// 服务端拒绝大单页时降档重试一次
-		logger.Warnf("liquidation pull limit=%d failed, retry limit=%d: %v", liqPullLimit, liqRetryLimit, err)
-		orders, err = a.pull(ctx, from, liqRetryLimit)
+		var httpErr *liqHTTPError
+		// 仅服务端拒绝（4xx，如拒绝大单页/限流）时降档重试一次；
+		// 网络类失败重试只会双倍请求且日志误导
+		if errors.As(err, &httpErr) && httpErr.status >= 400 && httpErr.status < 500 {
+			logger.Warnf("liquidation pull limit=%d rejected (HTTP %d), retry limit=%d", liqPullLimit, httpErr.status, liqRetryLimit)
+			orders, err = a.pull(ctx, from, liqRetryLimit)
+		}
 	}
 	if err != nil {
 		// 轮询失败记日志、保留已有窗口继续服务（窗口内是真实拉取过的数据）
@@ -206,9 +221,14 @@ func (a *LiquidationAggregator) pruneLocked(now time.Time) {
 
 // Hotspots 返回窗口内按名义清算额降序的 topN 热点
 func (a *LiquidationAggregator) Hotspots(window time.Duration, topN int) []Hotspot {
+	return a.HotspotsAt(window, topN, time.Now())
+}
+
+// HotspotsAt 同 Hotspots，但过滤基准时刻由调用方传入（与窗口标签共用同一 now，消除两处取时偏差）
+func (a *LiquidationAggregator) HotspotsAt(window time.Duration, topN int, now time.Time) []Hotspot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	cutoff := time.Now().Add(-window)
+	cutoff := now.Add(-window)
 	agg := make(map[string]*Hotspot)
 	for _, ev := range a.events {
 		if ev.at.Before(cutoff) {
@@ -278,7 +298,7 @@ func pullLiquidatedOrders(ctx context.Context, from time.Time, limit int32) ([]r
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("gate liquidation HTTP %d: %s", resp.StatusCode, string(body))
+		return nil, &liqHTTPError{status: resp.StatusCode, body: string(body)}
 	}
 	var orders []rawLiqOrder
 	if err := json.NewDecoder(resp.Body).Decode(&orders); err != nil {

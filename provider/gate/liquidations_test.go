@@ -131,7 +131,7 @@ func TestLiquidationFromClampedToMaxSpan(t *testing.T) {
 	}
 }
 
-// 拉取失败：保留已有窗口继续服务、lastPull 不被失败拉取推进；Limit=1000 被拒时降 100 重试
+// 拉取失败：保留已有窗口继续服务、lastPull 不被失败拉取推进；网络类失败不降档（不双倍请求）
 func TestLiquidationPullFailureKeepsWindow(t *testing.T) {
 	now := time.Now()
 	a := newTestAggregator(nil, 30*time.Minute)
@@ -143,12 +143,12 @@ func TestLiquidationPullFailureKeepsWindow(t *testing.T) {
 	calls := 0
 	a.pull = func(ctx context.Context, from time.Time, limit int32) ([]rawLiqOrder, error) {
 		calls++
-		return nil, context.DeadlineExceeded
+		return nil, context.DeadlineExceeded // 网络类失败：非服务端拒绝
 	}
 	a.pullOnce(context.Background())
 
-	if calls != 2 {
-		t.Fatalf("pull calls = %d, want 2 (1000 then retry 100)", calls)
+	if calls != 1 {
+		t.Fatalf("pull calls = %d, want 1 (network error must not trigger downgrade retry)", calls)
 	}
 	hs := a.Hotspots(30*time.Minute, 20)
 	if len(hs) != 1 || hs[0].Value != 20 {
@@ -159,13 +159,13 @@ func TestLiquidationPullFailureKeepsWindow(t *testing.T) {
 	}
 }
 
-// 降档重试成功：水位正常推进
+// 服务端 4xx 拒绝大单页：降档重试成功后水位正常推进
 func TestLiquidationRetrySuccess(t *testing.T) {
 	calls := 0
 	a := newTestAggregator(func(ctx context.Context, from time.Time, limit int32) ([]rawLiqOrder, error) {
 		calls++
 		if limit == 1000 {
-			return nil, context.Canceled
+			return nil, &liqHTTPError{status: 400, body: "limit too large"}
 		}
 		return []rawLiqOrder{{Time: time.Now().Unix(), Contract: "BTC_USDT", Size: "5", FillPrice: "1.0"}}, nil
 	}, 30*time.Minute)

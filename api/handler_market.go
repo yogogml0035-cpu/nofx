@@ -79,7 +79,7 @@ func (s *Server) handleMarketSentiment(c *gin.Context) {
 // handleMarketLiquidations GET /api/market/liquidations — 清算热点 top 20（30 分钟滚动窗口）
 func (s *Server) handleMarketLiquidations(c *gin.Context) {
 	now := time.Now()
-	hotspots := gate.LiquidationHotspots(gate.LiquidationWindow, gate.LiquidationTopN)
+	hotspots := gate.DefaultLiquidationAggregator().HotspotsAt(gate.LiquidationWindow, gate.LiquidationTopN, now)
 	resp := gin.H{
 		"window_seconds": int(gate.LiquidationWindow.Seconds()),
 		"window_start":   now.Add(-gate.LiquidationWindow).Format(time.RFC3339),

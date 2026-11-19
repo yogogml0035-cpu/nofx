@@ -75,9 +75,8 @@ const (
 // Client 封装 /mcp/info 与 /mcp/news 两个 MCP server 连接（懒初始化）。
 // 会话协议/网络错误即 Close 丢弃，下次取数时重建；取数统一走 TTL 缓存（fetchers.go）。
 type Client struct {
-	endpoint   string
-	logger     *slog.Logger
-	httpClient *http.Client
+	endpoint string
+	logger   *slog.Logger
 
 	mu          sync.Mutex
 	infoSession *mcp.ClientSession
@@ -113,10 +112,9 @@ func endpointFromEnv() string {
 // New 创建 Client（endpoint 为基址、不含 /mcp/xxx 路径；测试注入 httptest 地址）
 func New(endpoint string) *Client {
 	c := &Client{
-		endpoint:   strings.TrimRight(endpoint, "/"),
-		logger:     slog.Default(),
-		httpClient: &http.Client{Timeout: 60 * time.Second},
-		fgHistory:  newFearGreedHistory(),
+		endpoint:  strings.TrimRight(endpoint, "/"),
+		logger:    slog.Default(),
+		fgHistory: newFearGreedHistory(),
 	}
 	c.overview = &cacheEntry[MarketOverview]{
 		name:  "overview",
@@ -187,7 +185,10 @@ func (c *Client) session(kind string) (*mcp.ClientSession, error) {
 func (c *Client) connect(endpoint string) (*mcp.ClientSession, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
 	defer cancel()
-	transport := &mcp.StreamableClientTransport{Endpoint: endpoint, HTTPClient: c.httpClient}
+	// transport 专用 client 不设 Timeout：SDK 建会话后会保持 standalone SSE GET
+	// 长连接，client 级 Timeout 会周期性切断该流导致每分钟重连；
+	// 请求级取消由 CallTool 的 ctx（请求上下文）与 TCP 层错误保障
+	transport := &mcp.StreamableClientTransport{Endpoint: endpoint, HTTPClient: &http.Client{}}
 	client := mcp.NewClient(&mcp.Implementation{Name: "nofx", Version: "0.1.0"}, &mcp.ClientOptions{Logger: c.logger})
 	s, err := client.Connect(ctx, transport, nil)
 	if err != nil {
