@@ -1,0 +1,32 @@
+{
+  "id": "gate-market-data",
+  "name": "gate-market-data",
+  "title": "Gate 行情数据看板与策略市场语义清除",
+  "description": "「数据」板块以 Gate 公开行情+MCP 免认证端点内部重建为行情数据看板；「策略市场」全链删除（iframe/发布语义/公开 API/Landing 跳转）；vergex 品牌痕迹全清；策略新增市场环境上下文勾选注入决策 prompt",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Hsikey",
+  "assignee": "Hsikey",
+  "createdAt": "2026-11-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "feat/2026_1119_gate-market-data",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-19-backend-gate-market-data",
+    "11-19-purge-strategy-market-vergex",
+    "11-19-frontend-data-dashboard",
+    "11-19-backend-market-context-injection",
+    "11-19-integration-e2e-probe"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
