@@ -83,8 +83,7 @@ Run multiple AI models simultaneously:
 - Identify best-performing strategies
 
 ### Custom Coin Pools
-- Use external API for coin selection
-- Combine AI500 + OI Top data
+- Hand-pick symbols from the Gate USDT perpetual list
 - Filter by liquidity and volume
 
 ### Exchange Integration

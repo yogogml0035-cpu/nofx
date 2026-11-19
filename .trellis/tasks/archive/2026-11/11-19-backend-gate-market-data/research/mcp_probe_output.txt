@@ -1,0 +1,14 @@
+
+===== https://api.gatemcp.ai/mcp/info =====
+initialize: HTTP 200 session=yes server={'name': 'Gate Info', 'version': '0.1.0'}
+[info_marketsnapshot_get_market_overview] HTTP 200 ok=True
+  {"jsonrpc": "2.0", "id": 2, "result": {"content": [{"type": "text", "text": "{\"total_market_cap\":1281820590000,\"market_cap_change_24h\":1.3,\"total_volume_24h\":220741337000,\"btc_dominance\":58.92,\"eth_dominance\":10.16,\"btc_price\":63749.9,\"fear_greed_index\":12,\"fear_greed_label\":\"Extreme Fear\",\"ahr999\":0.2961,\"altcoin_season_index\":58,\"active_coins_count\":3140,\"updated_at\":\"2026-11-19T06:00:00Z\",\"duration_ms\":2342}"}], "structuredContent": {"total_market_cap": 1281820590000, "market_cap_change_24h": 1.3, "total_volume_24h": 220741337000, "btc_dominance": 58.92, "eth_d
+[info_marketsnapshot_get_market_snapshot] HTTP 200 ok=True
+  {"jsonrpc": "2.0", "id": 2, "result": {"content": [{"type": "text", "text": "{\"symbol\":\"BTC\",\"timeframe\":\"1h\",\"source\":\"spot\",\"quote\":\"USDT\",\"scope\":\"basic\",\"realtime\":{\"high\":64855.8,\"last\":63703.2,\"low\":62062,\"price\":63703.2,\"price_change_24h\":-0.0174,\"update_time\":1795075263},\"kline\":{\"amt\":526.28845,\"close_price\":63749.9,\"deal_cnt\":33444600,\"high_price\":63750,\"low_price\":63348,\"open_price\":63359.8,\"time\":\"2026-11-19T06:00:00Z\"},\"project_info\":{\"ahr999\":null,\"altcoin_season_index\":null,\"fdv\":1246928040000,\"fear_greed_index\":null,
+
+===== https://api.gatemcp.ai/mcp/news =====
+initialize: HTTP 200 session=yes server={'name': 'Gate News', 'version': '0.1.0'}
+[news_feed_search_news] HTTP 200 ok=True
+  {"jsonrpc": "2.0", "id": 2, "result": {"content": [{"type": "text", "text": "{\"query\":\"bitcoin\",\"start_time\":\"2026-11-12T08:01:07Z\",\"end_time\":\"2026-11-19T08:01:07Z\",\"from\":1794470467,\"to\":1795075267,\"sort_by\":\"time\",\"top_total_score\":0,\"limit\":5,\"page\":1,\"page_size\":5,\"similarity_score\":\"0.6\",\"total\":0,\"count\":0,\"items\":[],\"duration_ms\":34}"}], "structuredContent": {"query": "bitcoin", "start_time": "2026-11-12T08:01:07Z", "end_time": "2026-11-19T08:01:07Z", "from": 1794470467, "to": 1795075267, "sort_by": "time", "top_total_score": 0, "limit": 5, "page
+[news_feed_get_social_sentiment] HTTP 200 ok=True
+  {"jsonrpc": "2.0", "id": 2, "result": {"content": [{"type": "text", "text": "{\"coin\":\"BTC\",\"time_range\":\"24h\",\"overall_sentiment\":-0.39999999,\"sentiment_label\":\"negative\",\"mention_count\":1,\"sentiment_distribution\":{\"positive_ratio\":0,\"negative_ratio\":1,\"neutral_ratio\":0,\"negative_count\":1},\"top_tweets\":[{\"author\":\"https://x.com/i/user/500601961\",\"author_verified\":\"\",\"comments_num\":6,\"content\":\"Perspective on risk capital: Nvidia has lost $2 Trillion in market cap value in the last 32 trading days. $NVDA remains a $3.6 Trillion asset. Bitcoin has lost $4

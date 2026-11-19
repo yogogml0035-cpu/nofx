@@ -1,0 +1,63 @@
+initialize: HTTP 200 session=yes
+query      sim    sort          total  count  首条标题
+----------------------------------------------------------------------------------------------------
+bitcoin    0.3    time              0      0  
+bitcoin    0.3    total_score       0      0  
+bitcoin    0.3    relevance         0      0  
+bitcoin    0.1    time              0      0  
+bitcoin    0.1    total_score       0      0  
+bitcoin    0.1    relevance         0      0  
+bitcoin    0      time              0      0  
+bitcoin    0      total_score       0      0  
+bitcoin    0      relevance         0      0  
+BTC        0.3    time              0      0  
+BTC        0.3    total_score       0      0  
+BTC        0.3    relevance         0      0  
+BTC        0.1    time              0      0  
+BTC        0.1    total_score       0      0  
+BTC        0.1    relevance         0      0  
+BTC        0      time              0      0  
+BTC        0      total_score       0      0  
+BTC        0      relevance         0      0  
+crypto     0.3    time              0      0  
+crypto     0.3    total_score       0      0  
+crypto     0.3    relevance         0      0  
+crypto     0.1    time              0      0  
+crypto     0.1    total_score       0      0  
+crypto     0.1    relevance         0      0  
+crypto     0      time              0      0  
+crypto     0      total_score       0      0  
+crypto     0      relevance         0      0  
+比特币        0.3    time              0      0  
+比特币        0.3    total_score       0      0  
+比特币        0.3    relevance         0      0  
+比特币        0.1    time              0      0  
+比特币        0.1    total_score       0      0  
+比特币        0.1    relevance         0      0  
+比特币        0      time              0      0  
+比特币        0      total_score       0      0  
+比特币        0      relevance         0      0  
+ethereum   0.3    time              0      0  
+ethereum   0.3    total_score       0      0  
+ethereum   0.3    relevance         0      0  
+ethereum   0.1    time              0      0  
+ethereum   0.1    total_score       0      0  
+ethereum   0.1    relevance         0      0  
+ethereum   0      time              0      0  
+ethereum   0      total_score       0      0  
+ethereum   0      relevance         0      0  
+market     0.3    time              0      0  
+market     0.3    total_score       0      0  
+market     0.3    relevance         0      0  
+market     0.1    time              0      0  
+market     0.1    total_score       0      0  
+market     0.1    relevance         0      0  
+market     0      time              0      0  
+market     0      total_score       0      0  
+market     0      relevance         0      0  
+bitcoin    unset  unset             0      0  
+BTC        unset  unset             0      0  
+crypto     unset  unset             0      0  
+
+===== 命中汇总（total>0）=====
+全矩阵 total=0：news 通道无可用参数组合

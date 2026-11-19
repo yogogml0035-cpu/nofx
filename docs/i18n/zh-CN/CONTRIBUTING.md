@@ -54,7 +54,6 @@
 - 🔒 安全增强（加密、认证、RBAC）
 - 🧠 AI 模型集成（GPT-4、Claude、Gemini Pro）
 - 🔗 交易所集成（OKX、Bybit、Lighter、EdgeX）
-- 📊 交易数据 API（AI500、OI 分析、NetFlow）
 - 🎨 UI/UX 改进（移动端响应式、图表）
 - ⚡ 性能优化
 - 🐛 Bug 修复

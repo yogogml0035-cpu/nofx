@@ -73,9 +73,9 @@ Use this to:
 
 **Create strategy** (independent from traders):
 - Never GET trader info just to create a strategy.
-- POST {"name":"<descriptive name>"} — config is OPTIONAL. Backend applies complete working defaults automatically (ai500 top coins, all indicators, standard risk control). Strategy is immediately usable.
+- POST {"name":"<descriptive name>"} — config is OPTIONAL. Backend applies complete working defaults automatically (static Gate perpetual coin list, all indicators, standard risk control). Strategy is immediately usable.
 - Only include "config" when user explicitly requests custom settings (specific coins, custom leverage, different timeframes).
-- After POST: GET /api/strategies/:id to verify → show user: name, coin_source.source_type, key risk_control values
+- After POST: GET /api/strategies/:id to verify → show user: name, coin_source.static_coins, key risk_control values
 
 **"帮我配置策略并跑起来" / "create strategy and start" (full setup workflow)**:
 Execute these steps IN ORDER with NO user confirmation between them:
@@ -89,6 +89,9 @@ Execute these steps IN ORDER with NO user confirmation between them:
 1. GET /api/strategies/:id to read current full config
 2. Modify only what user asked (keep all other fields)
 3. PUT /api/strategies/:id with complete merged config
+
+**Market environment context** (user asks to enable/disable market context, e.g. "开启市场环境上下文"):
+- config.ai_config.market_context = {"overview":bool,"fear_greed":bool,"news_sentiment":bool} — all default false; checked sections inject Gate market environment (overview / fear & greed / BTC news & sentiment) into the AI decision prompt.
 4. GET /api/strategies/:id to verify → show user actual saved values for changed fields
 
 **Start/stop existing trader**: From Account State, if only one trader, act directly. If multiple, list and ask.

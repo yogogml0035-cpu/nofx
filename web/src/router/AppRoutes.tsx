@@ -23,7 +23,7 @@ import { LandingPage } from '../pages/LandingPage'
 import { DataPage } from '../pages/DataPage'
 import { AgentChatPage } from '../pages/AgentChatPage'
 import { SettingsPage } from '../pages/SettingsPage'
-import { StrategyMarketPage } from '../pages/StrategyMarketPage'
+import { PageNotFound } from '../pages/PageNotFound'
 import { StrategyStudioPage } from '../pages/StrategyStudioPage'
 import { TraderDashboardPage } from '../pages/TraderDashboardPage'
 import { useAuth } from '../contexts/AuthContext'
@@ -488,18 +488,6 @@ export function AppRoutes() {
           }
         />
         <Route
-          path={ROUTES.strategyMarket}
-          element={
-            isAuthenticated ? (
-              <AppChrome currentPage="strategy-market" animateContent>
-                <StrategyMarketPage />
-              </AppChrome>
-            ) : (
-              <LandingPage />
-            )
-          }
-        />
-        <Route
           path={ROUTES.traders}
           element={isAuthenticated ? <TradersRoute /> : <LandingPage />}
         />
@@ -519,7 +507,7 @@ export function AppRoutes() {
             )
           }
         />
-        <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
+        <Route path="*" element={<PageNotFound />} />
       </Routes>
     </>
   )

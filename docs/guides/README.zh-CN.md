@@ -83,8 +83,7 @@ sudo apt-get install libta-lib0-dev
 - 识别表现最佳的策略
 
 ### 自定义币种池
-- 使用外部 API 进行币种选择
-- 结合 AI500 + OI Top 数据
+- 从 Gate USDT 永续清单手工挑选交易标的
 - 按流动性和交易量过滤
 
 ### 交易所集成

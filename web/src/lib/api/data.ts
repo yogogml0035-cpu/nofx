@@ -17,6 +17,7 @@ export interface MarketSymbol {
   exchange?: string
   volume_24h?: number
   mark_price?: number
+  funding_rate?: number
   change_24h_pct?: number
   prev_day_price?: number
   maxLeverage?: number
@@ -29,18 +30,70 @@ export interface SymbolListResponse {
   count: number
 }
 
-export interface AI500Coin {
-  pair: string
-  score: number
-  max_score?: number
-  increase_percent?: number
-  start_price?: number
-  start_time?: number
+// ===== Gate 行情看板（C1 六端点）=====
+
+export interface MarketOverview {
+  total_market_cap: number
+  market_cap_change_24h: number
+  total_volume_24h: number
+  btc_dominance: number
+  eth_dominance: number
+  btc_price: number
+  fear_greed_index: number
+  fear_greed_label: string
+  ahr999: number
+  altcoin_season_index: number
+  active_coins_count: number
+  updated_at: string
 }
 
-export interface AI500ListResponse {
-  coins: AI500Coin[]
+export interface FearGreed {
+  value: number
+  label: string
+  change_24h: number | null
+  first_seen_at: string | null
+  updated_at: string
+}
+
+export interface NewsItem {
+  title: string
+  url: string
+  source: string
+  published_at: number
+  sentiment?: string
+}
+
+export interface Sentiment {
+  coin: string
+  overall_sentiment: number
+  sentiment_label: string
+  mention_count: number
+  positive_ratio: number
+  negative_ratio: number
+  neutral_ratio: number
+  top_tweets: Array<{
+    author: string
+    content: string
+    url: string
+    created_time: string
+    likes_num: number
+  }>
+}
+
+export interface LiquidationHotspot {
+  contract: string
+  value: number
   count: number
+  long_amount: number
+  short_amount: number
+}
+
+export interface LiquidationsResponse {
+  window_seconds: number
+  window_start: string
+  hotspots: LiquidationHotspot[]
+  count: number
+  updated_at?: string
 }
 
 export const dataApi = {
@@ -52,10 +105,58 @@ export const dataApi = {
     return result.data || { exchange, symbols: [], count: 0 }
   },
 
-  async getAI500List(limit = 20): Promise<AI500ListResponse> {
-    const result = await httpClient.get<AI500ListResponse>(`${API_BASE}/ai500?limit=${limit}`)
-    if (!result.success) throw new Error('Failed to fetch AI500 list')
-    return result.data || { coins: [], count: 0 }
+  async getMarketOverview(): Promise<MarketOverview> {
+    const result = await httpClient.get<MarketOverview>(
+      `${API_BASE}/market/overview`
+    )
+    if (!result.success || !result.data)
+      throw new Error('Failed to fetch market overview')
+    return result.data
+  },
+
+  async getFearGreed(): Promise<FearGreed> {
+    const result = await httpClient.get<FearGreed>(`${API_BASE}/market/fear-greed`)
+    if (!result.success || !result.data)
+      throw new Error('Failed to fetch fear & greed index')
+    return result.data
+  },
+
+  async getMarketNews(limit = 20): Promise<{ items: NewsItem[]; count: number }> {
+    const result = await httpClient.get<{ items: NewsItem[]; count: number }>(
+      `${API_BASE}/market/news?limit=${limit}`
+    )
+    if (!result.success || !result.data)
+      throw new Error('Failed to fetch market news')
+    return result.data
+  },
+
+  async getAnnouncements(
+    limit = 10
+  ): Promise<{ items: NewsItem[]; count: number }> {
+    const result = await httpClient.get<{ items: NewsItem[]; count: number }>(
+      `${API_BASE}/market/announcements?limit=${limit}`
+    )
+    if (!result.success || !result.data)
+      throw new Error('Failed to fetch announcements')
+    return result.data
+  },
+
+  async getSentiment(coin = 'BTC'): Promise<Sentiment> {
+    const result = await httpClient.get<Sentiment>(
+      `${API_BASE}/market/sentiment?coin=${encodeURIComponent(coin)}`
+    )
+    if (!result.success || !result.data)
+      throw new Error('Failed to fetch social sentiment')
+    return result.data
+  },
+
+  async getLiquidations(): Promise<LiquidationsResponse> {
+    const result = await httpClient.get<LiquidationsResponse>(
+      `${API_BASE}/market/liquidations`
+    )
+    if (!result.success || !result.data)
+      throw new Error('Failed to fetch liquidation hotspots')
+    return result.data
   },
 
   async getStatus(traderId?: string, silent?: boolean): Promise<SystemStatus> {

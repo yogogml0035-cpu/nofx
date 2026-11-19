@@ -200,13 +200,11 @@ func (a *Agent) strategySkillOptionSummary(storeUserID, lang string) string {
 		"",
 		formatSkillOptionList(lang, "现有策略", "Existing strategies", a.loadStrategyOptions(storeUserID)),
 	}
-	sourceOptions := []string{"static", "ai500", "oi_top", "oi_low"}
 	if lang == "zh" {
-		parts[0] = "选币来源选项：static、ai500、oi_top、oi_low"
+		parts[0] = "币源为静态清单：直接指定 Gate USDT 永续符号（如 BTCUSDT），最多 10 个"
 	} else {
-		parts[0] = "Coin source options: static, ai500, oi_top, oi_low"
+		parts[0] = "Coin source is a static list: name Gate USDT perpetual symbols (e.g. BTCUSDT), at most 10"
 	}
-	_ = sourceOptions
 	return strings.Join(filterNonEmptyStrings(parts), "\n")
 }
 
