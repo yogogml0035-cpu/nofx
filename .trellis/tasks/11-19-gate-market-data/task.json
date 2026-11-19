@@ -23,7 +23,8 @@
     "11-19-purge-strategy-market-vergex",
     "11-19-frontend-data-dashboard",
     "11-19-backend-market-context-injection",
-    "11-19-integration-e2e-probe"
+    "11-19-integration-e2e-probe",
+    "11-19-purge-nofxos-data-chain"
   ],
   "parent": null,
   "relatedFiles": [],

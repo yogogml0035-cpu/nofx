@@ -6,12 +6,11 @@
 
 ## Requirements
 
-1. **provider/gatemcp 新包**：连接 `https://api.gatemcp.ai/info` 与 `https://api.gatemcp.ai/news`（Streamable HTTP + SSE，免认证），只封装 4 个工具：
-   - `info_marketsnapshot_get_market_overview` → 市场总览
-   - `info_marketsnapshot_get_market_snapshot` → 市场快照（恐惧贪婪指数取自其中）
-   - `news_feed_search_news` → 加密新闻搜索（默认近 24h、英文/中文不限）
+1. **provider/gatemcp 新包**：连接 `https://api.gatemcp.ai/mcp/info` 与 `https://api.gatemcp.ai/mcp/news`（Streamable HTTP + SSE，免认证；探针已实证直连可用，见 research/），只封装 3 个工具：
+   - `info_marketsnapshot_get_market_overview` → 市场总览（**含恐惧贪婪指数与标签**，一个调用双数据）
+   - `news_feed_search_news` → 加密新闻搜索（参数在实施时按探针结果调优，query="bitcoin" 实测返回空列表）
    - `news_feed_get_social_sentiment` → 社交情绪
-2. **TTL 缓存**：总览/快照(恐惧贪婪) 5 分钟，新闻/情绪 15 分钟；进程内缓存，过期后首次请求同步刷新，并发请求合并为一次上游调用（singleflight 语义）；上游失败时返回错误（fast-fail），不返回过期缓存冒充新数据——错误信息含上游错误。
+2. **TTL 缓存**：总览(含恐惧贪婪) 5 分钟，新闻/情绪 15 分钟；进程内缓存，过期后首次请求同步刷新，并发请求合并为一次上游调用（singleflight 语义）；上游失败时返回错误（fast-fail），不返回过期缓存冒充新数据——错误信息含上游错误。
 3. **provider/gate 增强**：`SymbolInfo` 新增 `funding_rate` 字段（源 `ticker.FundingRate`），`/api/symbols` 响应随之携带。
 4. **清算热点聚合**：后端每 60s 轮询 `GET /futures/usdt/liquidation_orders`（gateapi-go 公开接口），维护最近 30 分钟滚动窗口，按合约聚合计清算名义额（张数 × mark price 近似），进程内状态；进程重启后窗口重新积累（可接受，不做持久化）。
 5. **公开 API 端点**（注册方式对齐 `/api/symbols`，`api/server.go` 公开路由表）：
@@ -20,7 +19,7 @@
    - `GET /api/market/news` — 新闻列表（top N，含情绪标签若有）
    - `GET /api/market/sentiment` — 社交情绪
    - `GET /api/market/liquidations` — 清算热点 top 20（合约、清算额、单数、窗口起点）
-6. **网络与依赖**：引入官方 `github.com/modelcontextprotocol/go-sdk`（锁定具体版本写死 go.mod，不用模糊最新）；GOPROXY 走 goproxy.cn 构建。
+6. **网络与依赖**：引入官方 `github.com/modelcontextprotocol/go-sdk@v1.8.0`（锁版本写死 go.mod）；GOPROXY 走 goproxy.cn；宿主机无 Go，go 命令统一经 `docker run golang:1.25-alpine` 执行。
 
 ## Constraints
 

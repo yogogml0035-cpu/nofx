@@ -7,12 +7,21 @@
 - 新增 `api/handler_market.go`（五个端点）+ `api/server.go` 公开路由注册
 - 不动 kernel/trader/agent（C4 消费方自行接入）
 
+## 探针结论（已完成，留档 research/mcp_probe_output.txt）
+
+- 端点：`https://api.gatemcp.ai/mcp/info`、`https://api.gatemcp.ai/mcp/news`（**带 /mcp 前缀**；根路径 /info /news 返回 404）
+- initialize → notifications/initialized → tools/call 全 200，Mcp-Session-Id 会话正常，上海网络直连可用
+- `info_marketsnapshot_get_market_overview` 单调用即含：总市值/24h 变化/总量、BTC/ETH dominance、BTC 价格、**恐惧贪婪指数+标签**、ahr999、山寨季指数 → FearGreed 取数不再调 snapshot，直接从 overview 缓存切片
+- `news_feed_search_news` 通道通但 query="bitcoin" 返回 total:0——实施时调参（keyword/similarity/sort），空态返回真实空列表
+- `news_feed_get_social_sentiment` 正常（overall_sentiment/正负比例/top_tweets）
+- 依赖：`github.com/modelcontextprotocol/go-sdk` 锁 **v1.8.0**（goproxy.cn 可取）；宿主机无 Go，门禁与调试走 `docker run golang:1.25-alpine`（GOPROXY=goproxy.cn）
+
 ## 数据流
 
 ```
 前端/C4 决策循环 ──> api/handler_market.go ──> provider/gatemcp 取数函数（TTL 缓存）
-                                                ├─ /info  server: overview / snapshot(fear&greed)
-                                                └─ /news  server: news / social sentiment
+                                                ├─ /mcp/info  server: market_overview（含恐惧贪婪）
+                                                └─ /mcp/news  server: news / social sentiment
 后端 goroutine（60s tick）──> provider/gate ListLiquidationOrders ──> 滚动窗口聚合器（内存）
 前端 ──> GET /api/symbols（现有）──> provider/gate ListSymbols（现加 funding_rate）
 ```
@@ -25,8 +34,8 @@ type Client struct { ... }
 func Shared() *Client
 
 // 取数函数（全部走 TTL 缓存，返回原始 JSON 的裁剪视图）
-func (c *Client) MarketOverview(ctx) (*MarketOverview, error)   // TTL 5m
-func (c *Client) FearGreed(ctx) (*FearGreed, error)             // TTL 5m，取自 snapshot
+func (c *Client) MarketOverview(ctx) (*MarketOverview, error)   // TTL 5m，含恐惧贪婪字段
+func (c *Client) FearGreed(ctx) (*FearGreed, error)             // TTL 5m，从 overview 缓存切片（零额外上游调用）
 func (c *Client) News(ctx, limit int) ([]NewsItem, error)       // TTL 15m
 func (c *Client) SocialSentiment(ctx) (*Sentiment, error)       // TTL 15m
 ```
@@ -67,6 +76,7 @@ func LiquidationHotspots(window time.Duration, topN int) []Hotspot
 
 ## 风险与回滚点
 
-- go-sdk API 变动（pre-1.0）：第一步先写探针 main 实测四工具调用与返回结构，再定封装；版本锁死后升级需显式改 go.mod
-- api.gatemcp.ai 国内可达性：探针 main 首先验证；不可达则上报用户决策（不私接代理）
-- 回滚点：本任务全部为新增 + 两处小改（symbols.go、server.go），单 commit 粒度可 revert（不用 git 回滚，见用户规则——此处指实现按 commit 分步，出错手动恢复文件状态）
+- go-sdk v1.8.0 为锁定版本：SDK API 以该版本文档为准（探针已验证协议层可用，SDK 封装层以 v1.8.0 API 编码）；升级需显式改 go.mod
+- api.gatemcp.ai 可达性已实证（直连 200）；生产环境（Docker 同宿主网络）复测一次即可
+- news_search 空结果：调参后仍可能稀疏——空列表是真实空态，不造假
+- 回滚点：本任务全部为新增 + 两处小改（symbols.go、server.go），单 commit 粒度（不用 git 回滚，见用户规则——此处指实现按 commit 分步，出错手动恢复文件状态）
