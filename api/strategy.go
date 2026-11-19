@@ -23,13 +23,6 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 		return warnings
 	}
 
-	// Validate NofxOS API key if any NofxOS feature is enabled
-	if (config.Indicators.EnableQuantData || config.Indicators.EnableOIRanking ||
-		config.Indicators.EnableNetFlowRanking || config.Indicators.EnablePriceRanking) &&
-		config.Indicators.NofxOSAPIKey == "" {
-		warnings = append(warnings, "NofxOS API key is not configured. NofxOS data sources may not work properly.")
-	}
-
 	return warnings
 }
 
@@ -453,7 +446,7 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 		"system_prompt":  systemPrompt,
 		"prompt_variant": req.PromptVariant,
 		"config_summary": gin.H{
-			"coin_source":      req.Config.CoinSource.SourceType,
+			"static_coins":     req.Config.CoinSource.StaticCoins,
 			"primary_tf":       req.Config.Indicators.Klines.PrimaryTimeframe,
 			"btc_eth_leverage": req.Config.RiskControl.BTCETHMaxLeverage,
 			"altcoin_leverage": req.Config.RiskControl.AltcoinMaxLeverage,
@@ -538,22 +531,6 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		marketDataMap[coin.Symbol] = data
 	}
 
-	// Fetch quantitative data for each candidate coin
-	symbols := make([]string, 0, len(candidates))
-	for _, c := range candidates {
-		symbols = append(symbols, c.Symbol)
-	}
-	quantDataMap := engine.FetchQuantDataBatch(symbols)
-
-	// Fetch OI ranking data (market-wide position changes)
-	oiRankingData := engine.FetchOIRankingData()
-
-	// Fetch NetFlow ranking data (market-wide fund flow)
-	netFlowRankingData := engine.FetchNetFlowRankingData()
-
-	// Fetch Price ranking data (market-wide gainers/losers)
-	priceRankingData := engine.FetchPriceRankingData()
-
 	// Build real context (for generating User Prompt)
 	testContext := &kernel.Context{
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -569,14 +546,10 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 			MarginUsedPct:    0,
 			PositionCount:    0,
 		},
-		Positions:          []kernel.PositionInfo{},
-		CandidateCoins:     candidates,
-		PromptVariant:      req.PromptVariant,
-		MarketDataMap:      marketDataMap,
-		QuantDataMap:       quantDataMap,
-		OIRankingData:      oiRankingData,
-		NetFlowRankingData: netFlowRankingData,
-		PriceRankingData:   priceRankingData,
+		Positions:      []kernel.PositionInfo{},
+		CandidateCoins: candidates,
+		PromptVariant:  req.PromptVariant,
+		MarketDataMap:  marketDataMap,
 	}
 
 	// Build System Prompt

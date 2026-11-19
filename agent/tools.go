@@ -103,7 +103,7 @@ func plannerToolNamesForDomain(domain string) []string {
 		"get_strategies", "manage_strategy",
 		"manage_trader",
 		"get_balance", "get_positions", "get_trade_history",
-		"get_candidate_coins", "get_ai500_list",
+		"get_candidate_coins",
 		"get_watchlist", "manage_watchlist",
 		// Trade execution
 		"execute_trade",
@@ -114,7 +114,7 @@ func plannerToolNamesForDomain(domain string) []string {
 	case "__all__", "":
 		return all
 	case "market":
-		return []string{"get_market_snapshot", "get_market_price", "get_kline", "search_stock", "get_ai500_list"}
+		return []string{"get_market_snapshot", "get_market_price", "get_kline", "search_stock"}
 	case "account":
 		return []string{"get_balance", "get_positions", "get_trade_history", "get_exchange_configs"}
 	case "trader":
@@ -301,15 +301,8 @@ func strategyConfigSchema() map[string]any {
 					"coin_source": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
-							"source_type":    map[string]any{"type": "string", "enum": []string{"static", "ai500", "oi_top", "oi_low"}, "description": "Manual page coin source: static, ai500, oi_top, oi_low."},
-							"static_coins":   stringArraySchema("Static coin symbols such as BTCUSDT or ETHUSDT. Manual page allows at most 10. xyz: assets such as xyz:TSLA, xyz:GOLD, xyz:XYZ100 are also supported."),
-							"excluded_coins": stringArraySchema("Coin symbols to exclude from all sources."),
-							"use_ai500":      map[string]any{"type": "boolean"},
-							"ai500_limit":    map[string]any{"type": "number", "minimum": 1, "maximum": 10, "description": "Manual page range 1-10."},
-							"use_oi_top":     map[string]any{"type": "boolean"},
-							"oi_top_limit":   map[string]any{"type": "number", "minimum": 1, "maximum": 10, "description": "Manual page range 1-10."},
-							"use_oi_low":     map[string]any{"type": "boolean"},
-							"oi_low_limit":   map[string]any{"type": "number", "minimum": 1, "maximum": 10, "description": "Manual page range 1-10."},
+							"static_coins":   stringArraySchema("Hand-picked Gate USDT perpetual symbols such as BTCUSDT or ETHUSDT. Manual page allows at most 10."),
+							"excluded_coins": stringArraySchema("Coin symbols to exclude from the candidate list."),
 						},
 					},
 					"indicators": map[string]any{
@@ -326,32 +319,19 @@ func strategyConfigSchema() map[string]any {
 									"selected_timeframes":    stringArraySchema("Selected analysis timeframes. Allowed values: 1m,3m,5m,15m,30m,1h,2h,4h,6h,8h,12h,1d,3d,1w. Manual page allows at most 4."),
 								},
 							},
-							"enable_raw_klines":        map[string]any{"type": "boolean"},
-							"enable_ema":               map[string]any{"type": "boolean"},
-							"enable_macd":              map[string]any{"type": "boolean"},
-							"enable_rsi":               map[string]any{"type": "boolean"},
-							"enable_atr":               map[string]any{"type": "boolean"},
-							"enable_boll":              map[string]any{"type": "boolean"},
-							"enable_volume":            map[string]any{"type": "boolean"},
-							"enable_oi":                map[string]any{"type": "boolean"},
-							"enable_funding_rate":      map[string]any{"type": "boolean"},
-							"ema_periods":              intArraySchema("EMA periods such as [20,50]."),
-							"rsi_periods":              intArraySchema("RSI periods such as [7,14]."),
-							"atr_periods":              intArraySchema("ATR periods such as [14]."),
-							"boll_periods":             intArraySchema("BOLL periods such as [20]."),
-							"nofxos_api_key":           map[string]any{"type": "string"},
-							"enable_quant_data":        map[string]any{"type": "boolean"},
-							"enable_quant_oi":          map[string]any{"type": "boolean"},
-							"enable_quant_netflow":     map[string]any{"type": "boolean"},
-							"enable_oi_ranking":        map[string]any{"type": "boolean"},
-							"oi_ranking_duration":      map[string]any{"type": "string", "enum": []string{"1h", "4h", "24h"}},
-							"oi_ranking_limit":         map[string]any{"type": "number", "enum": []int{5, 10, 15, 20}},
-							"enable_netflow_ranking":   map[string]any{"type": "boolean"},
-							"netflow_ranking_duration": map[string]any{"type": "string", "enum": []string{"1h", "4h", "24h"}},
-							"netflow_ranking_limit":    map[string]any{"type": "number", "enum": []int{5, 10, 15, 20}},
-							"enable_price_ranking":     map[string]any{"type": "boolean"},
-							"price_ranking_duration":   map[string]any{"type": "string", "enum": []string{"1h", "4h", "24h", "1h,4h,24h"}},
-							"price_ranking_limit":      map[string]any{"type": "number", "enum": []int{5, 10, 15, 20}},
+							"enable_raw_klines":   map[string]any{"type": "boolean"},
+							"enable_ema":          map[string]any{"type": "boolean"},
+							"enable_macd":         map[string]any{"type": "boolean"},
+							"enable_rsi":          map[string]any{"type": "boolean"},
+							"enable_atr":          map[string]any{"type": "boolean"},
+							"enable_boll":         map[string]any{"type": "boolean"},
+							"enable_volume":       map[string]any{"type": "boolean"},
+							"enable_oi":           map[string]any{"type": "boolean"},
+							"enable_funding_rate": map[string]any{"type": "boolean"},
+							"ema_periods":         intArraySchema("EMA periods such as [20,50]."),
+							"rsi_periods":         intArraySchema("RSI periods such as [7,14]."),
+							"atr_periods":         intArraySchema("ATR periods such as [14]."),
+							"boll_periods":        intArraySchema("BOLL periods such as [20]."),
 						},
 					},
 					"custom_prompt": map[string]any{"type": "string"},
@@ -825,7 +805,7 @@ func buildAgentTools() []mcp.Tool {
 			Type: "function",
 			Function: mcp.FunctionDef{
 				Name:        "get_candidate_coins",
-				Description: "Get the current candidate coin list for a trader or strategy, including AI500 coin-source settings and the selected symbols.",
+				Description: "Get the current candidate coin list for a trader or strategy: the hand-picked static symbols after exclusions.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -836,22 +816,6 @@ func buildAgentTools() []mcp.Tool {
 						"strategy_id": map[string]any{
 							"type":        "string",
 							"description": "Optional strategy id. Use this when asking about a strategy template directly.",
-						},
-					},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: mcp.FunctionDef{
-				Name:        "get_ai500_list",
-				Description: "Get the AI500 index board: crypto symbols scored 0-100 by AI with their gain since entering the index, sorted by score. Use this whenever the user asks what's in AI500, wants coin recommendations, or asks you to pick promising/strong coins and hasn't named specific ones — the top entries are the well-performing candidates.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"limit": map[string]any{
-							"type":        "integer",
-							"description": "Max entries to return, default 20, max 100.",
 						},
 					},
 				},
@@ -933,8 +897,6 @@ func (a *Agent) handleToolCall(ctx context.Context, storeUserID string, userID i
 		return a.toolGetTradeHistory(tc.Function.Arguments)
 	case "get_candidate_coins":
 		return a.toolGetCandidateCoins(storeUserID, userID, tc.Function.Arguments)
-	case "get_ai500_list":
-		return a.toolGetAI500List(storeUserID, tc.Function.Arguments)
 	case "get_watchlist":
 		return a.toolGetWatchlist(lang)
 	case "manage_watchlist":
@@ -2312,8 +2274,6 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 	btcEthLeverage := 10
 	altcoinLeverage := 5
 	overrideBasePrompt := false
-	useAI500 := false
-	useOITop := false
 	systemPromptTemplate := "default"
 	exchangeIDShort := strings.TrimSpace(args.ExchangeID)
 	if len(exchangeIDShort) > 8 {
@@ -2335,8 +2295,6 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       "",
-		UseAI500:             useAI500,
-		UseOITop:             useOITop,
 		CustomPrompt:         "",
 		OverrideBasePrompt:   overrideBasePrompt,
 		SystemPromptTemplate: systemPromptTemplate,
@@ -2407,8 +2365,6 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 		BTCETHLeverage:       existing.BTCETHLeverage,
 		AltcoinLeverage:      existing.AltcoinLeverage,
 		TradingSymbols:       existing.TradingSymbols,
-		UseAI500:             existing.UseAI500,
-		UseOITop:             existing.UseOITop,
 		CustomPrompt:         existing.CustomPrompt,
 		OverrideBasePrompt:   existing.OverrideBasePrompt,
 		SystemPromptTemplate: existing.SystemPromptTemplate,
@@ -3487,13 +3443,6 @@ func candidateCoinSourceSummary(cfg *store.StrategyConfig) map[string]any {
 		return nil
 	}
 	return map[string]any{
-		"source_type":    cfg.CoinSource.SourceType,
-		"use_ai500":      cfg.CoinSource.UseAI500,
-		"ai500_limit":    cfg.CoinSource.AI500Limit,
-		"use_oi_top":     cfg.CoinSource.UseOITop,
-		"oi_top_limit":   cfg.CoinSource.OITopLimit,
-		"use_oi_low":     cfg.CoinSource.UseOILow,
-		"oi_low_limit":   cfg.CoinSource.OILowLimit,
 		"static_coins":   cfg.CoinSource.StaticCoins,
 		"excluded_coins": cfg.CoinSource.ExcludedCoins,
 	}

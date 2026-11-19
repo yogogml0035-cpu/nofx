@@ -359,19 +359,7 @@ export const translations = {
     inUse: 'In Use',
     noModelsConfigured: 'No configured AI models',
     noExchangesConfigured: 'No configured exchanges',
-    signalSource: 'Signal Source',
-    signalSourceConfig: 'Signal Source Configuration',
-    ai500Description:
-      'API endpoint for AI500 data provider, leave blank to disable this signal source',
-    oiTopDescription:
-      'API endpoint for open interest rankings, leave blank to disable this signal source',
     information: 'Information',
-    signalSourceInfo1:
-      '• Signal source configuration is per-user, each user can set their own URLs',
-    signalSourceInfo2:
-      '• When creating traders, you can choose whether to use these signal sources',
-    signalSourceInfo3:
-      '• Configured URLs will be used to fetch market data and trading signals',
     editAIModel: 'Edit AI Model',
     addAIModel: 'Add AI Model',
     confirmDeleteModel:
@@ -622,25 +610,6 @@ export const translations = {
       'Please login or register to access the full AI trading platform',
     registerNewAccount: 'Register New Account',
 
-    // Candidate Coins Warnings
-    candidateCoins: 'Candidate Coins',
-    candidateCoinsZeroWarning: 'Candidate Coins Count is 0',
-    possibleReasons: 'Possible Reasons:',
-    ai500ApiNotConfigured:
-      'AI500 data provider API not configured or inaccessible (check signal source settings)',
-    apiConnectionTimeout: 'API connection timeout or returned empty data',
-    noCustomCoinsAndApiFailed:
-      'No custom coins configured and API fetch failed',
-    solutions: 'Solutions:',
-    setCustomCoinsInConfig: 'Set custom coin list in trader configuration',
-    orConfigureCorrectApiUrl: 'Or configure correct data provider API address',
-    orDisableAI500Options:
-      'Or disable "Use AI500 Data Provider" and "Use OI Top" options',
-    signalSourceNotConfigured: 'Signal Source Not Configured',
-    signalSourceWarningMessage:
-      'You have traders that enabled "Use AI500 Data Provider" or "Use OI Top", but signal source API address is not configured yet. This will cause candidate coins count to be 0, and traders cannot work properly.',
-    configureSignalSourceNow: 'Configure Signal Source Now',
-
     // FAQ Page
     faqTitle: 'Frequently Asked Questions',
     faqSubtitle: 'Find answers to common questions about NOFX',
@@ -723,7 +692,7 @@ export const translations = {
 
     faqCreateStrategy: 'How do I create a trading strategy?',
     faqCreateStrategyAnswer:
-      'Go to Strategy Studio: 1) Coin Source - select which coins to trade (static list, AI500 pool, or OI Top ranking); 2) Indicators - enable technical indicators (EMA, MACD, RSI, ATR, Volume, OI, Funding Rate); 3) Risk Controls - set leverage limits, max positions, margin usage cap, position size limits; 4) Custom Prompt (optional) - add specific instructions for the AI. Save and assign to a trader.',
+      'Go to Strategy Studio: 1) Coin Source - select which coins to trade (hand-picked Gate perpetual list); 2) Indicators - enable technical indicators (EMA, MACD, RSI, ATR, Volume, OI, Funding Rate); 3) Risk Controls - set leverage limits, max positions, margin usage cap, position size limits; 4) Custom Prompt (optional) - add specific instructions for the AI. Save and assign to a trader.',
 
     faqCreateTrader: 'How do I create and start a trader?',
     faqCreateTraderAnswer:
@@ -815,7 +784,7 @@ export const translations = {
     // ===== FEATURES =====
     faqStrategyStudio: 'What is Strategy Studio?',
     faqStrategyStudioAnswer:
-      'Strategy Studio is a visual strategy builder where you configure: 1) Coin Sources - which cryptocurrencies to trade (static list, AI500 top coins, OI ranking); 2) Technical Indicators - EMA, MACD, RSI, ATR, Volume, Open Interest, Funding Rate; 3) Risk Controls - leverage limits, position sizing, margin caps; 4) Custom Prompts - specific instructions for AI. No coding required.',
+      'Strategy Studio is a visual strategy builder where you configure: 1) Coin Sources - which cryptocurrencies to trade (hand-picked Gate perpetual list); 2) Technical Indicators - EMA, MACD, RSI, ATR, Volume, Open Interest, Funding Rate; 3) Risk Controls - leverage limits, position sizing, margin caps; 4) Custom Prompts - specific instructions for AI. No coding required.',
 
     faqCompetitionMode: 'What is Competition Mode?',
     faqCompetitionModeAnswer:
@@ -1631,16 +1600,7 @@ export const translations = {
     inUse: '正在使用',
     noModelsConfigured: '暂无已配置的AI模型',
     noExchangesConfigured: '暂无已配置的交易所',
-    signalSource: '信号源',
-    signalSourceConfig: '信号源配置',
-    ai500Description:
-      '用于获取 AI500 数据源的 API 地址，留空则不使用此数据源',
-    oiTopDescription: '用于获取持仓量排行数据的API地址，留空则不使用此信号源',
     information: '说明',
-    signalSourceInfo1:
-      '• 信号源配置为用户级别，每个用户可以设置自己的信号源URL',
-    signalSourceInfo2: '• 在创建交易员时可以选择是否使用这些信号源',
-    signalSourceInfo3: '• 配置的URL将用于获取市场数据和交易信号',
     editAIModel: '编辑AI模型',
     addAIModel: '添加AI模型',
     confirmDeleteModel: '确定要删除此AI模型配置吗？',
@@ -1868,20 +1828,6 @@ export const translations = {
 
     // Candidate Coins Warnings
     candidateCoins: '候选币种',
-    candidateCoinsZeroWarning: '候选币种数量为 0',
-    possibleReasons: '可能原因：',
-    ai500ApiNotConfigured:
-      'AI500 数据源 API 未配置或无法访问（请检查信号源设置）',
-    apiConnectionTimeout: 'API连接超时或返回数据为空',
-    noCustomCoinsAndApiFailed: '未配置自定义币种且API获取失败',
-    solutions: '解决方案：',
-    setCustomCoinsInConfig: '在交易员配置中设置自定义币种列表',
-    orConfigureCorrectApiUrl: '或者配置正确的数据源 API 地址',
-    orDisableAI500Options: '或者禁用"使用 AI500 数据源"和"使用 OI Top"选项',
-    signalSourceNotConfigured: '信号源未配置',
-    signalSourceWarningMessage:
-      '您有交易员启用了"使用 AI500 数据源"或"使用 OI Top"，但尚未配置信号源 API 地址。这将导致候选币种数量为 0，交易员无法正常工作。',
-    configureSignalSourceNow: '立即配置信号源',
 
     // FAQ Page
     faqTitle: '常见问题',
@@ -1965,7 +1911,7 @@ export const translations = {
 
     faqCreateStrategy: '如何创建交易策略？',
     faqCreateStrategyAnswer:
-      '进入策略工作室：1）币种来源 - 选择交易哪些币（静态列表、AI500 池或 OI 排行）；2）指标 - 启用技术指标（EMA、MACD、RSI、ATR、成交量、OI、资金费率）；3）风控 - 设置杠杆限制、最大持仓数、保证金使用上限、仓位大小限制；4）自定义提示词（可选）- 为 AI 添加特定指令。保存后分配给交易员。',
+      '进入策略工作室：1）币种来源 - 选择交易哪些币（手工挑选的 Gate 永续清单）；2）指标 - 启用技术指标（EMA、MACD、RSI、ATR、成交量、OI、资金费率）；3）风控 - 设置杠杆限制、最大持仓数、保证金使用上限、仓位大小限制；4）自定义提示词（可选）- 为 AI 添加特定指令。保存后分配给交易员。',
 
     faqCreateTrader: '如何创建并启动交易员？',
     faqCreateTraderAnswer:
@@ -2057,7 +2003,7 @@ export const translations = {
     // ===== 功能介绍 =====
     faqStrategyStudio: '什么是策略工作室？',
     faqStrategyStudioAnswer:
-      '策略工作室是可视化策略构建器，您可以配置：1）币种来源 - 交易哪些加密货币（静态列表、AI500 热门币、OI 排行）；2）技术指标 - EMA、MACD、RSI、ATR、成交量、持仓量、资金费率；3）风控 - 杠杆限制、仓位大小、保证金上限；4）自定义提示词 - AI 的特定指令。无需编程。',
+      '策略工作室是可视化策略构建器，您可以配置：1）币种来源 - 交易哪些加密货币（手工挑选的 Gate 永续清单）；2）技术指标 - EMA、MACD、RSI、ATR、成交量、持仓量、资金费率；3）风控 - 杠杆限制、仓位大小、保证金上限；4）自定义提示词 - AI 的特定指令。无需编程。',
 
     faqCompetitionMode: '什么是竞赛模式？',
     faqCompetitionModeAnswer:
@@ -2831,14 +2777,7 @@ export const translations = {
     inUse: 'Digunakan',
     noModelsConfigured: 'Belum ada model AI yang dikonfigurasi',
     noExchangesConfigured: 'Belum ada bursa yang dikonfigurasi',
-    signalSource: 'Sumber Sinyal',
-    signalSourceConfig: 'Konfigurasi Sumber Sinyal',
-    ai500Description: 'Endpoint API untuk penyedia data AI500, kosongkan untuk menonaktifkan sumber sinyal ini',
-    oiTopDescription: 'Endpoint API untuk peringkat open interest, kosongkan untuk menonaktifkan sumber sinyal ini',
     information: 'Informasi',
-    signalSourceInfo1: '• Konfigurasi sumber sinyal per-pengguna, setiap pengguna dapat mengatur URL sendiri',
-    signalSourceInfo2: '• Saat membuat trader, Anda dapat memilih apakah akan menggunakan sumber sinyal ini',
-    signalSourceInfo3: '• URL yang dikonfigurasi akan digunakan untuk mengambil data pasar dan sinyal trading',
     editAIModel: 'Edit Model AI',
     addAIModel: 'Tambah Model AI',
     confirmDeleteModel: 'Apakah Anda yakin ingin menghapus konfigurasi model AI ini?',
@@ -3037,18 +2976,6 @@ export const translations = {
     loginRegisterPrompt: 'Silakan masuk atau daftar untuk mengakses platform trading AI lengkap',
     registerNewAccount: 'Daftar Akun Baru',
     candidateCoins: 'Koin Kandidat',
-    candidateCoinsZeroWarning: 'Jumlah Koin Kandidat adalah 0',
-    possibleReasons: 'Kemungkinan Penyebab:',
-    ai500ApiNotConfigured: 'API penyedia data AI500 tidak dikonfigurasi atau tidak dapat diakses (periksa pengaturan sumber sinyal)',
-    apiConnectionTimeout: 'Koneksi API timeout atau mengembalikan data kosong',
-    noCustomCoinsAndApiFailed: 'Tidak ada koin kustom yang dikonfigurasi dan pengambilan API gagal',
-    solutions: 'Solusi:',
-    setCustomCoinsInConfig: 'Atur daftar koin kustom di konfigurasi trader',
-    orConfigureCorrectApiUrl: 'Atau konfigurasi alamat API penyedia data yang benar',
-    orDisableAI500Options: 'Atau nonaktifkan opsi "Gunakan Penyedia Data AI500" dan "Gunakan OI Top"',
-    signalSourceNotConfigured: 'Sumber Sinyal Belum Dikonfigurasi',
-    signalSourceWarningMessage: 'Anda memiliki trader yang mengaktifkan "Gunakan Penyedia Data AI500" atau "Gunakan OI Top", tetapi alamat API sumber sinyal belum dikonfigurasi. Ini akan menyebabkan jumlah koin kandidat menjadi 0, dan trader tidak dapat bekerja dengan baik.',
-    configureSignalSourceNow: 'Konfigurasi Sumber Sinyal Sekarang',
 
     // FAQ Page
     faqTitle: 'Pertanyaan yang Sering Diajukan',

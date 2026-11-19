@@ -35,10 +35,8 @@ SystemPrompt  = baseChars / 2（zh）或 / 4（en）
 
 FixedOverhead = 200 tokens（时间戳、账户信息、章节标题）
 
-RankingData   = (OILimit × 60 + NetFlowLimit × 80 + PriceLimit × durations × 40) / 4
-
-staticTokens  = SystemPrompt + FixedOverhead + RankingData
-              ≈ 1500 + 200 + 650 = 2350 tokens（默认中文配置）
+staticTokens  = SystemPrompt + FixedOverhead
+              ≈ 1500 + 200 = 1700 tokens（默认中文配置）
 ```
 
 ### 每枚币的 Token 开销
@@ -53,10 +51,7 @@ marketPerCoin = (T × K × (80 + I) + 100) / 4
                 ↑ T=时间框架数  K=每TF K线数
                 ↑ 100 = OI + 资金费率固定开销
 
-# 每枚币的量化数据 token
-quantPerCoin  = (EnableQuantOI×300 + EnableQuantNetflow×300) / 4
-
-perCoinTokens = marketPerCoin + quantPerCoin
+perCoinTokens = marketPerCoin
 ```
 
 ### 反向公式：最大安全币数
@@ -74,18 +69,18 @@ maxSafeCoins = floor((budget - staticTokens) / perCoinTokens)
 
 ### 三种配置的 perCoinTokens
 
-| 配置                                       | T   | K   | I   | quantPerCoin | perCoinTokens |
-| ------------------------------------------ | --- | --- | --- | ------------ | ------------- |
-| **最小**（单TF，无指标，无量化）           | 1   | 10  | 0   | 0            | **225**       |
-| **默认**（3TF，仅Volume，QuantOI+Netflow） | 3   | 20  | 10  | 600          | **1525**      |
-| **最大**（4TF，全部指标，全量化）          | 4   | 30  | 115 | 600          | **6025**      |
+| 配置                                       | T   | K   | I   | perCoinTokens |
+| ------------------------------------------ | --- | --- | --- | ------------- |
+| **最小**（单TF，无指标）                   | 1   | 10  | 0   | **225**       |
+| **默认**（3TF，仅Volume）                  | 3   | 20  | 10  | **1375**      |
+| **最大**（4TF，全部指标）                  | 4   | 30  | 115 | **5875**      |
 
 ### 各模型下的最大安全币数
 
 | 模型上限                       | 最小配置     | 默认配置     | 最大配置    |
 | ------------------------------ | ------------ | ------------ | ----------- |
-| 131K（DeepSeek / Grok / Qwen） | ≥10（封顶）  | ≥10（封顶）  | **14**      |
-| 128K（OpenAI GPT-4）           | ≥10（封顶）  | ≥10（封顶）  | **14**      |
+| 131K（DeepSeek / Grok / Qwen） | ≥10（封顶）  | ≥10（封顶）  | ≥10（封顶） |
+| 128K（OpenAI GPT-4）           | ≥10（封顶）  | ≥10（封顶）  | ≥10（封顶） |
 | 200K（Claude）                 | ≥10（封顶）  | ≥10（封顶）  | ≥10（封顶） |
 | 1M（Gemini / Minimax）         | ≥10（封顶）  | ≥10（封顶）  | ≥10（封顶） |
 

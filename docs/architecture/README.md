@@ -62,7 +62,7 @@ NOFX is a full-stack AI trading platform for crypto perpetual futures markets:
 
 #### Strategy Module
 Complete strategy configuration system including:
-- Coin source selection (static list, AI500 pool, OI ranking)
+- Coin source selection (hand-picked Gate perpetual list)
 - Market data indicators (K-lines, EMA, MACD, RSI, ATR)
 - Prompt construction (system prompt, user prompt, sections)
 - AI response parsing and decision execution

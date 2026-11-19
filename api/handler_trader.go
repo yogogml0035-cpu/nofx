@@ -36,8 +36,6 @@ type CreateTraderRequest struct {
 	CustomPrompt         string `json:"custom_prompt"`
 	OverrideBasePrompt   bool   `json:"override_base_prompt"`
 	SystemPromptTemplate string `json:"system_prompt_template"` // System prompt template name
-	UseAI500             bool   `json:"use_ai500"`
-	UseOITop             bool   `json:"use_oi_top"`
 }
 
 // UpdateTraderRequest Update trader request
@@ -491,8 +489,6 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       req.TradingSymbols,
-		UseAI500:             req.UseAI500,
-		UseOITop:             req.UseOITop,
 		CustomPrompt:         req.CustomPrompt,
 		OverrideBasePrompt:   req.OverrideBasePrompt,
 		SystemPromptTemplate: systemPromptTemplate,

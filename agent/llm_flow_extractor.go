@@ -252,9 +252,9 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 	case "strategy_management":
 		if session.Action == "create" || session.Action == "update_config" {
 			if session.Action == "create" {
-				add(&out, "strategy_type", "Strategy type. Use ai_trading for AI strategies, including AI500/OI/static coin-source requests; use grid_trading only for grid strategy requests.", false)
+				add(&out, "strategy_type", "Strategy type. Use ai_trading for AI strategies, including static coin-source requests; use grid_trading only for grid strategy requests.", false)
 			}
-			configPatchDescription := "Partial StrategyConfig JSON patch inferred from the user's strategy intent. Use exact product schema values, not display labels: source_type must be one of static, ai500, oi_top, oi_low; strategy_type must be ai_trading or grid_trading; selected_timeframes must be a JSON array of strings, not a JSON-encoded string."
+			configPatchDescription := "Partial StrategyConfig JSON patch inferred from the user's strategy intent. Use exact product schema values, not display labels: coin_source.static_coins must be a JSON array of symbols; strategy_type must be ai_trading or grid_trading; selected_timeframes must be a JSON array of strings, not a JSON-encoded string."
 			switch explicitStrategyCreateType(session) {
 			case "grid_trading":
 				configPatchDescription += " Current strategy_type is grid_trading: use only top-level strategy_type, grid_config, and language. Do not output ai_config or AI fields such as coin_source, indicators, risk_control, timeframes, confidence, or prompt_sections."

@@ -83,7 +83,7 @@ export default function AgentTerminal() {
                         <div className="text-green-500 text-[10px] font-mono">↑ 2.1%</div>
                     </div>
                     <div className="p-3 text-center">
-                        <div className="text-zinc-500 text-[10px] font-mono uppercase tracking-wider mb-1">Netflow</div>
+                        <div className="text-zinc-500 text-[10px] font-mono uppercase tracking-wider mb-1">Flow</div>
                         <div className="text-green-400 font-bold font-mono">+$124M</div>
                         <div className="text-zinc-500 text-[10px] font-mono">24h inflow</div>
                     </div>

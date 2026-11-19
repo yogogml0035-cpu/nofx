@@ -52,7 +52,6 @@ Before submitting a PR, please check the following:
 - 🔒 Security enhancements (encryption, authentication, RBAC)
 - 🧠 AI model integrations (GPT-4, Claude, Gemini Pro)
 - 🔗 Exchange integrations (OKX, Bybit, Lighter, EdgeX)
-- 📊 Trading data APIs (AI500, OI analysis, NetFlow)
 - 🎨 UI/UX improvements (mobile responsiveness, charts)
 - ⚡ Performance optimizations
 - 🐛 Bug fixes

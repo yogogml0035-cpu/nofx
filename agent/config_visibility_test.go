@@ -172,9 +172,9 @@ func TestToolManageStrategyUpdateRejectsOutOfRangeLeverageBeforeSave(t *testing.
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	strategy := &store.Strategy{
-		ID:            "strategy-risk-guard",
-		UserID:        "default",
-		Name:          "AI500稳重策略",
+		ID:          "strategy-risk-guard",
+		UserID:      "default",
+		Name:        "稳重策略",
 		Description: "test",
 		Config:      string(rawCfg),
 	}
@@ -360,7 +360,7 @@ func TestSkillVisibleFieldSummaryForStrategyCoversManualPageFields(t *testing.T)
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
 	summary := a.skillVisibleFieldSummary("default", "zh", "strategy_management", "update_config")
-	for _, expected := range []string{"交易对", "杠杆", "主周期", "多周期时间框架", "NofxOS API key", "角色定义", "自定义 Prompt"} {
+	for _, expected := range []string{"交易对", "杠杆", "主周期", "多周期时间框架", "角色定义", "自定义 Prompt"} {
 		if !strings.Contains(summary, expected) {
 			t.Fatalf("expected field label %q in summary, got: %s", expected, summary)
 		}
@@ -420,7 +420,7 @@ func TestStrategyVisibleFieldSummaryUsesTargetStrategyType(t *testing.T) {
 		t.Fatalf("expected editable field list in resources, got: %#v", resources["target_editable_fields"])
 	}
 	joined := strings.Join(fields, ",")
-	if !strings.Contains(joined, "symbol") || strings.Contains(joined, "source_type") {
+	if !strings.Contains(joined, "symbol") {
 		t.Fatalf("expected grid-only editable fields in resources, got: %s", joined)
 	}
 }
@@ -439,7 +439,7 @@ func TestSkillVisibleFieldSummaryForTraderMatchesManualPanelFields(t *testing.T)
 			t.Fatalf("expected trader field label %q in summary, got: %s", expected, summary)
 		}
 	}
-	for _, unexpected := range []string{"名称", "初始资金", "初始余额", "杠杆", "交易对", "Prompt", "AI500", "OI Top"} {
+	for _, unexpected := range []string{"名称", "初始资金", "初始余额", "杠杆", "交易对", "Prompt"} {
 		if strings.Contains(summary, unexpected) {
 			t.Fatalf("trader field summary should stay within manual panel fields, got: %s", summary)
 		}
@@ -664,7 +664,6 @@ func TestDescribeStrategyIncludesManualPageSections(t *testing.T) {
 	}
 	for _, unexpected := range []string{
 		"标的来源：",
-		"NofxOS 数据：",
 	} {
 		if strings.Contains(detail, unexpected) {
 			t.Fatalf("expected grid strategy detail not to contain AI field %q, got: %s", unexpected, detail)

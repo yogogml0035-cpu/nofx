@@ -37,8 +37,6 @@ type Trader struct {
 	BTCETHLeverage       int    `gorm:"column:btc_eth_leverage;default:5" json:"btc_eth_leverage,omitempty"`
 	AltcoinLeverage      int    `gorm:"column:altcoin_leverage;default:5" json:"altcoin_leverage,omitempty"`
 	TradingSymbols       string `gorm:"column:trading_symbols;default:''" json:"trading_symbols,omitempty"`
-	UseAI500             bool   `gorm:"column:use_coin_pool;default:false" json:"use_ai500,omitempty"`
-	UseOITop             bool   `gorm:"column:use_oi_top;default:false" json:"use_oi_top,omitempty"`
 	CustomPrompt         string `gorm:"column:custom_prompt;default:''" json:"custom_prompt,omitempty"`
 	OverrideBasePrompt   bool   `gorm:"column:override_base_prompt;default:false" json:"override_base_prompt,omitempty"`
 	SystemPromptTemplate string `gorm:"column:system_prompt_template;default:default" json:"system_prompt_template,omitempty"`
@@ -119,8 +117,6 @@ func (s *TraderStore) Update(trader *Trader) error {
 		"btc_eth_leverage":       trader.BTCETHLeverage,
 		"altcoin_leverage":       trader.AltcoinLeverage,
 		"trading_symbols":        trader.TradingSymbols,
-		"use_coin_pool":          trader.UseAI500,
-		"use_oi_top":             trader.UseOITop,
 		"custom_prompt":          trader.CustomPrompt,
 		"override_base_prompt":   trader.OverrideBasePrompt,
 		"system_prompt_template": trader.SystemPromptTemplate,
