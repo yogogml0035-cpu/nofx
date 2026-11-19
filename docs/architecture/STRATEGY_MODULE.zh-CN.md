@@ -16,10 +16,7 @@
 └─────────────────────────────────────────────────────────────────┘
 
 1. 币种选择 (GetCandidateCoins)
-   ├─ Static (静态列表)
-   ├─ AI500 Pool (AI评分池)
-   ├─ OI Top (持仓增长榜)
-   └─ Mixed (混合模式)
+   └─ Static (手工挑选的 Gate 永续清单)
         ↓
 2. 数据组装 (buildTradingContext)
    ├─ 账户余额 → equity, available, unrealizedPnL
@@ -27,7 +24,6 @@
    ├─ K线数据 → OHLCV (5m, 15m, 1h, 4h)
    ├─ 技术指标 → EMA, MACD, RSI, ATR, Volume
    ├─ 链上数据 → OI, Funding Rate
-   ├─ 量化数据 → 资金流向, OI变化 (可选)
    └─ 最近交易 → 最近10笔已平仓
         ↓
 3. 系统提示词 (BuildSystemPrompt)
@@ -74,88 +70,26 @@
 
 ## 1. 币种选择 (Coin Selection)
 
-**核心文件:** `decision/engine.go:380-454`
+**核心文件:** `kernel/engine.go`
 
 **入口方法:** `StrategyEngine.GetCandidateCoins()`
 
 ### 1.1 静态币种列表 (Static)
 
 ```go
-// decision/engine.go:395-403
-if config.CoinSource.SourceType == "static" {
-    for _, symbol := range config.CoinSource.StaticCoins {
-        coins = append(coins, CandidateCoin{
-            Symbol:  market.Normalize(symbol),
-            Sources: []string{"static"},
-        })
-    }
+// kernel/engine.go
+for _, symbol := range e.config.CoinSource.StaticCoins {
+    symbol = market.Normalize(symbol)
+    candidates = append(candidates, CandidateCoin{
+        Symbol:  symbol,
+        Sources: []string{"static"},
+    })
 }
 ```
 
 - **配置:** `StrategyConfig.CoinSource.StaticCoins`
-- **用途:** 手动指定交易币种
+- **用途:** 从 Gate USDT 永续清单手动指定交易币种
 - **标签:** `["static"]`
-
-### 1.2 AI500 币种池 (CoinPool)
-
-```go
-// decision/engine.go:405-406, 456-474
-func (e *StrategyEngine) getCoinPoolCoins(limit int) []CandidateCoin {
-    coins, err := e.provider.GetTopRatedCoins(limit)
-    // ...
-    for _, coin := range coins {
-        result = append(result, CandidateCoin{
-            Symbol:  coin.Symbol,
-            Sources: []string{"ai500"},
-        })
-    }
-}
-```
-
-- **API:** `config.CoinSource.CoinPoolAPIURL` (默认: `https://nofxos.ai/api/ai500/list`)
-- **用途:** 获取 AI 评分最高的 N 个币种
-- **标签:** `["ai500"]`
-
-### 1.3 OI Top 币种 (持仓增长榜)
-
-```go
-// decision/engine.go:408-409, 476-498
-func (e *StrategyEngine) getOITopCoins() []CandidateCoin {
-    positions, err := e.provider.GetOITopPositions()
-    // ...
-    for _, pos := range positions {
-        result = append(result, CandidateCoin{
-            Symbol:  pos.Symbol,
-            Sources: []string{"oi_top"},
-        })
-    }
-}
-```
-
-- **API:** `config.CoinSource.OITopAPIURL`
-- **用途:** 获取持仓量增长最快的币种
-- **标签:** `["oi_top"]`
-
-### 1.4 混合模式 (Mixed)
-
-```go
-// decision/engine.go:411-449
-if config.CoinSource.SourceType == "mixed" {
-    if config.CoinSource.UseCoinPool {
-        // 添加 AI500 币种
-    }
-    if config.CoinSource.UseOITop {
-        // 添加 OI Top 币种
-    }
-    if len(config.CoinSource.StaticCoins) > 0 {
-        // 添加静态币种
-    }
-    // 去重合并，保留多来源标签
-}
-```
-
-- **特点:** 同时使用多个数据源
-- **标签示例:** `["ai500", "oi_top"]` (双信号币种)
 
 ---
 
@@ -228,33 +162,6 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 | **Volume** | `EnableVolume` | 原始成交量数据 |
 | **OI** | `EnableOI` | 持仓量数据 |
 | **Funding Rate** | `EnableFundingRate` | 资金费率 |
-
-### 2.5 量化数据 (可选)
-
-```go
-// trader/auto_trader.go:759-778
-if config.Indicators.EnableQuantData {
-    quantData := provider.GetQuantData(symbol)
-    // 包含: 资金流向、OI变化、价格变化
-}
-```
-
-**数据结构:**
-```go
-QuantData {
-    Netflow {
-        Institution: {Future, Spot},  // 机构资金流
-        Personal: {Future, Spot}      // 散户资金流
-    },
-    OI {
-        CurrentOI: float64,
-        Delta: {1h, 4h, 24h}          // OI变化
-    },
-    PriceChange {
-        "1h", "4h", "24h": float64    // 价格变化百分比
-    }
-}
-```
 
 ---
 
@@ -360,8 +267,6 @@ minConfidence := config.RiskControl.MinConfidence            // 默认: 75
 4. 最近成交          [最近10笔已平仓交易]
 5. 当前持仓          [详细持仓数据 + 技术指标]
 6. 候选币种          [完整市场数据]
-7. 量化数据          [资金流向, OI数据] (可选)
-8. OI排行数据        [市场OI变化排行] (可选)
 ```
 
 ### 4.2 账户信息格式
@@ -388,7 +293,7 @@ Account: Equity 1000.00 | Balance 800.00 (80.0%) | PnL +5.5% | Margin 20.0% | Po
 ### 4.4 候选币种格式
 
 ```
-### 1. ETHUSDT (AI500+OI_Top dual signal)
+### 1. ETHUSDT
 
 current_price = 3500.00, current_ema20 = 3450.00, current_macd = 25.5, current_rsi7 = 58.0
 
@@ -661,7 +566,6 @@ at.store.Decision().LogDecision(record)
 | **决策验证** | `decision/engine.go:1480-1602` | `validateDecisions()` |
 | **风控执行** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforcePositionValueRatio()` |
 | **策略配置** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
-| **数据提供者** | `provider/data_provider.go` | `GetAI500Data()`, `GetOITopPositions()` |
 
 ---
 
@@ -674,13 +578,8 @@ at.store.Decision().LogDecision(record)
 type StrategyConfig struct {
     // 币种来源
     CoinSource struct {
-        SourceType     string   // "static", "coinpool", "oi_top", "mixed"
-        StaticCoins    []string // 静态币种列表
-        UseCoinPool    bool     // 是否使用AI500
-        UseOITop       bool     // 是否使用OI排行
-        CoinPoolLimit  int      // AI500获取数量
-        CoinPoolAPIURL string   // AI500 API地址
-        OITopAPIURL    string   // OI排行 API地址
+        StaticCoins    []string // 手工挑选的 Gate 永续清单
+        ExcludedCoins  []string // 排除币种
     }
 
     // 技术指标
@@ -695,8 +594,6 @@ type StrategyConfig struct {
         EnableVolume      bool
         EnableOI          bool
         EnableFundingRate bool
-        EnableQuantData   bool
-        EnableOIRanking   bool
 
         Klines struct {
             PrimaryTimeframe   string   // "5m"

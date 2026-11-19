@@ -18,7 +18,6 @@
 | Twitter/X | **@Web3Tinkle** | https://x.com/Web3Tinkle | ✅ Founder |
 | GitHub | **NoFxAiOS** | https://github.com/NoFxAiOS | ✅ Official |
 | Website | **nofxai.com** | https://nofxai.com | ✅ Official |
-| Dashboard | **nofxos.ai** | https://nofxos.ai | ✅ Official |
 
 ## ⛔ Known Impersonation Accounts
 

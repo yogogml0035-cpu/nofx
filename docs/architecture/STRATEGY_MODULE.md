@@ -16,10 +16,7 @@ This document describes the complete data flow of the NOFX strategy module, incl
 └─────────────────────────────────────────────────────────────────┘
 
 1. Coin Selection (GetCandidateCoins)
-   ├─ Static (Static list)
-   ├─ AI500 Pool (AI rating pool)
-   ├─ OI Top (Position growth ranking)
-   └─ Mixed (Mixed mode)
+   └─ Static (Hand-picked Gate perpetual list)
         ↓
 2. Data Assembly (buildTradingContext)
    ├─ Account balance → equity, available, unrealizedPnL
@@ -27,7 +24,6 @@ This document describes the complete data flow of the NOFX strategy module, incl
    ├─ K-line data → OHLCV (5m, 15m, 1h, 4h)
    ├─ Technical indicators → EMA, MACD, RSI, ATR, Volume
    ├─ On-chain data → OI, Funding Rate
-   ├─ Quant data → Capital flow, OI changes (optional)
    └─ Recent trades → Last 10 closed trades
         ↓
 3. System Prompt (BuildSystemPrompt)
@@ -74,88 +70,26 @@ This document describes the complete data flow of the NOFX strategy module, incl
 
 ## 1. Coin Selection
 
-**Core File:** `decision/engine.go:380-454`
+**Core File:** `kernel/engine.go`
 
 **Entry Method:** `StrategyEngine.GetCandidateCoins()`
 
 ### 1.1 Static Coin List
 
 ```go
-// decision/engine.go:395-403
-if config.CoinSource.SourceType == "static" {
-    for _, symbol := range config.CoinSource.StaticCoins {
-        coins = append(coins, CandidateCoin{
-            Symbol:  market.Normalize(symbol),
-            Sources: []string{"static"},
-        })
-    }
+// kernel/engine.go
+for _, symbol := range e.config.CoinSource.StaticCoins {
+    symbol = market.Normalize(symbol)
+    candidates = append(candidates, CandidateCoin{
+        Symbol:  symbol,
+        Sources: []string{"static"},
+    })
 }
 ```
 
 - **Config:** `StrategyConfig.CoinSource.StaticCoins`
-- **Usage:** Manually specify trading coins
+- **Usage:** Manually specify trading coins from the Gate USDT perpetual list
 - **Tag:** `["static"]`
-
-### 1.2 AI500 Coin Pool
-
-```go
-// decision/engine.go:405-406, 456-474
-func (e *StrategyEngine) getCoinPoolCoins(limit int) []CandidateCoin {
-    coins, err := e.provider.GetTopRatedCoins(limit)
-    // ...
-    for _, coin := range coins {
-        result = append(result, CandidateCoin{
-            Symbol:  coin.Symbol,
-            Sources: []string{"ai500"},
-        })
-    }
-}
-```
-
-- **API:** `config.CoinSource.CoinPoolAPIURL`
-- **Usage:** Get top N coins by AI rating
-- **Tag:** `["ai500"]`
-
-### 1.3 OI Top Coins (Position Growth Ranking)
-
-```go
-// decision/engine.go:408-409, 476-498
-func (e *StrategyEngine) getOITopCoins() []CandidateCoin {
-    positions, err := e.provider.GetOITopPositions()
-    // ...
-    for _, pos := range positions {
-        result = append(result, CandidateCoin{
-            Symbol:  pos.Symbol,
-            Sources: []string{"oi_top"},
-        })
-    }
-}
-```
-
-- **API:** `config.CoinSource.OITopAPIURL`
-- **Usage:** Get coins with fastest OI growth
-- **Tag:** `["oi_top"]`
-
-### 1.4 Mixed Mode
-
-```go
-// decision/engine.go:411-449
-if config.CoinSource.SourceType == "mixed" {
-    if config.CoinSource.UseCoinPool {
-        // Add AI500 coins
-    }
-    if config.CoinSource.UseOITop {
-        // Add OI Top coins
-    }
-    if len(config.CoinSource.StaticCoins) > 0 {
-        // Add static coins
-    }
-    // Deduplicate and merge, keep multi-source tags
-}
-```
-
-- **Feature:** Use multiple data sources simultaneously
-- **Tag Example:** `["ai500", "oi_top"]` (dual signal coin)
 
 ---
 
@@ -228,33 +162,6 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 | **Volume** | `EnableVolume` | Raw volume data |
 | **OI** | `EnableOI` | Open interest data |
 | **Funding Rate** | `EnableFundingRate` | Funding rate |
-
-### 2.5 Quant Data (Optional)
-
-```go
-// trader/auto_trader.go:759-778
-if config.Indicators.EnableQuantData {
-    quantData := provider.GetQuantData(symbol)
-    // Contains: Capital flow, OI changes, Price changes
-}
-```
-
-**Data Structure:**
-```go
-QuantData {
-    Netflow {
-        Institution: {Future, Spot},  // Institutional flow
-        Personal: {Future, Spot}      // Retail flow
-    },
-    OI {
-        CurrentOI: float64,
-        Delta: {1h, 4h, 24h}          // OI changes
-    },
-    PriceChange {
-        "1h", "4h", "24h": float64    // Price change %
-    }
-}
-```
 
 ---
 
@@ -360,8 +267,6 @@ minConfidence := config.RiskControl.MinConfidence            // Default: 75
 4. Recent Trades           [Last 10 closed trades]
 5. Current Positions       [Detailed position data + indicators]
 6. Candidate Coins         [Full market data]
-7. Quant Data              [Capital flow, OI data] (optional)
-8. OI Ranking Data         [Market OI change ranking] (optional)
 ```
 
 ### 4.2 Account Info Format
@@ -388,7 +293,7 @@ Account: Equity 1000.00 | Balance 800.00 (80.0%) | PnL +5.5% | Margin 20.0% | Po
 ### 4.4 Candidate Coin Format
 
 ```
-### 1. ETHUSDT (AI500+OI_Top dual signal)
+### 1. ETHUSDT
 
 current_price = 3500.00, current_ema20 = 3450.00, current_macd = 25.5, current_rsi7 = 58.0
 
@@ -661,7 +566,6 @@ at.store.Decision().LogDecision(record)
 | **Decision Valid** | `decision/engine.go:1480-1602` | `validateDecisions()` |
 | **Risk Enforce** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforcePositionValueRatio()` |
 | **Strategy Config** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
-| **Data Provider** | `provider/data_provider.go` | `GetAI500Data()`, `GetOITopPositions()` |
 
 ---
 
@@ -674,13 +578,8 @@ at.store.Decision().LogDecision(record)
 type StrategyConfig struct {
     // Coin Source
     CoinSource struct {
-        SourceType     string   // "static", "coinpool", "oi_top", "mixed"
-        StaticCoins    []string // Static coin list
-        UseCoinPool    bool     // Use AI500
-        UseOITop       bool     // Use OI ranking
-        CoinPoolLimit  int      // AI500 fetch limit
-        CoinPoolAPIURL string   // AI500 API URL
-        OITopAPIURL    string   // OI ranking API URL
+        StaticCoins    []string // Hand-picked Gate perpetual list
+        ExcludedCoins  []string // Coins to exclude
     }
 
     // Technical Indicators
@@ -695,8 +594,6 @@ type StrategyConfig struct {
         EnableVolume      bool
         EnableOI          bool
         EnableFundingRate bool
-        EnableQuantData   bool
-        EnableOIRanking   bool
 
         Klines struct {
             PrimaryTimeframe   string   // "5m"
