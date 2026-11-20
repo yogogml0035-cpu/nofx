@@ -5,8 +5,6 @@ export interface Strategy {
   description: string;
   is_active: boolean;
   is_default: boolean;
-  is_public: boolean;           // 是否在策略市场公开
-  config_visible: boolean;      // 配置参数是否公开可见
   config: StrategyConfig;
   created_at: string;
   updated_at: string;
@@ -54,7 +52,6 @@ export interface StrategyConfig {
   prompt_sections?: PromptSectionsConfig;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')
   grid_config?: GridStrategyConfig | null;
-  publish_config?: PublishStrategyConfig;
 }
 
 export interface AIStrategyConfig {
@@ -63,11 +60,14 @@ export interface AIStrategyConfig {
   custom_prompt?: string;
   risk_control: RiskControlConfig;
   prompt_sections?: PromptSectionsConfig;
+  market_context?: MarketContextConfig;
 }
 
-export interface PublishStrategyConfig {
-  is_public: boolean;
-  config_visible: boolean;
+// 市场环境上下文勾选（决策时注入对应 Gate 数据段）；零值 = 全关
+export interface MarketContextConfig {
+  overview?: boolean;
+  fear_greed?: boolean;
+  news_sentiment?: boolean;
 }
 
 // Grid trading specific configuration
@@ -105,16 +105,8 @@ export interface GridStrategyConfig {
 }
 
 export interface CoinSourceConfig {
-  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low';
   static_coins?: string[];
   excluded_coins?: string[];   // 排除的币种列表
-  use_ai500: boolean;
-  ai500_limit?: number;
-  use_oi_top: boolean;
-  oi_top_limit?: number;
-  use_oi_low: boolean;
-  oi_low_limit?: number;
-  // Note: API URLs are now built automatically using nofxos_api_key from IndicatorConfig
 }
 
 export interface IndicatorConfig {
@@ -135,30 +127,6 @@ export interface IndicatorConfig {
   atr_periods?: number[];
   boll_periods?: number[];
   external_data_sources?: ExternalDataSource[];
-
-  // ========== NofxOS 数据源统一配置 ==========
-  // Unified NofxOS API Key - used for all NofxOS data sources
-  nofxos_api_key?: string;
-
-  // 量化数据源（资金流向、持仓变化、价格变化）
-  enable_quant_data?: boolean;
-  enable_quant_oi?: boolean;
-  enable_quant_netflow?: boolean;
-
-  // OI 排行数据（市场持仓量增减排行）
-  enable_oi_ranking?: boolean;
-  oi_ranking_duration?: string;  // "1h", "4h", "24h"
-  oi_ranking_limit?: number;
-
-  // NetFlow 排行数据（机构/散户资金流向排行）
-  enable_netflow_ranking?: boolean;
-  netflow_ranking_duration?: string;  // "1h", "4h", "24h"
-  netflow_ranking_limit?: number;
-
-  // Price 排行数据（涨跌幅排行）
-  enable_price_ranking?: boolean;
-  price_ranking_duration?: string;  // "1h", "4h", "24h" or "1h,4h,24h"
-  price_ranking_limit?: number;
 }
 
 export interface KlineConfig {

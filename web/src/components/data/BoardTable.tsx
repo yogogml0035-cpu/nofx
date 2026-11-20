@@ -1,0 +1,103 @@
+import type { ReactNode } from 'react'
+import { useLanguage } from '../../contexts/LanguageContext'
+import { t } from '../../i18n/translations'
+
+interface BoardTableProps {
+  title: string
+  loading: boolean
+  error: string | null
+  lastSuccessAt: Date | null
+  columns: Array<{ key: string; label: string; align?: 'left' | 'right' }>
+  rows: Array<Record<string, string | number>>
+  emptyText?: string
+  actions?: ReactNode
+  scrollable?: boolean
+}
+
+// 通用榜单表：列配置驱动 + 卡头 actions 插槽 + 可选限高滚动 sticky 表头
+export function BoardTable({
+  title,
+  loading,
+  error,
+  lastSuccessAt,
+  columns,
+  rows,
+  emptyText,
+  actions,
+  scrollable = true,
+}: BoardTableProps) {
+  const { language } = useLanguage()
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
+          {title}
+        </h3>
+        <div className="flex items-center gap-2">
+          {error && (
+            <span className="text-[10px] font-mono text-nofx-danger">
+              {t('dataPage.fetchFailed', language)}
+              {lastSuccessAt && (
+                <span className="ml-1 text-nofx-text-muted">
+                  ({t('dataPage.lastOk', language)}{' '}
+                  {lastSuccessAt.toLocaleTimeString()})
+                </span>
+              )}
+            </span>
+          )}
+          {actions}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
+          {t('dataPage.loading', language)}
+        </div>
+      ) : error ? (
+        <div className="py-6 text-center text-xs font-mono text-nofx-danger">
+          {error}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
+          {emptyText || t('dataPage.noData', language)}
+        </div>
+      ) : (
+        <div className={scrollable ? 'max-h-[480px] overflow-y-auto' : ''}>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-nofx-text-muted">
+                {columns.map((col) => (
+                  <th
+                    key={col.key}
+                    className={`sticky top-0 z-10 bg-nofx-bg-lighter pb-2 pt-1 font-semibold uppercase tracking-wider ${
+                      col.align === 'right' ? 'text-right' : 'text-left'
+                    }`}
+                  >
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} className="border-t border-white/5 text-nofx-text">
+                  {columns.map((col) => (
+                    <td
+                      key={col.key}
+                      className={`py-1.5 font-mono whitespace-nowrap ${
+                        col.align === 'right' ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {row[col.key]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}

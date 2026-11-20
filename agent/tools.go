@@ -103,7 +103,7 @@ func plannerToolNamesForDomain(domain string) []string {
 		"get_strategies", "manage_strategy",
 		"manage_trader",
 		"get_balance", "get_positions", "get_trade_history",
-		"get_candidate_coins", "get_ai500_list",
+		"get_candidate_coins",
 		"get_watchlist", "manage_watchlist",
 		// Trade execution
 		"execute_trade",
@@ -114,7 +114,7 @@ func plannerToolNamesForDomain(domain string) []string {
 	case "__all__", "":
 		return all
 	case "market":
-		return []string{"get_market_snapshot", "get_market_price", "get_kline", "search_stock", "get_ai500_list"}
+		return []string{"get_market_snapshot", "get_market_price", "get_kline", "search_stock"}
 	case "account":
 		return []string{"get_balance", "get_positions", "get_trade_history", "get_exchange_configs"}
 	case "trader":
@@ -160,18 +160,16 @@ func toolsByName(names []string, compactStrategy bool) []mcp.Tool {
 }
 
 func compactManageStrategyTool(tool mcp.Tool) mcp.Tool {
-	tool.Function.Description = "List, query, delete, activate, duplicate, create, or update strategy templates. Planning schema is compact; use action plus strategy_id/name/description/lang/is_public/config_visible, and include config only when the user explicitly provides strategy config fields."
+	tool.Function.Description = "List, query, delete, activate, duplicate, create, or update strategy templates. Planning schema is compact; use action plus strategy_id/name/description/lang, and include config only when the user explicitly provides strategy config fields."
 	tool.Function.Parameters = map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"action":         map[string]any{"type": "string", "enum": []string{"list", "create", "update", "delete", "activate", "duplicate", "get_default_config"}},
-			"strategy_id":    map[string]any{"type": "string"},
-			"name":           map[string]any{"type": "string"},
-			"description":    map[string]any{"type": "string"},
-			"lang":           map[string]any{"type": "string", "enum": []string{"zh", "en"}},
-			"is_public":      map[string]any{"type": "boolean"},
-			"config_visible": map[string]any{"type": "boolean"},
-			"config":         map[string]any{"type": "object", "description": "Strategy config patch. Use precise field paths/objects from the user request; omit when listing/querying/deleting/activating/duplicating."},
+			"action":      map[string]any{"type": "string", "enum": []string{"list", "create", "update", "delete", "activate", "duplicate", "get_default_config"}},
+			"strategy_id": map[string]any{"type": "string"},
+			"name":        map[string]any{"type": "string"},
+			"description": map[string]any{"type": "string"},
+			"lang":        map[string]any{"type": "string", "enum": []string{"zh", "en"}},
+			"config":      map[string]any{"type": "object", "description": "Strategy config patch. Use precise field paths/objects from the user request; omit when listing/querying/deleting/activating/duplicating."},
 		},
 		"required": []string{"action"},
 	}
@@ -303,15 +301,17 @@ func strategyConfigSchema() map[string]any {
 					"coin_source": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
-							"source_type":    map[string]any{"type": "string", "enum": []string{"static", "ai500", "oi_top", "oi_low"}, "description": "Manual page coin source: static, ai500, oi_top, oi_low."},
-							"static_coins":   stringArraySchema("Static coin symbols such as BTCUSDT or ETHUSDT. Manual page allows at most 10. xyz: assets such as xyz:TSLA, xyz:GOLD, xyz:XYZ100 are also supported."),
-							"excluded_coins": stringArraySchema("Coin symbols to exclude from all sources."),
-							"use_ai500":      map[string]any{"type": "boolean"},
-							"ai500_limit":    map[string]any{"type": "number", "minimum": 1, "maximum": 10, "description": "Manual page range 1-10."},
-							"use_oi_top":     map[string]any{"type": "boolean"},
-							"oi_top_limit":   map[string]any{"type": "number", "minimum": 1, "maximum": 10, "description": "Manual page range 1-10."},
-							"use_oi_low":     map[string]any{"type": "boolean"},
-							"oi_low_limit":   map[string]any{"type": "number", "minimum": 1, "maximum": 10, "description": "Manual page range 1-10."},
+							"static_coins":   stringArraySchema("Hand-picked Gate USDT perpetual symbols such as BTCUSDT or ETHUSDT. Manual page allows at most 10."),
+							"excluded_coins": stringArraySchema("Coin symbols to exclude from the candidate list."),
+						},
+					},
+					"market_context": map[string]any{
+						"type":        "object",
+						"description": "Optional market environment context injected into the AI decision prompt. All default to false (off).",
+						"properties": map[string]any{
+							"overview":       map[string]any{"type": "boolean", "description": "Inject market overview (total cap, volume, BTC price/dominance, altcoin season)."},
+							"fear_greed":     map[string]any{"type": "boolean", "description": "Inject fear & greed index with server-derived 24h change."},
+							"news_sentiment": map[string]any{"type": "boolean", "description": "Inject BTC news headlines and social sentiment score."},
 						},
 					},
 					"indicators": map[string]any{
@@ -328,32 +328,19 @@ func strategyConfigSchema() map[string]any {
 									"selected_timeframes":    stringArraySchema("Selected analysis timeframes. Allowed values: 1m,3m,5m,15m,30m,1h,2h,4h,6h,8h,12h,1d,3d,1w. Manual page allows at most 4."),
 								},
 							},
-							"enable_raw_klines":        map[string]any{"type": "boolean"},
-							"enable_ema":               map[string]any{"type": "boolean"},
-							"enable_macd":              map[string]any{"type": "boolean"},
-							"enable_rsi":               map[string]any{"type": "boolean"},
-							"enable_atr":               map[string]any{"type": "boolean"},
-							"enable_boll":              map[string]any{"type": "boolean"},
-							"enable_volume":            map[string]any{"type": "boolean"},
-							"enable_oi":                map[string]any{"type": "boolean"},
-							"enable_funding_rate":      map[string]any{"type": "boolean"},
-							"ema_periods":              intArraySchema("EMA periods such as [20,50]."),
-							"rsi_periods":              intArraySchema("RSI periods such as [7,14]."),
-							"atr_periods":              intArraySchema("ATR periods such as [14]."),
-							"boll_periods":             intArraySchema("BOLL periods such as [20]."),
-							"nofxos_api_key":           map[string]any{"type": "string"},
-							"enable_quant_data":        map[string]any{"type": "boolean"},
-							"enable_quant_oi":          map[string]any{"type": "boolean"},
-							"enable_quant_netflow":     map[string]any{"type": "boolean"},
-							"enable_oi_ranking":        map[string]any{"type": "boolean"},
-							"oi_ranking_duration":      map[string]any{"type": "string", "enum": []string{"1h", "4h", "24h"}},
-							"oi_ranking_limit":         map[string]any{"type": "number", "enum": []int{5, 10, 15, 20}},
-							"enable_netflow_ranking":   map[string]any{"type": "boolean"},
-							"netflow_ranking_duration": map[string]any{"type": "string", "enum": []string{"1h", "4h", "24h"}},
-							"netflow_ranking_limit":    map[string]any{"type": "number", "enum": []int{5, 10, 15, 20}},
-							"enable_price_ranking":     map[string]any{"type": "boolean"},
-							"price_ranking_duration":   map[string]any{"type": "string", "enum": []string{"1h", "4h", "24h", "1h,4h,24h"}},
-							"price_ranking_limit":      map[string]any{"type": "number", "enum": []int{5, 10, 15, 20}},
+							"enable_raw_klines":   map[string]any{"type": "boolean"},
+							"enable_ema":          map[string]any{"type": "boolean"},
+							"enable_macd":         map[string]any{"type": "boolean"},
+							"enable_rsi":          map[string]any{"type": "boolean"},
+							"enable_atr":          map[string]any{"type": "boolean"},
+							"enable_boll":         map[string]any{"type": "boolean"},
+							"enable_volume":       map[string]any{"type": "boolean"},
+							"enable_oi":           map[string]any{"type": "boolean"},
+							"enable_funding_rate": map[string]any{"type": "boolean"},
+							"ema_periods":         intArraySchema("EMA periods such as [20,50]."),
+							"rsi_periods":         intArraySchema("RSI periods such as [7,14]."),
+							"atr_periods":         intArraySchema("ATR periods such as [14]."),
+							"boll_periods":        intArraySchema("BOLL periods such as [20]."),
 						},
 					},
 					"custom_prompt": map[string]any{"type": "string"},
@@ -396,14 +383,6 @@ func strategyConfigSchema() map[string]any {
 					"use_maker_only":          map[string]any{"type": "boolean"},
 					"enable_direction_adjust": map[string]any{"type": "boolean"},
 					"direction_bias_ratio":    map[string]any{"type": "number", "minimum": 0.55, "maximum": 0.9, "description": "Manual page range 0.55-0.90 (shown as 55%-90%)."},
-				},
-			},
-			"publish_config": map[string]any{
-				"type":        "object",
-				"description": "Shared publish settings for both AI and grid strategies.",
-				"properties": map[string]any{
-					"is_public":      map[string]any{"type": "boolean"},
-					"config_visible": map[string]any{"type": "boolean"},
 				},
 			},
 		},
@@ -650,13 +629,11 @@ func buildAgentTools() []mcp.Tool {
 							"type": "string",
 							"enum": []string{"list", "create", "update", "delete", "activate", "duplicate", "get_default_config"},
 						},
-						"strategy_id":    map[string]any{"type": "string"},
-						"name":           map[string]any{"type": "string"},
-						"description":    map[string]any{"type": "string"},
-						"lang":           map[string]any{"type": "string", "enum": []string{"zh", "en"}},
-						"is_public":      map[string]any{"type": "boolean"},
-						"config_visible": map[string]any{"type": "boolean"},
-						"config":         strategyConfigSchema(),
+						"strategy_id": map[string]any{"type": "string"},
+						"name":        map[string]any{"type": "string"},
+						"description": map[string]any{"type": "string"},
+						"lang":        map[string]any{"type": "string", "enum": []string{"zh", "en"}},
+						"config":      strategyConfigSchema(),
 					},
 					"required": []string{"action"},
 				},
@@ -837,7 +814,7 @@ func buildAgentTools() []mcp.Tool {
 			Type: "function",
 			Function: mcp.FunctionDef{
 				Name:        "get_candidate_coins",
-				Description: "Get the current candidate coin list for a trader or strategy, including AI500 coin-source settings and the selected symbols.",
+				Description: "Get the current candidate coin list for a trader or strategy: the hand-picked static symbols after exclusions.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -848,22 +825,6 @@ func buildAgentTools() []mcp.Tool {
 						"strategy_id": map[string]any{
 							"type":        "string",
 							"description": "Optional strategy id. Use this when asking about a strategy template directly.",
-						},
-					},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: mcp.FunctionDef{
-				Name:        "get_ai500_list",
-				Description: "Get the AI500 index board: crypto symbols scored 0-100 by AI with their gain since entering the index, sorted by score. Use this whenever the user asks what's in AI500, wants coin recommendations, or asks you to pick promising/strong coins and hasn't named specific ones — the top entries are the well-performing candidates.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"limit": map[string]any{
-							"type":        "integer",
-							"description": "Max entries to return, default 20, max 100.",
 						},
 					},
 				},
@@ -945,8 +906,6 @@ func (a *Agent) handleToolCall(ctx context.Context, storeUserID string, userID i
 		return a.toolGetTradeHistory(tc.Function.Arguments)
 	case "get_candidate_coins":
 		return a.toolGetCandidateCoins(storeUserID, userID, tc.Function.Arguments)
-	case "get_ai500_list":
-		return a.toolGetAI500List(storeUserID, tc.Function.Arguments)
 	case "get_watchlist":
 		return a.toolGetWatchlist(lang)
 	case "manage_watchlist":
@@ -1000,15 +959,13 @@ type safeTraderToolConfig struct {
 }
 
 type safeStrategyToolConfig struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Description   string         `json:"description"`
-	IsActive      bool           `json:"is_active"`
-	IsDefault     bool           `json:"is_default"`
-	IsPublic      bool           `json:"is_public"`
-	ConfigVisible bool           `json:"config_visible"`
-	Config        map[string]any `json:"config,omitempty"`
-	HasConfig     bool           `json:"has_config"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	IsActive    bool           `json:"is_active"`
+	IsDefault   bool           `json:"is_default"`
+	Config      map[string]any `json:"config,omitempty"`
+	HasConfig   bool           `json:"has_config"`
 }
 
 var sensitiveToolKeys = map[string]struct{}{
@@ -1189,14 +1146,12 @@ func safeTraderForTool(trader *store.Trader, isRunning bool) safeTraderToolConfi
 
 func safeStrategyForTool(strategy *store.Strategy) safeStrategyToolConfig {
 	out := safeStrategyToolConfig{
-		ID:            strategy.ID,
-		Name:          strategy.Name,
-		Description:   strategy.Description,
-		IsActive:      strategy.IsActive,
-		IsDefault:     strategy.IsDefault,
-		IsPublic:      strategy.IsPublic,
-		ConfigVisible: strategy.ConfigVisible,
-		HasConfig:     strings.TrimSpace(strategy.Config) != "",
+		ID:          strategy.ID,
+		Name:        strategy.Name,
+		Description: strategy.Description,
+		IsActive:    strategy.IsActive,
+		IsDefault:   strategy.IsDefault,
+		HasConfig:   strings.TrimSpace(strategy.Config) != "",
 	}
 	if out.HasConfig {
 		var cfg map[string]any
@@ -1948,8 +1903,6 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		Name          string         `json:"name"`
 		Description   string         `json:"description"`
 		Lang          string         `json:"lang"`
-		IsPublic      *bool          `json:"is_public"`
-		ConfigVisible *bool          `json:"config_visible"`
 		AllowClamped  bool           `json:"allow_clamped_update"`
 		Confirmed     bool           `json:"confirmed"`
 		Config        map[string]any `json:"config"`
@@ -2008,15 +1961,13 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			return fmt.Sprintf(`{"error":"failed to serialize strategy config: %s"}`, err)
 		}
 		record := &store.Strategy{
-			ID:            fmt.Sprintf("strategy_%d", time.Now().UnixNano()),
-			UserID:        storeUserID,
-			Name:          name,
-			Description:   strings.TrimSpace(args.Description),
-			IsActive:      false,
-			IsDefault:     false,
-			IsPublic:      args.IsPublic != nil && *args.IsPublic,
-			ConfigVisible: args.ConfigVisible == nil || *args.ConfigVisible,
-			Config:        string(configJSON),
+			ID:          fmt.Sprintf("strategy_%d", time.Now().UnixNano()),
+			UserID:      storeUserID,
+			Name:        name,
+			Description: strings.TrimSpace(args.Description),
+			IsActive:    false,
+			IsDefault:   false,
+			Config:      string(configJSON),
 		}
 		if err := a.store.Strategy().Create(record); err != nil {
 			return fmt.Sprintf(`{"error":"failed to create strategy: %s"}`, err)
@@ -2056,14 +2007,6 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		if trimmed := strings.TrimSpace(args.Description); trimmed != "" {
 			description = trimmed
 		}
-		isPublic := existing.IsPublic
-		if args.IsPublic != nil {
-			isPublic = *args.IsPublic
-		}
-		configVisible := existing.ConfigVisible
-		if args.ConfigVisible != nil {
-			configVisible = *args.ConfigVisible
-		}
 		configJSON := existing.Config
 		var warnings []string
 		if len(args.Config) > 0 {
@@ -2090,13 +2033,11 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			configJSON = string(normalized)
 		}
 		record := &store.Strategy{
-			ID:            existing.ID,
-			UserID:        storeUserID,
-			Name:          name,
-			Description:   description,
-			IsPublic:      isPublic,
-			ConfigVisible: configVisible,
-			Config:        configJSON,
+			ID:          existing.ID,
+			UserID:      storeUserID,
+			Name:        name,
+			Description: description,
+			Config:      configJSON,
 		}
 		if err := a.store.Strategy().Update(record); err != nil {
 			return fmt.Sprintf(`{"error":"failed to update strategy: %s"}`, err)
@@ -2342,8 +2283,6 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 	btcEthLeverage := 10
 	altcoinLeverage := 5
 	overrideBasePrompt := false
-	useAI500 := false
-	useOITop := false
 	systemPromptTemplate := "default"
 	exchangeIDShort := strings.TrimSpace(args.ExchangeID)
 	if len(exchangeIDShort) > 8 {
@@ -2365,8 +2304,6 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       "",
-		UseAI500:             useAI500,
-		UseOITop:             useOITop,
 		CustomPrompt:         "",
 		OverrideBasePrompt:   overrideBasePrompt,
 		SystemPromptTemplate: systemPromptTemplate,
@@ -2437,8 +2374,6 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 		BTCETHLeverage:       existing.BTCETHLeverage,
 		AltcoinLeverage:      existing.AltcoinLeverage,
 		TradingSymbols:       existing.TradingSymbols,
-		UseAI500:             existing.UseAI500,
-		UseOITop:             existing.UseOITop,
 		CustomPrompt:         existing.CustomPrompt,
 		OverrideBasePrompt:   existing.OverrideBasePrompt,
 		SystemPromptTemplate: existing.SystemPromptTemplate,
@@ -3517,13 +3452,6 @@ func candidateCoinSourceSummary(cfg *store.StrategyConfig) map[string]any {
 		return nil
 	}
 	return map[string]any{
-		"source_type":    cfg.CoinSource.SourceType,
-		"use_ai500":      cfg.CoinSource.UseAI500,
-		"ai500_limit":    cfg.CoinSource.AI500Limit,
-		"use_oi_top":     cfg.CoinSource.UseOITop,
-		"oi_top_limit":   cfg.CoinSource.OITopLimit,
-		"use_oi_low":     cfg.CoinSource.UseOILow,
-		"oi_low_limit":   cfg.CoinSource.OILowLimit,
 		"static_coins":   cfg.CoinSource.StaticCoins,
 		"excluded_coins": cfg.CoinSource.ExcludedCoins,
 	}

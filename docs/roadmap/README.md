@@ -96,12 +96,6 @@ NOFX is on a mission to become the **Universal AI Trading Operating System** for
   - [ ] Auto-conversion between spot and perpetual strategies
 
 - **Exchange Infrastructure**
-  - [ ] **Trading Data Analysis API Integration** (In-house developed)
-    - [ ] AI500 integration - In-house AI-powered coin selection model
-    - [ ] OI (Open Interest) Analysis - Real-time open interest tracking and anomaly detection
-    - [ ] NetFlow Analysis - On-chain fund flow analysis for market sentiment
-    - [ ] Market sentiment aggregator - Combine multiple data sources for enhanced AI decision making
-    - [ ] Custom indicator API - Support for proprietary technical indicators
   - [ ] Automatic precision handling (quantity, price decimals)
   - [ ] Order type abstraction (market, limit, stop-loss, take-profit)
   - [ ] Unified error handling and retry logic
@@ -182,7 +176,6 @@ NOFX is on a mission to become the **Universal AI Trading Operating System** for
 - [ ] Troubleshooting playbook
 
 #### 2.3 Community Features
-- [ ] Public strategy marketplace (share/sell strategies)
 - [ ] Leaderboard with verified performance
 - [ ] Community forum integration
 - [ ] Bug bounty program

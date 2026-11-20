@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	nofxiagent "nofx/agent"
 	"nofx/api"
@@ -10,6 +11,8 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	_ "nofx/mcp/provider"
+	"nofx/provider/gate"
+	"nofx/provider/gatemcp"
 	"nofx/store"
 	"nofx/telegram"
 	"nofx/telemetry"
@@ -140,6 +143,13 @@ func main() {
 	// Start API server
 	server := api.NewServer(traderManager, st, cryptoService, cfg.APIServerPort)
 
+	// Gate 清算热点聚合：server.Start() 前拉起（启动立即拉一次再进 60s tick），
+	// ctx 接入 Shutdown；挂 main 不挂 setupRoutes（避免 go test 拉起真实网络轮询）
+	liqCtx, liqCancel := context.WithCancel(context.Background())
+	gate.StartLiquidationAggregator(liqCtx)
+	// Gate MCP 会话随进程退出关闭（懒连接，首次取数才建立）
+	defer gatemcp.Shared().Close()
+
 	// Create hot-reload channel for Telegram bot; wire it to the API server
 	// so that POST /api/telegram can trigger a bot restart when the token changes.
 	telegramReloadCh := make(chan struct{}, 1)
@@ -175,6 +185,9 @@ func main() {
 		logger.Warnf("⚠️ HTTP server shutdown error: %v", err)
 	}
 	logger.Info("✅ HTTP server stopped")
+
+	// 停止清算聚合轮询
+	liqCancel()
 
 	// nofxiAgent.Stop() is handled by defer above
 

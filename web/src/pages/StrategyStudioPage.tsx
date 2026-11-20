@@ -38,10 +38,10 @@ import type {
 } from '../types'
 import { confirmToast, notify } from '../lib/notify'
 import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
+import { MarketContextEditor } from '../components/strategy/MarketContextEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 
-import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import {
   GridConfigEditor,
   defaultGridConfig,
@@ -101,7 +101,6 @@ const normalizeStrategyConfig = (config: StrategyConfig): StrategyConfig => {
     language: config.language,
     ai_config: aiConfig || undefined,
     grid_config: config.grid_config,
-    publish_config: config.publish_config,
   }
 }
 
@@ -130,11 +129,11 @@ export function StrategyStudioPage() {
   const [expandedSections, setExpandedSections] = useState({
     gridConfig: true,
     coinSource: true,
+    marketContext: false,
     indicators: false,
     riskControl: false,
     promptSections: false,
     customPrompt: false,
-    publishSettings: false,
   })
 
   // Right panel states
@@ -356,8 +355,6 @@ export function StrategyStudioPage() {
           description: '',
           is_active: false,
           is_default: false,
-          is_public: false,
-          config_visible: true,
           config: defaultConfig,
           created_at: now,
           updated_at: now,
@@ -561,8 +558,6 @@ export function StrategyStudioPage() {
             name: selectedStrategy.name,
             description: selectedStrategy.description,
             config: configWithLanguage,
-            is_public: selectedStrategy.is_public,
-            config_visible: selectedStrategy.config_visible,
           }),
         }
       )
@@ -809,6 +804,21 @@ export function StrategyStudioPage() {
       ),
     },
     {
+      key: 'marketContext' as const,
+      icon: Globe,
+      color: '#38BDF8',
+      title: language === 'zh' ? '市场环境上下文' : 'Market Context',
+      forStrategyType: 'ai_trading' as const,
+      content: currentAIConfig && (
+        <MarketContextEditor
+          config={currentAIConfig.market_context || {}}
+          onChange={(marketContext) => updateAIConfig('market_context', marketContext)}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
+      ),
+    },
+    {
       key: 'indicators' as const,
       icon: BarChart3,
       color: '#0ECB81',
@@ -880,33 +890,8 @@ export function StrategyStudioPage() {
         </div>
       ),
     },
-    {
-      key: 'publishSettings' as const,
-      icon: Globe,
-      color: '#0ECB81',
-      title: tr('publishSettings'),
-      forStrategyType: 'both' as const,
-      content: selectedStrategy && (
-        <PublishSettingsEditor
-          isPublic={selectedStrategy.is_public ?? false}
-          configVisible={selectedStrategy.config_visible ?? true}
-          onIsPublicChange={(value) => {
-            setSelectedStrategy({ ...selectedStrategy, is_public: value })
-            setHasChanges(true)
-          }}
-          onConfigVisibleChange={(value) => {
-            setSelectedStrategy({ ...selectedStrategy, config_visible: value })
-            setHasChanges(true)
-          }}
-          disabled={selectedStrategy?.is_default}
-          language={language}
-        />
-      ),
-    },
   ].filter(
-    (section) =>
-      section.forStrategyType === 'both' ||
-      section.forStrategyType === currentStrategyType
+    (section) => section.forStrategyType === currentStrategyType
   )
 
   return (
@@ -1046,12 +1031,6 @@ export function StrategyStudioPage() {
                     {strategy.is_default && (
                       <span className="px-1.5 py-0.5 text-[10px] rounded bg-nofx-gold/15 text-nofx-gold">
                         {tr('default')}
-                      </span>
-                    )}
-                    {strategy.is_public && (
-                      <span className="px-1.5 py-0.5 text-[10px] rounded flex items-center gap-0.5 bg-blue-400/15 text-blue-400">
-                        <Globe className="w-2.5 h-2.5" />
-                        {tr('public')}
                       </span>
                     )}
                   </div>

@@ -36,17 +36,6 @@ const (
 func (c *StrategyConfig) ClampLimits() {
 	c.NormalizeProductSchema()
 
-	// Clamp coin source limits
-	if c.CoinSource.AI500Limit > MaxCandidateCoins {
-		c.CoinSource.AI500Limit = MaxCandidateCoins
-	}
-	if c.CoinSource.OITopLimit > MaxCandidateCoins {
-		c.CoinSource.OITopLimit = MaxCandidateCoins
-	}
-	if c.CoinSource.OILowLimit > MaxCandidateCoins {
-		c.CoinSource.OILowLimit = MaxCandidateCoins
-	}
-
 	// Clamp static coins
 	if len(c.CoinSource.StaticCoins) > MaxCandidateCoins {
 		c.CoinSource.StaticCoins = c.CoinSource.StaticCoins[:MaxCandidateCoins]
@@ -132,48 +121,9 @@ func (c *StrategyConfig) ClampLimits() {
 }
 
 // NormalizeProductSchema keeps saved strategy JSON aligned with the product
-// editor schema. LLMs may emit user-facing labels such as "AI500"; persistence
-// must use the exact frontend/backend enum values.
+// editor schema. Persistence must use the exact frontend/backend enum values.
 func (c *StrategyConfig) NormalizeProductSchema() {
 	c.StrategyType = normalizeStrategyType(c.StrategyType)
-	c.CoinSource.SourceType = normalizeCoinSourceType(c.CoinSource.SourceType)
-	if c.CoinSource.SourceType == "" {
-		c.CoinSource.SourceType = inferCoinSourceType(c.CoinSource)
-	}
-
-	switch c.CoinSource.SourceType {
-	case "ai500":
-		c.CoinSource.UseAI500 = true
-		c.CoinSource.UseOITop = false
-		c.CoinSource.UseOILow = false
-		if c.CoinSource.AI500Limit <= 0 {
-			c.CoinSource.AI500Limit = 3
-		}
-	case "oi_top":
-		c.CoinSource.UseAI500 = false
-		c.CoinSource.UseOITop = true
-		c.CoinSource.UseOILow = false
-		if c.CoinSource.OITopLimit <= 0 {
-			c.CoinSource.OITopLimit = 3
-		}
-	case "oi_low":
-		c.CoinSource.UseAI500 = false
-		c.CoinSource.UseOITop = false
-		c.CoinSource.UseOILow = true
-		if c.CoinSource.OILowLimit <= 0 {
-			c.CoinSource.OILowLimit = 3
-		}
-	case "static":
-		c.CoinSource.UseAI500 = false
-		c.CoinSource.UseOITop = false
-		c.CoinSource.UseOILow = false
-	default:
-		// 未知币源类型统一重定向到 static（手工清单选币）
-		c.CoinSource.SourceType = "static"
-		c.CoinSource.UseAI500 = false
-		c.CoinSource.UseOITop = false
-		c.CoinSource.UseOILow = false
-	}
 
 	c.CoinSource.StaticCoins = normalizeSymbols(c.CoinSource.StaticCoins)
 	c.CoinSource.ExcludedCoins = normalizeSymbols(c.CoinSource.ExcludedCoins)
@@ -194,40 +144,6 @@ func normalizeStrategyType(value string) string {
 		return "ai_trading"
 	default:
 		return value
-	}
-}
-
-func normalizeCoinSourceType(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	compact := strings.NewReplacer(" ", "", "_", "", "-", "", "数据源", "", "选币", "", "币种", "").Replace(value)
-	switch {
-	case compact == "":
-		return ""
-	case strings.Contains(compact, "ai500"):
-		return "ai500"
-	case strings.Contains(compact, "oitop") || strings.Contains(value, "oi top") || strings.Contains(value, "持仓量最高") || strings.Contains(value, "持仓量靠前"):
-		return "oi_top"
-	case strings.Contains(compact, "oilow") || strings.Contains(value, "oi low") || strings.Contains(value, "持仓量最低") || strings.Contains(value, "持仓量较低"):
-		return "oi_low"
-	case strings.Contains(value, "static") || strings.Contains(value, "固定") || strings.Contains(value, "静态"):
-		return "static"
-	default:
-		return value
-	}
-}
-
-func inferCoinSourceType(source CoinSourceConfig) string {
-	switch {
-	case len(source.StaticCoins) > 0:
-		return "static"
-	case source.UseAI500:
-		return "ai500"
-	case source.UseOITop:
-		return "oi_top"
-	case source.UseOILow:
-		return "oi_low"
-	default:
-		return "static"
 	}
 }
 
@@ -414,7 +330,7 @@ func normalizeStrategyConfigPatch(patch map[string]any) {
 		}
 	}
 
-	aiKeys := []string{"coin_source", "indicators", "risk_control", "prompt_sections", "custom_prompt"}
+	aiKeys := []string{"coin_source", "indicators", "risk_control", "prompt_sections", "market_context", "custom_prompt"}
 	for _, key := range aiKeys {
 		value, ok := patch[key]
 		if !ok {
@@ -498,17 +414,15 @@ type StrategyStore struct {
 
 // Strategy strategy configuration
 type Strategy struct {
-	ID            string    `gorm:"primaryKey" json:"id"`
-	UserID        string    `gorm:"column:user_id;not null;default:'';index" json:"user_id"`
-	Name          string    `gorm:"not null" json:"name"`
-	Description   string    `gorm:"default:''" json:"description"`
-	IsActive      bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
-	IsDefault     bool      `gorm:"column:is_default;default:false" json:"is_default"`
-	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`    // whether visible in strategy market
-	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"` // whether config details are visible
-	Config        string    `gorm:"not null;default:'{}'" json:"config"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID          string    `gorm:"primaryKey" json:"id"`
+	UserID      string    `gorm:"column:user_id;not null;default:'';index" json:"user_id"`
+	Name        string    `gorm:"not null" json:"name"`
+	Description string    `gorm:"default:''" json:"description"`
+	IsActive    bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
+	IsDefault   bool      `gorm:"column:is_default;default:false" json:"is_default"`
+	Config      string    `gorm:"not null;default:'{}'" json:"config"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (Strategy) TableName() string { return "strategies" }
@@ -528,14 +442,10 @@ type StrategyConfig struct {
 	CustomPrompt   string               `json:"-"`
 	RiskControl    RiskControlConfig    `json:"-"`
 	PromptSections PromptSectionsConfig `json:"-"`
+	MarketContext  MarketContextConfig  `json:"-"`
 
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
-
-	// Publish settings are shared by AI and grid strategies. The database still
-	// stores the authoritative booleans on Strategy, but config JSON may carry
-	// this object for agent/frontend schema consistency.
-	PublishConfig *PublishStrategyConfig `json:"publish_config,omitempty"`
 }
 
 // AIStrategyConfig contains fields only used by AI trading strategies.
@@ -545,16 +455,24 @@ type AIStrategyConfig struct {
 	CustomPrompt   string               `json:"custom_prompt,omitempty"`
 	RiskControl    RiskControlConfig    `json:"risk_control"`
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
+	MarketContext  MarketContextConfig  `json:"market_context"`
 }
 
-// PublishStrategyConfig contains settings shared by all strategy types.
-type PublishStrategyConfig struct {
-	IsPublic      bool `json:"is_public"`
-	ConfigVisible bool `json:"config_visible"`
+// MarketContextConfig 市场环境上下文勾选（决策时注入对应 Gate 数据段）。
+// 零值 = 全关 = 不注入（默认关闭是产品语义，非历史兼容）。仅 ai_trading 有效。
+type MarketContextConfig struct {
+	Overview      bool `json:"overview,omitempty"`       // 市场总览
+	FearGreed     bool `json:"fear_greed,omitempty"`     // 恐惧贪婪指数
+	NewsSentiment bool `json:"news_sentiment,omitempty"` // 新闻+社交情绪
+}
+
+// MarketContextEnabled 任一勾选即启用
+func (m MarketContextConfig) MarketContextEnabled() bool {
+	return m.Overview || m.FearGreed || m.NewsSentiment
 }
 
 // MarshalJSON writes the product-facing strategy schema:
-// strategy_type + grid_config or ai_config + shared publish_config.
+// strategy_type + grid_config or ai_config.
 func (c StrategyConfig) MarshalJSON() ([]byte, error) {
 	strategyType := strings.TrimSpace(c.StrategyType)
 	if strategyType == "" {
@@ -562,15 +480,13 @@ func (c StrategyConfig) MarshalJSON() ([]byte, error) {
 	}
 
 	out := struct {
-		StrategyType  string                 `json:"strategy_type"`
-		Language      string                 `json:"language,omitempty"`
-		AIConfig      *AIStrategyConfig      `json:"ai_config,omitempty"`
-		GridConfig    *GridStrategyConfig    `json:"grid_config,omitempty"`
-		PublishConfig *PublishStrategyConfig `json:"publish_config,omitempty"`
+		StrategyType string              `json:"strategy_type"`
+		Language     string              `json:"language,omitempty"`
+		AIConfig     *AIStrategyConfig   `json:"ai_config,omitempty"`
+		GridConfig   *GridStrategyConfig `json:"grid_config,omitempty"`
 	}{
-		StrategyType:  strategyType,
-		Language:      c.Language,
-		PublishConfig: c.PublishConfig,
+		StrategyType: strategyType,
+		Language:     c.Language,
 	}
 
 	if strategyType == "grid_trading" {
@@ -582,6 +498,7 @@ func (c StrategyConfig) MarshalJSON() ([]byte, error) {
 			CustomPrompt:   c.CustomPrompt,
 			RiskControl:    c.RiskControl,
 			PromptSections: c.PromptSections,
+			MarketContext:  c.MarketContext,
 		}
 	}
 
@@ -592,16 +509,15 @@ func (c StrategyConfig) MarshalJSON() ([]byte, error) {
 // top-level AI fields are normalized into the Go compatibility fields.
 func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
 	type rawStrategyConfig struct {
-		StrategyType  string                 `json:"strategy_type"`
-		Language      string                 `json:"language"`
-		AIConfig      *AIStrategyConfig      `json:"ai_config"`
-		GridConfig    *GridStrategyConfig    `json:"grid_config"`
-		PublishConfig *PublishStrategyConfig `json:"publish_config"`
+		StrategyType string              `json:"strategy_type"`
+		Language     string              `json:"language"`
+		AIConfig     *AIStrategyConfig   `json:"ai_config"`
+		GridConfig   *GridStrategyConfig `json:"grid_config"`
 
 		CoinSource     *CoinSourceConfig     `json:"coin_source"`
 		Indicators     *IndicatorConfig      `json:"indicators"`
 		CustomPrompt   *string               `json:"custom_prompt"`
-		RiskControl    *RiskControlConfig    `json:"risk_control"`
+		RiskControl    *RiskControlConfig     `json:"risk_control"`
 		PromptSections *PromptSectionsConfig `json:"prompt_sections"`
 	}
 
@@ -613,7 +529,6 @@ func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
 	c.StrategyType = raw.StrategyType
 	c.Language = raw.Language
 	c.GridConfig = raw.GridConfig
-	c.PublishConfig = raw.PublishConfig
 
 	if raw.AIConfig != nil {
 		c.CoinSource = raw.AIConfig.CoinSource
@@ -621,6 +536,7 @@ func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
 		c.CustomPrompt = raw.AIConfig.CustomPrompt
 		c.RiskControl = raw.AIConfig.RiskControl
 		c.PromptSections = raw.AIConfig.PromptSections
+		c.MarketContext = raw.AIConfig.MarketContext
 	} else {
 		if raw.CoinSource != nil {
 			c.CoinSource = *raw.CoinSource
@@ -693,25 +609,10 @@ type PromptSectionsConfig struct {
 
 // CoinSourceConfig coin source configuration
 type CoinSourceConfig struct {
-	// source type shown in the product editor: "static" | "ai500" | "oi_top" | "oi_low"
-	SourceType string `json:"source_type"`
-	// static coin list (used when source_type = "static")
+	// static coin list (the only coin source: hand-picked Gate perpetual symbols)
 	StaticCoins []string `json:"static_coins,omitempty"`
-	// excluded coins list (filtered out from all sources)
+	// excluded coins list (filtered out from the static list)
 	ExcludedCoins []string `json:"excluded_coins,omitempty"`
-	// whether to use AI500 coin pool
-	UseAI500 bool `json:"use_ai500"`
-	// AI500 coin pool maximum count
-	AI500Limit int `json:"ai500_limit,omitempty"`
-	// whether to use OI Top (OI increase ranking, suitable for long positions)
-	UseOITop bool `json:"use_oi_top"`
-	// OI Top maximum count
-	OITopLimit int `json:"oi_top_limit,omitempty"`
-	// whether to use OI Low (OI decrease ranking, suitable for short positions)
-	UseOILow bool `json:"use_oi_low"`
-	// OI Low maximum count
-	OILowLimit int `json:"oi_low_limit,omitempty"`
-	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 
 // IndicatorConfig indicator configuration
@@ -739,30 +640,6 @@ type IndicatorConfig struct {
 	BOLLPeriods []int `json:"boll_periods,omitempty"` // default [20] - can select multiple timeframes
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
-
-	// ========== NofxOS Unified API Configuration ==========
-	// Unified API Key for all NofxOS data sources
-	NofxOSAPIKey string `json:"nofxos_api_key,omitempty"`
-
-	// quantitative data sources (capital flow, position changes, price changes)
-	EnableQuantData    bool `json:"enable_quant_data"`    // whether to enable quantitative data
-	EnableQuantOI      bool `json:"enable_quant_oi"`      // whether to show OI data
-	EnableQuantNetflow bool `json:"enable_quant_netflow"` // whether to show Netflow data
-
-	// OI ranking data (market-wide open interest increase/decrease rankings)
-	EnableOIRanking   bool   `json:"enable_oi_ranking"`             // whether to enable OI ranking data
-	OIRankingDuration string `json:"oi_ranking_duration,omitempty"` // duration: 1h, 4h, 24h
-	OIRankingLimit    int    `json:"oi_ranking_limit,omitempty"`    // number of entries (default 10)
-
-	// NetFlow ranking data (market-wide fund flow rankings - institution/personal)
-	EnableNetFlowRanking   bool   `json:"enable_netflow_ranking"`             // whether to enable NetFlow ranking data
-	NetFlowRankingDuration string `json:"netflow_ranking_duration,omitempty"` // duration: 1h, 4h, 24h
-	NetFlowRankingLimit    int    `json:"netflow_ranking_limit,omitempty"`    // number of entries (default 10)
-
-	// Price ranking data (market-wide gainers/losers)
-	EnablePriceRanking   bool   `json:"enable_price_ranking"`             // whether to enable price ranking data
-	PriceRankingDuration string `json:"price_ranking_duration,omitempty"` // durations: "1h" or "1h,4h,24h"
-	PriceRankingLimit    int    `json:"price_ranking_limit,omitempty"`    // number of entries per ranking (default 10)
 }
 
 // KlineConfig K-line configuration
@@ -842,16 +719,8 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 	}
 
 	config := StrategyConfig{
-		Language: normalizedLang,
-		CoinSource: CoinSourceConfig{
-			SourceType: "static",
-			UseAI500:   false,
-			AI500Limit: 3,
-			UseOITop:   false,
-			OITopLimit: 3,
-			UseOILow:   false,
-			OILowLimit: 3,
-		},
+		Language:   normalizedLang,
+		CoinSource: CoinSourceConfig{},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{
 				PrimaryTimeframe:     "5m",
@@ -874,19 +743,6 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
 			BOLLPeriods:       []int{20},
-			NofxOSAPIKey:           "",
-			EnableQuantData:        false,
-			EnableQuantOI:          false,
-			EnableQuantNetflow:     false,
-			EnableOIRanking:        false,
-			OIRankingDuration:      "1h",
-			OIRankingLimit:         10,
-			EnableNetFlowRanking:   false,
-			NetFlowRankingDuration: "1h",
-			NetFlowRankingLimit:    10,
-			EnablePriceRanking:     false,
-			PriceRankingDuration:   "1h,4h,24h",
-			PriceRankingLimit:      10,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                 3,   // Max 3 coins simultaneously (CODE ENFORCED)
@@ -956,12 +812,10 @@ func (s *StrategyStore) Update(strategy *Strategy) error {
 	return s.db.Model(&Strategy{}).
 		Where("id = ? AND user_id = ?", strategy.ID, strategy.UserID).
 		Updates(map[string]interface{}{
-			"name":           strategy.Name,
-			"description":    strategy.Description,
-			"config":         strategy.Config,
-			"is_public":      strategy.IsPublic,
-			"config_visible": strategy.ConfigVisible,
-			"updated_at":     time.Now().UTC(),
+			"name":        strategy.Name,
+			"description": strategy.Description,
+			"config":      strategy.Config,
+			"updated_at":  time.Now().UTC(),
 		}).Error
 }
 
@@ -994,18 +848,6 @@ func (s *StrategyStore) List(userID string) ([]*Strategy, error) {
 	var strategies []*Strategy
 	err := s.db.Where("user_id = ? OR is_default = ?", userID, true).
 		Order("is_default DESC, created_at DESC").
-		Find(&strategies).Error
-	if err != nil {
-		return nil, err
-	}
-	return strategies, nil
-}
-
-// ListPublic get all public strategies for the strategy market
-func (s *StrategyStore) ListPublic() ([]*Strategy, error) {
-	var strategies []*Strategy
-	err := s.db.Where("is_public = ?", true).
-		Order("created_at DESC").
 		Find(&strategies).Error
 	if err != nil {
 		return nil, err
@@ -1121,8 +963,6 @@ type TokenEstimate struct {
 type TokenBreakdown struct {
 	SystemPrompt  int `json:"system_prompt"`
 	MarketData    int `json:"market_data"`
-	RankingData   int `json:"ranking_data"`
-	QuantData     int `json:"quant_data"`
 	FixedOverhead int `json:"fixed_overhead"`
 }
 
@@ -1241,50 +1081,13 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 
 	breakdown.MarketData = totalMarketChars / 4 // numeric data: ~4 chars per token
 
-	// --- Quant Data ---
-	if c.Indicators.EnableQuantData {
-		quantCharsPerCoin := 0
-		if c.Indicators.EnableQuantOI {
-			quantCharsPerCoin += 300
-		}
-		if c.Indicators.EnableQuantNetflow {
-			quantCharsPerCoin += 300
-		}
-		breakdown.QuantData = (numCoins * quantCharsPerCoin) / 4
+	// --- Market Environment Context（勾选即计入，软上限约 600 tokens）---
+	if c.MarketContext.MarketContextEnabled() && c.StrategyType != "grid_trading" {
+		breakdown.MarketData += 600
 	}
-
-	// --- Ranking Data ---
-	rankingChars := 0
-	if c.Indicators.EnableOIRanking {
-		limit := c.Indicators.OIRankingLimit
-		if limit <= 0 {
-			limit = 10
-		}
-		rankingChars += limit * 60
-	}
-	if c.Indicators.EnableNetFlowRanking {
-		limit := c.Indicators.NetFlowRankingLimit
-		if limit <= 0 {
-			limit = 10
-		}
-		rankingChars += limit * 80
-	}
-	if c.Indicators.EnablePriceRanking {
-		limit := c.Indicators.PriceRankingLimit
-		if limit <= 0 {
-			limit = 10
-		}
-		// Count durations (comma-separated)
-		numDurations := 1
-		if c.Indicators.PriceRankingDuration != "" {
-			numDurations = len(strings.Split(c.Indicators.PriceRankingDuration, ","))
-		}
-		rankingChars += limit * numDurations * 40
-	}
-	breakdown.RankingData = rankingChars / 4
 
 	// --- Total with 15% safety margin ---
-	subtotal := breakdown.SystemPrompt + breakdown.MarketData + breakdown.RankingData + breakdown.QuantData + breakdown.FixedOverhead
+	subtotal := breakdown.SystemPrompt + breakdown.MarketData + breakdown.FixedOverhead
 	total := subtotal * 115 / 100
 
 	// --- Model limits ---
@@ -1346,19 +1149,7 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 
 // getEffectiveCoinCount returns the estimated number of coins that will be analyzed
 func (c *StrategyConfig) getEffectiveCoinCount() int {
-	count := 0
-	switch c.CoinSource.SourceType {
-	case "static":
-		count = len(c.CoinSource.StaticCoins)
-	case "ai500":
-		count = c.CoinSource.AI500Limit
-	case "oi_top":
-		count = c.CoinSource.OITopLimit
-	case "oi_low":
-		count = c.CoinSource.OILowLimit
-	default:
-		count = len(c.CoinSource.StaticCoins)
-	}
+	count := len(c.CoinSource.StaticCoins)
 	if count <= 0 {
 		count = 3
 	}

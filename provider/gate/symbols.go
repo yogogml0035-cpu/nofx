@@ -8,29 +8,79 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gateio/gateapi-go/v6"
+	"golang.org/x/sync/singleflight"
 )
 
 // SymbolInfo Gate USDT 永续合约的符号与行情信息
 type SymbolInfo struct {
-	Symbol       string  `json:"symbol"`     // Gate 原生合约名，如 BTC_USDT
-	Display      string  `json:"display"`    // 展示名，同合约名
-	Name         string  `json:"name"`       // 基础币种，如 BTC
-	Category     string  `json:"category"`   // 固定 crypto
-	Exchange     string  `json:"exchange"`   // 固定 gate
-	Volume24h    float64 `json:"volume_24h"` // 24h 成交额（USDT 结算币种计价）
-	MarkPrice    float64 `json:"mark_price"` // 最新价（回退标记价）
+	Symbol       string  `json:"symbol"`       // Gate 原生合约名，如 BTC_USDT
+	Display      string  `json:"display"`      // 展示名，同合约名
+	Name         string  `json:"name"`         // 基础币种，如 BTC
+	Category     string  `json:"category"`     // 固定 crypto
+	Exchange     string  `json:"exchange"`     // 固定 gate
+	Volume24h    float64 `json:"volume_24h"`   // 24h 成交额（USDT 结算币种计价）
+	MarkPrice    float64 `json:"mark_price"`   // 最新价（回退标记价）
+	FundingRate  float64 `json:"funding_rate"` // 资金费率，Gate 原始小数语义（不 ×100；可为 0，不能缺字段）
 	Change24hPct float64 `json:"change_24h_pct,omitempty"`
 	MaxLeverage  int     `json:"maxLeverage,omitempty"`
 	SzDecimals   int     `json:"sz_decimals,omitempty"` // 最小下单张数（Gate 语义）
 }
 
-// ListSymbols 拉取 Gate USDT 永续合约清单与行情（公开接口，免鉴权）。
+// ListSymbols 结果进程内 TTL 缓存：该端点免鉴权且被前端高频轮询，
+// 现状每请求打两次 Gate 上游（contracts + tickers），缓存把上游压力压到 45s 一次。
+const symbolsCacheTTL = 45 * time.Second
+
+var (
+	symbolsMu           sync.Mutex
+	symbolsCache        []SymbolInfo
+	symbolsCacheAt      time.Time
+	symbolsCacheOK      bool
+	symbolsGroup        singleflight.Group
+	listSymbolsUpstream = listSymbolsFromGate
+)
+
+// ListSymbols 拉取 Gate USDT 永续合约清单与行情（公开接口，免鉴权，带 45s TTL 缓存）。
 // 数据源：GET /futures/usdt/contracts + GET /futures/usdt/tickers；
 // 过滤 in_delisting；结果按 24h 成交额降序。
 func ListSymbols(ctx context.Context) ([]SymbolInfo, error) {
+	symbolsMu.Lock()
+	if symbolsCacheOK && time.Since(symbolsCacheAt) < symbolsCacheTTL {
+		v := symbolsCache
+		symbolsMu.Unlock()
+		return v, nil
+	}
+	symbolsMu.Unlock()
+
+	v, err, _ := symbolsGroup.Do("symbols", func() (any, error) {
+		symbolsMu.Lock()
+		if symbolsCacheOK && time.Since(symbolsCacheAt) < symbolsCacheTTL {
+			r := symbolsCache
+			symbolsMu.Unlock()
+			return r, nil
+		}
+		symbolsMu.Unlock()
+
+		s, ferr := listSymbolsUpstream(ctx)
+		if ferr != nil {
+			return nil, ferr
+		}
+		symbolsMu.Lock()
+		symbolsCache, symbolsCacheAt, symbolsCacheOK = s, time.Now(), true
+		symbolsMu.Unlock()
+		return s, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.([]SymbolInfo), nil
+}
+
+// listSymbolsFromGate 直连 Gate 上游拉取（ListSymbols 的缓存后端）
+func listSymbolsFromGate(ctx context.Context) ([]SymbolInfo, error) {
 	config := gateapi.NewConfiguration()
 	config.AddDefaultHeader("X-Gate-Channel-Id", "nofx")
 	config.HTTPClient = &http.Client{Timeout: 30 * time.Second}
@@ -94,6 +144,8 @@ func SymbolInfoFromContract(contract gateapi.Contract, ticker gateapi.FuturesTic
 		info.MarkPrice = parseFirstFloat(ticker.Last, ticker.MarkPrice)
 		info.Volume24h = parseFloat(ticker.Volume24hSettle)
 		info.Change24hPct = parseFloat(ticker.ChangePercentage)
+		// Gate 原始小数语义（如 "0.000057"），不 ×100
+		info.FundingRate = parseFloat(ticker.FundingRate)
 	}
 
 	return info, true

@@ -172,13 +172,11 @@ func TestToolManageStrategyUpdateRejectsOutOfRangeLeverageBeforeSave(t *testing.
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	strategy := &store.Strategy{
-		ID:            "strategy-risk-guard",
-		UserID:        "default",
-		Name:          "AI500稳重策略",
-		Description:   "test",
-		IsPublic:      false,
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		ID:          "strategy-risk-guard",
+		UserID:      "default",
+		Name:        "稳重策略",
+		Description: "test",
+		Config:      string(rawCfg),
 	}
 	if err := st.Strategy().Create(strategy); err != nil {
 		t.Fatalf("create strategy: %v", err)
@@ -219,10 +217,8 @@ func TestToolManageStrategyRejectsFixedMinPositionSizeUpdates(t *testing.T) {
 		ID:            "strategy-fixed-min-position",
 		UserID:        "default",
 		Name:          "固定最小开仓策略",
-		Description:   "test",
-		IsPublic:      false,
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		Description: "test",
+		Config:      string(rawCfg),
 	}
 	if err := st.Strategy().Create(strategy); err != nil {
 		t.Fatalf("create strategy: %v", err)
@@ -364,7 +360,7 @@ func TestSkillVisibleFieldSummaryForStrategyCoversManualPageFields(t *testing.T)
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
 	summary := a.skillVisibleFieldSummary("default", "zh", "strategy_management", "update_config")
-	for _, expected := range []string{"发布到市场", "配置可见", "交易对", "杠杆", "主周期", "多周期时间框架", "NofxOS API key", "角色定义", "自定义 Prompt"} {
+	for _, expected := range []string{"交易对", "杠杆", "主周期", "多周期时间框架", "角色定义", "自定义 Prompt"} {
 		if !strings.Contains(summary, expected) {
 			t.Fatalf("expected field label %q in summary, got: %s", expected, summary)
 		}
@@ -396,13 +392,11 @@ func TestStrategyVisibleFieldSummaryUsesTargetStrategyType(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	strategy := &store.Strategy{
-		ID:            "strategy-grid-fields",
-		UserID:        "default",
-		Name:          "我的第一个网格策略",
-		Description:   "",
-		IsPublic:      false,
-		ConfigVisible: true,
-		Config:        string(raw),
+		ID:          "strategy-grid-fields",
+		UserID:      "default",
+		Name:        "我的第一个网格策略",
+		Description: "",
+		Config:      string(raw),
 	}
 	if err := st.Strategy().Create(strategy); err != nil {
 		t.Fatalf("create strategy: %v", err)
@@ -426,7 +420,7 @@ func TestStrategyVisibleFieldSummaryUsesTargetStrategyType(t *testing.T) {
 		t.Fatalf("expected editable field list in resources, got: %#v", resources["target_editable_fields"])
 	}
 	joined := strings.Join(fields, ",")
-	if !strings.Contains(joined, "symbol") || strings.Contains(joined, "source_type") {
+	if !strings.Contains(joined, "symbol") {
 		t.Fatalf("expected grid-only editable fields in resources, got: %s", joined)
 	}
 }
@@ -445,7 +439,7 @@ func TestSkillVisibleFieldSummaryForTraderMatchesManualPanelFields(t *testing.T)
 			t.Fatalf("expected trader field label %q in summary, got: %s", expected, summary)
 		}
 	}
-	for _, unexpected := range []string{"名称", "初始资金", "初始余额", "杠杆", "交易对", "Prompt", "AI500", "OI Top"} {
+	for _, unexpected := range []string{"名称", "初始资金", "初始余额", "杠杆", "交易对", "Prompt"} {
 		if strings.Contains(summary, unexpected) {
 			t.Fatalf("trader field summary should stay within manual panel fields, got: %s", summary)
 		}
@@ -476,10 +470,8 @@ func TestToolUpdateTraderRejectsRenameOutsideManualPanel(t *testing.T) {
 		ID:            "strategy-trader-rename",
 		UserID:        "default",
 		Name:          "Rename Strategy",
-		Description:   "test",
-		IsPublic:      false,
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		Description: "test",
+		Config:      string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -528,10 +520,8 @@ func TestToolCreateTraderResponseHidesLegacyTraderTuningFields(t *testing.T) {
 		ID:            "strategy-trader-shape",
 		UserID:        "default",
 		Name:          "Shape Strategy",
-		Description:   "test",
-		IsPublic:      false,
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		Description: "test",
+		Config:      string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -579,10 +569,8 @@ func TestToolCreateTraderAutoReadsInitialBalanceFromExchange(t *testing.T) {
 		ID:            "strategy-auto-balance",
 		UserID:        "default",
 		Name:          "Auto Balance Strategy",
-		Description:   "test",
-		IsPublic:      false,
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		Description: "test",
+		Config:      string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -651,20 +639,14 @@ func TestDescribeStrategyIncludesManualPageSections(t *testing.T) {
 	}
 
 	strategy := &store.Strategy{
-		ID:            "strategy-detail-1",
-		UserID:        "default",
-		Name:          "Grid Alpha",
-		Description:   "grid strategy for regression",
-		IsPublic:      true,
-		ConfigVisible: true,
-		Config:        string(rawCfg),
+		ID:          "strategy-detail-1",
+		UserID:      "default",
+		Name:        "Grid Alpha",
+		Description: "grid strategy for regression",
+		Config:      string(rawCfg),
 	}
 	if err := st.Strategy().Create(strategy); err != nil {
 		t.Fatalf("create strategy: %v", err)
-	}
-	strategy.ConfigVisible = false
-	if err := st.Strategy().Update(strategy); err != nil {
-		t.Fatalf("update strategy visibility: %v", err)
 	}
 
 	detail, ok := a.describeStrategy("default", "zh", &EntityReference{ID: strategy.ID})
@@ -673,7 +655,6 @@ func TestDescribeStrategyIncludesManualPageSections(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"策略“Grid Alpha”概览",
-		"发布设置：已发布到市场；配置隐藏",
 		"网格参数：交易对 BTCUSDT；网格 12；总投资 1500.00；杠杆 4；分布 gaussian",
 		"网格边界：上沿 120000.0000，下沿 90000.0000",
 	} {
@@ -683,7 +664,6 @@ func TestDescribeStrategyIncludesManualPageSections(t *testing.T) {
 	}
 	for _, unexpected := range []string{
 		"标的来源：",
-		"NofxOS 数据：",
 	} {
 		if strings.Contains(detail, unexpected) {
 			t.Fatalf("expected grid strategy detail not to contain AI field %q, got: %s", unexpected, detail)

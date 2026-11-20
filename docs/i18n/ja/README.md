@@ -1,5 +1,3 @@
-<p align="center"><strong><a href="https://vergex.trade">vergex.trade</a> によるバックアップ</strong></p>
-
 <h1 align="center">NOFX</h1>
 
 <p align="center">
@@ -281,10 +279,7 @@ NOFX は有意義な貢献を記録し、エコシステムの成長に応じて
 
 | | |
 | :--- | :--- |
-| Website | [vergex.trade](https://vergex.trade) |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore) |
 | Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@vergex_ai](https://x.com/vergex_ai) |
 
 > **リスク警告**：自動売買には大きなリスクがあります。適切なポジションサイズを守り、各取引所の仕組みを理解し、失ってもよい資金だけを使用してください。
 

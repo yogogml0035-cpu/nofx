@@ -577,16 +577,6 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "描述"
 		}
 		return "description"
-	case "is_public":
-		if lang == "zh" {
-			return "发布到市场"
-		}
-		return "publish to market"
-	case "config_visible":
-		if lang == "zh" {
-			return "配置可见"
-		}
-		return "config visible"
 	case "max_positions":
 		if lang == "zh" {
 			return "最大持仓"
@@ -677,11 +667,6 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "多周期时间框架"
 		}
 		return "selected timeframes"
-	case "source_type":
-		if lang == "zh" {
-			return "来源类型"
-		}
-		return "source type"
 	case "static_coins":
 		if lang == "zh" {
 			return "静态币种"
@@ -692,36 +677,11 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "排除币种"
 		}
 		return "excluded coins"
-	case "use_ai500":
+	case "market_context":
 		if lang == "zh" {
-			return "AI500"
+			return "市场环境上下文"
 		}
-		return "use AI500"
-	case "ai500_limit":
-		if lang == "zh" {
-			return "AI500 数量"
-		}
-		return "AI500 limit"
-	case "use_oi_top":
-		if lang == "zh" {
-			return "OI Top"
-		}
-		return "use OI Top"
-	case "oi_top_limit":
-		if lang == "zh" {
-			return "OI Top 数量"
-		}
-		return "OI Top limit"
-	case "use_oi_low":
-		if lang == "zh" {
-			return "OI Low"
-		}
-		return "use OI Low"
-	case "oi_low_limit":
-		if lang == "zh" {
-			return "OI Low 数量"
-		}
-		return "OI Low limit"
+		return "market context"
 	case "primary_count":
 		if lang == "zh" {
 			return "K线数量"
@@ -750,35 +710,6 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "资金费率"
 		}
 		return "funding rate"
-	case "nofxos_api_key":
-		return "NofxOS API key"
-	case "enable_quant_data":
-		if lang == "zh" {
-			return "量化数据"
-		}
-		return "quant data"
-	case "enable_quant_oi":
-		return "quant OI"
-	case "enable_quant_netflow":
-		return "quant netflow"
-	case "enable_oi_ranking":
-		return "OI ranking"
-	case "oi_ranking_duration":
-		return "OI ranking duration"
-	case "oi_ranking_limit":
-		return "OI ranking limit"
-	case "enable_netflow_ranking":
-		return "netflow ranking"
-	case "netflow_ranking_duration":
-		return "netflow ranking duration"
-	case "netflow_ranking_limit":
-		return "netflow ranking limit"
-	case "enable_price_ranking":
-		return "price ranking"
-	case "price_ranking_duration":
-		return "price ranking duration"
-	case "price_ranking_limit":
-		return "price ranking limit"
 	case "role_definition":
 		if lang == "zh" {
 			return "角色定义"
@@ -890,40 +821,32 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		ensureGridConfig().DailyLossLimitPct = parsed
 	case "use_maker_only":
 		ensureGridConfig().UseMakerOnly = value == "true"
-	case "description", "is_public", "config_visible":
+	case "description":
 		return nil
 	case "max_positions":
 		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
-	case "source_type":
-		cfg.CoinSource.SourceType = value
 	case "static_coins":
 		cfg.CoinSource.StaticCoins = cleanStringList(strings.Split(value, ","))
 	case "excluded_coins":
 		cfg.CoinSource.ExcludedCoins = cleanStringList(strings.Split(value, ","))
-	case "use_ai500":
-		cfg.CoinSource.UseAI500 = value == "true"
-	case "ai500_limit":
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("AI500 数量需要是整数")
+	case "market_context":
+		// flat-key 布尔组合语法："overview,fear_greed" / "off"（全关）
+		valueLower := strings.ToLower(strings.TrimSpace(value))
+		if valueLower == "off" || valueLower == "false" || value == "" {
+			cfg.MarketContext = store.MarketContextConfig{}
+			return nil
 		}
-		cfg.CoinSource.AI500Limit = parsed
-	case "use_oi_top":
-		cfg.CoinSource.UseOITop = value == "true"
-	case "oi_top_limit":
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("OI Top 数量需要是整数")
+		cfg.MarketContext = store.MarketContextConfig{}
+		for _, part := range strings.Split(valueLower, ",") {
+			switch strings.TrimSpace(part) {
+			case "overview":
+				cfg.MarketContext.Overview = true
+			case "fear_greed":
+				cfg.MarketContext.FearGreed = true
+			case "news_sentiment":
+				cfg.MarketContext.NewsSentiment = true
+			}
 		}
-		cfg.CoinSource.OITopLimit = parsed
-	case "use_oi_low":
-		cfg.CoinSource.UseOILow = value == "true"
-	case "oi_low_limit":
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("OI Low 数量需要是整数")
-		}
-		cfg.CoinSource.OILowLimit = parsed
 	case "min_confidence":
 		parsed, err := strconv.Atoi(value)
 		if err != nil {
@@ -999,44 +922,6 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		cfg.Indicators.EnableOI = value == "true"
 	case "enable_funding_rate":
 		cfg.Indicators.EnableFundingRate = value == "true"
-	case "nofxos_api_key":
-		cfg.Indicators.NofxOSAPIKey = value
-	case "enable_quant_data":
-		cfg.Indicators.EnableQuantData = value == "true"
-	case "enable_quant_oi":
-		cfg.Indicators.EnableQuantOI = value == "true"
-	case "enable_quant_netflow":
-		cfg.Indicators.EnableQuantNetflow = value == "true"
-	case "enable_oi_ranking":
-		cfg.Indicators.EnableOIRanking = value == "true"
-	case "oi_ranking_duration":
-		cfg.Indicators.OIRankingDuration = value
-	case "oi_ranking_limit":
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("OI 排行数量需要是整数")
-		}
-		cfg.Indicators.OIRankingLimit = parsed
-	case "enable_netflow_ranking":
-		cfg.Indicators.EnableNetFlowRanking = value == "true"
-	case "netflow_ranking_duration":
-		cfg.Indicators.NetFlowRankingDuration = value
-	case "netflow_ranking_limit":
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("资金流排行数量需要是整数")
-		}
-		cfg.Indicators.NetFlowRankingLimit = parsed
-	case "enable_price_ranking":
-		cfg.Indicators.EnablePriceRanking = value == "true"
-	case "price_ranking_duration":
-		cfg.Indicators.PriceRankingDuration = value
-	case "price_ranking_limit":
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("涨跌幅排行数量需要是整数")
-		}
-		cfg.Indicators.PriceRankingLimit = parsed
 	case "role_definition":
 		cfg.PromptSections.RoleDefinition = value
 	case "trading_frequency":
@@ -1051,22 +936,6 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		return fmt.Errorf("unsupported strategy config field: %s", field)
 	}
 	return nil
-}
-
-func parseSourceTypeValue(text string) string {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	switch {
-	case containsAny(lower, []string{"静态", "固定", "static"}):
-		return "static"
-	case containsAny(lower, []string{"ai500"}):
-		return "ai500"
-	case containsAny(lower, []string{"oi top"}):
-		return "oi_top"
-	case containsAny(lower, []string{"oi low"}):
-		return "oi_low"
-	default:
-		return ""
-	}
 }
 
 func extractSymbolList(text string, labels []string) []string {
@@ -1168,7 +1037,7 @@ func parseStrategyTypeValue(text string) string {
 		return "ai_trading"
 	case containsAny(lower, []string{"grid", "网格"}):
 		return "grid_trading"
-	case containsAny(lower, []string{"ai500", "oi top", "oi low", "静态币", "固定币", "选币来源"}):
+	case containsAny(lower, []string{"静态币", "固定币", "选币来源"}):
 		return "ai_trading"
 	case containsAny(lower, []string{"ai trading", "ai策略", "ai 策略", "ai交易", "ai 交易", "ai智能", "智能策略", "普通策略"}):
 		return "ai_trading"
@@ -1193,7 +1062,7 @@ func extractLongSegmentAfterKeywords(text string, keywords []string) string {
 		for _, prefix := range []string{"改成", "改为", "设为", "设置为", "变成"} {
 			segment = strings.TrimSpace(strings.TrimPrefix(segment, prefix))
 		}
-		for _, marker := range []string{"排除币", "excluded coins", "exclude coins", "ai500", "oi top", "oi low", "并且", "然后"} {
+		for _, marker := range []string{"排除币", "excluded coins", "exclude coins", "并且", "然后"} {
 			if cut := strings.Index(strings.ToLower(segment), marker); cut > 0 {
 				segment = strings.TrimSpace(segment[:cut])
 				break
@@ -1256,8 +1125,12 @@ func sanitizeExtractedURL(raw string) string {
 
 func strategyFieldKeywords(field string) []string {
 	switch field {
-	case "source_type":
-		return []string{"来源类型", "source type", "选币来源", "静态来源", "ai500来源", "oi top来源", "oi low来源"}
+	case "static_coins":
+		return []string{"静态币种", "固定币种", "选币", "static coins"}
+	case "excluded_coins":
+		return []string{"排除币", "排除币种", "excluded coins"}
+	case "market_context":
+		return []string{"市场环境", "market context", "市场上下文"}
 	case "strategy_type":
 		return []string{"策略类型", "strategy type", "网格策略", "grid strategy", "ai策略"}
 	case "symbol":
@@ -1290,12 +1163,6 @@ func strategyFieldKeywords(field string) []string {
 		return []string{"maker only", "只挂maker", "仅maker"}
 	case "description":
 		return []string{"描述", "description"}
-	case "is_public":
-		return []string{"发布到市场", "公开", "publish"}
-	case "config_visible":
-		return []string{"配置可见", "显示配置", "config visible"}
-	case "nofxos_api_key":
-		return []string{"nofxos api key", "nofxos key", "api key"}
 	case "role_definition":
 		return []string{"角色定义", "role definition"}
 	case "trading_frequency":
@@ -1314,18 +1181,6 @@ func strategyFieldKeywords(field string) []string {
 		return []string{"atr周期", "atr periods"}
 	case "boll_periods":
 		return []string{"boll周期", "布林周期", "boll periods"}
-	case "oi_ranking_duration":
-		return []string{"oi ranking duration", "oi排行周期"}
-	case "netflow_ranking_duration":
-		return []string{"netflow ranking duration", "资金流排行周期"}
-	case "price_ranking_duration":
-		return []string{"price ranking duration", "涨跌幅排行周期"}
-	case "oi_ranking_limit":
-		return []string{"oi ranking limit", "oi排行数量"}
-	case "netflow_ranking_limit":
-		return []string{"netflow ranking limit", "资金流排行数量"}
-	case "price_ranking_limit":
-		return []string{"price ranking limit", "涨跌幅排行数量"}
 	case "btceth_max_position_value_ratio":
 		return []string{"btc/eth仓位价值倍数", "btc eth position value", "主流币仓位价值倍数"}
 	case "altcoin_max_position_value_ratio":
@@ -1417,24 +1272,12 @@ func strategyFieldExplicitlyMentioned(text, field string) bool {
 			keywords = []string{"持仓量", "open interest", "oi"}
 		case "enable_funding_rate":
 			keywords = []string{"资金费率", "funding rate"}
-		case "source_type":
-			keywords = []string{"来源类型", "source type", "选币来源"}
 		case "static_coins":
 			keywords = []string{"静态币", "固定币", "static coins", "static symbols"}
 		case "excluded_coins":
 			keywords = []string{"排除币", "排除币种", "excluded coins", "exclude coins"}
-		case "use_ai500":
-			keywords = []string{"ai500"}
-		case "ai500_limit":
-			keywords = []string{"ai500 limit", "ai500数量", "ai500上限"}
-		case "use_oi_top":
-			keywords = []string{"oi top", "持仓量增长", "持仓量排行上涨"}
-		case "oi_top_limit":
-			keywords = []string{"oi top limit", "oi top数量", "oi top上限"}
-		case "use_oi_low":
-			keywords = []string{"oi low", "持仓量下降", "持仓量排行下跌"}
-		case "oi_low_limit":
-			keywords = []string{"oi low limit", "oi low数量", "oi low上限"}
+		case "market_context":
+			keywords = []string{"市场环境", "market context", "市场上下文"}
 		case "enable_all_core_indicators":
 			keywords = []string{"核心指标"}
 		}
@@ -2601,9 +2444,9 @@ func (a *Agent) executeStrategyConfigUpdate(storeUserID string, userID int64, la
 	setSkillDAGStep(&session, "collect_config_patch")
 	a.saveSkillSession(userID, session)
 	if lang == "zh" {
-		return "你可以直接说想怎么改策略配置，比如“选币来源改成 AI500，最低置信度 80”。我会按当前策略类型的产品模板生成 config_patch 后再更新。"
+		return "你可以直接说想怎么改策略配置，比如“静态币种改成 BTCUSDT、ETHUSDT，最低置信度 80”。我会按当前策略类型的产品模板生成 config_patch 后再更新。"
 	}
-	return "Tell me how you want to change the strategy config, for example: set coin source to ai500 and minimum confidence to 80. I will turn it into a config_patch for the current strategy type before updating."
+	return "Tell me how you want to change the strategy config, for example: set static coins to BTCUSDT,ETHUSDT and minimum confidence to 80. I will turn it into a config_patch for the current strategy type before updating."
 }
 
 func (a *Agent) loadStrategyConfigForUpdate(storeUserID, strategyID string) (*store.Strategy, store.StrategyConfig, error) {
@@ -2665,13 +2508,11 @@ func (a *Agent) persistStrategyConfigUpdate(storeUserID string, userID int64, la
 		return "I ran into a problem while preparing that strategy config: " + err.Error()
 	}
 	raw, _ := json.Marshal(map[string]any{
-		"action":         "update",
-		"strategy_id":    strategy.ID,
-		"name":           strategy.Name,
-		"description":    strategy.Description,
-		"is_public":      strategy.IsPublic,
-		"config_visible": strategy.ConfigVisible,
-		"config":         json.RawMessage(rawConfig),
+		"action":      "update",
+		"strategy_id": strategy.ID,
+		"name":        strategy.Name,
+		"description": strategy.Description,
+		"config":      json.RawMessage(rawConfig),
 	})
 	resp := a.toolManageStrategy(storeUserID, string(raw))
 	a.clearSkillSession(userID)

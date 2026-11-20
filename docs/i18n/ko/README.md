@@ -1,5 +1,3 @@
-<p align="center"><strong><a href="https://vergex.trade">vergex.trade</a>가 지원합니다</strong></p>
-
 <h1 align="center">NOFX</h1>
 
 <p align="center">
@@ -281,10 +279,7 @@ NOFX는 의미 있는 기여를 기록하며 생태계 성장에 따라 기여�
 
 | | |
 | :--- | :--- |
-| Website | [vergex.trade](https://vergex.trade) |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore) |
 | Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@vergex_ai](https://x.com/vergex_ai) |
 
 > **위험 고지**: 자동매매에는 상당한 위험이 따릅니다. 적절한 포지션 규모를 사용하고 각 거래소 구조를 이해하며 감당 가능한 자금만 거래하세요.
 

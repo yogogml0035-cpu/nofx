@@ -100,8 +100,6 @@ export interface CreateTraderRequest {
   custom_prompt?: string
   override_base_prompt?: boolean
   system_prompt_template?: string
-  use_ai500?: boolean
-  use_oi_top?: boolean
 }
 
 export interface UpdateModelConfigRequest {

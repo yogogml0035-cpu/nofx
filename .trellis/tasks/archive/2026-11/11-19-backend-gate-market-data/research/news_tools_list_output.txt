@@ -1,0 +1,105 @@
+
+===== https://api.gatemcp.ai/mcp/info : initialize HTTP 200 =====
+- info_coin_get_coin_info: Look up one cryptocurrency profile by ticker, name, contract address, or Gate symbol. Optional chain disambiguates addre
+  params: ['chain', 'fields', 'query', 'query_type', 'scope', 'size']
+- info_coin_get_coin_rankings: Boards: popular, gainers/losers, twitter_hot, airdrop, new_listing, market_pulse_hot. time_range only for gainers/losers
+  params: ['ranking_type', 'time_range', 'limit', 'listing_query', 'listing_from', 'listing_tickers']
+- info_coin_search_coins: Multi-row asset list by category, chain, cap, type. One clear match→get_coin_info. Boards→get_coin_rankings. Read-only p
+  params: ['category', 'chain', 'market_cap_min', 'market_cap_max', 'asset_type', 'sort_by', 'limit', 'offset']
+- info_compliance_check_token_security: Public heuristic token security screen (e.g. tax/holder-risk style signals from data providers). Not a security guarante
+  params: ['token', 'address', 'chain', 'scope', 'lang']
+- info_macro_get_economic_calendar: Filtered release calendar in a date window. Zero-arg dashboard→get_macro_summary. Indicator snapshot or series→get_macro
+  params: ['start_date', 'end_date', 'event_type', 'importance', 'size']
+- info_macro_get_macro_indicator: Official macro stats: latest or series by country/indicator (CPI, rates, jobs). No event feed. Calendar→get_economic_cal
+  params: ['mode', 'indicator', 'country', 'country_code', 'start_time', 'end_time', 'start_date', 'end_date', 'size']
+- info_macro_get_macro_summary: Zero-arg macro dashboard: key snapshots plus upcoming releases. Filtered calendar list→get_economic_calendar. Indicator 
+  params: []
+- info_marketdetail_get_kline: Read-only Gate candlesticks for a trading pair or contract. Inputs: symbol (required), timeframe (validated per market_t
+  params: ['end_time', 'limit', 'market_type', 'settle', 'start_time', 'symbol', 'timeframe']
+- info_marketdetail_get_orderbook: Read-only Gate order book depth (bids/asks as price/size) for a trading pair or contract. Inputs: symbol (required), mar
+  params: ['depth', 'market_type', 'settle', 'symbol']
+- info_marketdetail_get_recent_trades: Read-only recent Gate trade prints for a trading pair or contract. Inputs: symbol (required), market_type spot|futures|d
+  params: ['limit', 'market_type', 'settle', 'symbol']
+- info_marketsnapshot_batch_market_snapshot: Batch market snapshots for up to 20 symbols; raw array length 1–20 before trim/dedupe; missing symbols appear in not_fou
+  params: ['quote', 'scope', 'source', 'symbols', 'timeframe']
+- info_marketsnapshot_get_institutional_metrics: BTC/ETH institutional ETF/CME/CFTC daily metrics (OpenSearch). asset=BTC|ETH|all; channel=all|etf|cme|cftc nulls non-sel
+  params: ['asset', 'start_date', 'end_date', 'channel', 'limit']
+- info_marketsnapshot_get_market_overview: Broad market overview dashboard: capitalization, volume, dominance, and sentiment style metrics. No symbol required. Rea
+  params: []
+- info_marketsnapshot_get_market_snapshot: One-symbol market snapshot: realtime price, a short kline clip, and project summary. Inputs include symbol, timeframe, s
+  params: ['indicator_timeframe', 'quote', 'scope', 'source', 'symbol', 'timeframe']
+- info_markettrend_get_indicator_history: Historical indicator columns (RSI, MACD, MAs). OHLCV→get_kline. Chart-label snapshot→get_technical_analysis. Not trading
+  params: ['symbol', 'indicators', 'timeframe', 'start_time', 'end_time', 'limit']
+- info_markettrend_get_kline: Trend-index OHLCV for symbols, with optional indicator bundle. Exchange pair or contract candles, or fine intervals→mark
+  params: ['symbol', 'timeframe', 'period', 'size', 'limit', 'start_time', 'end_time', 'with_indicators']
+- info_markettrend_get_technical_analysis: Multi-timeframe chart-derived labels (e.g. bullish/bearish/neutral style summaries) from OHLCV only—descriptive research
+  params: ['symbol', 'period', 'start_time', 'end_time']
+- info_onchain_get_address_info: Wallet profile: asset_summary, token_balances (USD desc), multi_chain_token_balances, labels/risk; Solana adds token_acc
+  params: ['address', 'chain', 'scope', 'min_value_usd', 'include_upstream_raw', 'upstream_raw_mode']
+- info_onchain_get_address_transactions: Paginated transfers; BTC items include inputs/outputs/tx_status. partial_upstream_response when upstream total>0 but lis
+  params: ['address', 'chain', 'min_value_usd', 'tx_type', 'time_range', 'start_time', 'end_time', 'limit', 'from_address', 'to_address', 'nonzero_value', 'include_upstream_raw', 'upstream_raw_mode']
+- info_onchain_get_token_onchain: Token scope: holders, transfers, activity, smart_money. Address ledger→get_address_transactions. One tx→get_transaction.
+  params: ['token', 'chain', 'scope', 'include_upstream_raw', 'upstream_raw_mode']
+- info_onchain_get_transaction: One transaction by hash; fields sparse if upstream thin. Token view→get_token_onchain. Read-only public research data. N
+  params: ['tx_hash', 'chain', 'include_upstream_raw', 'upstream_raw_mode']
+- info_platformmetrics_get_bridge_metrics: Bridge ranking or one-bridge chain breakdown. Cross-sector dashboard across DeFi, spot, perp, stablecoin, or bridge→get_
+  params: ['bridge_name', 'chain', 'sort_by', 'limit']
+- info_platformmetrics_get_cex_orderbook_depth: Competitor CEX ±1% order-book depth (spot/perp) from warehouse indices; BTC/ETH liquidity benchmarking. Gate native ladd
+  params: ['symbol', 'market_type', 'exchange', 'data_scope', 'limit']
+- info_platformmetrics_get_chain_activity: Chain-level activity metrics by metric_group. staking: Ethereum daily staking_metrics.series. l2: L2 ops daily l2_metric
+  params: ['chain', 'metric_group', 'project', 'start_date', 'end_date', 'lookback', 'granularity', 'limit']
+- info_platformmetrics_get_defi_overview: Cross-sector dashboard for DeFi, spot, perp, stablecoin, or bridge categories. One bridge ranking or chain detail→get_br
+  params: ['category']
+- info_platformmetrics_get_exchange_reserves: Exchange reserve snapshots by venue and asset. scope=full adds por (PoR attestation). scope=full + include_flows=true re
+  params: ['exchange', 'asset', 'scope', 'include_history', 'history_window', 'include_flows', 'include_events', 'start_date', 'end_date', 'event_type', 'limit']
+- info_platformmetrics_get_liquidation_heatmap: Liquidation density by symbol and price buckets. Read-only public research data. No account access, no order placement o
+  params: ['symbol', 'exchange', 'range']
+- info_platformmetrics_get_platform_history: Daily TVL, volume, and fees time series for one named protocol. One-shot profile→get_platform_info. Ranked multi-protoco
+  params: ['platform_name', 'exchange_slug', 'metrics', 'granularity', 'start_date', 'end_date']
+- info_platformmetrics_get_platform_info: One-shot protocol profile by name and scope. scope=full adds competition_metrics{} for CEX venues (spot/derivs/depth/OI 
+  params: ['platform_name', 'scope', 'include_oi_symbol_detail', 'oi_symbol_limit']
+- info_platformmetrics_get_stablecoin_info: Stablecoin-only ranking or per-symbol chain breakdown. scope=full with sections=issuance_flow returns issuance_flows[] (
+  params: ['symbol', 'chain', 'limit', 'scope', 'sections', 'start_date', 'end_date', 'min_deviation', 'review_status']
+- info_platformmetrics_get_yield_pools: Lending and LP pools by APY or TVL. scope=full adds apy_base_30d, apy_reward_30d, reward_tokens, market_share. One proto
+  params: ['project', 'chain', 'symbol', 'pool_type', 'sort_by', 'limit', 'min_tvl_usd', 'scope']
+- info_platformmetrics_search_platforms: Ranked multi-protocol list with filter and sort. One-shot profile→get_platform_info. One named protocol daily series→get
+  params: ['platform_type', 'chain', 'sort_by', 'sort_order', 'limit']
+
+===== https://api.gatemcp.ai/mcp/news : initialize HTTP 200 =====
+- news_events_explain_market_move: [Read] Explain what drove a crypto asset's price move in a given time window.
+Returns a concise summary (from real-time 
+  params: ['query', 'coin', 'time_range', 'mode', 'lang']
+- news_events_get_event_detail: [Read] Full detail for one event_id only, including persisted impact_direction and impact_direction_reason. Filtered eve
+  params: ['event_id']
+- news_events_get_latest_events: [Read] Filtered event list or timeline; each row includes event_id and persisted impact_direction/impact_direction_reaso
+  params: ['event_type', 'coin', 'time_range', 'direction', 'limit', 'start_time', 'end_time', 'cursor']
+- news_events_get_market_move_report: [Read] Query a stored market-move attribution report by symbol, optional report_id, or optional event_id. Lookup priorit
+  params: ['symbol', 'report_id', 'event_id']
+- news_events_list_market_move_reports: [Read] List stored market-move attribution reports for one symbol, filtering by an inclusive UTC0 updated_at range and s
+  params: ['symbol', 'start_time', 'end_time', 'limit']
+- news_feed_get_exchange_announcements: [Read] Venue-published exchange notices: listings, delistings, maintenance. Media rumors or general crypto headlines -> 
+  params: ['exchange', 'platform', 'query', 'coin', 'announcement_type', 'limit', 'from', 'to']
+- news_feed_get_hot_topics: [Read] Get the top 2-4 social discussion themes for one coin over the latest 4h, including direction, influence, sentime
+  params: ['coin', 'window', 'limit', 'platforms']
+- news_feed_get_mention_burst: [Read] Get a coin's 24h multi-platform social mention burst signal, growth, sentiment direction, platform breakdown, and
+  params: ['coin', 'window', 'platforms']
+- news_feed_get_social_sentiment: [Read] Aggregate per-coin social sentiment for a time range: overall sentiment, positive/negative split, mention count, 
+  params: ['coin', 'time_range']
+- news_feed_search_news: [Read] Search the platform news index for headlines, news items, and briefing-style result lists. Open-web research with
+  params: ['query', 'coin', 'platform', 'platform_type', 'lang', 'time_range', 'start_time', 'end_time', 'sort_by', 'top_total_score', 'limit', 'page', 'similarity_score']
+- news_feed_search_ugc: [Read] Reddit/Discord/Telegram/YouTube-style UGC: non-empty query uses vector API; coin without query uses OpenSearch. B
+  params: ['query', 'coin', 'platform', 'domain', 'channel', 'quality_tier', 'time_range', 'sort_by', 'limit']
+- news_feed_search_x: [Read] Search and analyze X/Twitter discussions for a topic, with tweet-level evidence and cited posts. Aggregate social
+  params: ['query', 'time_range', 'days', 'allowed_handles', 'excluded_handles', 'model', 'enable_image_understanding', 'enable_video_understanding', 'lang']
+- news_feed_web_search: [Read] Search the open web and return a synthesized answer with cited external pages. Built-in headline lookup, news-ite
+  params: ['query', 'coin', 'mode', 'time_range', 'lang', 'limit']
+- news_prediction_get_event_signal: [Read] Single event signal from dws_external_event_signal_hf by event_ref (venue:venue_event_id). window 1h/24h/7d (defa
+  params: ['event_ref', 'window', 'venue', 'include_markets', 'include_orderbook_summary']
+- news_prediction_get_fastest_rising_ranking: [Read] Daily venue/overall ranking by probability rise (UTC rank_date). Optional venue[], category, status (same as volu
+  params: ['date_utc', 'limit', 'venue', 'category', 'status']
+- news_prediction_get_market_orderbook: [Read] Live current order book only (mode=current). depth 1-20 (default 20). polymarket: market_id=venue_market_id; need
+  params: ['venue', 'market_id', 'depth', 'mode', 'granularity', 'start_time', 'end_time', 'page_token']
+- news_prediction_get_volume_delta_ranking: [Read] Daily venue/overall ranking by volume delta (UTC rank_date). Optional venue[], category (exact term on rank index
+  params: ['date_utc', 'limit', 'venue', 'category', 'status']
+- news_prediction_search_events: [Read] Search prediction events on opensearch.predictionEventSignalIndex (dws_prediction_event_signal_hf alias, hourly U
+  params: ['query', 'coin', 'category', 'status', 'venue', 'sort_by', 'limit', 'page_token', 'with_markets']

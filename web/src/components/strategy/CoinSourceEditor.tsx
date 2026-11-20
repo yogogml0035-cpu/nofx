@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Globe2, Search, Star, X } from 'lucide-react'
+import { Check, Globe2, Search, X } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
@@ -86,25 +86,10 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
       .slice(0, CATALOG_DISPLAY_LIMIT)
   }, [symbols, query])
 
-  const chooseSource = (sourceType: CoinSourceConfig['source_type']) => {
-    if (disabled) return
-    onChange({
-      ...config,
-      source_type: sourceType,
-      use_ai500: false,
-      use_oi_top: false,
-      use_oi_low: false,
-    })
-  }
-
   const addSymbol = (symbol: MarketSymbol) => {
     if (disabled || selectedSet.has(symbol.symbol) || selectedCoins.length >= SELECTED_MARKET_LIMIT) return
     onChange({
       ...config,
-      source_type: 'static',
-      use_ai500: false,
-      use_oi_top: false,
-      use_oi_low: false,
       static_coins: [...selectedCoins, symbol.symbol],
     })
   }
@@ -140,39 +125,6 @@ export function CoinSourceEditor({ config, onChange, disabled, language }: CoinS
             {symbols.length || '—'} {t(language, '个可视化标的', 'visual markets')}
           </span>
         </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        {[
-          {
-            value: 'static' as const,
-            icon: Star,
-            title: t(language, '自选单标的/组合', 'Selected market(s)'),
-            desc: t(language, '从下方卡片点选 1-10 个固定标的', 'Pick 1-10 fixed markets from visual cards below'),
-          },
-        ].map(({ value, icon: Icon, title, desc }) => {
-          const active = config.source_type === value
-          return (
-            <button
-              key={value}
-              type="button"
-              disabled={disabled}
-              onClick={() => chooseSource(value)}
-              className={`rounded-xl border p-4 text-left transition-all ${
-                active
-                  ? 'border-sky-300/70 bg-sky-400/10 shadow-[0_0_24px_rgba(56,189,248,0.12)]'
-                  : 'border-white/10 bg-nofx-bg hover:border-sky-400/40 hover:bg-white/[0.03]'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <Icon className="w-5 h-5 text-sky-300" />
-                {active && <Check className="w-4 h-4 text-sky-300" />}
-              </div>
-              <div className="mt-3 text-sm font-semibold text-nofx-text">{title}</div>
-              <div className="mt-1 text-xs leading-5 text-nofx-text-muted">{desc}</div>
-            </button>
-          )
-        })}
       </div>
 
       <div className="space-y-4">

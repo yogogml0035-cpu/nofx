@@ -733,7 +733,6 @@ Complete data available:
 - Raw sequences: 3-min price sequence (MidPrices array) + 4-hour candle sequence
 - Technical sequences: EMA20 sequence, MACD sequence, RSI7 sequence, RSI14 sequence
 - Capital sequences: Volume sequence, Open Interest (OI) sequence, funding rate
-- Filter markers: AI500 score / OI_Top ranking (if marked)
 
 Analysis methods (fully autonomous):
 - Freely use sequence data, you can but not limited to trend analysis, pattern recognition, support/resistance, Fibonacci, volatility bands

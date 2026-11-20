@@ -3,7 +3,6 @@ package kernel
 import (
 	"fmt"
 	"nofx/market"
-	"nofx/provider/nofxos"
 	"sort"
 	"strings"
 	"time"
@@ -87,15 +86,6 @@ func formatContextData(ctx *Context, lang Language) string {
 		} else {
 			sb.WriteString(formatCandidateCoinsEN(ctx))
 		}
-	}
-
-	// 7. OI ranking data (if available)
-	if ctx.OIRankingData != nil {
-		nofxosLang := nofxos.LangEnglish
-		if lang == LangChinese {
-			nofxosLang = nofxos.LangChinese
-		}
-		sb.WriteString(nofxos.FormatOIRankingForAI(ctx.OIRankingData, nofxosLang))
 	}
 
 	return sb.String()
@@ -285,31 +275,6 @@ func formatCandidateCoinsZH(ctx *Context) string {
 				}
 			}
 		}
-
-		// OI data (if available)
-		if ctx.OITopDataMap != nil {
-			if oiData, ok := ctx.OITopDataMap[coin.Symbol]; ok {
-				sb.WriteString(fmt.Sprintf("**持仓量变化**: OI排名 #%d | 变化 %+.2f%% (%+.2fM USDT) | 价格变化 %+.2f%%\n\n",
-					oiData.Rank,
-					oiData.OIDeltaPercent,
-					oiData.OIDeltaValue/1_000_000,
-					oiData.PriceDeltaPercent,
-				))
-
-				// OI interpretation
-				oiChange := "增加"
-				if oiData.OIDeltaPercent < 0 {
-					oiChange = "减少"
-				}
-				priceChange := "上涨"
-				if oiData.PriceDeltaPercent < 0 {
-					priceChange = "下跌"
-				}
-
-				interpretation := getOIInterpretationZH(oiChange, priceChange)
-				sb.WriteString(fmt.Sprintf("**市场解读**: %s\n\n", interpretation))
-			}
-		}
 	}
 
 	return sb.String()
@@ -354,20 +319,6 @@ func formatKlineDataZH(symbol string, tfData map[string]*market.TimeframeSeriesD
 	}
 
 	return sb.String()
-}
-
-
-// getOIInterpretationZH returns OI change interpretation (Chinese)
-func getOIInterpretationZH(oiChange, priceChange string) string {
-	if oiChange == "增加" && priceChange == "上涨" {
-		return OIInterpretation.OIUp_PriceUp.ZH
-	} else if oiChange == "增加" && priceChange == "下跌" {
-		return OIInterpretation.OIUp_PriceDown.ZH
-	} else if oiChange == "减少" && priceChange == "上涨" {
-		return OIInterpretation.OIDown_PriceUp.ZH
-	} else {
-		return OIInterpretation.OIDown_PriceDown.ZH
-	}
 }
 
 // ========== English Formatting Functions ==========
@@ -549,29 +500,6 @@ func formatCandidateCoinsEN(ctx *Context) string {
 				}
 			}
 		}
-
-		if ctx.OITopDataMap != nil {
-			if oiData, ok := ctx.OITopDataMap[coin.Symbol]; ok {
-				sb.WriteString(fmt.Sprintf("**OI Change**: Rank #%d | Change %+.2f%% (%+.2fM USDT) | Price Change %+.2f%%\n\n",
-					oiData.Rank,
-					oiData.OIDeltaPercent,
-					oiData.OIDeltaValue/1_000_000,
-					oiData.PriceDeltaPercent,
-				))
-
-				oiChange := "increase"
-				if oiData.OIDeltaPercent < 0 {
-					oiChange = "decrease"
-				}
-				priceChange := "up"
-				if oiData.PriceDeltaPercent < 0 {
-					priceChange = "down"
-				}
-
-				interpretation := getOIInterpretationEN(oiChange, priceChange)
-				sb.WriteString(fmt.Sprintf("**Market Interpretation**: %s\n\n", interpretation))
-			}
-		}
 	}
 
 	return sb.String()
@@ -619,18 +547,4 @@ func formatKlineDataEN(symbol string, tfData map[string]*market.TimeframeSeriesD
 	}
 
 	return sb.String()
-}
-
-
-// getOIInterpretationEN returns OI change interpretation (English)
-func getOIInterpretationEN(oiChange, priceChange string) string {
-	if oiChange == "increase" && priceChange == "up" {
-		return OIInterpretation.OIUp_PriceUp.EN
-	} else if oiChange == "increase" && priceChange == "down" {
-		return OIInterpretation.OIUp_PriceDown.EN
-	} else if oiChange == "decrease" && priceChange == "up" {
-		return OIInterpretation.OIDown_PriceUp.EN
-	} else {
-		return OIInterpretation.OIDown_PriceDown.EN
-	}
 }

@@ -1,5 +1,3 @@
-<p align="center"><strong>При поддержке <a href="https://vergex.trade">vergex.trade</a></strong></p>
-
 <h1 align="center">NOFX</h1>
 
 <p align="center">
@@ -281,10 +279,7 @@ NOFX отслеживает значимые вклады и планирует 
 
 | | |
 | :--- | :--- |
-| Website | [vergex.trade](https://vergex.trade) |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore) |
 | Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@vergex_ai](https://x.com/vergex_ai) |
 
 > **Предупреждение о рисках**: автоматическая торговля связана со значительным риском. Контролируйте размер позиции, понимайте устройство каждой площадки и не торгуйте средствами, потерю которых не можете себе позволить.
 
