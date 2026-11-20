@@ -26,9 +26,11 @@ export function BoardTable({
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-nofx-text">{title}</h3>
+        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
+          {title}
+        </h3>
         {error && (
-          <span className="text-[10px] text-nofx-danger">
+          <span className="text-[10px] font-mono text-nofx-danger">
             {t('dataPage.fetchFailed', language)}
             {lastSuccessAt && (
               <span className="ml-1 text-nofx-text-muted">
@@ -41,13 +43,15 @@ export function BoardTable({
       </div>
 
       {loading ? (
-        <div className="py-6 text-center text-xs text-nofx-text-muted">
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
           {t('dataPage.loading', language)}
         </div>
       ) : error ? (
-        <div className="py-6 text-center text-xs text-nofx-danger">{error}</div>
+        <div className="py-6 text-center text-xs font-mono text-nofx-danger">
+          {error}
+        </div>
       ) : rows.length === 0 ? (
-        <div className="py-6 text-center text-xs text-nofx-text-muted">
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
           {emptyText || t('dataPage.noData', language)}
         </div>
       ) : (
@@ -57,7 +61,7 @@ export function BoardTable({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`pb-2 font-normal ${
+                  className={`pb-2 font-semibold uppercase tracking-wider ${
                     col.align === 'right' ? 'text-right' : 'text-left'
                   }`}
                 >
@@ -68,14 +72,11 @@ export function BoardTable({
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr
-                key={i}
-                className="border-t border-white/5 text-nofx-text"
-              >
+              <tr key={i} className="border-t border-white/5 text-nofx-text">
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`py-1.5 ${
+                    className={`py-1.5 font-mono whitespace-nowrap ${
                       col.align === 'right' ? 'text-right' : 'text-left'
                     }`}
                   >

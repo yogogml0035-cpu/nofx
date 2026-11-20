@@ -16,7 +16,10 @@ import {
   NewsCard,
   SentimentCard,
 } from '../components/data/DataCards'
-import type { ChangeBoardMode, FundingBoardMode } from '../components/data/Boards'
+import type {
+  ChangeBoardMode,
+  FundingBoardMode,
+} from '../components/data/Boards'
 
 const REFRESH_INTERVAL = 30000
 
@@ -57,15 +60,14 @@ export function DataPage() {
 
   // 包装 fetcher：成功后记录本地时刻并触发一次轻量重渲染以刷新"上次成功"展示
   const [lastTimesTick, setLastTimesTick] = useState(0)
-  const trackedFetcher = <T,>(
-    key: keyof LastSuccessTimes,
-    fetch: () => Promise<T>
-  ) => async () => {
-    const result = await fetch()
-    lastTimesRef.current[key] = new Date()
-    setLastTimesTick((v) => v + 1)
-    return result
-  }
+  const trackedFetcher =
+    <T,>(key: keyof LastSuccessTimes, fetch: () => Promise<T>) =>
+    async () => {
+      const result = await fetch()
+      lastTimesRef.current[key] = new Date()
+      setLastTimesTick((v) => v + 1)
+      return result
+    }
 
   const overview = useSWR(
     ['market-overview', refreshKey],
@@ -114,13 +116,13 @@ export function DataPage() {
       <div className="mx-auto max-w-7xl px-4 py-6">
         {/* 页头 */}
         <div className="mb-5 flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-white">
+          <h1 className="text-xl font-bold text-white">
             {t('dataCenter', language)}
           </h1>
           <button
             type="button"
             onClick={manualRefresh}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs text-nofx-text-muted transition hover:border-nofx-gold/40 hover:text-nofx-gold"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs font-mono text-nofx-text-muted transition hover:border-nofx-gold/40 hover:text-nofx-gold"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             {t('dataPage.refresh', language)}
@@ -246,7 +248,7 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg border px-3 py-1 text-xs transition ${
+      className={`rounded-lg border px-3 py-1 text-xs font-mono transition ${
         active
           ? 'border-nofx-gold/50 bg-nofx-gold/10 text-nofx-gold'
           : 'border-white/10 bg-white/[0.02] text-nofx-text-muted hover:text-nofx-text'
