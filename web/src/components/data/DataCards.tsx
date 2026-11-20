@@ -143,17 +143,25 @@ export function FearGreedCard({
         <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
           {t('dataPage.fearGreed', language)}
         </h3>
-        {error && (
-          <span className="text-[10px] font-mono text-nofx-danger">
-            {t('dataPage.fetchFailed', language)}
-            {lastSuccessAt && (
-              <span className="ml-1 text-nofx-text-muted">
-                ({t('dataPage.lastOk', language)}{' '}
-                {lastSuccessAt.toLocaleTimeString()})
-              </span>
-            )}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {error && (
+            <span className="text-[10px] font-mono text-nofx-danger">
+              {t('dataPage.fetchFailed', language)}
+              {lastSuccessAt && (
+                <span className="ml-1 text-nofx-text-muted">
+                  ({t('dataPage.lastOk', language)}{' '}
+                  {lastSuccessAt.toLocaleTimeString()})
+                </span>
+              )}
+            </span>
+          )}
+          {data && !error && (
+            <span className="text-[10px] font-mono text-nofx-text-muted">
+              {t('dataPage.updatedAt', language)}{' '}
+              {formatIsoTime(data.updated_at)}
+            </span>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -165,8 +173,8 @@ export function FearGreedCard({
           {error}
         </div>
       ) : data ? (
-        <div className="flex h-full flex-col">
-          <div className="flex flex-1 items-center gap-4 py-2">
+        <div>
+          <div className="flex h-[72px] items-center gap-4">
             <span className="text-5xl font-bold font-mono text-nofx-gold">
               {Math.round(data.value)}
             </span>
@@ -192,9 +200,6 @@ export function FearGreedCard({
             <span>50</span>
             <span>75</span>
             <span>100</span>
-          </div>
-          <div className="mt-1 text-right text-[10px] font-mono text-nofx-text-muted">
-            {t('dataPage.updatedAt', language)} {formatIsoTime(data.updated_at)}
           </div>
         </div>
       ) : null}
@@ -344,7 +349,7 @@ export function SentimentCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
+        <h3 className="flex items-center text-sm font-mono tracking-widest uppercase text-nofx-text">
           {t('dataPage.socialSentiment', language)}
           <span className="ml-2 text-[10px] font-mono text-nofx-text-muted">
             {data?.coin || 'BTC'}
@@ -372,8 +377,8 @@ export function SentimentCard({
           {error}
         </div>
       ) : data ? (
-        <div className="space-y-3">
-          <div className="flex items-baseline gap-3 text-xs">
+        <div>
+          <div className="flex h-[72px] items-center gap-3 text-xs">
             <span className="text-2xl font-bold font-mono text-nofx-text">
               {data.overall_sentiment.toFixed(2)}
             </span>
@@ -383,7 +388,7 @@ export function SentimentCard({
             </span>
           </div>
           {/* 正负比例条 */}
-          <div className="flex h-2 w-full overflow-hidden rounded-full">
+          <div className="flex h-2.5 w-full overflow-hidden rounded-full">
             <div
               className="bg-nofx-success"
               style={{ width: `${data.positive_ratio * 100}%` }}
@@ -397,7 +402,7 @@ export function SentimentCard({
               style={{ width: `${data.negative_ratio * 100}%` }}
             />
           </div>
-          <div className="flex justify-between text-[10px] font-mono text-nofx-text-muted">
+          <div className="mt-2 flex justify-between text-[10px] font-mono text-nofx-text-muted">
             <span className="text-nofx-success">
               +{(data.positive_ratio * 100).toFixed(0)}%
             </span>
@@ -406,25 +411,6 @@ export function SentimentCard({
               -{(data.negative_ratio * 100).toFixed(0)}%
             </span>
           </div>
-          {data.top_tweets.length > 0 && (
-            <div className="space-y-2 border-t border-white/5 pt-2">
-              {data.top_tweets.slice(0, 3).map((tweet, i) => (
-                <div key={i} className="text-[11px] leading-4">
-                  <a
-                    href={tweet.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="line-clamp-2 text-nofx-text-muted hover:text-nofx-text"
-                  >
-                    {tweet.content}
-                  </a>
-                  <span className="text-[10px] font-mono text-nofx-text-muted">
-                    ♥ {tweet.likes_num}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       ) : null}
     </div>
