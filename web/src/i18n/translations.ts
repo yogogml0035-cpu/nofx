@@ -157,12 +157,14 @@ export const translations = {
     fetchBalanceEditModeOnly: 'Only can fetch current balance in edit mode',
     balanceFetched: 'Current balance fetched',
     balanceFetchFailed: 'Failed to fetch balance',
-    balanceFetchNetworkError: 'Failed to fetch balance, please check network connection',
+    balanceFetchNetworkError:
+      'Failed to fetch balance, please check network connection',
     saving: 'Saving...',
     saveSuccess: 'Saved successfully',
     saveFailed: 'Save failed',
     editTraderConfig: 'Edit Trader Configuration',
-    selectStrategyAndConfigParams: 'Select Strategy and Configure Basic Parameters',
+    selectStrategyAndConfigParams:
+      'Select Strategy and Configure Basic Parameters',
     basicConfig: 'Basic Configuration',
     traderNameRequired: 'Trader Name *',
     enterTraderNamePlaceholder: 'Enter trader name',
@@ -187,12 +189,15 @@ export const translations = {
     competitionDisplay: 'Show in Competition',
     show: 'Show',
     hide: 'Hide',
-    hiddenInCompetition: 'This trader will not be shown in the competition page when hidden',
+    hiddenInCompetition:
+      'This trader will not be shown in the competition page when hidden',
     initialBalanceLabel: 'Initial Balance ($)',
     fetching: 'Fetching...',
     fetchCurrentBalance: 'Fetch Current Balance',
-    balanceUpdateHint: 'Used to manually update the initial balance baseline (e.g., after deposit/withdrawal)',
-    autoFetchBalanceInfo: 'The system will automatically fetch your account equity as the initial balance',
+    balanceUpdateHint:
+      'Used to manually update the initial balance baseline (e.g., after deposit/withdrawal)',
+    autoFetchBalanceInfo:
+      'The system will automatically fetch your account equity as the initial balance',
     fetchingBalance: 'Fetching balance...',
     editTrader: 'Save Changes',
     createTraderButton: 'Create Trader',
@@ -461,8 +466,10 @@ export const translations = {
     loginNow: 'Sign in now',
     forgotPassword: 'Forgot password?',
     forgotAccount: 'Forgot account?',
-    forgotAccountConfirm: '⚠️ This will permanently delete EVERYTHING: users, traders, strategies, AI model API keys, and exchange API keys. Export anything you need to keep BEFORE continuing. Re-registration will NOT restore them. Continue?',
-    forgotAccountSuccess: 'Account reset successful! You can now register a new account.',
+    forgotAccountConfirm:
+      '⚠️ This will permanently delete EVERYTHING: users, traders, strategies, AI model API keys, and exchange API keys. Export anything you need to keep BEFORE continuing. Re-registration will NOT restore them. Continue?',
+    forgotAccountSuccess:
+      'Account reset successful! You can now register a new account.',
     rememberMe: 'Remember me',
     resetPassword: 'Reset Password',
     resetPasswordTitle: 'Reset your password',
@@ -965,6 +972,8 @@ export const translations = {
       noSymbolData: 'No symbol data',
       gainers: 'Gainers',
       losers: 'Losers',
+      tabBoards: 'Market Boards',
+      tabSentiment: 'Indices & Sentiment',
       gainersTop20: 'Top Gainers (20)',
       losersTop20: 'Top Losers (20)',
       volumeTop20: 'Top Volume (20)',
@@ -1055,12 +1064,14 @@ export const translations = {
       unsaved: 'Unsaved',
       discardChanges: 'Discard',
       selectOrCreate: 'Select or create a strategy',
-      customPromptDesc: 'Extra prompt appended to System Prompt for personalized trading style',
+      customPromptDesc:
+        'Extra prompt appended to System Prompt for personalized trading style',
       customPromptPlaceholder: 'Enter custom prompt...',
       generatePromptPreview: 'Click to generate prompt preview',
       runAiTestHint: 'Click to run AI test',
       tokenEstimate: 'Token Estimate',
-      tokenExceedWarning: 'Token estimate exceeds 128K. AI requests may fail for some models.',
+      tokenExceedWarning:
+        'Token estimate exceeds 128K. AI requests may fail for some models.',
       tokenEstimating: 'Estimating...',
       tokenTooltip: 'Based on 200K context',
     },
@@ -1074,9 +1085,11 @@ export const translations = {
     loginRequired: {
       title: 'SYSTEM ACCESS DENIED',
       accessDenied: 'ACCESS DENIED',
-      subtitleWithFeature: 'Module "{featureName}" requires elevated privileges',
+      subtitleWithFeature:
+        'Module "{featureName}" requires elevated privileges',
       subtitleDefault: 'Authorization required for this module',
-      description: 'Initialize authentication protocol to unlock full system capabilities: AI Trader configuration and Strategy Market data streams.',
+      description:
+        'Initialize authentication protocol to unlock full system capabilities: AI Trader configuration and Strategy Market data streams.',
       benefit1: 'AI Trader Control',
       benefit2: 'HFT Strategy Market',
       benefit4: 'Full System Visualization',
@@ -1118,7 +1131,8 @@ export const translations = {
       connectionFailed: 'Connection Failed',
       connectionFailedDesc: 'Please check if the backend service is running.',
       retry: 'Retry',
-      confirmClosePosition: 'Are you sure you want to close {symbol} {side} position?',
+      confirmClosePosition:
+        'Are you sure you want to close {symbol} {side} position?',
       confirmClose: 'Confirm Close',
       confirm: 'Confirm',
       cancel: 'Cancel',
@@ -1140,7 +1154,8 @@ export const translations = {
       close: 'Close',
       showingPositions: 'Showing {shown} of {total} positions',
       perPage: 'Per page',
-      accountFetchFailed: 'DATA_FETCH::FAILED — Account data unavailable, check connection',
+      accountFetchFailed:
+        'DATA_FETCH::FAILED — Account data unavailable, check connection',
       positionsFetchFailed: 'Position data unavailable',
       decisionsFetchFailed: 'Decision data unavailable',
     },
@@ -1190,7 +1205,8 @@ export const translations = {
       configureApi: 'Configure API',
       chooseProvider: 'Choose Your AI Provider',
       otherApiEntry: 'Other API Providers',
-      otherApiEntryDesc: 'Use your own API key for OpenAI, Claude, Gemini, DeepSeek, and more.',
+      otherApiEntryDesc:
+        'Use your own API key for OpenAI, Claude, Gemini, DeepSeek, and more.',
       recommended: 'Best',
       selectAiModel: 'Choose AI Model',
       back: 'Back',
@@ -1228,7 +1244,8 @@ export const translations = {
       createBot: 'Create Bot',
       bindAccount: 'Bind Account',
       done: 'Done',
-      invalidTokenFormat: 'Invalid Bot Token format. Expected "numbers:alphanumeric"',
+      invalidTokenFormat:
+        'Invalid Bot Token format. Expected "numbers:alphanumeric"',
       tokenSaved: 'Bot Token saved, waiting for binding',
       saveFailed: 'Save failed, please verify the token',
       unbound: 'Telegram account unbound',
@@ -1253,14 +1270,17 @@ export const translations = {
       step2Desc2: 'Click Start or send',
       step2Desc3: 'Bot will automatically bind to your account',
       currentToken: 'Current Token',
-      waitingForStart: 'Waiting for you to send /start... Refresh page after sending',
+      waitingForStart:
+        'Waiting for you to send /start... Refresh page after sending',
       reconfigureToken: 'Reconfigure Token',
       bindSuccess: 'Bound successfully!',
-      noStartReceived: 'No /start received yet. Please send /start to your Bot first',
+      noStartReceived:
+        'No /start received yet. Please send /start to your Bot first',
       checkFailed: 'Check failed',
       checkStatus: 'Check Status',
       botActive: 'Telegram Bot is Active!',
-      botActiveDesc: 'You can now control the trading system via natural language in Telegram',
+      botActiveDesc:
+        'You can now control the trading system via natural language in Telegram',
       supportedCommands: 'Supported Commands',
       cmdHelp: 'Show all commands',
       cmdStatus: 'Show trader status',
@@ -1303,7 +1323,6 @@ export const translations = {
       yes: 'Yes',
       no: 'No',
     },
-
   },
   zh: {
     // Header
@@ -1616,7 +1635,8 @@ export const translations = {
     confirmSelection: '确认选择',
     btcEthLeverageValidation: 'BTC/ETH杠杆必须在1-50倍之间',
     altcoinLeverageValidation: '山寨币杠杆必须在1-20倍之间',
-    invalidSymbolFormat: '无效的币种格式：{symbol}，请使用 USDT 合约或 SYMBOL-USDC',
+    invalidSymbolFormat:
+      '无效的币种格式：{symbol}，请使用 USDT 合约或 SYMBOL-USDC',
 
     // System Prompt Templates
     systemPromptTemplate: '系统提示词模板',
@@ -1739,7 +1759,8 @@ export const translations = {
     loginNow: '立即登录',
     forgotPassword: '忘记密码？',
     forgotAccount: '忘记账户？',
-    forgotAccountConfirm: '⚠️ 这将永久删除全部数据：用户、Trader、策略、AI 模型 API Key、交易所 API Key。请务必在继续前导出需要保留的内容。重新注册不会恢复任何数据。确定要继续吗？',
+    forgotAccountConfirm:
+      '⚠️ 这将永久删除全部数据：用户、Trader、策略、AI 模型 API Key、交易所 API Key。请务必在继续前导出需要保留的内容。重新注册不会恢复任何数据。确定要继续吗？',
     forgotAccountSuccess: '账户已重置！现在可以注册新账户了。',
     rememberMe: '记住我',
     resetPassword: '重置密码',
@@ -2225,6 +2246,8 @@ export const translations = {
       volume: '成交额',
       noSymbolData: '无标的数据',
       gainers: '涨幅榜',
+      tabBoards: '行情榜单',
+      tabSentiment: '指数与情绪',
       losers: '跌幅榜',
       gainersTop20: '涨幅榜 Top 20',
       losersTop20: '跌幅榜 Top 20',
@@ -2316,7 +2339,8 @@ export const translations = {
       unsaved: '未保存',
       discardChanges: '撤销',
       selectOrCreate: '选择或创建策略',
-      customPromptDesc: '附加在 System Prompt 末尾的额外提示，用于补充个性化交易风格',
+      customPromptDesc:
+        '附加在 System Prompt 末尾的额外提示，用于补充个性化交易风格',
       customPromptPlaceholder: '输入自定义提示词...',
       generatePromptPreview: '点击生成 Prompt 预览',
       runAiTestHint: '点击运行 AI 测试',
@@ -2337,7 +2361,8 @@ export const translations = {
       accessDenied: '访问被拒绝',
       subtitleWithFeature: '访问「{featureName}」需要更高权限',
       subtitleDefault: '此模块需要授权访问',
-      description: '初始化身份验证协议以解锁完整系统功能：AI 交易员配置、策略市场数据流。',
+      description:
+        '初始化身份验证协议以解锁完整系统功能：AI 交易员配置、策略市场数据流。',
       benefit1: 'AI 交易员控制权',
       benefit2: '高频策略核心市场',
       benefit4: '全系统数据可视化',
@@ -2448,7 +2473,8 @@ export const translations = {
       configureApi: '配置 API',
       chooseProvider: '选择 AI 模型提供商',
       otherApiEntry: '其他 API 模型',
-      otherApiEntryDesc: '如果你已经有自己的 OpenAI、Claude、Gemini、DeepSeek 等 API Key，再从这里进入。',
+      otherApiEntryDesc:
+        '如果你已经有自己的 OpenAI、Claude、Gemini、DeepSeek 等 API Key，再从这里进入。',
       recommended: '推荐',
       selectAiModel: '① 选择 AI 模型',
       back: '返回',
@@ -2558,7 +2584,6 @@ export const translations = {
       yes: '是',
       no: '否',
     },
-
   },
   id: {
     // Header
@@ -2630,7 +2655,8 @@ export const translations = {
     // Equity Chart
     accountEquityCurve: 'Kurva Ekuitas Akun',
     noHistoricalData: 'Tidak Ada Data Historis',
-    dataWillAppear: 'Kurva ekuitas akan muncul setelah beberapa siklus berjalan',
+    dataWillAppear:
+      'Kurva ekuitas akan muncul setelah beberapa siklus berjalan',
     initialBalance: 'Saldo Awal',
     currentEquity: 'Ekuitas Saat Ini',
     historicalCycles: 'Siklus Historis',
@@ -2689,7 +2715,8 @@ export const translations = {
     goToTradersPage: 'Buat Trader Pertama Anda',
     configureModelsFirst: 'Silakan konfigurasi model AI terlebih dahulu',
     configureExchangesFirst: 'Silakan konfigurasi bursa terlebih dahulu',
-    configureModelsAndExchangesFirst: 'Silakan konfigurasi model AI dan bursa terlebih dahulu',
+    configureModelsAndExchangesFirst:
+      'Silakan konfigurasi model AI dan bursa terlebih dahulu',
     modelNotConfigured: 'Model yang dipilih belum dikonfigurasi',
     exchangeNotConfigured: 'Bursa yang dipilih belum dikonfigurasi',
     confirmDeleteTrader: 'Apakah Anda yakin ingin menghapus trader ini?',
@@ -2712,7 +2739,8 @@ export const translations = {
     save: 'Simpan',
 
     // TraderConfigModal
-    fetchBalanceEditModeOnly: 'Hanya bisa mengambil saldo saat ini dalam mode edit',
+    fetchBalanceEditModeOnly:
+      'Hanya bisa mengambil saldo saat ini dalam mode edit',
     balanceFetched: 'Saldo saat ini berhasil diambil',
     balanceFetchFailed: 'Gagal mengambil saldo',
     balanceFetchNetworkError: 'Gagal mengambil saldo, periksa koneksi jaringan',
@@ -2720,7 +2748,8 @@ export const translations = {
     saveSuccess: 'Berhasil disimpan',
     saveFailed: 'Gagal menyimpan',
     editTraderConfig: 'Edit Konfigurasi Trader',
-    selectStrategyAndConfigParams: 'Pilih Strategi dan Konfigurasi Parameter Dasar',
+    selectStrategyAndConfigParams:
+      'Pilih Strategi dan Konfigurasi Parameter Dasar',
     basicConfig: 'Konfigurasi Dasar',
     traderNameRequired: 'Nama Trader *',
     enterTraderNamePlaceholder: 'Masukkan nama trader',
@@ -2733,7 +2762,8 @@ export const translations = {
     noStrategyManual: '-- Tanpa Strategi (Konfigurasi Manual) --',
     strategyActive: ' (Aktif)',
     strategyDefault: ' [Default]',
-    noStrategyHint: 'Belum ada strategi, buat di Strategy Studio terlebih dahulu',
+    noStrategyHint:
+      'Belum ada strategi, buat di Strategy Studio terlebih dahulu',
     strategyDetails: 'Detail Strategi',
     activating: 'Mengaktifkan',
     coinSource: 'Sumber Koin',
@@ -2745,12 +2775,15 @@ export const translations = {
     competitionDisplay: 'Tampilkan di Kompetisi',
     show: 'Tampilkan',
     hide: 'Sembunyikan',
-    hiddenInCompetition: 'Trader ini tidak akan ditampilkan di halaman kompetisi saat disembunyikan',
+    hiddenInCompetition:
+      'Trader ini tidak akan ditampilkan di halaman kompetisi saat disembunyikan',
     initialBalanceLabel: 'Saldo Awal ($)',
     fetching: 'Mengambil...',
     fetchCurrentBalance: 'Ambil Saldo Saat Ini',
-    balanceUpdateHint: 'Digunakan untuk memperbarui saldo awal secara manual (misal setelah deposit/withdraw)',
-    autoFetchBalanceInfo: 'Sistem akan otomatis mengambil ekuitas akun Anda sebagai saldo awal',
+    balanceUpdateHint:
+      'Digunakan untuk memperbarui saldo awal secara manual (misal setelah deposit/withdraw)',
+    autoFetchBalanceInfo:
+      'Sistem akan otomatis mengambil ekuitas akun Anda sebagai saldo awal',
     fetchingBalance: 'Mengambil saldo...',
     editTrader: 'Simpan Perubahan',
     createTraderButton: 'Buat Trader',
@@ -2781,10 +2814,14 @@ export const translations = {
     asterApiProTitle: 'Konfigurasi Wallet API Pro Aster',
     asterApiProDesc:
       'Gunakan wallet API Pro untuk trading aman: Wallet API menandatangani transaksi, wallet utama menyimpan dana (jangan pernah ekspos private key wallet utama)',
-    asterUserDesc: 'Alamat wallet utama - Alamat wallet EVM yang Anda gunakan untuk login ke Aster (Catatan: Hanya wallet EVM yang didukung)',
-    asterSignerDesc: 'Alamat wallet API Pro (0x...) - Buat dari https://www.asterdex.com/en/api-wallet',
-    asterPrivateKeyDesc: 'Private key wallet API Pro - Dapatkan dari https://www.asterdex.com/en/api-wallet (hanya digunakan lokal untuk penandatanganan, tidak pernah ditransmisikan)',
-    asterUsdtWarning: 'Penting: Aster hanya melacak saldo USDT. Pastikan Anda menggunakan USDT sebagai mata uang margin untuk menghindari kesalahan perhitungan L/R akibat fluktuasi harga aset lain (BNB, ETH, dll.)',
+    asterUserDesc:
+      'Alamat wallet utama - Alamat wallet EVM yang Anda gunakan untuk login ke Aster (Catatan: Hanya wallet EVM yang didukung)',
+    asterSignerDesc:
+      'Alamat wallet API Pro (0x...) - Buat dari https://www.asterdex.com/en/api-wallet',
+    asterPrivateKeyDesc:
+      'Private key wallet API Pro - Dapatkan dari https://www.asterdex.com/en/api-wallet (hanya digunakan lokal untuk penandatanganan, tidak pernah ditransmisikan)',
+    asterUsdtWarning:
+      'Penting: Aster hanya melacak saldo USDT. Pastikan Anda menggunakan USDT sebagai mata uang margin untuk menghindari kesalahan perhitungan L/R akibat fluktuasi harga aset lain (BNB, ETH, dll.)',
     asterUserLabel: 'Alamat Wallet Utama',
     asterSignerLabel: 'Alamat Wallet API Pro',
     asterPrivateKeyLabel: 'Private Key Wallet API Pro',
@@ -2796,38 +2833,54 @@ export const translations = {
     lighterApiKeyPrivateKey: 'Private Key API Key',
     enterLighterWalletAddress: 'Masukkan alamat wallet Ethereum (0x...)',
     enterLighterPrivateKey: 'Masukkan private key L1 (32 byte)',
-    enterLighterApiKeyPrivateKey: 'Masukkan private key API Key (40 byte, opsional)',
-    lighterWalletAddressDesc: 'Alamat wallet Ethereum Anda untuk identifikasi akun',
-    lighterPrivateKeyDesc: 'Private key L1 untuk identifikasi akun (kunci ECDSA 32 byte)',
-    lighterApiKeyPrivateKeyDesc: 'Private key API Key untuk penandatanganan transaksi (kunci Poseidon2 40 byte)',
-    lighterApiKeyOptionalNote: 'Tanpa API Key, sistem akan menggunakan mode V1 terbatas',
-    lighterV1Description: 'Mode Dasar - Fungsionalitas terbatas, hanya framework pengujian',
-    lighterV2Description: 'Mode Lengkap - Mendukung penandatanganan Poseidon2 dan trading nyata',
+    enterLighterApiKeyPrivateKey:
+      'Masukkan private key API Key (40 byte, opsional)',
+    lighterWalletAddressDesc:
+      'Alamat wallet Ethereum Anda untuk identifikasi akun',
+    lighterPrivateKeyDesc:
+      'Private key L1 untuk identifikasi akun (kunci ECDSA 32 byte)',
+    lighterApiKeyPrivateKeyDesc:
+      'Private key API Key untuk penandatanganan transaksi (kunci Poseidon2 40 byte)',
+    lighterApiKeyOptionalNote:
+      'Tanpa API Key, sistem akan menggunakan mode V1 terbatas',
+    lighterV1Description:
+      'Mode Dasar - Fungsionalitas terbatas, hanya framework pengujian',
+    lighterV2Description:
+      'Mode Lengkap - Mendukung penandatanganan Poseidon2 dan trading nyata',
     lighterPrivateKeyImported: 'Private key LIGHTER telah diimpor',
     asterExchangeName: 'Aster DEX',
     secureInputButton: 'Input Aman',
     secureInputReenter: 'Masukkan Ulang dengan Aman',
     secureInputClear: 'Hapus',
-    secureInputHint: 'Diambil melalui input aman dua tahap. Gunakan "Masukkan Ulang dengan Aman" untuk memperbarui nilai ini.',
+    secureInputHint:
+      'Diambil melalui input aman dua tahap. Gunakan "Masukkan Ulang dengan Aman" untuk memperbarui nilai ini.',
     twoStageModalTitle: 'Input Kunci Aman',
-    twoStageModalDescription: 'Gunakan alur dua tahap untuk memasukkan private key {length} karakter Anda dengan aman.',
+    twoStageModalDescription:
+      'Gunakan alur dua tahap untuk memasukkan private key {length} karakter Anda dengan aman.',
     twoStageStage1Title: 'Tahap 1 · Masukkan bagian pertama',
     twoStageStage1Placeholder: '32 karakter pertama (sertakan 0x jika ada)',
-    twoStageStage1Hint: 'Melanjutkan akan menyalin string pengacak ke clipboard sebagai pengalih.',
+    twoStageStage1Hint:
+      'Melanjutkan akan menyalin string pengacak ke clipboard sebagai pengalih.',
     twoStageStage1Error: 'Silakan masukkan bagian pertama terlebih dahulu.',
     twoStageNext: 'Lanjut',
     twoStageProcessing: 'Memproses…',
     twoStageCancel: 'Batal',
     twoStageStage2Title: 'Tahap 2 · Masukkan sisanya',
     twoStageStage2Placeholder: 'Karakter sisa dari private key Anda',
-    twoStageStage2Hint: 'Tempelkan string pengacak di tempat netral, lalu selesaikan memasukkan kunci Anda.',
-    twoStageClipboardSuccess: 'String pengacak disalin. Tempelkan di kolom teks mana pun sebelum menyelesaikan.',
-    twoStageClipboardReminder: 'Ingat tempelkan string pengacak sebelum mengirim untuk menghindari kebocoran clipboard.',
-    twoStageClipboardManual: 'Salin otomatis gagal. Salin string pengacak di bawah secara manual.',
+    twoStageStage2Hint:
+      'Tempelkan string pengacak di tempat netral, lalu selesaikan memasukkan kunci Anda.',
+    twoStageClipboardSuccess:
+      'String pengacak disalin. Tempelkan di kolom teks mana pun sebelum menyelesaikan.',
+    twoStageClipboardReminder:
+      'Ingat tempelkan string pengacak sebelum mengirim untuk menghindari kebocoran clipboard.',
+    twoStageClipboardManual:
+      'Salin otomatis gagal. Salin string pengacak di bawah secara manual.',
     twoStageBack: 'Kembali',
     twoStageSubmit: 'Konfirmasi',
-    twoStageInvalidFormat: 'Format private key tidak valid. Diharapkan {length} karakter heksadesimal (awalan 0x opsional).',
-    testnetDescription: 'Aktifkan untuk terhubung ke lingkungan uji coba bursa untuk trading simulasi',
+    twoStageInvalidFormat:
+      'Format private key tidak valid. Diharapkan {length} karakter heksadesimal (awalan 0x opsional).',
+    testnetDescription:
+      'Aktifkan untuk terhubung ke lingkungan uji coba bursa untuk trading simulasi',
     securityWarning: 'Peringatan Keamanan',
     saveConfiguration: 'Simpan Konfigurasi',
 
@@ -2835,14 +2888,18 @@ export const translations = {
     positionMode: 'Mode Posisi',
     crossMarginMode: 'Cross Margin',
     isolatedMarginMode: 'Isolated Margin',
-    crossMarginDescription: 'Cross margin: Semua posisi berbagi saldo akun sebagai jaminan',
-    isolatedMarginDescription: 'Isolated margin: Setiap posisi mengelola jaminan secara independen, isolasi risiko',
+    crossMarginDescription:
+      'Cross margin: Semua posisi berbagi saldo akun sebagai jaminan',
+    isolatedMarginDescription:
+      'Isolated margin: Setiap posisi mengelola jaminan secara independen, isolasi risiko',
     leverageConfiguration: 'Konfigurasi Leverage',
     btcEthLeverage: 'Leverage BTC/ETH',
     altcoinLeverage: 'Leverage Altcoin',
-    leverageRecommendation: 'Disarankan: BTC/ETH 5-10x, Altcoin 3-5x untuk kontrol risiko',
+    leverageRecommendation:
+      'Disarankan: BTC/ETH 5-10x, Altcoin 3-5x untuk kontrol risiko',
     tradingSymbols: 'Simbol Trading',
-    tradingSymbolsPlaceholder: 'Masukkan simbol, pisahkan dengan koma (misal BTCUSDT,ETHUSDT,SOLUSDT)',
+    tradingSymbolsPlaceholder:
+      'Masukkan simbol, pisahkan dengan koma (misal BTCUSDT,ETHUSDT,SOLUSDT)',
     selectSymbols: 'Pilih Simbol',
     selectTradingSymbols: 'Pilih Simbol Trading',
     selectedSymbolsCount: '{count} simbol dipilih',
@@ -2850,7 +2907,8 @@ export const translations = {
     confirmSelection: 'Konfirmasi',
     btcEthLeverageValidation: 'Leverage BTC/ETH harus antara 1-50x',
     altcoinLeverageValidation: 'Leverage Altcoin harus antara 1-20x',
-    invalidSymbolFormat: 'Format simbol tidak valid: {symbol}, gunakan perp USDT atau SYMBOL-USDC',
+    invalidSymbolFormat:
+      'Format simbol tidak valid: {symbol}, gunakan perp USDT atau SYMBOL-USDC',
     systemPromptTemplate: 'Template Prompt Sistem',
     promptTemplateDefault: 'Default Stabil',
     promptTemplateAdaptive: 'Strategi Konservatif',
@@ -2859,16 +2917,21 @@ export const translations = {
     promptTemplateNof1: 'Framework NoF1 English',
     promptTemplateTaroLong: 'Taro Long Position',
     promptDescDefault: '📊 Strategi Default Stabil',
-    promptDescDefaultContent: 'Maksimalkan rasio Sharpe, risiko-imbalan seimbang, cocok untuk pemula dan trading jangka panjang stabil',
+    promptDescDefaultContent:
+      'Maksimalkan rasio Sharpe, risiko-imbalan seimbang, cocok untuk pemula dan trading jangka panjang stabil',
     promptDescAdaptive: '🛡️ Strategi Konservatif (v6.0.0)',
-    promptDescAdaptiveContent: 'Kontrol risiko ketat, konfirmasi BTC wajib, prioritas win rate tinggi, cocok untuk trader konservatif',
+    promptDescAdaptiveContent:
+      'Kontrol risiko ketat, konfirmasi BTC wajib, prioritas win rate tinggi, cocok untuk trader konservatif',
     promptDescAdaptiveRelaxed: '⚡ Strategi Agresif (v6.0.0)',
-    promptDescAdaptiveRelaxedContent: 'Trading frekuensi tinggi, konfirmasi BTC opsional, mengejar peluang trading, cocok untuk pasar volatil',
+    promptDescAdaptiveRelaxedContent:
+      'Trading frekuensi tinggi, konfirmasi BTC opsional, mengejar peluang trading, cocok untuk pasar volatil',
     promptDescHansen: '🎯 Strategi Hansen',
-    promptDescHansenContent: 'Strategi kustom Hansen, maksimalkan rasio Sharpe, untuk trader profesional',
+    promptDescHansenContent:
+      'Strategi kustom Hansen, maksimalkan rasio Sharpe, untuk trader profesional',
     promptDescNof1: '🌐 Framework NoF1 English',
     promptDescTaroLong: '📈 Strategi Taro Long Position',
-    promptDescTaroLongContent: 'Keputusan berbasis data, validasi multi-dimensi, evolusi pembelajaran berkelanjutan, spesialis posisi long',
+    promptDescTaroLongContent:
+      'Keputusan berbasis data, validasi multi-dimensi, evolusi pembelajaran berkelanjutan, spesialis posisi long',
     loading: 'Memuat...',
 
     // AI Traders Page - Additional
@@ -2878,33 +2941,45 @@ export const translations = {
     information: 'Informasi',
     editAIModel: 'Edit Model AI',
     addAIModel: 'Tambah Model AI',
-    confirmDeleteModel: 'Apakah Anda yakin ingin menghapus konfigurasi model AI ini?',
-    cannotDeleteModelInUse: 'Tidak dapat menghapus model AI ini karena sedang digunakan oleh trader',
+    confirmDeleteModel:
+      'Apakah Anda yakin ingin menghapus konfigurasi model AI ini?',
+    cannotDeleteModelInUse:
+      'Tidak dapat menghapus model AI ini karena sedang digunakan oleh trader',
     tradersUsing: 'Trader yang menggunakan konfigurasi ini',
-    pleaseDeleteTradersFirst: 'Silakan hapus atau konfigurasi ulang trader ini terlebih dahulu',
+    pleaseDeleteTradersFirst:
+      'Silakan hapus atau konfigurasi ulang trader ini terlebih dahulu',
     selectModel: 'Pilih Model AI',
     pleaseSelectModel: 'Silakan pilih model',
     customBaseURL: 'Base URL (Opsional)',
-    customBaseURLPlaceholder: 'URL base API kustom, misal: https://api.openai.com/v1',
+    customBaseURLPlaceholder:
+      'URL base API kustom, misal: https://api.openai.com/v1',
     leaveBlankForDefault: 'Kosongkan untuk menggunakan alamat API default',
-    modelConfigInfo1: '• Untuk API resmi, hanya API Key yang diperlukan, biarkan kolom lain kosong',
-    modelConfigInfo2: '• Base URL dan Nama Model kustom hanya diperlukan untuk proxy pihak ketiga',
+    modelConfigInfo1:
+      '• Untuk API resmi, hanya API Key yang diperlukan, biarkan kolom lain kosong',
+    modelConfigInfo2:
+      '• Base URL dan Nama Model kustom hanya diperlukan untuk proxy pihak ketiga',
     modelConfigInfo3: '• API Key dienkripsi dan disimpan dengan aman',
     defaultModel: 'Model default',
     applyApiKey: 'Dapatkan API Key',
-    kimiApiNote: 'Kimi memerlukan API Key dari situs internasional (moonshot.ai), key region China tidak kompatibel',
+    kimiApiNote:
+      'Kimi memerlukan API Key dari situs internasional (moonshot.ai), key region China tidak kompatibel',
     leaveBlankForDefaultModel: 'Kosongkan untuk menggunakan model default',
     customModelName: 'Nama Model (Opsional)',
     customModelNamePlaceholder: 'misal: deepseek-chat, qwen3-max, gpt-4o',
     saveConfig: 'Simpan Konfigurasi',
     editExchange: 'Edit Bursa',
     addExchange: 'Tambah Bursa',
-    confirmDeleteExchange: 'Apakah Anda yakin ingin menghapus konfigurasi bursa ini?',
-    cannotDeleteExchangeInUse: 'Tidak dapat menghapus bursa ini karena sedang digunakan oleh trader',
+    confirmDeleteExchange:
+      'Apakah Anda yakin ingin menghapus konfigurasi bursa ini?',
+    cannotDeleteExchangeInUse:
+      'Tidak dapat menghapus bursa ini karena sedang digunakan oleh trader',
     pleaseSelectExchange: 'Silakan pilih bursa',
-    exchangeConfigWarning1: '• API key akan dienkripsi, disarankan menggunakan izin baca-saja atau trading futures',
-    exchangeConfigWarning2: '• Jangan berikan izin penarikan untuk memastikan keamanan dana',
-    exchangeConfigWarning3: '• Setelah menghapus konfigurasi, trader terkait tidak akan dapat trading',
+    exchangeConfigWarning1:
+      '• API key akan dienkripsi, disarankan menggunakan izin baca-saja atau trading futures',
+    exchangeConfigWarning2:
+      '• Jangan berikan izin penarikan untuk memastikan keamanan dana',
+    exchangeConfigWarning3:
+      '• Setelah menghapus konfigurasi, trader terkait tidak akan dapat trading',
     edit: 'Edit',
     viewGuide: 'Lihat Panduan',
     binanceSetupGuide: 'Panduan Pengaturan Binance',
@@ -2951,7 +3026,8 @@ export const translations = {
     passwordRuleNumber: 'Minimal 1 angka',
     passwordRuleSpecial: 'Minimal 1 karakter khusus (@#$%!&*?)',
     passwordRuleMatch: 'Kata sandi cocok',
-    passwordNotMeetRequirements: 'Kata sandi tidak memenuhi persyaratan keamanan',
+    passwordNotMeetRequirements:
+      'Kata sandi tidak memenuhi persyaratan keamanan',
     loginTitle: 'Masuk ke akun Anda',
     registerTitle: 'Buat akun baru',
     loginButton: 'Masuk',
@@ -2963,15 +3039,18 @@ export const translations = {
     loginNow: 'Masuk sekarang',
     forgotPassword: 'Lupa kata sandi?',
     forgotAccount: 'Lupa akun?',
-    forgotAccountConfirm: '⚠️ Ini akan MENGHAPUS PERMANEN semua data: pengguna, trader, strategi, kunci API model AI, dan kunci API bursa. Ekspor apa pun yang ingin Anda simpan SEBELUM melanjutkan. Pendaftaran ulang TIDAK akan memulihkannya. Lanjutkan?',
-    forgotAccountSuccess: 'Akun berhasil direset! Anda sekarang dapat mendaftar akun baru.',
+    forgotAccountConfirm:
+      '⚠️ Ini akan MENGHAPUS PERMANEN semua data: pengguna, trader, strategi, kunci API model AI, dan kunci API bursa. Ekspor apa pun yang ingin Anda simpan SEBELUM melanjutkan. Pendaftaran ulang TIDAK akan memulihkannya. Lanjutkan?',
+    forgotAccountSuccess:
+      'Akun berhasil direset! Anda sekarang dapat mendaftar akun baru.',
     rememberMe: 'Ingat saya',
     resetPassword: 'Reset Kata Sandi',
     resetPasswordTitle: 'Reset kata sandi Anda',
     newPassword: 'Kata Sandi Baru',
     newPasswordPlaceholder: 'Masukkan kata sandi baru (minimal 6 karakter)',
     resetPasswordButton: 'Reset Kata Sandi',
-    resetPasswordSuccess: 'Kata sandi berhasil direset! Silakan masuk dengan kata sandi baru',
+    resetPasswordSuccess:
+      'Kata sandi berhasil direset! Silakan masuk dengan kata sandi baru',
     resetPasswordFailed: 'Gagal mereset kata sandi',
     backToLogin: 'Kembali ke Login',
     resetPasswordCliIntro:
@@ -2991,7 +3070,8 @@ export const translations = {
     medium: 'Sedang',
     strong: 'Kuat',
     passwordStrength: 'Kekuatan kata sandi',
-    passwordStrengthHint: 'Gunakan minimal 8 karakter dengan campuran huruf, angka dan simbol',
+    passwordStrengthHint:
+      'Gunakan minimal 8 karakter dengan campuran huruf, angka dan simbol',
     passwordMismatch: 'Kata sandi tidak cocok',
     emailRequired: 'Email diperlukan',
     passwordRequired: 'Kata sandi diperlukan',
@@ -3008,44 +3088,56 @@ export const translations = {
     signIn: 'Masuk',
     signUp: 'Daftar',
     registrationClosed: 'Pendaftaran Ditutup',
-    registrationClosedMessage: 'Pendaftaran pengguna saat ini dinonaktifkan. Silakan hubungi administrator untuk akses.',
+    registrationClosedMessage:
+      'Pendaftaran pengguna saat ini dinonaktifkan. Silakan hubungi administrator untuk akses.',
     githubStarsInDays: '2.5K+ GitHub Stars dalam 3 hari',
     heroTitle1: 'Read the Market.',
     heroTitle2: 'Write the Trade.',
-    heroDescription: 'NOFX adalah standar masa depan untuk trading AI — OS trading agensi yang terbuka dan didorong komunitas. Mendukung Binance, Aster DEX dan bursa lainnya, self-hosted, kompetisi multi-agen, biarkan AI secara otomatis membuat keputusan, mengeksekusi dan mengoptimalkan trading untuk Anda.',
+    heroDescription:
+      'NOFX adalah standar masa depan untuk trading AI — OS trading agensi yang terbuka dan didorong komunitas. Mendukung Binance, Aster DEX dan bursa lainnya, self-hosted, kompetisi multi-agen, biarkan AI secara otomatis membuat keputusan, mengeksekusi dan mengoptimalkan trading untuk Anda.',
     poweredBy: 'Didukung oleh Aster DEX dan Binance.',
     readyToDefine: 'Siap mendefinisikan masa depan trading AI?',
-    startWithCrypto: 'Dimulai dari pasar kripto, berkembang ke TradFi. NOFX adalah infrastruktur AgentFi.',
+    startWithCrypto:
+      'Dimulai dari pasar kripto, berkembang ke TradFi. NOFX adalah infrastruktur AgentFi.',
     getStartedNow: 'Mulai Sekarang',
     viewSourceCode: 'Lihat Kode Sumber',
     coreFeatures: 'Fitur Inti',
     whyChooseNofx: 'Mengapa Memilih NOFX?',
-    openCommunityDriven: 'Open source, transparan, OS trading AI yang didorong komunitas',
+    openCommunityDriven:
+      'Open source, transparan, OS trading AI yang didorong komunitas',
     openSourceSelfHosted: '100% Open Source & Self-Hosted',
-    openSourceDesc: 'Framework Anda, aturan Anda. Non-black box, mendukung prompt kustom dan multi-model.',
+    openSourceDesc:
+      'Framework Anda, aturan Anda. Non-black box, mendukung prompt kustom dan multi-model.',
     openSourceFeatures1: 'Kode sumber sepenuhnya terbuka',
     openSourceFeatures2: 'Dukungan deployment self-hosting',
     openSourceFeatures3: 'Prompt AI kustom',
     openSourceFeatures4: 'Dukungan multi-model (DeepSeek, Qwen)',
     multiAgentCompetition: 'Kompetisi Multi-Agen Cerdas',
-    multiAgentDesc: 'Strategi AI bertarung kecepatan tinggi di sandbox, yang terkuat bertahan, mencapai evolusi strategi.',
+    multiAgentDesc:
+      'Strategi AI bertarung kecepatan tinggi di sandbox, yang terkuat bertahan, mencapai evolusi strategi.',
     multiAgentFeatures1: 'Beberapa agen AI berjalan paralel',
     multiAgentFeatures2: 'Optimasi strategi otomatis',
     multiAgentFeatures3: 'Pengujian keamanan sandbox',
     multiAgentFeatures4: 'Portabilitas strategi lintas pasar',
     secureReliableTrading: 'Trading Aman dan Andal',
-    secureDesc: 'Keamanan tingkat enterprise, kontrol penuh atas dana dan strategi trading Anda.',
+    secureDesc:
+      'Keamanan tingkat enterprise, kontrol penuh atas dana dan strategi trading Anda.',
     secureFeatures1: 'Manajemen private key lokal',
     secureFeatures2: 'Kontrol izin API granular',
     secureFeatures3: 'Pemantauan risiko realtime',
     secureFeatures4: 'Audit log trading',
     aboutNofx: 'Tentang NOFX',
     whatIsNofx: 'Apa itu NOFX?',
-    nofxNotAnotherBot: "NOFX bukan bot trading biasa, melainkan 'Linux' dari trading AI —",
-    nofxDescription1: "OS open source yang transparan dan terpercaya yang menyediakan lapisan",
-    nofxDescription2: "'keputusan-risiko-eksekusi' terpadu, mendukung semua kelas aset.",
-    nofxDescription3: 'Dimulai dari pasar kripto (24/7, volatilitas tinggi sebagai tempat uji sempurna), ekspansi masa depan ke saham, futures, forex. Inti: arsitektur terbuka, AI',
-    nofxDescription4: 'Darwinisme (kompetisi mandiri multi-agen, evolusi strategi), flywheel CodeFi',
+    nofxNotAnotherBot:
+      "NOFX bukan bot trading biasa, melainkan 'Linux' dari trading AI —",
+    nofxDescription1:
+      'OS open source yang transparan dan terpercaya yang menyediakan lapisan',
+    nofxDescription2:
+      "'keputusan-risiko-eksekusi' terpadu, mendukung semua kelas aset.",
+    nofxDescription3:
+      'Dimulai dari pasar kripto (24/7, volatilitas tinggi sebagai tempat uji sempurna), ekspansi masa depan ke saham, futures, forex. Inti: arsitektur terbuka, AI',
+    nofxDescription4:
+      'Darwinisme (kompetisi mandiri multi-agen, evolusi strategi), flywheel CodeFi',
     nofxDescription5: '(pengembang mendapat reward poin untuk kontribusi PR).',
     youFullControl: 'Anda 100% Mengendalikan',
     fullControlDesc: 'Kontrol penuh atas prompt AI dan dana',
@@ -3053,17 +3145,23 @@ export const translations = {
     startupMessages2: 'Server API dimulai di port 8080',
     startupMessages3: 'Konsol Web http://127.0.0.1:3000',
     howToStart: 'Cara Memulai NOFX',
-    fourSimpleSteps: 'Empat langkah sederhana untuk memulai perjalanan trading AI otomatis Anda',
+    fourSimpleSteps:
+      'Empat langkah sederhana untuk memulai perjalanan trading AI otomatis Anda',
     step1Title: 'Clone Repository GitHub',
-    step1Desc: 'git clone https://github.com/NoFxAiOS/nofx dan beralih ke branch dev untuk menguji fitur baru.',
+    step1Desc:
+      'git clone https://github.com/NoFxAiOS/nofx dan beralih ke branch dev untuk menguji fitur baru.',
     step2Title: 'Konfigurasi Lingkungan',
-    step2Desc: 'Setup frontend untuk API bursa (seperti Binance, Gate), model AI dan prompt kustom.',
+    step2Desc:
+      'Setup frontend untuk API bursa (seperti Binance, Gate), model AI dan prompt kustom.',
     step3Title: 'Deploy & Jalankan',
-    step3Desc: 'Deployment Docker satu klik, mulai agen AI. Catatan: Pasar berisiko tinggi, hanya uji dengan uang yang bisa Anda rugi.',
+    step3Desc:
+      'Deployment Docker satu klik, mulai agen AI. Catatan: Pasar berisiko tinggi, hanya uji dengan uang yang bisa Anda rugi.',
     step4Title: 'Optimalkan & Kontribusi',
-    step4Desc: 'Pantau trading, kirim PR untuk meningkatkan framework. Bergabung ke Telegram untuk berbagi strategi.',
+    step4Desc:
+      'Pantau trading, kirim PR untuk meningkatkan framework. Bergabung ke Telegram untuk berbagi strategi.',
     importantRiskWarning: 'Peringatan Risiko Penting',
-    riskWarningText: 'Branch dev tidak stabil, jangan gunakan dana yang tidak sanggup Anda rugi. NOFX non-custodial, tanpa strategi resmi. Trading memiliki risiko, investasi dengan hati-hati.',
+    riskWarningText:
+      'Branch dev tidak stabil, jangan gunakan dana yang tidak sanggup Anda rugi. NOFX non-custodial, tanpa strategi resmi. Trading memiliki risiko, investasi dengan hati-hati.',
     futureStandardAI: 'Standar masa depan trading AI',
     links: 'Tautan',
     resources: 'Sumber Daya',
@@ -3071,7 +3169,8 @@ export const translations = {
     supporters: 'Pendukung',
     strategicInvestment: '(Investasi Strategis)',
     accessNofxPlatform: 'Akses Platform NOFX',
-    loginRegisterPrompt: 'Silakan masuk atau daftar untuk mengakses platform trading AI lengkap',
+    loginRegisterPrompt:
+      'Silakan masuk atau daftar untuk mengakses platform trading AI lengkap',
     registerNewAccount: 'Daftar Akun Baru',
     candidateCoins: 'Koin Kandidat',
 
@@ -3079,7 +3178,8 @@ export const translations = {
     faqTitle: 'Pertanyaan yang Sering Diajukan',
     faqSubtitle: 'Temukan jawaban untuk pertanyaan umum tentang NOFX',
     faqStillHaveQuestions: 'Masih Punya Pertanyaan?',
-    faqContactUs: 'Bergabunglah dengan komunitas kami atau kunjungi GitHub untuk bantuan lebih lanjut',
+    faqContactUs:
+      'Bergabunglah dengan komunitas kami atau kunjungi GitHub untuk bantuan lebih lanjut',
     faqCategoryGettingStarted: 'Memulai',
     faqCategoryInstallation: 'Instalasi',
     faqCategoryConfiguration: 'Konfigurasi',
@@ -3090,120 +3190,176 @@ export const translations = {
     faqCategoryAIModels: 'Model AI',
     faqCategoryContributing: 'Kontribusi',
     faqWhatIsNOFX: 'Apa itu NOFX?',
-    faqWhatIsNOFXAnswer: 'NOFX adalah sistem operasi trading bertenaga AI open-source untuk pasar kripto dan saham AS. Ia menggunakan model bahasa besar (LLM) seperti DeepSeek, GPT, Claude, Gemini untuk menganalisis data pasar dan membuat keputusan trading secara otonom. Fitur utama: dukungan multi-model AI, trading multi-bursa, dan pembangun strategi visual.',
+    faqWhatIsNOFXAnswer:
+      'NOFX adalah sistem operasi trading bertenaga AI open-source untuk pasar kripto dan saham AS. Ia menggunakan model bahasa besar (LLM) seperti DeepSeek, GPT, Claude, Gemini untuk menganalisis data pasar dan membuat keputusan trading secara otonom. Fitur utama: dukungan multi-model AI, trading multi-bursa, dan pembangun strategi visual.',
     faqHowDoesItWork: 'Bagaimana cara kerja NOFX?',
-    faqHowDoesItWorkAnswer: 'NOFX bekerja dalam 5 langkah: 1) Konfigurasi model AI dan kredensial API bursa; 2) Buat strategi trading (pemilihan koin, indikator, kontrol risiko); 3) Buat "Trader" menggabungkan Model AI + Bursa + Strategi; 4) Mulai trader - dia akan menganalisis data pasar secara berkala dan membuat keputusan beli/jual/tahan; 5) Pantau performa di dasbor.',
+    faqHowDoesItWorkAnswer:
+      'NOFX bekerja dalam 5 langkah: 1) Konfigurasi model AI dan kredensial API bursa; 2) Buat strategi trading (pemilihan koin, indikator, kontrol risiko); 3) Buat "Trader" menggabungkan Model AI + Bursa + Strategi; 4) Mulai trader - dia akan menganalisis data pasar secara berkala dan membuat keputusan beli/jual/tahan; 5) Pantau performa di dasbor.',
     faqIsProfitable: 'Apakah NOFX menguntungkan?',
-    faqIsProfitableAnswer: 'Trading AI bersifat eksperimental dan TIDAK dijamin menguntungkan. Futures kripto sangat volatil dan berisiko. NOFX dirancang untuk tujuan edukasi dan riset. Kami sangat menyarankan: mulai dengan jumlah kecil (10-50 USDT), jangan investasi melebihi yang sanggup Anda rugi, uji sebelum trading nyata.',
+    faqIsProfitableAnswer:
+      'Trading AI bersifat eksperimental dan TIDAK dijamin menguntungkan. Futures kripto sangat volatil dan berisiko. NOFX dirancang untuk tujuan edukasi dan riset. Kami sangat menyarankan: mulai dengan jumlah kecil (10-50 USDT), jangan investasi melebihi yang sanggup Anda rugi, uji sebelum trading nyata.',
     faqSupportedExchanges: 'Bursa mana yang didukung?',
-    faqSupportedExchangesAnswer: 'CEX (Tersentralisasi): Binance Futures, Bybit, OKX, Bitget, Gate, KuCoin, Indodax. DEX (Terdesentralisasi): Aster DEX, Lighter. Setiap bursa memiliki fitur berbeda - Binance memiliki likuiditas terbesar, Aster dan Lighter sepenuhnya on-chain.',
+    faqSupportedExchangesAnswer:
+      'CEX (Tersentralisasi): Binance Futures, Bybit, OKX, Bitget, Gate, KuCoin, Indodax. DEX (Terdesentralisasi): Aster DEX, Lighter. Setiap bursa memiliki fitur berbeda - Binance memiliki likuiditas terbesar, Aster dan Lighter sepenuhnya on-chain.',
     faqSupportedAIModels: 'Model AI mana yang didukung?',
-    faqSupportedAIModelsAnswer: 'NOFX mendukung 7+ model AI: DeepSeek (direkomendasikan untuk biaya/performa), Qwen, OpenAI (GPT), Claude, Gemini, Grok, dan Kimi. Anda juga dapat menggunakan endpoint API yang kompatibel dengan OpenAI.',
+    faqSupportedAIModelsAnswer:
+      'NOFX mendukung 7+ model AI: DeepSeek (direkomendasikan untuk biaya/performa), Qwen, OpenAI (GPT), Claude, Gemini, Grok, dan Kimi. Anda juga dapat menggunakan endpoint API yang kompatibel dengan OpenAI.',
     faqSystemRequirements: 'Apa persyaratan sistem?',
-    faqSystemRequirementsAnswer: 'Minimum: 2 core CPU, 2GB RAM, 1GB disk, internet stabil. Direkomendasikan: 4GB RAM untuk menjalankan beberapa trader. OS yang didukung: Linux, macOS, atau Windows (via Docker atau WSL2).',
+    faqSystemRequirementsAnswer:
+      'Minimum: 2 core CPU, 2GB RAM, 1GB disk, internet stabil. Direkomendasikan: 4GB RAM untuk menjalankan beberapa trader. OS yang didukung: Linux, macOS, atau Windows (via Docker atau WSL2).',
     faqHowToInstall: 'Bagaimana cara menginstal NOFX?',
-    faqHowToInstallAnswer: 'Metode termudah (Linux/macOS): Jalankan "curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash" - ini menginstal kontainer Docker secara otomatis. Lalu buka http://127.0.0.1:3000 di browser Anda.',
+    faqHowToInstallAnswer:
+      'Metode termudah (Linux/macOS): Jalankan "curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash" - ini menginstal kontainer Docker secara otomatis. Lalu buka http://127.0.0.1:3000 di browser Anda.',
     faqWindowsInstallation: 'Bagaimana cara menginstal di Windows?',
-    faqWindowsInstallationAnswer: 'Tiga opsi: 1) Docker Desktop (Direkomendasikan); 2) WSL2 - Instal Windows Subsystem for Linux; 3) Docker di WSL2. Akses via http://127.0.0.1:3000',
+    faqWindowsInstallationAnswer:
+      'Tiga opsi: 1) Docker Desktop (Direkomendasikan); 2) WSL2 - Instal Windows Subsystem for Linux; 3) Docker di WSL2. Akses via http://127.0.0.1:3000',
     faqDockerDeployment: 'Deployment Docker terus gagal',
-    faqDockerDeploymentAnswer: 'Solusi umum: 1) Periksa Docker berjalan: "docker info"; 2) Pastikan memori cukup (minimal 2GB); 3) Periksa log: "docker compose logs -f".',
-    faqManualInstallation: 'Bagaimana cara menginstal manual untuk pengembangan?',
-    faqManualInstallationAnswer: 'Prasyarat: Go 1.21+, Node.js 18+, TA-Lib. Langkah: 1) Clone repo; 2) "go mod download"; 3) "cd web && npm install"; 4) "go build -o nofx"; 5) "./nofx"; 6) "cd web && npm run dev".',
+    faqDockerDeploymentAnswer:
+      'Solusi umum: 1) Periksa Docker berjalan: "docker info"; 2) Pastikan memori cukup (minimal 2GB); 3) Periksa log: "docker compose logs -f".',
+    faqManualInstallation:
+      'Bagaimana cara menginstal manual untuk pengembangan?',
+    faqManualInstallationAnswer:
+      'Prasyarat: Go 1.21+, Node.js 18+, TA-Lib. Langkah: 1) Clone repo; 2) "go mod download"; 3) "cd web && npm install"; 4) "go build -o nofx"; 5) "./nofx"; 6) "cd web && npm run dev".',
     faqServerDeployment: 'Bagaimana cara deploy ke server remote?',
-    faqServerDeploymentAnswer: 'Jalankan skrip instal di server Anda. Akses via http://IP_SERVER:3000. Untuk HTTPS: Gunakan Cloudflare (gratis) dan aktifkan TRANSPORT_ENCRYPTION=true di .env.',
+    faqServerDeploymentAnswer:
+      'Jalankan skrip instal di server Anda. Akses via http://IP_SERVER:3000. Untuk HTTPS: Gunakan Cloudflare (gratis) dan aktifkan TRANSPORT_ENCRYPTION=true di .env.',
     faqUpdateNOFX: 'Bagaimana cara memperbarui NOFX?',
-    faqUpdateNOFXAnswer: 'Docker: "docker compose pull && docker compose up -d". Manual: "git pull && go build -o nofx" untuk backend, "cd web && npm install && npm run build" untuk frontend.',
+    faqUpdateNOFXAnswer:
+      'Docker: "docker compose pull && docker compose up -d". Manual: "git pull && go build -o nofx" untuk backend, "cd web && npm install && npm run build" untuk frontend.',
     faqConfigureAIModels: 'Bagaimana cara mengonfigurasi model AI?',
-    faqConfigureAIModelsAnswer: 'Buka halaman Konfigurasi → bagian Model AI. Untuk setiap model: 1) Dapatkan API key dari penyedia; 2) Masukkan API key; 3) Opsional kustomisasi base URL dan nama model; 4) Simpan.',
+    faqConfigureAIModelsAnswer:
+      'Buka halaman Konfigurasi → bagian Model AI. Untuk setiap model: 1) Dapatkan API key dari penyedia; 2) Masukkan API key; 3) Opsional kustomisasi base URL dan nama model; 4) Simpan.',
     faqConfigureExchanges: 'Bagaimana cara mengonfigurasi koneksi bursa?',
-    faqConfigureExchangesAnswer: 'Buka halaman Konfigurasi → bagian Bursa. Klik "Tambah Bursa", pilih jenis, dan masukkan kredensial. Aktifkan hanya izin yang diperlukan (Trading Futures).',
+    faqConfigureExchangesAnswer:
+      'Buka halaman Konfigurasi → bagian Bursa. Klik "Tambah Bursa", pilih jenis, dan masukkan kredensial. Aktifkan hanya izin yang diperlukan (Trading Futures).',
     faqBinanceAPISetup: 'Bagaimana cara mengatur API Binance dengan benar?',
-    faqBinanceAPISetupAnswer: 'Langkah penting: 1) Buat API key di Binance → Manajemen API; 2) Aktifkan HANYA izin "Enable Futures"; 3) PENTING: Beralih ke Hedge Mode di pengaturan Futures; 4) Pastikan dana di dompet Futures.',
+    faqBinanceAPISetupAnswer:
+      'Langkah penting: 1) Buat API key di Binance → Manajemen API; 2) Aktifkan HANYA izin "Enable Futures"; 3) PENTING: Beralih ke Hedge Mode di pengaturan Futures; 4) Pastikan dana di dompet Futures.',
     faqCreateStrategy: 'Bagaimana cara membuat strategi trading?',
-    faqCreateStrategyAnswer: 'Buka Strategy Studio: 1) Sumber Koin; 2) Indikator teknikal; 3) Kontrol Risiko; 4) Prompt Kustom (opsional). Simpan dan tetapkan ke trader.',
+    faqCreateStrategyAnswer:
+      'Buka Strategy Studio: 1) Sumber Koin; 2) Indikator teknikal; 3) Kontrol Risiko; 4) Prompt Kustom (opsional). Simpan dan tetapkan ke trader.',
     faqCreateTrader: 'Bagaimana cara membuat dan memulai trader?',
-    faqCreateTraderAnswer: 'Buka halaman Trader: 1) Klik "Buat Trader"; 2) Pilih Model AI; 3) Pilih Bursa; 4) Pilih Strategi; 5) Atur interval keputusan; 6) Simpan, lalu klik "Mulai".',
+    faqCreateTraderAnswer:
+      'Buka halaman Trader: 1) Klik "Buat Trader"; 2) Pilih Model AI; 3) Pilih Bursa; 4) Pilih Strategi; 5) Atur interval keputusan; 6) Simpan, lalu klik "Mulai".',
     faqHowAIDecides: 'Bagaimana AI membuat keputusan trading?',
-    faqHowAIDecidesAnswer: 'AI menggunakan penalaran Chain of Thought (CoT) dalam 4 langkah: 1) Analisis Posisi; 2) Penilaian Risiko; 3) Evaluasi Peluang; 4) Keputusan Akhir.',
+    faqHowAIDecidesAnswer:
+      'AI menggunakan penalaran Chain of Thought (CoT) dalam 4 langkah: 1) Analisis Posisi; 2) Penilaian Risiko; 3) Evaluasi Peluang; 4) Keputusan Akhir.',
     faqDecisionFrequency: 'Seberapa sering AI membuat keputusan?',
-    faqDecisionFrequencyAnswer: 'Dapat dikonfigurasi per trader, default 3-5 menit. Disarankan: 5 menit untuk trading aktif, 15-30 menit untuk swing trading.',
+    faqDecisionFrequencyAnswer:
+      'Dapat dikonfigurasi per trader, default 3-5 menit. Disarankan: 5 menit untuk trading aktif, 15-30 menit untuk swing trading.',
     faqNoTradesExecuting: 'Mengapa trader saya tidak mengeksekusi trading?',
-    faqNoTradesExecutingAnswer: 'Penyebab umum: 1) AI memutuskan menunggu; 2) Saldo tidak cukup; 3) Batas posisi maks tercapai; 4) Masalah API bursa; 5) Batasan strategi terlalu ketat.',
+    faqNoTradesExecutingAnswer:
+      'Penyebab umum: 1) AI memutuskan menunggu; 2) Saldo tidak cukup; 3) Batas posisi maks tercapai; 4) Masalah API bursa; 5) Batasan strategi terlalu ketat.',
     faqOnlyShortPositions: 'Mengapa AI hanya membuka posisi short?',
-    faqOnlyShortPositionsAnswer: 'Biasanya karena Mode Posisi Binance. Solusi: Beralih ke Hedge Mode di Binance Futures → Preferensi → Mode Posisi.',
+    faqOnlyShortPositionsAnswer:
+      'Biasanya karena Mode Posisi Binance. Solusi: Beralih ke Hedge Mode di Binance Futures → Preferensi → Mode Posisi.',
     faqLeverageSettings: 'Bagaimana cara kerja pengaturan leverage?',
-    faqLeverageSettingsAnswer: 'Leverage diatur di Strategi → Kontrol Risiko: leverage BTC/ETH (biasanya 5-20x) dan leverage Altcoin (biasanya 3-10x).',
+    faqLeverageSettingsAnswer:
+      'Leverage diatur di Strategi → Kontrol Risiko: leverage BTC/ETH (biasanya 5-20x) dan leverage Altcoin (biasanya 3-10x).',
     faqStopLossTakeProfit: 'Apakah NOFX mendukung stop-loss dan take-profit?',
-    faqStopLossTakeProfitAnswer: 'AI dapat menyarankan level stop-loss/take-profit dalam keputusannya, tetapi ini bersifat panduan bukan order bursa yang dikodekan keras.',
+    faqStopLossTakeProfitAnswer:
+      'AI dapat menyarankan level stop-loss/take-profit dalam keputusannya, tetapi ini bersifat panduan bukan order bursa yang dikodekan keras.',
     faqMultipleTraders: 'Bisakah saya menjalankan beberapa trader?',
-    faqMultipleTradersAnswer: 'Ya! NOFX mendukung 20+ trader bersamaan. Gunakan untuk A/B test strategi, bandingkan model AI, atau diversifikasi lintas bursa.',
+    faqMultipleTradersAnswer:
+      'Ya! NOFX mendukung 20+ trader bersamaan. Gunakan untuk A/B test strategi, bandingkan model AI, atau diversifikasi lintas bursa.',
     faqAICosts: 'Berapa biaya panggilan API AI?',
-    faqAICostsAnswer: 'Perkiraan biaya harian per trader (interval 5 menit): DeepSeek: $0.10-0.50; Qwen: $0.20-0.80; OpenAI: $2-5; Claude: $1-3.',
+    faqAICostsAnswer:
+      'Perkiraan biaya harian per trader (interval 5 menit): DeepSeek: $0.10-0.50; Qwen: $0.20-0.80; OpenAI: $2-5; Claude: $1-3.',
     faqPortInUse: 'Port 8080 atau 3000 sudah digunakan',
-    faqPortInUseAnswer: 'Periksa proses yang menggunakan port. Ubah port di .env: NOFX_BACKEND_PORT=8081, NOFX_FRONTEND_PORT=3001.',
+    faqPortInUseAnswer:
+      'Periksa proses yang menggunakan port. Ubah port di .env: NOFX_BACKEND_PORT=8081, NOFX_FRONTEND_PORT=3001.',
     faqFrontendNotLoading: 'Frontend menampilkan "Memuat..." terus-menerus',
-    faqFrontendNotLoadingAnswer: 'Backend mungkin tidak berjalan. Periksa: "curl http://127.0.0.1:8080/api/health" harus mengembalikan {"status":"ok"}.',
+    faqFrontendNotLoadingAnswer:
+      'Backend mungkin tidak berjalan. Periksa: "curl http://127.0.0.1:8080/api/health" harus mengembalikan {"status":"ok"}.',
     faqDatabaseLocked: 'Error database terkunci',
-    faqDatabaseLockedAnswer: 'Beberapa proses mengakses SQLite bersamaan. Hentikan semua, hapus file lock, restart.',
+    faqDatabaseLockedAnswer:
+      'Beberapa proses mengakses SQLite bersamaan. Hentikan semua, hapus file lock, restart.',
     faqTALibNotFound: 'TA-Lib tidak ditemukan saat build',
-    faqTALibNotFoundAnswer: 'Instal TA-Lib: macOS: "brew install ta-lib"; Ubuntu: "sudo apt-get install libta-lib0-dev".',
+    faqTALibNotFoundAnswer:
+      'Instal TA-Lib: macOS: "brew install ta-lib"; Ubuntu: "sudo apt-get install libta-lib0-dev".',
     faqAIAPITimeout: 'API AI timeout atau koneksi ditolak',
-    faqAIAPITimeoutAnswer: 'Periksa: 1) API key valid; 2) Jaringan bisa mengakses endpoint; 3) Penyedia tidak down; 4) VPN/firewall tidak memblokir.',
+    faqAIAPITimeoutAnswer:
+      'Periksa: 1) API key valid; 2) Jaringan bisa mengakses endpoint; 3) Penyedia tidak down; 4) VPN/firewall tidak memblokir.',
     faqBinancePositionMode: 'Kode error Binance -4061 (Mode Posisi)',
-    faqBinancePositionModeAnswer: 'Anda dalam mode One-way tetapi NOFX memerlukan Hedge Mode. Tutup semua posisi, beralih ke Hedge Mode, restart trader.',
+    faqBinancePositionModeAnswer:
+      'Anda dalam mode One-way tetapi NOFX memerlukan Hedge Mode. Tutup semua posisi, beralih ke Hedge Mode, restart trader.',
     faqBalanceShowsZero: 'Saldo akun menunjukkan 0',
-    faqBalanceShowsZeroAnswer: 'Dana mungkin di dompet Spot, bukan dompet Futures. Transfer USDT dari Spot ke Futures.',
+    faqBalanceShowsZeroAnswer:
+      'Dana mungkin di dompet Spot, bukan dompet Futures. Transfer USDT dari Spot ke Futures.',
     faqDockerPullFailed: 'Penarikan image Docker gagal atau lambat',
-    faqDockerPullFailedAnswer: 'Konfigurasi mirror Docker di daemon.json atau gunakan GitHub Container Registry.',
+    faqDockerPullFailedAnswer:
+      'Konfigurasi mirror Docker di daemon.json atau gunakan GitHub Container Registry.',
     faqAPIKeyStorage: 'Bagaimana API key disimpan?',
-    faqAPIKeyStorageAnswer: 'API key dienkripsi menggunakan AES-256-GCM sebelum disimpan di database SQLite lokal. Jangan pernah bagikan file data.db atau .env Anda.',
+    faqAPIKeyStorageAnswer:
+      'API key dienkripsi menggunakan AES-256-GCM sebelum disimpan di database SQLite lokal. Jangan pernah bagikan file data.db atau .env Anda.',
     faqEncryptionDetails: 'Enkripsi apa yang digunakan NOFX?',
-    faqEncryptionDetailsAnswer: 'NOFX menggunakan: 1) AES-256-GCM untuk penyimpanan database; 2) RSA-2048 untuk enkripsi transport opsional; 3) JWT untuk token autentikasi.',
+    faqEncryptionDetailsAnswer:
+      'NOFX menggunakan: 1) AES-256-GCM untuk penyimpanan database; 2) RSA-2048 untuk enkripsi transport opsional; 3) JWT untuk token autentikasi.',
     faqSecurityBestPractices: 'Apa praktik terbaik keamanan?',
-    faqSecurityBestPracticesAnswer: 'Disarankan: 1) Gunakan API key dengan whitelist IP dan izin minimal; 2) Gunakan sub-akun khusus; 3) Aktifkan TRANSPORT_ENCRYPTION; 4) Gunakan HTTPS.',
+    faqSecurityBestPracticesAnswer:
+      'Disarankan: 1) Gunakan API key dengan whitelist IP dan izin minimal; 2) Gunakan sub-akun khusus; 3) Aktifkan TRANSPORT_ENCRYPTION; 4) Gunakan HTTPS.',
     faqCanNOFXStealFunds: 'Bisakah NOFX mencuri dana saya?',
-    faqCanNOFXStealFundsAnswer: 'NOFX open-source (lisensi AGPL-3.0) - Anda bisa audit semua kode. API key disimpan lokal di mesin ANDA, tidak pernah dikirim ke server eksternal.',
+    faqCanNOFXStealFundsAnswer:
+      'NOFX open-source (lisensi AGPL-3.0) - Anda bisa audit semua kode. API key disimpan lokal di mesin ANDA, tidak pernah dikirim ke server eksternal.',
     faqStrategyStudio: 'Apa itu Strategy Studio?',
-    faqStrategyStudioAnswer: 'Strategy Studio adalah pembangun strategi visual untuk konfigurasi: Sumber Koin, Indikator Teknikal, Kontrol Risiko, dan Prompt Kustom. Tanpa coding.',
+    faqStrategyStudioAnswer:
+      'Strategy Studio adalah pembangun strategi visual untuk konfigurasi: Sumber Koin, Indikator Teknikal, Kontrol Risiko, dan Prompt Kustom. Tanpa coding.',
     faqCompetitionMode: 'Apa itu Mode Kompetisi?',
-    faqCompetitionModeAnswer: 'Halaman kompetisi menampilkan papan peringkat realtime semua trader Anda. Bandingkan ROI, L/R, rasio Sharpe, win rate.',
+    faqCompetitionModeAnswer:
+      'Halaman kompetisi menampilkan papan peringkat realtime semua trader Anda. Bandingkan ROI, L/R, rasio Sharpe, win rate.',
     faqChainOfThought: 'Apa itu Chain of Thought (CoT)?',
-    faqChainOfThoughtAnswer: 'Chain of Thought adalah proses penalaran AI, terlihat di log keputusan. AI menjelaskan alasan di balik setiap keputusan.',
+    faqChainOfThoughtAnswer:
+      'Chain of Thought adalah proses penalaran AI, terlihat di log keputusan. AI menjelaskan alasan di balik setiap keputusan.',
     faqWhichAIModelBest: 'Model AI mana yang sebaiknya saya gunakan?',
-    faqWhichAIModelBestAnswer: 'Direkomendasikan: DeepSeek untuk rasio biaya/performa terbaik. Alternatif: OpenAI untuk penalaran terbaik; Claude untuk analisis mendalam; Qwen harga kompetitif.',
+    faqWhichAIModelBestAnswer:
+      'Direkomendasikan: DeepSeek untuk rasio biaya/performa terbaik. Alternatif: OpenAI untuk penalaran terbaik; Claude untuk analisis mendalam; Qwen harga kompetitif.',
     faqCustomAIAPI: 'Bisakah saya menggunakan API AI kustom?',
-    faqCustomAIAPIAnswer: 'Ya! NOFX mendukung API yang kompatibel dengan OpenAI. Masukkan URL endpoint, API key, dan nama model.',
+    faqCustomAIAPIAnswer:
+      'Ya! NOFX mendukung API yang kompatibel dengan OpenAI. Masukkan URL endpoint, API key, dan nama model.',
     faqAIHallucinations: 'Bagaimana dengan halusinasi AI?',
-    faqAIHallucinationsAnswer: 'NOFX memitigasi dengan: prompt terstruktur, format output JSON, dan validasi order sebelum eksekusi. Namun trading AI tetap eksperimental.',
+    faqAIHallucinationsAnswer:
+      'NOFX memitigasi dengan: prompt terstruktur, format output JSON, dan validasi order sebelum eksekusi. Namun trading AI tetap eksperimental.',
     faqCompareAIModels: 'Bagaimana cara membandingkan model AI yang berbeda?',
-    faqCompareAIModelsAnswer: 'Buat beberapa trader dengan model AI berbeda tapi strategi/bursa sama. Jalankan bersamaan dan bandingkan di halaman Kompetisi.',
+    faqCompareAIModelsAnswer:
+      'Buat beberapa trader dengan model AI berbeda tapi strategi/bursa sama. Jalankan bersamaan dan bandingkan di halaman Kompetisi.',
     faqHowToContribute: 'Bagaimana cara berkontribusi ke NOFX?',
-    faqHowToContributeAnswer: 'NOFX open-source dan menyambut kontribusi! Cara: 1) Kode - perbaiki bug, tambah fitur; 2) Dokumentasi; 3) Laporan Bug; 4) Ide Fitur. Semua kontributor mungkin mendapat reward airdrop.',
+    faqHowToContributeAnswer:
+      'NOFX open-source dan menyambut kontribusi! Cara: 1) Kode - perbaiki bug, tambah fitur; 2) Dokumentasi; 3) Laporan Bug; 4) Ide Fitur. Semua kontributor mungkin mendapat reward airdrop.',
     faqPRGuidelines: 'Apa panduan PR?',
-    faqPRGuidelinesAnswer: 'Proses PR: 1) Fork repo; 2) Buat branch fitur dari dev; 3) Buat perubahan, jalankan lint; 4) Commit dengan format Conventional Commits; 5) Push dan buat PR ke NoFxAiOS/nofx:dev.',
+    faqPRGuidelinesAnswer:
+      'Proses PR: 1) Fork repo; 2) Buat branch fitur dari dev; 3) Buat perubahan, jalankan lint; 4) Commit dengan format Conventional Commits; 5) Push dan buat PR ke NoFxAiOS/nofx:dev.',
     faqBountyProgram: 'Apakah ada program bounty?',
-    faqBountyProgramAnswer: 'Ya! Kontributor mendapat reward airdrop berdasarkan kontribusi. Issue dengan label "bounty" memiliki reward uang tunai.',
+    faqBountyProgramAnswer:
+      'Ya! Kontributor mendapat reward airdrop berdasarkan kontribusi. Issue dengan label "bounty" memiliki reward uang tunai.',
     faqReportBugs: 'Bagaimana cara melaporkan bug?',
-    faqReportBugsAnswer: 'Buka GitHub Issue dengan: deskripsi masalah, langkah reproduksi, perilaku yang diharapkan vs aktual. Untuk kerentanan keamanan: DM @Web3Tinkle di Twitter.',
+    faqReportBugsAnswer:
+      'Buka GitHub Issue dengan: deskripsi masalah, langkah reproduksi, perilaku yang diharapkan vs aktual. Untuk kerentanan keamanan: DM @Web3Tinkle di Twitter.',
 
     // Web Crypto Environment Check
     environmentCheck: {
       button: 'Periksa Lingkungan Aman',
       checking: 'Memeriksa...',
-      description: 'Memverifikasi otomatis apakah konteks browser ini memungkinkan Web Crypto sebelum memasukkan kunci sensitif.',
+      description:
+        'Memverifikasi otomatis apakah konteks browser ini memungkinkan Web Crypto sebelum memasukkan kunci sensitif.',
       secureTitle: 'Konteks aman terdeteksi',
-      secureDesc: 'API Web Crypto tersedia. Anda dapat melanjutkan memasukkan rahasia dengan enkripsi diaktifkan.',
+      secureDesc:
+        'API Web Crypto tersedia. Anda dapat melanjutkan memasukkan rahasia dengan enkripsi diaktifkan.',
       insecureTitle: 'Konteks tidak aman terdeteksi',
-      insecureDesc: 'Halaman ini tidak berjalan melalui HTTPS atau origin localhost tepercaya.',
+      insecureDesc:
+        'Halaman ini tidak berjalan melalui HTTPS atau origin localhost tepercaya.',
       tipsTitle: 'Cara memperbaiki:',
       tipHTTPS: 'Sajikan dasbor melalui HTTPS dengan sertifikat valid.',
-      tipLocalhost: 'Selama pengembangan, buka aplikasi via http://localhost atau 127.0.0.1.',
-      tipIframe: 'Hindari menyematkan aplikasi dalam iframe HTTP yang tidak aman.',
+      tipLocalhost:
+        'Selama pengembangan, buka aplikasi via http://localhost atau 127.0.0.1.',
+      tipIframe:
+        'Hindari menyematkan aplikasi dalam iframe HTTP yang tidak aman.',
       unsupportedTitle: 'Browser tidak mengekspos Web Crypto',
-      unsupportedDesc: 'Buka NOFX melalui HTTPS (atau http://localhost saat pengembangan).',
+      unsupportedDesc:
+        'Buka NOFX melalui HTTPS (atau http://localhost saat pengembangan).',
       summary: 'Origin saat ini: {origin} · Protokol: {protocol}',
       disabledTitle: 'Enkripsi transport dinonaktifkan',
-      disabledDesc: 'Enkripsi transport sisi server dinonaktifkan. API key akan ditransmisikan dalam plaintext. Aktifkan TRANSPORT_ENCRYPTION=true untuk keamanan yang lebih baik.',
+      disabledDesc:
+        'Enkripsi transport sisi server dinonaktifkan. API key akan ditransmisikan dalam plaintext. Aktifkan TRANSPORT_ENCRYPTION=true untuk keamanan yang lebih baik.',
     },
     environmentSteps: {
       checkTitle: '1. Pemeriksaan lingkungan',
@@ -3222,12 +3378,14 @@ export const translations = {
       backButton: 'Kembali',
       encryptButton: 'Enkripsi & Kirim',
       obfuscationCopied: 'Data pengacak disalin ke clipboard',
-      obfuscationInstruction: 'Tempelkan sesuatu yang lain untuk membersihkan clipboard, lalu lanjutkan',
+      obfuscationInstruction:
+        'Tempelkan sesuatu yang lain untuk membersihkan clipboard, lalu lanjutkan',
       obfuscationManual: 'Diperlukan pengacakan manual',
     },
     errors: {
       privatekeyIncomplete: 'Masukkan minimal {expected} karakter',
-      privatekeyInvalidFormat: 'Format private key tidak valid (harus 64 karakter heksadesimal)',
+      privatekeyInvalidFormat:
+        'Format private key tidak valid (harus 64 karakter heksadesimal)',
       privatekeyObfuscationFailed: 'Pengacakan clipboard gagal',
     },
     positionHistory: {
@@ -3280,7 +3438,8 @@ export const translations = {
       title: 'Konteks Lingkungan Pasar',
       desc: 'Konteks pasar Gate opt-in yang dimasukkan ke prompt keputusan AI (ikhtisar / ketakutan & keserakahan / berita & sentimen).',
       overviewLabel: 'Ikhtisar Pasar',
-      overviewDesc: 'Total kapitalisasi/volume/harga & dominasi BTC/musim altcoin',
+      overviewDesc:
+        'Total kapitalisasi/volume/harga & dominasi BTC/musim altcoin',
       fearGreedLabel: 'Indeks Ketakutan & Keserakahan',
       fearGreedDesc: 'Nilai saat ini + label + perubahan 24h turunan server',
       newsSentimentLabel: 'Berita & Sentimen Sosial',
@@ -3298,14 +3457,18 @@ export const translations = {
       volume: 'Volume',
       noSymbolData: 'Tidak ada data simbol',
       gainers: 'Kenaikan',
+      tabBoards: 'Papan Pasar',
+      tabSentiment: 'Indeks & Sentimen',
       losers: 'Penurunan',
       gainersTop20: 'Kenaikan Teratas (20)',
       losersTop20: 'Penurunan Teratas (20)',
       volumeTop20: 'Volume Teratas (20)',
       positive: 'Positif',
       negative: 'Negatif',
-      fundingPositiveTop20: 'Tarikh Pendanaan (Positif · Long Bayar) Teratas 20',
-      fundingNegativeTop20: 'Tarikh Pendanaan (Negatif · Short Bayar) Teratas 20',
+      fundingPositiveTop20:
+        'Tarikh Pendanaan (Positif · Long Bayar) Teratas 20',
+      fundingNegativeTop20:
+        'Tarikh Pendanaan (Negatif · Short Bayar) Teratas 20',
       fundingPer8h: 'Pendanaan / 8j',
       noRateInDirection: 'Tidak ada tarif pendanaan pada arah ini',
       marketOverview: 'Ikhtisar Pasar',
@@ -3389,12 +3552,14 @@ export const translations = {
       unsaved: 'Belum Disimpan',
       discardChanges: 'Buang',
       selectOrCreate: 'Pilih atau buat strategi',
-      customPromptDesc: 'Prompt tambahan di akhir System Prompt untuk gaya trading personal',
+      customPromptDesc:
+        'Prompt tambahan di akhir System Prompt untuk gaya trading personal',
       customPromptPlaceholder: 'Masukkan prompt kustom...',
       generatePromptPreview: 'Klik untuk generate pratinjau prompt',
       runAiTestHint: 'Klik untuk menjalankan uji AI',
       tokenEstimate: 'Estimasi Token',
-      tokenExceedWarning: 'Estimasi token melebihi 128K. Permintaan AI mungkin gagal untuk beberapa model.',
+      tokenExceedWarning:
+        'Estimasi token melebihi 128K. Permintaan AI mungkin gagal untuk beberapa model.',
       tokenEstimating: 'Mengestimasi...',
       tokenTooltip: 'Berdasarkan konteks 200K',
     },
@@ -3408,9 +3573,11 @@ export const translations = {
     loginRequired: {
       title: 'AKSES SISTEM DITOLAK',
       accessDenied: 'AKSES DITOLAK',
-      subtitleWithFeature: 'Modul "{featureName}" memerlukan hak akses lebih tinggi',
+      subtitleWithFeature:
+        'Modul "{featureName}" memerlukan hak akses lebih tinggi',
       subtitleDefault: 'Otorisasi diperlukan untuk modul ini',
-      description: 'Inisialisasi protokol autentikasi untuk membuka kemampuan sistem penuh: konfigurasi Trader AI dan aliran data Pasar Strategi.',
+      description:
+        'Inisialisasi protokol autentikasi untuk membuka kemampuan sistem penuh: konfigurasi Trader AI dan aliran data Pasar Strategi.',
       benefit1: 'Kontrol Trader AI',
       benefit2: 'Pasar Strategi HFT',
       benefit4: 'Visualisasi Sistem Penuh',
@@ -3473,7 +3640,8 @@ export const translations = {
       close: 'Tutup',
       showingPositions: 'Menampilkan {shown} dari {total} posisi',
       perPage: 'Per halaman',
-      accountFetchFailed: 'DATA_FETCH::FAILED — Data akun tidak tersedia, periksa koneksi',
+      accountFetchFailed:
+        'DATA_FETCH::FAILED — Data akun tidak tersedia, periksa koneksi',
       positionsFetchFailed: 'Data posisi tidak tersedia',
       decisionsFetchFailed: 'Data keputusan tidak tersedia',
     },
@@ -3521,7 +3689,8 @@ export const translations = {
       configureApi: 'Konfigurasi API',
       chooseProvider: 'Pilih Penyedia AI Anda',
       otherApiEntry: 'Penyedia API Lain',
-      otherApiEntryDesc: 'Gunakan API key Anda sendiri untuk OpenAI, Claude, Gemini, DeepSeek, dan lainnya.',
+      otherApiEntryDesc:
+        'Gunakan API key Anda sendiri untuk OpenAI, Claude, Gemini, DeepSeek, dan lainnya.',
       recommended: 'Terbaik',
       selectAiModel: 'Pilih Model AI',
       back: 'Kembali',
@@ -3557,7 +3726,8 @@ export const translations = {
       createBot: 'Buat Bot',
       bindAccount: 'Hubungkan Akun',
       done: 'Selesai',
-      invalidTokenFormat: 'Format Bot Token tidak valid. Seharusnya "angka:alfanumerik"',
+      invalidTokenFormat:
+        'Format Bot Token tidak valid. Seharusnya "angka:alfanumerik"',
       tokenSaved: 'Bot Token tersimpan, menunggu binding',
       saveFailed: 'Gagal menyimpan, silakan periksa token',
       unbound: 'Akun Telegram terputus',
@@ -3572,7 +3742,8 @@ export const translations = {
       pasteToken: 'Tempel Bot Token',
       tokenFormat: 'Format: angka:alfanumerik, mis. 123456789:ABCdef...',
       selectAiModel: 'Pilih Model AI (opsional)',
-      noEnabledModels: 'Belum ada model aktif. Konfigurasi di AI Models terlebih dahulu.',
+      noEnabledModels:
+        'Belum ada model aktif. Konfigurasi di AI Models terlebih dahulu.',
       autoSelect: '— Pilih otomatis (disarankan)',
       autoUseEnabled: 'Kosongkan untuk otomatis menggunakan model aktif',
       savingToken: 'Menyimpan...',
@@ -3582,14 +3753,17 @@ export const translations = {
       step2Desc2: 'Klik Start atau kirim',
       step2Desc3: 'Bot akan otomatis terhubung ke akun Anda',
       currentToken: 'Token Saat Ini',
-      waitingForStart: 'Menunggu Anda mengirim /start... Refresh halaman setelah mengirim',
+      waitingForStart:
+        'Menunggu Anda mengirim /start... Refresh halaman setelah mengirim',
       reconfigureToken: 'Konfigurasi Ulang Token',
       bindSuccess: 'Berhasil terhubung!',
-      noStartReceived: 'Belum menerima /start. Silakan kirim /start ke Bot Anda terlebih dahulu',
+      noStartReceived:
+        'Belum menerima /start. Silakan kirim /start ke Bot Anda terlebih dahulu',
       checkFailed: 'Pemeriksaan gagal',
       checkStatus: 'Periksa Status',
       botActive: 'Telegram Bot Aktif!',
-      botActiveDesc: 'Anda sekarang dapat mengontrol sistem trading melalui bahasa alami di Telegram',
+      botActiveDesc:
+        'Anda sekarang dapat mengontrol sistem trading melalui bahasa alami di Telegram',
       supportedCommands: 'Perintah yang Didukung',
       cmdHelp: 'Tampilkan semua perintah',
       cmdStatus: 'Tampilkan status trader',
@@ -3631,7 +3805,6 @@ export const translations = {
       yes: 'Ya',
       no: 'Tidak',
     },
-
   },
 }
 
