@@ -26,11 +26,11 @@ export function MarketOverviewCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-nofx-text">
+        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
           {t('dataPage.marketOverview', language)}
         </h3>
         {error && (
-          <span className="text-[10px] text-nofx-danger">
+          <span className="text-[10px] font-mono text-nofx-danger">
             {t('dataPage.fetchFailed', language)}
             {lastSuccessAt && (
               <span className="ml-1 text-nofx-text-muted">
@@ -43,11 +43,13 @@ export function MarketOverviewCard({
       </div>
 
       {loading ? (
-        <div className="py-6 text-center text-xs text-nofx-text-muted">
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
           {t('dataPage.loading', language)}
         </div>
       ) : error ? (
-        <div className="py-6 text-center text-xs text-nofx-danger">{error}</div>
+        <div className="py-6 text-center text-xs font-mono text-nofx-danger">
+          {error}
+        </div>
       ) : data ? (
         <div className="grid grid-cols-2 gap-3 text-xs">
           <StatCell
@@ -107,10 +109,12 @@ function StatCell({
   return (
     <div>
       <div className="text-nofx-text-muted">{label}</div>
-      <div className="mt-0.5 text-base font-semibold text-nofx-text">
+      <div className="mt-0.5 text-base font-semibold font-mono text-nofx-text">
         {value}
         {sub && (
-          <span className={`ml-2 text-[11px] font-normal ${subColor || 'text-nofx-text-muted'}`}>
+          <span
+            className={`ml-2 text-[11px] font-mono font-normal ${subColor || 'text-nofx-text-muted'}`}
+          >
             {sub}
           </span>
         )}
@@ -136,11 +140,11 @@ export function FearGreedCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-nofx-text">
+        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
           {t('dataPage.fearGreed', language)}
         </h3>
         {error && (
-          <span className="text-[10px] text-nofx-danger">
+          <span className="text-[10px] font-mono text-nofx-danger">
             {t('dataPage.fetchFailed', language)}
             {lastSuccessAt && (
               <span className="ml-1 text-nofx-text-muted">
@@ -153,37 +157,39 @@ export function FearGreedCard({
       </div>
 
       {loading ? (
-        <div className="py-6 text-center text-xs text-nofx-text-muted">
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
           {t('dataPage.loading', language)}
         </div>
       ) : error ? (
-        <div className="py-6 text-center text-xs text-nofx-danger">{error}</div>
+        <div className="py-6 text-center text-xs font-mono text-nofx-danger">
+          {error}
+        </div>
       ) : data ? (
         <div>
           <div className="flex items-baseline gap-3">
-            <span className="text-4xl font-bold text-nofx-gold">
+            <span className="text-4xl font-bold font-mono text-nofx-gold">
               {Math.round(data.value)}
             </span>
             <span className="text-sm text-nofx-text">{data.label}</span>
-            <span className="ml-auto text-xs text-nofx-text-muted">
+            <span className="ml-auto text-xs font-mono text-nofx-text-muted">
               {data.change_24h === null
                 ? t('dataPage.change24hAccumulating', language)
                 : `24h: ${data.change_24h >= 0 ? '+' : ''}${data.change_24h.toFixed(0)}`}
             </span>
           </div>
-          {/* 指针条：0-100 */}
-          <div className="mt-3 h-2 w-full rounded-full bg-gradient-to-r from-nofx-danger via-nofx-gold to-nofx-success">
+          {/* 指针条：0-100，指示点相对轨道双轴居中 */}
+          <div className="relative mt-3 h-2 w-full rounded-full bg-gradient-to-r from-nofx-danger via-nofx-gold to-nofx-success">
             <div
-              className="relative h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-nofx-bg"
-              style={{ marginLeft: `${Math.min(100, Math.max(0, data.value))}%`, marginTop: '-6px' }}
+              className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-nofx-bg"
+              style={{ left: `${Math.min(100, Math.max(0, data.value))}%` }}
             />
           </div>
-          <div className="mt-2 flex justify-between text-[10px] text-nofx-text-muted">
+          <div className="mt-2 flex justify-between text-[10px] font-mono text-nofx-text-muted">
             <span>0</span>
             <span>50</span>
             <span>100</span>
           </div>
-          <div className="mt-1 text-right text-[10px] text-nofx-text-muted">
+          <div className="mt-1 text-right text-[10px] font-mono text-nofx-text-muted">
             {t('dataPage.updatedAt', language)} {formatIsoTime(data.updated_at)}
           </div>
         </div>
@@ -211,11 +217,11 @@ export function NewsCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-nofx-text">
+        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
           {t('dataPage.newsAnnouncements', language)}
         </h3>
         {error && (
-          <span className="text-[10px] text-nofx-danger">
+          <span className="text-[10px] font-mono text-nofx-danger">
             {t('dataPage.fetchFailed', language)}
             {lastSuccessAt && (
               <span className="ml-1 text-nofx-text-muted">
@@ -228,11 +234,13 @@ export function NewsCard({
       </div>
 
       {loading ? (
-        <div className="py-6 text-center text-xs text-nofx-text-muted">
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
           {t('dataPage.loading', language)}
         </div>
       ) : error ? (
-        <div className="py-6 text-center text-xs text-nofx-danger">{error}</div>
+        <div className="py-6 text-center text-xs font-mono text-nofx-danger">
+          {error}
+        </div>
       ) : (
         <div className="space-y-4">
           <NewsList
@@ -261,10 +269,10 @@ function NewsList({
   if (items.length === 0) {
     return (
       <div>
-        <div className="mb-1 text-[11px] font-medium text-nofx-text-muted">
+        <div className="mb-1 text-[11px] font-mono uppercase tracking-wider text-nofx-text-muted">
           {heading}
         </div>
-        <div className="py-2 text-xs text-nofx-text-muted">
+        <div className="py-2 text-xs font-mono text-nofx-text-muted">
           {t('dataPage.noItems', language)}
         </div>
       </div>
@@ -287,7 +295,7 @@ function NewsList({
             >
               {item.title}
             </a>
-            <span className="ml-2 text-[10px] text-nofx-text-muted">
+            <span className="ml-2 text-[10px] font-mono text-nofx-text-muted">
               {item.source} · {formatUnixTimeSafe(item.published_at)}
               {item.sentiment && (
                 <span
@@ -332,14 +340,14 @@ export function SentimentCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-nofx-text">
+        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
           {t('dataPage.socialSentiment', language)}
-          <span className="ml-2 text-[10px] text-nofx-text-muted">
+          <span className="ml-2 text-[10px] font-mono text-nofx-text-muted">
             {data?.coin || 'BTC'}
           </span>
         </h3>
         {error && (
-          <span className="text-[10px] text-nofx-danger">
+          <span className="text-[10px] font-mono text-nofx-danger">
             {t('dataPage.fetchFailed', language)}
             {lastSuccessAt && (
               <span className="ml-1 text-nofx-text-muted">
@@ -352,19 +360,21 @@ export function SentimentCard({
       </div>
 
       {loading ? (
-        <div className="py-6 text-center text-xs text-nofx-text-muted">
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
           {t('dataPage.loading', language)}
         </div>
       ) : error ? (
-        <div className="py-6 text-center text-xs text-nofx-danger">{error}</div>
+        <div className="py-6 text-center text-xs font-mono text-nofx-danger">
+          {error}
+        </div>
       ) : data ? (
         <div className="space-y-3">
           <div className="flex items-baseline gap-3 text-xs">
-            <span className="text-2xl font-bold text-nofx-text">
+            <span className="text-2xl font-bold font-mono text-nofx-text">
               {data.overall_sentiment.toFixed(2)}
             </span>
             <span className="text-nofx-text-muted">{data.sentiment_label}</span>
-            <span className="ml-auto text-nofx-text-muted">
+            <span className="ml-auto font-mono text-nofx-text-muted">
               {t('dataPage.mentions', language)} {data.mention_count}
             </span>
           </div>
@@ -383,7 +393,7 @@ export function SentimentCard({
               style={{ width: `${data.negative_ratio * 100}%` }}
             />
           </div>
-          <div className="flex justify-between text-[10px] text-nofx-text-muted">
+          <div className="flex justify-between text-[10px] font-mono text-nofx-text-muted">
             <span className="text-nofx-success">
               +{(data.positive_ratio * 100).toFixed(0)}%
             </span>
@@ -404,7 +414,7 @@ export function SentimentCard({
                   >
                     {tweet.content}
                   </a>
-                  <span className="text-[10px] text-nofx-text-muted">
+                  <span className="text-[10px] font-mono text-nofx-text-muted">
                     ♥ {tweet.likes_num}
                   </span>
                 </div>
@@ -434,11 +444,11 @@ export function LiquidationCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-nofx-text">
+        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
           {t('dataPage.liquidationHotspots', language)}
         </h3>
         {error && (
-          <span className="text-[10px] text-nofx-danger">
+          <span className="text-[10px] font-mono text-nofx-danger">
             {t('dataPage.fetchFailed', language)}
             {lastSuccessAt && (
               <span className="ml-1 text-nofx-text-muted">
@@ -451,33 +461,35 @@ export function LiquidationCard({
       </div>
 
       {loading ? (
-        <div className="py-6 text-center text-xs text-nofx-text-muted">
+        <div className="py-6 text-center text-xs font-mono text-nofx-text-muted">
           {t('dataPage.loading', language)}
         </div>
       ) : error ? (
-        <div className="py-6 text-center text-xs text-nofx-danger">{error}</div>
+        <div className="py-6 text-center text-xs font-mono text-nofx-danger">
+          {error}
+        </div>
       ) : data ? (
         <div className="space-y-2">
           {data.updated_at && (
-            <div className="text-right text-[10px] text-nofx-text-muted">
-              {t('dataPage.updatedAt', language)} {formatIsoTime(data.updated_at)}
+            <div className="text-right text-[10px] font-mono text-nofx-text-muted">
+              {t('dataPage.updatedAt', language)}{' '}
+              {formatIsoTime(data.updated_at)}
             </div>
           )}
           {data.hotspots.length === 0 ? (
-            <div className="py-4 text-center text-xs text-nofx-text-muted">
+            <div className="py-4 text-center text-xs font-mono text-nofx-text-muted">
               {t('dataPage.noLiquidationsInWindow', language)}
             </div>
           ) : (
             data.hotspots.map((h) => {
-              const longPct =
-                h.value > 0 ? (h.long_amount / h.value) * 100 : 0
+              const longPct = h.value > 0 ? (h.long_amount / h.value) * 100 : 0
               return (
                 <div key={h.contract} className="text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-nofx-text">
+                    <span className="font-mono font-medium text-nofx-text">
                       {h.contract}
                     </span>
-                    <span className="text-nofx-text-muted">
+                    <span className="font-mono text-nofx-text-muted">
                       {formatCompactNumber(h.value)} · {h.count}
                       {t('dataPage.ordersSuffix', language)}
                     </span>
