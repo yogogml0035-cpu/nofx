@@ -24,6 +24,7 @@ export function ChangeBoard({
   lastSuccessAt,
   mode,
   actions,
+  scrollable = true,
 }: {
   symbols?: MarketSymbol[]
   loading: boolean
@@ -31,6 +32,7 @@ export function ChangeBoard({
   lastSuccessAt: Date | null
   mode: ChangeBoardMode
   actions?: ReactNode
+  scrollable?: boolean
 }) {
   const { language } = useLanguage()
 
@@ -63,6 +65,7 @@ export function ChangeBoard({
       error={error}
       lastSuccessAt={lastSuccessAt}
       actions={actions}
+      scrollable={scrollable}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
         {
@@ -89,11 +92,13 @@ export function VolumeBoard({
   loading,
   error,
   lastSuccessAt,
+  scrollable = true,
 }: {
   symbols?: MarketSymbol[]
   loading: boolean
   error: string | null
   lastSuccessAt: Date | null
+  scrollable?: boolean
 }) {
   const { language } = useLanguage()
 
@@ -116,6 +121,7 @@ export function VolumeBoard({
       loading={loading}
       error={error}
       lastSuccessAt={lastSuccessAt}
+      scrollable={scrollable}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
         {
@@ -144,6 +150,7 @@ export function FundingBoard({
   lastSuccessAt,
   mode,
   actions,
+  scrollable = true,
 }: {
   symbols?: MarketSymbol[]
   loading: boolean
@@ -151,6 +158,7 @@ export function FundingBoard({
   lastSuccessAt: Date | null
   mode: FundingBoardMode
   actions?: ReactNode
+  scrollable?: boolean
 }) {
   const { language } = useLanguage()
 
@@ -181,6 +189,7 @@ export function FundingBoard({
       error={error}
       lastSuccessAt={lastSuccessAt}
       actions={actions}
+      scrollable={scrollable}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
         {

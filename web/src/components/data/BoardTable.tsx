@@ -11,9 +11,10 @@ interface BoardTableProps {
   rows: Array<Record<string, string | number>>
   emptyText?: string
   actions?: ReactNode
+  scrollable?: boolean
 }
 
-// 通用榜单表：列配置驱动 + 卡头 actions 插槽 + 限高滚动 sticky 表头
+// 通用榜单表：列配置驱动 + 卡头 actions 插槽 + 可选限高滚动 sticky 表头
 export function BoardTable({
   title,
   loading,
@@ -23,6 +24,7 @@ export function BoardTable({
   rows,
   emptyText,
   actions,
+  scrollable = true,
 }: BoardTableProps) {
   const { language } = useLanguage()
 
@@ -61,7 +63,7 @@ export function BoardTable({
           {emptyText || t('dataPage.noData', language)}
         </div>
       ) : (
-        <div className="max-h-[480px] overflow-y-auto">
+        <div className={scrollable ? 'max-h-[480px] overflow-y-auto' : ''}>
           <table className="w-full text-xs">
             <thead>
               <tr className="text-nofx-text-muted">

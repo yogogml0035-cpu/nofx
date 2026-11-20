@@ -23,6 +23,9 @@ import type {
 
 const REFRESH_INTERVAL = 30000
 
+// 页面板块：行情榜单 / 指数与情绪（切换展示，数据始终预取）
+type DataSection = 'boards' | 'sentiment'
+
 // 各模块最近一次成功响应的本地时刻（fetcher 成功回调写入）
 interface LastSuccessTimes {
   overview: Date | null
@@ -36,6 +39,7 @@ interface LastSuccessTimes {
 
 export function DataPage() {
   const { language } = useLanguage()
+  const [section, setSection] = useState<DataSection>('boards')
   const [changeMode, setChangeMode] = useState<ChangeBoardMode>('gainers')
   const [fundingMode, setFundingMode] = useState<FundingBoardMode>('positive')
   const [refreshKey, setRefreshKey] = useState(0)
@@ -121,38 +125,42 @@ export function DataPage() {
   return (
     <div className="min-h-[calc(100vh-64px)] w-full bg-nofx-bg">
       <div className="mx-auto max-w-7xl px-4 py-6">
-        {/* 页头 */}
-        <div className="mb-5 flex items-center justify-between">
+        {/* 页头：标题 + 板块切换 + 刷新 */}
+        <div className="mb-5 flex items-center justify-between gap-4">
           <h1 className="text-xl font-bold text-white">
             {t('dataCenter', language)}
           </h1>
-          <button
-            type="button"
-            onClick={manualRefresh}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs font-mono text-nofx-text-muted transition hover:border-nofx-gold/40 hover:text-nofx-gold"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            {t('dataPage.refresh', language)}
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-2">
+              <SectionTab
+                active={section === 'boards'}
+                onClick={() => setSection('boards')}
+                label={t('dataPage.tabBoards', language)}
+              />
+              <SectionTab
+                active={section === 'sentiment'}
+                onClick={() => setSection('sentiment')}
+                label={t('dataPage.tabSentiment', language)}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={manualRefresh}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-xs font-mono text-nofx-text-muted transition hover:border-nofx-gold/40 hover:text-nofx-gold"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              {t('dataPage.refresh', language)}
+            </button>
+          </div>
         </div>
 
-        {/* 市场总览：全宽紧凑指标条 */}
-        <div className="mb-4">
-          <MarketOverviewCard
-            data={overview.data}
-            loading={!overview.data && overview.isLoading}
-            error={overview.error ? String(overview.error) : null}
-            lastSuccessAt={lastTimes.overview}
-          />
-        </div>
-
-        {/* 双栏：左榜单 / 右市场环境 */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          {/* 左栏：榜单类（模式切换收进各卡头） */}
-          <div className="space-y-4">
+        {/* 板块一：行情榜单（2×2 全量展示，榜单放开限高） */}
+        {section === 'boards' && (
+          <div className="grid gap-4 lg:grid-cols-2">
             <ChangeBoard
               {...symbolsBoardProps}
               mode={changeMode}
+              scrollable={false}
               actions={
                 <>
                   <ModeButton
@@ -169,11 +177,12 @@ export function DataPage() {
               }
             />
 
-            <VolumeBoard {...symbolsBoardProps} />
+            <VolumeBoard {...symbolsBoardProps} scrollable={false} />
 
             <FundingBoard
               {...symbolsBoardProps}
               mode={fundingMode}
+              scrollable={false}
               actions={
                 <>
                   <ModeButton
@@ -197,21 +206,33 @@ export function DataPage() {
               lastSuccessAt={lastTimes.liquidations}
             />
           </div>
+        )}
 
-          {/* 右栏：恐惧贪婪 / 社交情绪 / 新闻公告 */}
+        {/* 板块二：指数与情绪（总览全宽条 + 双卡 + 新闻双列） */}
+        {section === 'sentiment' && (
           <div className="space-y-4">
-            <FearGreedCard
-              data={fearGreed.data}
-              loading={!fearGreed.data && fearGreed.isLoading}
-              error={fearGreed.error ? String(fearGreed.error) : null}
-              lastSuccessAt={lastTimes.fearGreed}
+            <MarketOverviewCard
+              data={overview.data}
+              loading={!overview.data && overview.isLoading}
+              error={overview.error ? String(overview.error) : null}
+              lastSuccessAt={lastTimes.overview}
             />
-            <SentimentCard
-              data={sentiment.data}
-              loading={!sentiment.data && sentiment.isLoading}
-              error={sentiment.error ? String(sentiment.error) : null}
-              lastSuccessAt={lastTimes.sentiment}
-            />
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <FearGreedCard
+                data={fearGreed.data}
+                loading={!fearGreed.data && fearGreed.isLoading}
+                error={fearGreed.error ? String(fearGreed.error) : null}
+                lastSuccessAt={lastTimes.fearGreed}
+              />
+              <SentimentCard
+                data={sentiment.data}
+                loading={!sentiment.data && sentiment.isLoading}
+                error={sentiment.error ? String(sentiment.error) : null}
+                lastSuccessAt={lastTimes.sentiment}
+              />
+            </div>
+
             <NewsCard
               news={news.data?.items}
               announcements={announcements.data?.items}
@@ -229,9 +250,34 @@ export function DataPage() {
               lastSuccessAt={lastTimes.news}
             />
           </div>
-        </div>
+        )}
       </div>
     </div>
+  )
+}
+
+// 页头板块切换 tab
+function SectionTab({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-lg border px-3.5 py-1.5 text-xs font-mono transition ${
+        active
+          ? 'border-nofx-gold/50 bg-nofx-gold/10 text-nofx-gold'
+          : 'border-white/10 bg-white/[0.02] text-nofx-text-muted hover:text-nofx-text'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
 
