@@ -1,10 +1,9 @@
 # NOFX Makefile for testing and development
 
-# dev-offline worktree 隔离端口（export 后 docker compose 读取，健康检查同源）
-NOFX_BACKEND_PORT ?= 18080
+# dev-offline 送测栈 override（容器名 nofx-dev-offline / nofx-dev-offline-backend、数据卷与密钥沿用）
+NOFX_DEV_OVERRIDE ?= /Users/hsikey/Trading/nofx/.nofx-local/dev-offline/compose.override.yml
+COMPOSE_DEV = docker compose -f docker-compose.yml -f $(NOFX_DEV_OVERRIDE)
 NOFX_FRONTEND_PORT ?= 1188
-export NOFX_BACKEND_PORT
-export NOFX_FRONTEND_PORT
 
 .PHONY: help test test-backend test-frontend test-coverage clean ci-local up
 
@@ -172,20 +171,20 @@ ci-local:
 	docker run --rm -v "$$PWD":/app -v nofx-gocache:/go -w /app golang:1.25-alpine sh -c "apk add --no-cache gcc musl-dev >/dev/null 2>&1 && CGO_ENABLED=1 GOPROXY=https://goproxy.cn,direct go build -o nofx ."
 	@echo "🔨 [4/5] Frontend build..."
 	cd web && npm run build
-	@echo "🐳 [5/5] Docker images build..."
-	docker compose build --build-arg GOPROXY=https://goproxy.cn,direct
+	@echo "🐳 [5/5] Docker images build (nofx-dev-offline 送测栈)..."
+	$(COMPOSE_DEV) build --build-arg GOPROXY=https://goproxy.cn,direct
 	@echo "✅ ci-local passed"
 
-# 送测启动：rebuild 后 compose up、迁移随启动执行、服务健康 + 前后端入口检查
-# 端口隔离：NOFX_BACKEND_PORT / NOFX_FRONTEND_PORT（默认 8080/3000）
+# 送测启动：在固定容器 nofx-dev-offline / nofx-dev-offline-backend 上重建（数据卷沿用），
+# 迁移随启动执行；后端无宿主端口，健康检查走前端 nginx 代理
 up:
-	docker compose build --build-arg GOPROXY=https://goproxy.cn,direct
-	docker compose up -d
+	$(COMPOSE_DEV) build --build-arg GOPROXY=https://goproxy.cn,direct
+	$(COMPOSE_DEV) up -d
 	@echo "⏳ Waiting for services (startup runs DB migrations)..."
 	sleep 15
-	docker compose ps
-	@echo "❤️ Backend health (http://127.0.0.1:$${NOFX_BACKEND_PORT:-8080})..."
-	curl -sf "http://127.0.0.1:$${NOFX_BACKEND_PORT:-8080}/api/health" > /dev/null && echo "backend OK"
-	@echo "❤️ Frontend entry (http://127.0.0.1:$${NOFX_FRONTEND_PORT:-3000})..."
-	curl -sf "http://127.0.0.1:$${NOFX_FRONTEND_PORT:-3000}/" > /dev/null && echo "frontend OK"
+	$(COMPOSE_DEV) ps
+	@echo "❤️ Backend health via frontend proxy..."
+	curl -sf "http://127.0.0.1:$(NOFX_FRONTEND_PORT)/api/health" > /dev/null && echo "backend OK"
+	@echo "❤️ Frontend entry (http://127.0.0.1:$(NOFX_FRONTEND_PORT))..."
+	curl -sf "http://127.0.0.1:$(NOFX_FRONTEND_PORT)/" > /dev/null && echo "frontend OK"
 	@echo "✅ up completed"

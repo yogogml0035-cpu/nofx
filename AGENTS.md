@@ -49,7 +49,8 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 1. 根 feature 验收通过后默认集成到本地 `dev-offline`。在其专属 worktree fetch `origin`，获得最新 `origin/dev-offline` 和 `origin/main`。本地落后时只做快进，开始集成时本地提交必须与 `origin/dev-offline` 完全一致。已有未推送候选或历史分叉时保留现场，等该候选同步到远端后再接下一条 feature。
 2. 在 `dev-offline` 先合入本次 fetch 得到的最新 `origin/main`，再合入已推送的源 feature 提交。冲突直接在 `dev-offline` worktree 修复并验证，功能本身的问题回原 feature 修复、验收、推送，再按同一流程重新集成。
 3. 集成完成后交接源 feature SHA、`dev-offline` 候选 SHA、worktree 和已执行的验证。由用户在该 worktree 运行项目并确认，随后手动推送。每次推送前先拉取并纳入最新 `origin/dev-offline`，候选变化时重验后正常推送。测试环境的 Docker 发版和测试结论都由用户操作。
-4. 测试环境通过后，记录实际部署的 `dev-offline` SHA 和对应源 feature SHA，Trellis 根任务据此收口。保留源 feature 的本地分支、远端分支和 worktree。由用户选择经测试的源 feature 合入最新 `main`。确认远端 `main` 已包含该 feature 的全部交付提交后，由用户清理这条 feature 的本地和远端分支及 worktree。
+4. dev-offline 送测栈固定复用同一组容器：前端 `nofx-dev-offline`（`127.0.0.1:1188`）与后端 `nofx-dev-offline-backend`（无宿主端口，经前端 nginx 代理），数据卷 `nofx-dev-offline_data` 与密钥沿用不换。重建统一走 worktree `make up`（worktree `docker-compose.yml` + `.nofx-local/dev-offline/compose.override.yml` 双文件 compose，镜像 tag 带候选 SHA），禁止另起 compose project、容器名或镜像名产生第二套送测栈。
+5. 测试环境通过后，记录实际部署的 `dev-offline` SHA 和对应源 feature SHA，Trellis 根任务据此收口。保留源 feature 的本地分支、远端分支和 worktree。由用户选择经测试的源 feature 合入最新 `main`。确认远端 `main` 已包含该 feature 的全部交付提交后，由用户清理这条 feature 的本地和远端分支及 worktree。
 
 
 # NOFXi 交易智能助手规范
