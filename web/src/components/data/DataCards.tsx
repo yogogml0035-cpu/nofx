@@ -165,28 +165,32 @@ export function FearGreedCard({
           {error}
         </div>
       ) : data ? (
-        <div>
-          <div className="flex items-baseline gap-3">
-            <span className="text-4xl font-bold font-mono text-nofx-gold">
+        <div className="flex h-full flex-col">
+          <div className="flex flex-1 items-center gap-4 py-2">
+            <span className="text-5xl font-bold font-mono text-nofx-gold">
               {Math.round(data.value)}
             </span>
-            <span className="text-sm text-nofx-text">{data.label}</span>
-            <span className="ml-auto text-xs font-mono text-nofx-text-muted">
-              {data.change_24h === null
-                ? t('dataPage.change24hAccumulating', language)
-                : `24h: ${data.change_24h >= 0 ? '+' : ''}${data.change_24h.toFixed(0)}`}
-            </span>
+            <div className="space-y-1">
+              <div className="text-base text-nofx-text">{data.label}</div>
+              <div className="text-xs font-mono text-nofx-text-muted">
+                {data.change_24h === null
+                  ? t('dataPage.change24hAccumulating', language)
+                  : `24h: ${data.change_24h >= 0 ? '+' : ''}${data.change_24h.toFixed(0)}`}
+              </div>
+            </div>
           </div>
           {/* 指针条：0-100，指示点相对轨道双轴居中 */}
-          <div className="relative mt-3 h-2 w-full rounded-full bg-gradient-to-r from-nofx-danger via-nofx-gold to-nofx-success">
+          <div className="relative h-2.5 w-full rounded-full bg-gradient-to-r from-nofx-danger via-nofx-gold to-nofx-success">
             <div
-              className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-nofx-bg"
+              className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-nofx-bg"
               style={{ left: `${Math.min(100, Math.max(0, data.value))}%` }}
             />
           </div>
           <div className="mt-2 flex justify-between text-[10px] font-mono text-nofx-text-muted">
             <span>0</span>
+            <span>25</span>
             <span>50</span>
+            <span>75</span>
             <span>100</span>
           </div>
           <div className="mt-1 text-right text-[10px] font-mono text-nofx-text-muted">
@@ -269,10 +273,10 @@ function NewsList({
   if (items.length === 0) {
     return (
       <div>
-        <div className="mb-1 text-[11px] font-mono uppercase tracking-wider text-nofx-text-muted">
+        <div className="mb-1.5 text-xs font-medium text-nofx-text-muted">
           {heading}
         </div>
-        <div className="py-2 text-xs font-mono text-nofx-text-muted">
+        <div className="py-2 text-sm font-mono text-nofx-text-muted">
           {t('dataPage.noItems', language)}
         </div>
       </div>
@@ -281,12 +285,12 @@ function NewsList({
 
   return (
     <div>
-      <div className="mb-1 text-[11px] font-medium text-nofx-text-muted">
+      <div className="mb-1.5 text-xs font-medium text-nofx-text-muted">
         {heading}
       </div>
       <ul className="space-y-2">
         {items.map((item, i) => (
-          <li key={i} className="text-xs leading-5">
+          <li key={i} className="text-sm leading-6">
             <a
               href={item.url}
               target="_blank"
@@ -295,7 +299,7 @@ function NewsList({
             >
               {item.title}
             </a>
-            <span className="ml-2 text-[10px] font-mono text-nofx-text-muted">
+            <span className="ml-2 text-[11px] font-mono text-nofx-text-muted">
               {item.source} · {formatUnixTimeSafe(item.published_at)}
               {item.sentiment && (
                 <span
