@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 
@@ -9,9 +10,10 @@ interface BoardTableProps {
   columns: Array<{ key: string; label: string; align?: 'left' | 'right' }>
   rows: Array<Record<string, string | number>>
   emptyText?: string
+  actions?: ReactNode
 }
 
-// 通用榜单表：列配置驱动 + 加载/错误/空态
+// 通用榜单表：列配置驱动 + 卡头 actions 插槽 + 限高滚动 sticky 表头
 export function BoardTable({
   title,
   loading,
@@ -20,26 +22,30 @@ export function BoardTable({
   columns,
   rows,
   emptyText,
+  actions,
 }: BoardTableProps) {
   const { language } = useLanguage()
 
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
           {title}
         </h3>
-        {error && (
-          <span className="text-[10px] font-mono text-nofx-danger">
-            {t('dataPage.fetchFailed', language)}
-            {lastSuccessAt && (
-              <span className="ml-1 text-nofx-text-muted">
-                ({t('dataPage.lastOk', language)}{' '}
-                {lastSuccessAt.toLocaleTimeString()})
-              </span>
-            )}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {error && (
+            <span className="text-[10px] font-mono text-nofx-danger">
+              {t('dataPage.fetchFailed', language)}
+              {lastSuccessAt && (
+                <span className="ml-1 text-nofx-text-muted">
+                  ({t('dataPage.lastOk', language)}{' '}
+                  {lastSuccessAt.toLocaleTimeString()})
+                </span>
+              )}
+            </span>
+          )}
+          {actions}
+        </div>
       </div>
 
       {loading ? (
@@ -55,38 +61,40 @@ export function BoardTable({
           {emptyText || t('dataPage.noData', language)}
         </div>
       ) : (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-nofx-text-muted">
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className={`pb-2 font-semibold uppercase tracking-wider ${
-                    col.align === 'right' ? 'text-right' : 'text-left'
-                  }`}
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} className="border-t border-white/5 text-nofx-text">
+        <div className="max-h-[480px] overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-nofx-text-muted">
                 {columns.map((col) => (
-                  <td
+                  <th
                     key={col.key}
-                    className={`py-1.5 font-mono whitespace-nowrap ${
+                    className={`sticky top-0 z-10 bg-nofx-bg-lighter pb-2 pt-1 font-semibold uppercase tracking-wider ${
                       col.align === 'right' ? 'text-right' : 'text-left'
                     }`}
                   >
-                    {row[col.key]}
-                  </td>
+                    {col.label}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} className="border-t border-white/5 text-nofx-text">
+                  {columns.map((col) => (
+                    <td
+                      key={col.key}
+                      className={`py-1.5 font-mono whitespace-nowrap ${
+                        col.align === 'right' ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {row[col.key]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

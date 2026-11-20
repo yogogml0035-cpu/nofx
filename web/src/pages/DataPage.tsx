@@ -111,6 +111,13 @@ export function DataPage() {
 
   const manualRefresh = () => setRefreshKey((k) => k + 1)
 
+  const symbolsBoardProps = {
+    symbols: symbols.data?.symbols,
+    loading: !symbols.data && symbols.isLoading,
+    error: symbols.error ? String(symbols.error) : null,
+    lastSuccessAt: lastTimes.symbols,
+  }
+
   return (
     <div className="min-h-[calc(100vh-64px)] w-full bg-nofx-bg">
       <div className="mx-auto max-w-7xl px-4 py-6">
@@ -129,60 +136,59 @@ export function DataPage() {
           </button>
         </div>
 
-        {/* 双栏：左榜单 / 右环境 */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          {/* 左栏：榜单类 */}
-          <div className="space-y-4">
-            <div>
-              <div className="mb-2 flex gap-2">
-                <ModeButton
-                  active={changeMode === 'gainers'}
-                  onClick={() => setChangeMode('gainers')}
-                  label={t('dataPage.gainers', language)}
-                />
-                <ModeButton
-                  active={changeMode === 'losers'}
-                  onClick={() => setChangeMode('losers')}
-                  label={t('dataPage.losers', language)}
-                />
-              </div>
-              <ChangeBoard
-                symbols={symbols.data?.symbols}
-                loading={!symbols.data && symbols.isLoading}
-                error={symbols.error ? String(symbols.error) : null}
-                lastSuccessAt={lastTimes.symbols}
-                mode={changeMode}
-              />
-            </div>
+        {/* 市场总览：全宽紧凑指标条 */}
+        <div className="mb-4">
+          <MarketOverviewCard
+            data={overview.data}
+            loading={!overview.data && overview.isLoading}
+            error={overview.error ? String(overview.error) : null}
+            lastSuccessAt={lastTimes.overview}
+          />
+        </div>
 
-            <VolumeBoard
-              symbols={symbols.data?.symbols}
-              loading={!symbols.data && symbols.isLoading}
-              error={symbols.error ? String(symbols.error) : null}
-              lastSuccessAt={lastTimes.symbols}
+        {/* 双栏：左榜单 / 右市场环境 */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* 左栏：榜单类（模式切换收进各卡头） */}
+          <div className="space-y-4">
+            <ChangeBoard
+              {...symbolsBoardProps}
+              mode={changeMode}
+              actions={
+                <>
+                  <ModeButton
+                    active={changeMode === 'gainers'}
+                    onClick={() => setChangeMode('gainers')}
+                    label={t('dataPage.gainers', language)}
+                  />
+                  <ModeButton
+                    active={changeMode === 'losers'}
+                    onClick={() => setChangeMode('losers')}
+                    label={t('dataPage.losers', language)}
+                  />
+                </>
+              }
             />
 
-            <div>
-              <div className="mb-2 flex gap-2">
-                <ModeButton
-                  active={fundingMode === 'positive'}
-                  onClick={() => setFundingMode('positive')}
-                  label={t('dataPage.positive', language)}
-                />
-                <ModeButton
-                  active={fundingMode === 'negative'}
-                  onClick={() => setFundingMode('negative')}
-                  label={t('dataPage.negative', language)}
-                />
-              </div>
-              <FundingBoard
-                symbols={symbols.data?.symbols}
-                loading={!symbols.data && symbols.isLoading}
-                error={symbols.error ? String(symbols.error) : null}
-                lastSuccessAt={lastTimes.symbols}
-                mode={fundingMode}
-              />
-            </div>
+            <VolumeBoard {...symbolsBoardProps} />
+
+            <FundingBoard
+              {...symbolsBoardProps}
+              mode={fundingMode}
+              actions={
+                <>
+                  <ModeButton
+                    active={fundingMode === 'positive'}
+                    onClick={() => setFundingMode('positive')}
+                    label={t('dataPage.positive', language)}
+                  />
+                  <ModeButton
+                    active={fundingMode === 'negative'}
+                    onClick={() => setFundingMode('negative')}
+                    label={t('dataPage.negative', language)}
+                  />
+                </>
+              }
+            />
 
             <LiquidationCard
               data={liquidations.data}
@@ -192,19 +198,19 @@ export function DataPage() {
             />
           </div>
 
-          {/* 右栏：总览/恐惧贪婪/新闻情绪 */}
+          {/* 右栏：恐惧贪婪 / 社交情绪 / 新闻公告 */}
           <div className="space-y-4">
-            <MarketOverviewCard
-              data={overview.data}
-              loading={!overview.data && overview.isLoading}
-              error={overview.error ? String(overview.error) : null}
-              lastSuccessAt={lastTimes.overview}
-            />
             <FearGreedCard
               data={fearGreed.data}
               loading={!fearGreed.data && fearGreed.isLoading}
               error={fearGreed.error ? String(fearGreed.error) : null}
               lastSuccessAt={lastTimes.fearGreed}
+            />
+            <SentimentCard
+              data={sentiment.data}
+              loading={!sentiment.data && sentiment.isLoading}
+              error={sentiment.error ? String(sentiment.error) : null}
+              lastSuccessAt={lastTimes.sentiment}
             />
             <NewsCard
               news={news.data?.items}
@@ -222,12 +228,6 @@ export function DataPage() {
               }
               lastSuccessAt={lastTimes.news}
             />
-            <SentimentCard
-              data={sentiment.data}
-              loading={!sentiment.data && sentiment.isLoading}
-              error={sentiment.error ? String(sentiment.error) : null}
-              lastSuccessAt={lastTimes.sentiment}
-            />
           </div>
         </div>
       </div>
@@ -235,6 +235,7 @@ export function DataPage() {
   )
 }
 
+// 卡头内的紧凑模式切换按钮
 function ModeButton({
   active,
   onClick,
@@ -248,7 +249,7 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg border px-3 py-1 text-xs font-mono transition ${
+      className={`rounded-md border px-2.5 py-0.5 text-[11px] font-mono transition ${
         active
           ? 'border-nofx-gold/50 bg-nofx-gold/10 text-nofx-gold'
           : 'border-white/10 bg-white/[0.02] text-nofx-text-muted hover:text-nofx-text'
