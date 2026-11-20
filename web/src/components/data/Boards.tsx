@@ -66,6 +66,10 @@ export function ChangeBoard({
       lastSuccessAt={lastSuccessAt}
       actions={actions}
       scrollable={scrollable}
+      help={{
+        desc: t('dataPage.helpChangesDesc', language),
+        signal: t('dataPage.helpChangesSignal', language),
+      }}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
         {
@@ -122,6 +126,10 @@ export function VolumeBoard({
       error={error}
       lastSuccessAt={lastSuccessAt}
       scrollable={scrollable}
+      help={{
+        desc: t('dataPage.helpVolumeDesc', language),
+        signal: t('dataPage.helpVolumeSignal', language),
+      }}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
         {
@@ -190,6 +198,10 @@ export function FundingBoard({
       lastSuccessAt={lastSuccessAt}
       actions={actions}
       scrollable={scrollable}
+      help={{
+        desc: t('dataPage.helpFundingDesc', language),
+        signal: t('dataPage.helpFundingSignal', language),
+      }}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
         {

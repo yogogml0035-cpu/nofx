@@ -8,6 +8,7 @@ import type {
 import { formatCompactNumber, formatIsoTime } from './boardUtils'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
+import { HelpTip } from './HelpTip'
 
 // ===== 市场总览卡 =====
 export function MarketOverviewCard({
@@ -434,9 +435,15 @@ export function LiquidationCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
-          {t('dataPage.liquidationHotspots', language)}
-        </h3>
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
+            {t('dataPage.liquidationHotspots', language)}
+          </h3>
+          <HelpTip label={t('dataPage.liquidationHotspots', language)}>
+            <p>{t('dataPage.helpLiquidationDesc', language)}</p>
+            <p>{t('dataPage.helpLiquidationSignal', language)}</p>
+          </HelpTip>
+        </div>
         {error && (
           <span className="text-[10px] font-mono text-nofx-danger">
             {t('dataPage.fetchFailed', language)}
