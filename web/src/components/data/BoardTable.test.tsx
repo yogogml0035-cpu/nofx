@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { BoardTable } from './BoardTable'
 import { LanguageProvider } from '../../contexts/LanguageContext'
 
@@ -91,8 +91,41 @@ describe('BoardTable', () => {
         actions={<button type="button">toggle</button>}
       />
     )
-    const header = screen.getByText('Test Board').closest('div.flex')
+    const header = screen.getByText('Test Board').closest('div.mb-3')
     expect(header).not.toBeNull()
     expect(header!.querySelector('button')!.textContent).toBe('toggle')
+  })
+
+  it('renders help tooltip in card header when help provided', () => {
+    renderWithLang(
+      <BoardTable
+        title="Test Board"
+        loading={false}
+        error={null}
+        lastSuccessAt={null}
+        columns={columns}
+        rows={[]}
+        help={{ desc: '板块定义', signal: '信号解读' }}
+      />
+    )
+    // 默认收起，点击问号展开两段说明
+    expect(screen.queryByText('板块定义')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Test Board' }))
+    expect(screen.getByText('板块定义')).toBeDefined()
+    expect(screen.getByText('信号解读')).toBeDefined()
+  })
+
+  it('renders no help tooltip when help absent', () => {
+    renderWithLang(
+      <BoardTable
+        title="Test Board"
+        loading={false}
+        error={null}
+        lastSuccessAt={null}
+        columns={columns}
+        rows={[]}
+      />
+    )
+    expect(screen.queryByTestId('help-tip')).toBeNull()
   })
 })

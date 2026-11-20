@@ -974,6 +974,22 @@ export const translations = {
       losers: 'Losers',
       tabBoards: 'Market Boards',
       tabSentiment: 'Indices & Sentiment',
+      helpChangesDesc:
+        'Ranked by 24h price change, switchable between top gainers and losers, to locate the most extreme moves in the market at a glance.',
+      helpChangesSignal:
+        'Moves confirmed by rising volume are more reliable; leveraged ETFs and low-liquidity pairs naturally amplify swings. Several entries from the same sector hint at strengthening momentum.',
+      helpVolumeDesc:
+        'Ranked by 24h trading volume (turnover), showing where capital is most concentrated and which markets are deepest.',
+      helpVolumeSignal:
+        'High-volume pairs have low slippage and are easy to enter or exit; a sudden multiple jump in volume often marks trend initiation or major position turnover, a sign of capital divergence.',
+      helpFundingDesc:
+        'Perpetual funding rate per 8h: a positive rate means longs pay shorts, a negative rate means shorts pay longs, reflecting the cost of leveraged positioning.',
+      helpFundingSignal:
+        'An extremely high positive rate signals crowded longs and pullback risk; an extreme negative rate signals crowded shorts and a possible short squeeze. Cross-check with the gainers board to spot overstretched positions.',
+      helpLiquidationDesc:
+        'Forced-liquidation amounts concentrated per symbol within a recent window; the bar shows the long vs short share of liquidations.',
+      helpLiquidationSignal:
+        'Large liquidations mean forced closing accelerates price moves (long cascades or short cascades); dense liquidation zones often act as short-term support or resistance, and clustered liquidations imply liquidity is drying up fast.',
       gainersTop20: 'Top Gainers (20)',
       losersTop20: 'Top Losers (20)',
       volumeTop20: 'Top Volume (20)',
@@ -2247,6 +2263,22 @@ export const translations = {
       gainers: '涨幅榜',
       tabBoards: '行情榜单',
       tabSentiment: '指数与情绪',
+      helpChangesDesc:
+        '按 24h 涨跌幅排序，可在涨幅榜与跌幅榜间切换，用于快速定位当前市场最极端的涨跌动向。',
+      helpChangesSignal:
+        '放量配合的涨跌更可信；杠杆 ETF 与低流动性标的波动天然放大，需自行甄别；多个同板块标的集中上榜，提示板块动量正在增强。',
+      helpVolumeDesc:
+        '按 24h 成交额（成交金额）排序，反映资金最集中、流动性最好的市场。',
+      helpVolumeSignal:
+        '成交额大的标的滑点小、进出容易；成交额骤然放大数倍往往伴随趋势启动或大户换手，是资金分歧的信号。',
+      helpFundingDesc:
+        '永续合约每 8 小时的资金费率：正费率代表多头付费给空头，负费率代表空头付费给多头，反映杠杆多空持仓的资金成本。',
+      helpFundingSignal:
+        '正费率极高提示多头拥挤，注意回调风险；负费率极端提示空头拥挤，可能出现轧空反弹；可与涨幅榜交叉印证，寻找过热方向。',
+      helpLiquidationDesc:
+        '统计近期时间窗口内各标的集中的强制平仓金额；比例条展示多单与空单被清算的占比。',
+      helpLiquidationSignal:
+        '大额清算意味着强制平仓正在加速价格运动（多杀多/空杀空）；清算密集区常构成短线支撑或阻力；清算集中出现也暗示市场流动性快速退潮。',
       losers: '跌幅榜',
       gainersTop20: '涨幅榜 Top 20',
       losersTop20: '跌幅榜 Top 20',
@@ -3457,6 +3489,22 @@ export const translations = {
       gainers: 'Kenaikan',
       tabBoards: 'Papan Pasar',
       tabSentiment: 'Indeks & Sentimen',
+      helpChangesDesc:
+        'Diurutkan berdasarkan perubahan harga 24 jam, dapat beralih antara kenaikan dan penurunan teratas, untuk menemukan pergerakan paling ekstrem di pasar.',
+      helpChangesSignal:
+        'Pergerakan yang dikonfirmasi volume naik lebih andal; ETF levera dan pasangan berlikuiditas rendah secara alami memperbesar fluktuasi. Beberapa simbol dari sektor yang sama mengindikasikan momentum yang menguat.',
+      helpVolumeDesc:
+        'Diurutkan berdasarkan volume perdagangan 24 jam (nilai turn over), menunjukkan di mana modal paling terkonsentrasi dan pasar terdalam.',
+      helpVolumeSignal:
+        'Pasangan bervolume tinggi memiliki slippage kecil dan mudah dimasuki/keluar; lonjakan volume beberapa kali lipat sering menandai awal tren atau pergantian posisi besar, sinyal divergensi modal.',
+      helpFundingDesc:
+        'Pembiayaan perpetual per 8 jam: rate positif berarti long membayar short, rate negatif berarti short membayar long, mencerminkan biaya posisi levera.',
+      helpFundingSignal:
+        'Rate positif ekstrem menandakan long yang ramai dan risiko koreksi; rate negatif ekstrem menandakan short yang ramai dan kemungkinan short squeeze. Silakan cocokkan dengan papan kenaikan untuk menemukan arah yang terlalu panas.',
+      helpLiquidationDesc:
+        'Nilai likuidasi paksa yang terkonsentrasi per simbol dalam jendela waktu terkini; bilah menunjukkan porsi likuidasi long vs short.',
+      helpLiquidationSignal:
+        'Likuidasi besar berarti penutupan paksa mempercepat pergerakan harga (long cascade atau short cascade); zona likuidasi padat sering menjadi support atau resistance jangka pendek; likuidasi yang menumpuk juga mengindikasikan likuiditas pasar surut dengan cepat.',
       losers: 'Penurunan',
       gainersTop20: 'Kenaikan Teratas (20)',
       losersTop20: 'Penurunan Teratas (20)',
