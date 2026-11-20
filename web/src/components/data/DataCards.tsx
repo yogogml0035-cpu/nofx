@@ -51,7 +51,7 @@ export function MarketOverviewCard({
           {error}
         </div>
       ) : data ? (
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs sm:grid-cols-4 xl:grid-cols-8">
           <StatCell
             label={t('dataPage.totalMarketCap', language)}
             value={formatCompactNumber(data.total_market_cap)}
@@ -481,32 +481,35 @@ export function LiquidationCard({
               {t('dataPage.noLiquidationsInWindow', language)}
             </div>
           ) : (
-            data.hotspots.map((h) => {
-              const longPct = h.value > 0 ? (h.long_amount / h.value) * 100 : 0
-              return (
-                <div key={h.contract} className="text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-medium text-nofx-text">
-                      {h.contract}
-                    </span>
-                    <span className="font-mono text-nofx-text-muted">
-                      {formatCompactNumber(h.value)} · {h.count}
-                      {t('dataPage.ordersSuffix', language)}
-                    </span>
+            <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+              {data.hotspots.map((h) => {
+                const longPct =
+                  h.value > 0 ? (h.long_amount / h.value) * 100 : 0
+                return (
+                  <div key={h.contract} className="text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-medium text-nofx-text">
+                        {h.contract}
+                      </span>
+                      <span className="font-mono text-nofx-text-muted">
+                        {formatCompactNumber(h.value)} · {h.count}
+                        {t('dataPage.ordersSuffix', language)}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex h-1.5 w-full overflow-hidden rounded-full">
+                      <div
+                        className="bg-nofx-danger"
+                        style={{ width: `${longPct}%` }}
+                      />
+                      <div
+                        className="bg-nofx-success"
+                        style={{ width: `${100 - longPct}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-1 flex h-1.5 w-full overflow-hidden rounded-full">
-                    <div
-                      className="bg-nofx-danger"
-                      style={{ width: `${longPct}%` }}
-                    />
-                    <div
-                      className="bg-nofx-success"
-                      style={{ width: `${100 - longPct}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })
+                )
+              })}
+            </div>
           )}
         </div>
       ) : null}

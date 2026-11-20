@@ -78,4 +78,21 @@ describe('BoardTable', () => {
     )
     expect(screen.getByText('Nothing here')).toBeDefined()
   })
+
+  it('renders actions slot in card header', () => {
+    renderWithLang(
+      <BoardTable
+        title="Test Board"
+        loading={false}
+        error={null}
+        lastSuccessAt={null}
+        columns={columns}
+        rows={[]}
+        actions={<button type="button">toggle</button>}
+      />
+    )
+    const header = screen.getByText('Test Board').closest('div.flex')
+    expect(header).not.toBeNull()
+    expect(header!.querySelector('button')!.textContent).toBe('toggle')
+  })
 })

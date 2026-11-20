@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import type { MarketSymbol } from '../../lib/api/data'
@@ -22,12 +23,14 @@ export function ChangeBoard({
   error,
   lastSuccessAt,
   mode,
+  actions,
 }: {
   symbols?: MarketSymbol[]
   loading: boolean
   error: string | null
   lastSuccessAt: Date | null
   mode: ChangeBoardMode
+  actions?: ReactNode
 }) {
   const { language } = useLanguage()
 
@@ -39,8 +42,13 @@ export function ChangeBoard({
 
   const rows = sorted.map((s) => ({
     symbol: s.display || s.symbol,
-    price: s.mark_price ? s.mark_price.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—',
-    change: s.change_24h_pct === undefined ? '—' : `${s.change_24h_pct >= 0 ? '+' : ''}${s.change_24h_pct.toFixed(2)}%`,
+    price: s.mark_price
+      ? s.mark_price.toLocaleString(undefined, { maximumFractionDigits: 6 })
+      : '—',
+    change:
+      s.change_24h_pct === undefined
+        ? '—'
+        : `${s.change_24h_pct >= 0 ? '+' : ''}${s.change_24h_pct.toFixed(2)}%`,
     volume: formatCompactNumber(s.volume_24h),
   }))
 
@@ -54,11 +62,20 @@ export function ChangeBoard({
       loading={loading}
       error={error}
       lastSuccessAt={lastSuccessAt}
+      actions={actions}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
-        { key: 'price', label: t('dataPage.lastPrice', language), align: 'right' },
+        {
+          key: 'price',
+          label: t('dataPage.lastPrice', language),
+          align: 'right',
+        },
         { key: 'change', label: '24h', align: 'right' },
-        { key: 'volume', label: t('dataPage.volume', language), align: 'right' },
+        {
+          key: 'volume',
+          label: t('dataPage.volume', language),
+          align: 'right',
+        },
       ]}
       rows={rows}
       emptyText={t('dataPage.noSymbolData', language)}
@@ -83,9 +100,14 @@ export function VolumeBoard({
   const sorted = symbols ? sortByVolumeDesc(symbols).slice(0, 20) : []
   const rows = sorted.map((s) => ({
     symbol: s.display || s.symbol,
-    price: s.mark_price ? s.mark_price.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—',
+    price: s.mark_price
+      ? s.mark_price.toLocaleString(undefined, { maximumFractionDigits: 6 })
+      : '—',
     volume: formatCompactNumber(s.volume_24h),
-    change: s.change_24h_pct === undefined ? '—' : `${s.change_24h_pct >= 0 ? '+' : ''}${s.change_24h_pct.toFixed(2)}%`,
+    change:
+      s.change_24h_pct === undefined
+        ? '—'
+        : `${s.change_24h_pct >= 0 ? '+' : ''}${s.change_24h_pct.toFixed(2)}%`,
   }))
 
   return (
@@ -96,8 +118,16 @@ export function VolumeBoard({
       lastSuccessAt={lastSuccessAt}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
-        { key: 'price', label: t('dataPage.lastPrice', language), align: 'right' },
-        { key: 'volume', label: '24h ' + t('dataPage.volume', language), align: 'right' },
+        {
+          key: 'price',
+          label: t('dataPage.lastPrice', language),
+          align: 'right',
+        },
+        {
+          key: 'volume',
+          label: '24h ' + t('dataPage.volume', language),
+          align: 'right',
+        },
         { key: 'change', label: '24h', align: 'right' },
       ]}
       rows={rows}
@@ -113,12 +143,14 @@ export function FundingBoard({
   error,
   lastSuccessAt,
   mode,
+  actions,
 }: {
   symbols?: MarketSymbol[]
   loading: boolean
   error: string | null
   lastSuccessAt: Date | null
   mode: FundingBoardMode
+  actions?: ReactNode
 }) {
   const { language } = useLanguage()
 
@@ -133,7 +165,9 @@ export function FundingBoard({
   const rows = sorted.map((s) => ({
     symbol: s.display || s.symbol,
     rate: formatFundingRate(s.funding_rate),
-    price: s.mark_price ? s.mark_price.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—',
+    price: s.mark_price
+      ? s.mark_price.toLocaleString(undefined, { maximumFractionDigits: 6 })
+      : '—',
   }))
 
   return (
@@ -146,10 +180,19 @@ export function FundingBoard({
       loading={loading}
       error={error}
       lastSuccessAt={lastSuccessAt}
+      actions={actions}
       columns={[
         { key: 'symbol', label: t('dataPage.symbol', language) },
-        { key: 'rate', label: t('dataPage.fundingPer8h', language), align: 'right' },
-        { key: 'price', label: t('dataPage.lastPrice', language), align: 'right' },
+        {
+          key: 'rate',
+          label: t('dataPage.fundingPer8h', language),
+          align: 'right',
+        },
+        {
+          key: 'price',
+          label: t('dataPage.lastPrice', language),
+          align: 'right',
+        },
       ]}
       rows={rows}
       emptyText={t('dataPage.noRateInDirection', language)}
