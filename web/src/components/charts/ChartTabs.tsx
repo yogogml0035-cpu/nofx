@@ -3,7 +3,7 @@ import { EquityChart } from './EquityChart'
 import { AdvancedChart } from './AdvancedChart'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
-import { chartTabs, ts } from '../../i18n/strategy-translations'
+import { strategyApi } from '../../lib/api/strategies'
 import { BarChart3, CandlestickChart } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -12,27 +12,11 @@ interface ChartTabsProps {
   selectedSymbol?: string // Externally selected symbol
   updateKey?: number // Force update key
   exchangeId?: string // Exchange ID
+  strategyId?: string // 当前 trader 绑定策略，用于行情标的下拉选项
 }
 
 type ChartTab = 'equity' | 'kline'
 type Interval = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d'
-type MarketType = 'crypto' | 'stocks' | 'forex' | 'metals'
-
-interface MarketConfigEntry {
-  exchange: string
-  defaultSymbol: string
-  icon: string
-  labelKey: keyof typeof chartTabs
-  color: string
-}
-
-// Market type configuration
-const MARKET_CONFIG: Record<MarketType, MarketConfigEntry> = {
-  crypto: { exchange: 'gate', defaultSymbol: 'BTCUSDT', icon: '₿', labelKey: 'crypto' as const, color: 'yellow' },
-  stocks: { exchange: 'alpaca', defaultSymbol: 'AAPL', icon: '📈', labelKey: 'stocks' as const, color: 'green' },
-  forex: { exchange: 'forex', defaultSymbol: 'EUR/USD', icon: '💱', labelKey: 'forex' as const, color: 'blue' },
-  metals: { exchange: 'metals', defaultSymbol: 'XAU/USD', icon: '🥇', labelKey: 'metals' as const, color: 'amber' },
-}
 
 const INTERVALS: { value: Interval; label: string }[] = [
   { value: '1m', label: '1m' },
@@ -44,43 +28,61 @@ const INTERVALS: { value: Interval; label: string }[] = [
   { value: '1d', label: '1d' },
 ]
 
-// Infer market type from exchange ID
-function getMarketTypeFromExchange(exchangeId: string | undefined): MarketType {
-  // 无交易所上下文时默认 crypto（数据源 gate，D7）
-  if (!exchangeId) return 'crypto'
-  // Other exchanges default to crypto type
-  return 'crypto'
-}
-
-export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: ChartTabsProps) {
+export function ChartTabs({
+  traderId,
+  selectedSymbol,
+  updateKey,
+  exchangeId,
+  strategyId,
+}: ChartTabsProps) {
   const { language } = useLanguage()
   const [activeTab, setActiveTab] = useState<ChartTab>('equity')
   const [chartSymbol, setChartSymbol] = useState<string>('BTCUSDT')
   const [interval, setInterval] = useState<Interval>('5m')
   const [symbolInput, setSymbolInput] = useState('')
-  const [marketType, setMarketType] = useState<MarketType>(() => getMarketTypeFromExchange(exchangeId))
+  // 策略自选标的（下拉选项数据源；无策略或读取失败时回退空，仅保留当前符号）
+  const [strategySymbols, setStrategySymbols] = useState<string[]>([])
 
-  // Auto-switch market type when exchange ID changes
+  // 拉取策略自选标的：ai_config.coin_source.static_coins（legacy 平铺）∪ 网格交易对
   useEffect(() => {
-    const newMarketType = getMarketTypeFromExchange(exchangeId)
-    setMarketType(newMarketType)
-  }, [exchangeId])
+    let cancelled = false
+    if (!strategyId) {
+      setStrategySymbols([])
+      return
+    }
+    strategyApi
+      .getStrategy(strategyId, true)
+      .then((strategy) => {
+        if (cancelled) return
+        const config = strategy.config ?? {}
+        const coins =
+          config.ai_config?.coin_source?.static_coins ??
+          config.coin_source?.static_coins ??
+          []
+        // 策略标的统一转紧凑形态（BTC_USDT → BTCUSDT），与图表 kline 请求一致
+        const symbols = (
+          config.grid_config?.symbol ? [config.grid_config.symbol] : []
+        )
+          .concat(coins)
+          .map((s) => s.trim().toUpperCase().replace(/_/g, ''))
+          .filter(Boolean)
+        setStrategySymbols(Array.from(new Set(symbols)))
+      })
+      .catch(() => {
+        if (!cancelled) setStrategySymbols([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [strategyId])
 
-  // Determine exchange from market type
-  const marketConfig = MARKET_CONFIG[marketType]
-  // Prefer passed-in exchangeId (crypto uses the trader's exchange when available)
-  const currentExchange = marketType === 'crypto' && exchangeId ? exchangeId : marketConfig.exchange
+  // 下拉选项：当前图表符号恒在首位（受控值必须可选），策略标的去重追加
+  const symbolOptions = Array.from(new Set([chartSymbol, ...strategySymbols]))
 
-  // Update default symbol when switching market type
-  const handleMarketTypeChange = (type: MarketType) => {
-    setMarketType(type)
-    setChartSymbol(MARKET_CONFIG[type].defaultSymbol)
-  }
-
-  // Auto-switch to kline chart when symbol selected externally
+  // Auto-switch to kline chart when symbol selected externally（统一紧凑形态）
   useEffect(() => {
     if (selectedSymbol) {
-      setChartSymbol(selectedSymbol)
+      setChartSymbol(selectedSymbol.trim().toUpperCase().replace(/_/g, ''))
       setActiveTab('kline')
     }
   }, [selectedSymbol, updateKey])
@@ -88,20 +90,25 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
   // Handle manual symbol input
   const handleSymbolSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (symbolInput.trim()) {
-      let symbol = symbolInput.trim().toUpperCase()
-      // Auto-append USDT suffix for crypto
-      if (marketType === 'crypto' && !symbol.endsWith('USDT')) {
-        symbol = symbol + 'USDT'
-      }
-      setChartSymbol(symbol)
+    const symbol = symbolInput.trim().toUpperCase()
+    if (symbol) {
+      // 加密合约统一 USDT 计价，缺后缀自动补全
+      setChartSymbol(symbol.endsWith('USDT') ? symbol : symbol + 'USDT')
       setSymbolInput('')
     }
   }
 
+  // 加密行情固定使用 trader 交易所，缺省走 gate
+  const currentExchange = exchangeId || 'gate'
+
   return (
-    <div className={`nofx-glass rounded-lg border border-white/5 relative z-10 w-full flex flex-col transition-all duration-300 ${typeof window !== 'undefined' && window.innerWidth < 768 ? 'h-[500px]' : 'h-[600px]'
-      }`}>
+    <div
+      className={`nofx-glass rounded-lg border border-white/5 relative z-10 w-full flex flex-col transition-all duration-300 ${
+        typeof window !== 'undefined' && window.innerWidth < 768
+          ? 'h-[500px]'
+          : 'h-[600px]'
+      }`}
+    >
       {/*
         Premium Professional Toolbar
         Mobile: Single row, horizontal scroll with gradient mask
@@ -115,57 +122,55 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
         <div className="flex flex-wrap items-center gap-1">
           <button
             onClick={() => setActiveTab('equity')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${activeTab === 'equity'
-              ? 'bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 shadow-[0_0_10px_rgba(240,185,11,0.1)]'
-              : 'text-nofx-text-muted hover:text-nofx-text-main hover:bg-white/5'
-              }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
+              activeTab === 'equity'
+                ? 'bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 shadow-[0_0_10px_rgba(240,185,11,0.1)]'
+                : 'text-nofx-text-muted hover:text-nofx-text-main hover:bg-white/5'
+            }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">{t('accountEquityCurve', language)}</span>
+            <span className="hidden md:inline">
+              {t('accountEquityCurve', language)}
+            </span>
             <span className="md:hidden">Eq</span>
           </button>
 
           <button
             onClick={() => setActiveTab('kline')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${activeTab === 'kline'
-              ? 'bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 shadow-[0_0_10px_rgba(240,185,11,0.1)]'
-              : 'text-nofx-text-muted hover:text-nofx-text-main hover:bg-white/5'
-              }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
+              activeTab === 'kline'
+                ? 'bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 shadow-[0_0_10px_rgba(240,185,11,0.1)]'
+                : 'text-nofx-text-muted hover:text-nofx-text-main hover:bg-white/5'
+            }`}
           >
             <CandlestickChart className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">{t('marketChart', language)}</span>
+            <span className="hidden md:inline">
+              {t('marketChart', language)}
+            </span>
             <span className="md:hidden">Kline</span>
           </button>
-
-          {/* Market Type Pills - Only when kline active, HIDDEN on mobile to save space */}
-          {activeTab === 'kline' && (
-            <div className="hidden md:flex items-center gap-1 ml-2 border-l border-white/10 pl-2">
-              {(Object.keys(MARKET_CONFIG) as MarketType[]).map((type) => {
-                const config = MARKET_CONFIG[type]
-                const isActive = marketType === type
-                return (
-                  <button
-                    key={type}
-                    onClick={() => handleMarketTypeChange(type)}
-                    className={`px-2.5 py-1 text-[10px] font-medium rounded transition-all border ${isActive
-                      ? 'bg-white/10 text-white border-white/20'
-                      : 'text-nofx-text-muted border-transparent hover:text-nofx-text-main hover:bg-white/5'
-                      }`}
-                  >
-                    <span className="mr-1 opacity-70">{config.icon}</span>
-                    {ts(chartTabs[config.labelKey], language)}
-                  </button>
-                )
-              })}
-            </div>
-          )}
         </div>
 
-        {/* Right: Symbol + Interval */}
+        {/* Right: Symbol Select + Interval */}
         {activeTab === 'kline' && (
           <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto min-w-0">
-            {/* Symbol Display */}
-            <span className="shrink-0 px-2.5 py-1 bg-black/40 border border-white/10 rounded text-[11px] font-bold text-nofx-text-main font-mono">{chartSymbol}</span>
+            {/* Symbol Selector: 策略自选标的下拉 */}
+            <select
+              value={chartSymbol}
+              onChange={(e) => setChartSymbol(e.target.value)}
+              aria-label={t('symbol', language)}
+              className="shrink-0 max-w-[140px] px-2 py-1 bg-black/40 border border-white/10 rounded text-[11px] font-bold text-nofx-text-main font-mono focus:outline-none focus:border-nofx-gold/50 cursor-pointer"
+            >
+              {symbolOptions.map((s) => (
+                <option
+                  key={s}
+                  value={s}
+                  className="bg-[#0B0E11] text-nofx-text-main"
+                >
+                  {s}
+                </option>
+              ))}
+            </select>
 
             {/* Interval Selector - Allow scrolling if needed */}
             <div className="flex items-center bg-black/40 rounded border border-white/10 overflow-x-auto no-scrollbar max-w-[200px] md:max-w-none">
@@ -173,10 +178,11 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 <button
                   key={int.value}
                   onClick={() => setInterval(int.value)}
-                  className={`px-2 py-1 text-[10px] font-medium transition-all ${interval === int.value
-                    ? 'bg-nofx-gold/20 text-nofx-gold'
-                    : 'text-nofx-text-muted hover:text-white hover:bg-white/5'
-                    }`}
+                  className={`px-2 py-1 text-[10px] font-medium transition-all ${
+                    interval === int.value
+                      ? 'bg-nofx-gold/20 text-nofx-gold'
+                      : 'text-nofx-text-muted hover:text-white hover:bg-white/5'
+                  }`}
                 >
                   {int.label}
                 </button>
@@ -184,7 +190,10 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
             </div>
 
             {/* Quick Input */}
-            <form onSubmit={handleSymbolSubmit} className="hidden md:flex items-center shrink-0">
+            <form
+              onSubmit={handleSymbolSubmit}
+              className="hidden md:flex items-center shrink-0"
+            >
               <input
                 type="text"
                 value={symbolInput}
@@ -192,7 +201,10 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 placeholder="Sym"
                 className="w-16 px-2 py-1 bg-black/40 border border-white/10 rounded-l text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-nofx-gold/50 font-mono transition-colors"
               />
-              <button type="submit" className="px-2 py-1 bg-white/5 border border-white/10 border-l-0 rounded-r text-[10px] text-nofx-text-muted hover:text-white hover:bg-white/10 transition-all">
+              <button
+                type="submit"
+                className="px-2 py-1 bg-white/5 border border-white/10 border-l-0 rounded-r text-[10px] text-nofx-text-muted hover:text-white hover:bg-white/10 transition-all"
+              >
                 Go
               </button>
             </form>
