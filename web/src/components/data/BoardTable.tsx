@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
+import { HelpTip } from './HelpTip'
+
+interface BoardHelp {
+  desc: string
+  signal: string
+}
 
 interface BoardTableProps {
   title: string
@@ -12,9 +18,10 @@ interface BoardTableProps {
   emptyText?: string
   actions?: ReactNode
   scrollable?: boolean
+  help?: BoardHelp
 }
 
-// 通用榜单表：列配置驱动 + 卡头 actions 插槽 + 可选限高滚动 sticky 表头
+// 通用榜单表：列配置驱动 + 卡头 actions/help + 可选限高滚动 sticky 表头
 export function BoardTable({
   title,
   loading,
@@ -25,15 +32,24 @@ export function BoardTable({
   emptyText,
   actions,
   scrollable = true,
+  help,
 }: BoardTableProps) {
   const { language } = useLanguage()
 
   return (
     <div className="rounded-2xl border border-white/10 bg-nofx-bg-lighter p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
-          {title}
-        </h3>
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-mono tracking-widest uppercase text-nofx-text">
+            {title}
+          </h3>
+          {help && (
+            <HelpTip label={title}>
+              <p>{help.desc}</p>
+              <p>{help.signal}</p>
+            </HelpTip>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {error && (
             <span className="text-[10px] font-mono text-nofx-danger">
