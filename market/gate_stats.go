@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 )
 
@@ -32,11 +33,12 @@ func toGateContractSymbol(symbol string) string {
 }
 
 // getGateOpenInterestAndFunding 从 Gate USDT 永续合约统计接口获取持仓量与资金费率。
-// 返回值为 USD 口径：Latest/Average 为最近一期与近 12 期（5 分钟粒度）持仓价值均值；
-// fundingRate 为最近一期时点的已结算资金费率。任一字段取不到即整体视为不可用，由调用方置 nil。
+// Latest 取时间戳最大的一期；Average 为返回各期持仓价值的 USD 均值（5 分钟粒度，最多 12 期）。
+// 任一环节失败即返回 error，调用方据此把 OI 与资金费率置为不可用（nil）。
 func getGateOpenInterestAndFunding(symbol string) (*OIData, *float64, error) {
+	contract := toGateContractSymbol(symbol)
 	url := fmt.Sprintf("%s/futures/usdt/contract_stats?contract=%s&interval=5m&limit=12",
-		gateFuturesBaseURL, toGateContractSymbol(symbol))
+		gateFuturesBaseURL, contract)
 
 	apiClient := NewAPIClient()
 	resp, err := apiClient.client.Get(url)
@@ -49,19 +51,26 @@ func getGateOpenInterestAndFunding(symbol string) (*OIData, *float64, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("gate contract_stats read body failed: %w", err)
 	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("gate contract_stats returned status %d: %s",
+			resp.StatusCode, errorBodySnippet(body))
+	}
 
 	var stats []gateContractStat
 	if err := json.Unmarshal(body, &stats); err != nil {
 		return nil, nil, fmt.Errorf("gate contract_stats decode failed: %w", err)
 	}
 	if len(stats) == 0 {
-		return nil, nil, fmt.Errorf("gate contract_stats empty for %s", symbol)
+		return nil, nil, fmt.Errorf("gate contract_stats empty for %s", contract)
 	}
 
-	// 返回按时间升序，最后一期为最新
+	latest := stats[0]
 	sum := 0.0
 	count := 0
 	for _, s := range stats {
+		if s.Time > latest.Time {
+			latest = s
+		}
 		v, err := s.OpenInterestUSD.Float64()
 		if err != nil || v <= 0 {
 			continue
@@ -69,21 +78,27 @@ func getGateOpenInterestAndFunding(symbol string) (*OIData, *float64, error) {
 		sum += v
 		count++
 	}
-	if count == 0 {
-		return nil, nil, fmt.Errorf("gate contract_stats has no valid open_interest_usd for %s", symbol)
-	}
-	latest, err := stats[len(stats)-1].OpenInterestUSD.Float64()
-	if err != nil || latest <= 0 {
-		return nil, nil, fmt.Errorf("gate contract_stats latest open_interest_usd invalid for %s", symbol)
-	}
 
-	rate, err := stats[len(stats)-1].LastFundingRate.Float64()
+	latestOI, err := latest.OpenInterestUSD.Float64()
+	if err != nil || latestOI <= 0 {
+		return nil, nil, fmt.Errorf("gate contract_stats latest open_interest_usd invalid for %s", contract)
+	}
+	rate, err := latest.LastFundingRate.Float64()
 	if err != nil {
-		return nil, nil, fmt.Errorf("gate contract_stats last_funding_rate invalid for %s: %w", symbol, err)
+		return nil, nil, fmt.Errorf("gate contract_stats last_funding_rate invalid for %s: %w", contract, err)
 	}
 
 	return &OIData{
-		Latest:  latest,
+		Latest:  latestOI,
 		Average: sum / float64(count),
 	}, &rate, nil
+}
+
+// errorBodySnippet 截取响应体片段用于错误信息，避免把整页 5xx HTML 写进日志。
+func errorBodySnippet(body []byte) string {
+	const maxLen = 200
+	if len(body) > maxLen {
+		return string(body[:maxLen])
+	}
+	return strings.TrimSpace(string(body))
 }

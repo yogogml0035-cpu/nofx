@@ -219,10 +219,14 @@ func Format(data *Data) string {
 		oiAverageStr := formatPriceWithDynamicPrecision(data.OpenInterest.Average)
 		sb.WriteString(fmt.Sprintf("Open Interest (USD): Latest: %s Average: %s\n\n",
 			oiLatestStr, oiAverageStr))
+	} else {
+		sb.WriteString("Open Interest (USD): [unavailable]\n\n")
 	}
 
 	if data.FundingRate != nil {
 		sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", *data.FundingRate))
+	} else {
+		sb.WriteString("Funding Rate: [unavailable]\n\n")
 	}
 
 	if data.IntradaySeries != nil {
