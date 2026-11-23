@@ -236,9 +236,13 @@ func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[s
 
 	// Build request body
 	requestBody := map[string]interface{}{
-		"model":       client.Model,
-		"messages":    messages,
-		"temperature": client.Cfg.Temperature, // Use configured temperature
+		"model":    client.Model,
+		"messages": messages,
+	}
+	// OpenAI reasoning 系列（gpt-5/gpt-6/o 系）只支持默认 temperature，非默认值直接 400，
+	// 该 provider 不发送 temperature 字段，使用服务端默认值
+	if client.Provider != ProviderOpenAI {
+		requestBody["temperature"] = client.Cfg.Temperature // Use configured temperature
 	}
 	// OpenAI newer models use max_completion_tokens instead of max_tokens
 	if client.Provider == ProviderOpenAI {
@@ -649,11 +653,15 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 	}
 
 	// Add optional parameters (only add non-nil parameters)
-	if req.Temperature != nil {
-		requestBody["temperature"] = *req.Temperature
-	} else {
-		// If not set in Request, use Client's configuration
-		requestBody["temperature"] = client.Cfg.Temperature
+	// OpenAI reasoning 系列只支持默认 temperature，非默认值直接 400，
+	// 该 provider 不发送 temperature 字段，使用服务端默认值
+	if client.Provider != ProviderOpenAI {
+		if req.Temperature != nil {
+			requestBody["temperature"] = *req.Temperature
+		} else {
+			// If not set in Request, use Client's configuration
+			requestBody["temperature"] = client.Cfg.Temperature
+		}
 	}
 
 	// OpenAI newer models use max_completion_tokens instead of max_tokens

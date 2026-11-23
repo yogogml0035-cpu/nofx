@@ -121,6 +121,50 @@ func TestConfig_Temperature_IsUsed(t *testing.T) {
 	}
 }
 
+// OpenAI reasoning 系列（gpt-5/gpt-6/o 系）只支持默认 temperature，
+// 两条请求路径都不应发送该字段，否则 API 返回 400 unsupported_value
+func TestOpenAI_RequestBody_OmitsTemperature(t *testing.T) {
+	mockHTTP := NewMockHTTPClient()
+	mockHTTP.SetSuccessResponse("AI response")
+	mockLogger := NewMockLogger()
+
+	client := NewClient(
+		WithHTTPClient(mockHTTP.ToHTTPClient()),
+		WithLogger(mockLogger),
+		WithAPIKey("sk-test-key"),
+		WithProvider(ProviderOpenAI),
+	)
+	c := client.(*Client)
+
+	// 路径一：CallWithMessages → BuildMCPRequestBody
+	requestBody := c.BuildMCPRequestBody("system", "user")
+	if _, exists := requestBody["temperature"]; exists {
+		t.Error("OpenAI request body should not contain temperature")
+	}
+
+	// 路径二：CallWithRequest（request 级 temperature preset 同样不发送）
+	request := NewRequestBuilder().
+		WithSystemPrompt("system").
+		WithUserPrompt("user").
+		WithTemperature(0.8).
+		MustBuild()
+	if _, err := client.CallWithRequest(request); err != nil {
+		t.Fatalf("should not error: %v", err)
+	}
+
+	requests := mockHTTP.GetRequests()
+	if len(requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(requests))
+	}
+	var body map[string]interface{}
+	if err := json.NewDecoder(requests[0].Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode request body: %v", err)
+	}
+	if _, exists := body["temperature"]; exists {
+		t.Error("OpenAI CallWithRequest body should not contain temperature")
+	}
+}
+
 func TestConfig_RetryWaitBase_IsUsed(t *testing.T) {
 	mockHTTP := NewMockHTTPClient()
 	mockLogger := NewMockLogger()
