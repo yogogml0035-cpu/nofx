@@ -188,11 +188,11 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 			continue
 		}
 
-		// Liquidity filter (existing positions are exempt from the OI threshold)
+		// Liquidity filter (existing positions are exempt from the OI threshold).
+		// OpenInterest 为 USD 口径（Gate contract_stats）；nil 表示统计不可用，此时不过滤。
 		isExistingPosition := positionSymbols[coin.Symbol]
-		if !isExistingPosition && data.OpenInterest != nil && data.CurrentPrice > 0 {
-			oiValue := data.OpenInterest.Latest * data.CurrentPrice
-			oiValueInMillions := oiValue / 1_000_000
+		if !isExistingPosition && data.OpenInterest != nil {
+			oiValueInMillions := data.OpenInterest.Latest / 1_000_000
 			if oiValueInMillions < minOIThresholdMillions {
 				logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin",
 					coin.Symbol, oiValueInMillions, minOIThresholdMillions)

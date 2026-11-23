@@ -634,12 +634,12 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 		sb.WriteString(fmt.Sprintf("Additional data for %s:\n\n", data.Symbol))
 
 		if indicators.EnableOI && data.OpenInterest != nil {
-			sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f\n\n",
+			sb.WriteString(fmt.Sprintf("Open Interest (USD): Latest: %.2f Average: %.2f (近12期5分钟均值)\n\n",
 				data.OpenInterest.Latest, data.OpenInterest.Average))
 		}
 
-		if indicators.EnableFundingRate {
-			sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
+		if indicators.EnableFundingRate && data.FundingRate != nil {
+			sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", *data.FundingRate))
 		}
 	}
 
