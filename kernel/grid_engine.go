@@ -52,22 +52,22 @@ type GridContext struct {
 	IsPaused         bool            `json:"is_paused"`
 
 	// Market data
-	ATR14          float64 `json:"atr14"`
-	BollingerUpper float64 `json:"bollinger_upper"`
-	BollingerMiddle float64 `json:"bollinger_middle"`
-	BollingerLower float64 `json:"bollinger_lower"`
-	BollingerWidth float64 `json:"bollinger_width"` // Percentage
-	EMA20          float64 `json:"ema20"`
-	EMA50          float64 `json:"ema50"`
-	EMADistance    float64 `json:"ema_distance"` // Percentage
-	RSI14          float64 `json:"rsi14"`
-	MACD           float64 `json:"macd"`
-	MACDSignal     float64 `json:"macd_signal"`
-	MACDHistogram  float64 `json:"macd_histogram"`
-	FundingRate    float64 `json:"funding_rate"`
-	Volume24h      float64 `json:"volume_24h"`
-	PriceChange1h  float64 `json:"price_change_1h"`
-	PriceChange4h  float64 `json:"price_change_4h"`
+	ATR14           float64  `json:"atr14"`
+	BollingerUpper  float64  `json:"bollinger_upper"`
+	BollingerMiddle float64  `json:"bollinger_middle"`
+	BollingerLower  float64  `json:"bollinger_lower"`
+	BollingerWidth  float64  `json:"bollinger_width"` // Percentage
+	EMA20           float64  `json:"ema20"`
+	EMA50           float64  `json:"ema50"`
+	EMADistance     float64  `json:"ema_distance"` // Percentage
+	RSI14           float64  `json:"rsi14"`
+	MACD            float64  `json:"macd"`
+	MACDSignal      float64  `json:"macd_signal"`
+	MACDHistogram   float64  `json:"macd_histogram"`
+	FundingRate     *float64 `json:"funding_rate,omitempty"` // nil = 不可用
+	Volume24h       float64  `json:"volume_24h"`
+	PriceChange1h   float64  `json:"price_change_1h"`
+	PriceChange4h   float64  `json:"price_change_4h"`
 
 	// Account info
 	TotalEquity      float64 `json:"total_equity"`
@@ -229,7 +229,11 @@ func buildGridUserPromptZh(ctx *GridContext) string {
 	sb.WriteString(fmt.Sprintf("- EMA20: $%.2f, EMA50: $%.2f, 距离: %.2f%%\n", ctx.EMA20, ctx.EMA50, ctx.EMADistance))
 	sb.WriteString(fmt.Sprintf("- RSI14: %.1f\n", ctx.RSI14))
 	sb.WriteString(fmt.Sprintf("- MACD: %.4f, Signal: %.4f, Histogram: %.4f\n", ctx.MACD, ctx.MACDSignal, ctx.MACDHistogram))
-	sb.WriteString(fmt.Sprintf("- 资金费率: %.4f%%\n", ctx.FundingRate*100))
+	if ctx.FundingRate != nil {
+		sb.WriteString(fmt.Sprintf("- 资金费率: %.4f%%\n", *ctx.FundingRate*100))
+	} else {
+		sb.WriteString("- 资金费率: [数据不可用]\n")
+	}
 	sb.WriteString("\n")
 
 	// Box Indicator Section
@@ -340,7 +344,11 @@ func buildGridUserPromptEn(ctx *GridContext) string {
 	sb.WriteString(fmt.Sprintf("- EMA20: $%.2f, EMA50: $%.2f, Distance: %.2f%%\n", ctx.EMA20, ctx.EMA50, ctx.EMADistance))
 	sb.WriteString(fmt.Sprintf("- RSI14: %.1f\n", ctx.RSI14))
 	sb.WriteString(fmt.Sprintf("- MACD: %.4f, Signal: %.4f, Histogram: %.4f\n", ctx.MACD, ctx.MACDSignal, ctx.MACDHistogram))
-	sb.WriteString(fmt.Sprintf("- Funding Rate: %.4f%%\n", ctx.FundingRate*100))
+	if ctx.FundingRate != nil {
+		sb.WriteString(fmt.Sprintf("- Funding Rate: %.4f%%\n", *ctx.FundingRate*100))
+	} else {
+		sb.WriteString("- Funding Rate: [unavailable]\n")
+	}
 	sb.WriteString("\n")
 
 	// Box Indicator Section

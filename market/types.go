@@ -11,8 +11,8 @@ type Data struct {
 	CurrentEMA20      float64
 	CurrentMACD       float64
 	CurrentRSI7       float64
-	OpenInterest      *OIData
-	FundingRate       float64
+	OpenInterest      *OIData  // USD 计价持仓量；nil = 不可用
+	FundingRate       *float64 // 最近已结算资金费率；nil = 不可用
 	IntradaySeries    *IntradayData
 	LongerTermContext *LongerTermData
 	// Multi-timeframe data (new)
@@ -47,7 +47,7 @@ type TimeframeSeriesData struct {
 	BOLLLower  []float64 `json:"boll_lower"`  // Lower band
 }
 
-// OIData Open Interest data
+// OIData 持仓量数据，USD 计价（Gate contract_stats 的 open_interest_usd）
 type OIData struct {
 	Latest  float64
 	Average float64
@@ -76,21 +76,6 @@ type LongerTermData struct {
 	RSI14Values   []float64
 }
 
-// Binance API response structure
-type ExchangeInfo struct {
-	Symbols []SymbolInfo `json:"symbols"`
-}
-
-type SymbolInfo struct {
-	Symbol            string `json:"symbol"`
-	Status            string `json:"status"`
-	BaseAsset         string `json:"baseAsset"`
-	QuoteAsset        string `json:"quoteAsset"`
-	ContractType      string `json:"contractType"`
-	PricePrecision    int    `json:"pricePrecision"`
-	QuantityPrecision int    `json:"quantityPrecision"`
-}
-
 type Kline struct {
 	OpenTime            int64   `json:"openTime"`
 	Open                float64 `json:"open"`
@@ -103,13 +88,6 @@ type Kline struct {
 	Trades              int     `json:"trades"`
 	TakerBuyBaseVolume  float64 `json:"takerBuyBaseVolume"`
 	TakerBuyQuoteVolume float64 `json:"takerBuyQuoteVolume"`
-}
-
-type KlineResponse []interface{}
-
-type PriceTicker struct {
-	Symbol string `json:"symbol"`
-	Price  string `json:"price"`
 }
 
 type Ticker24hr struct {

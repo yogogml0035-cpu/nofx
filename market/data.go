@@ -1,30 +1,15 @@
 package market
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"nofx/logger"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
-// FundingRateCache is the funding rate cache structure
-// Binance Funding Rate only updates every 8 hours, using 1-hour cache can significantly reduce API calls
-type FundingRateCache struct {
-	Rate      float64
-	UpdatedAt time.Time
-}
-
-var (
-	fundingRateMap sync.Map // map[string]*FundingRateCache
-	frCacheTTL     = 1 * time.Hour
-)
-
-// Get retrieves market data for the specified token (uses Binance data by default)
+// Get retrieves market data for the specified token
 func Get(symbol string) (*Data, error) {
 	return GetWithExchange(symbol, "binance")
 }
@@ -87,15 +72,12 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 		}
 	}
 
-	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
+	// Get OI and funding rate from Gate; failure leaves them nil (= 不可用，不渲染、不参与流动性过滤)
+	oiData, fundingRate, err := getGateOpenInterestAndFunding(symbol)
 	if err != nil {
-		// OI failure doesn't affect overall result, use default values
-		oiData = &OIData{Latest: 0, Average: 0}
+		logger.Infof("⚠️ Gate OI/funding rate unavailable for %s: %v", symbol, err)
+		oiData, fundingRate = nil, nil
 	}
-
-	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
 
 	// Calculate intraday series data
 	intradayData := calculateIntradaySeries(klines3m)
@@ -198,14 +180,12 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
-	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
+	// Get OI and funding rate from Gate; failure leaves them nil (= 不可用，不渲染、不参与流动性过滤)
+	oiData, fundingRate, err := getGateOpenInterestAndFunding(symbol)
 	if err != nil {
-		oiData = &OIData{Latest: 0, Average: 0}
+		logger.Infof("⚠️ Gate OI/funding rate unavailable for %s: %v", symbol, err)
+		oiData, fundingRate = nil, nil
 	}
-
-	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
 
 	return &Data{
 		Symbol:        symbol,
@@ -219,92 +199,6 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		FundingRate:   fundingRate,
 		TimeframeData: timeframeData,
 	}, nil
-}
-
-// getOpenInterestData retrieves OI data
-func getOpenInterestData(symbol string) (*OIData, error) {
-	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
-
-	apiClient := NewAPIClient()
-	resp, err := apiClient.client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var result struct {
-		OpenInterest string `json:"openInterest"`
-		Symbol       string `json:"symbol"`
-		Time         int64  `json:"time"`
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
-	}
-
-	oi, _ := strconv.ParseFloat(result.OpenInterest, 64)
-
-	return &OIData{
-		Latest:  oi,
-		Average: oi * 0.999, // Approximate average
-	}, nil
-}
-
-// getFundingRate retrieves funding rate (optimized: uses 1-hour cache)
-func getFundingRate(symbol string) (float64, error) {
-	// Check cache (1-hour validity)
-	// Funding Rate only updates every 8 hours, 1-hour cache is very reasonable
-	if cached, ok := fundingRateMap.Load(symbol); ok {
-		cache := cached.(*FundingRateCache)
-		if time.Since(cache.UpdatedAt) < frCacheTTL {
-			// Cache hit, return directly
-			return cache.Rate, nil
-		}
-	}
-
-	// Cache expired or doesn't exist, call API
-	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=%s", symbol)
-
-	apiClient := NewAPIClient()
-	resp, err := apiClient.client.Get(url)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, err
-	}
-
-	var result struct {
-		Symbol          string `json:"symbol"`
-		MarkPrice       string `json:"markPrice"`
-		IndexPrice      string `json:"indexPrice"`
-		LastFundingRate string `json:"lastFundingRate"`
-		NextFundingTime int64  `json:"nextFundingTime"`
-		InterestRate    string `json:"interestRate"`
-		Time            int64  `json:"time"`
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return 0, err
-	}
-
-	rate, _ := strconv.ParseFloat(result.LastFundingRate, 64)
-
-	// Update cache
-	fundingRateMap.Store(symbol, &FundingRateCache{
-		Rate:      rate,
-		UpdatedAt: time.Now(),
-	})
-
-	return rate, nil
 }
 
 // Format formats and outputs market data
@@ -323,11 +217,17 @@ func Format(data *Data) string {
 		// Format OI data with dynamic precision
 		oiLatestStr := formatPriceWithDynamicPrecision(data.OpenInterest.Latest)
 		oiAverageStr := formatPriceWithDynamicPrecision(data.OpenInterest.Average)
-		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %s Average: %s\n\n",
+		sb.WriteString(fmt.Sprintf("Open Interest (USD): Latest: %s Average: %s\n\n",
 			oiLatestStr, oiAverageStr))
+	} else {
+		sb.WriteString("Open Interest (USD): [unavailable]\n\n")
 	}
 
-	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
+	if data.FundingRate != nil {
+		sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", *data.FundingRate))
+	} else {
+		sb.WriteString("Funding Rate: [unavailable]\n\n")
+	}
 
 	if data.IntradaySeries != nil {
 		sb.WriteString("Intraday series (3‑minute intervals, oldest → latest):\n\n")
@@ -538,8 +438,8 @@ func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data,
 		CurrentRSI7:       calculateRSI(primary, 7),
 		PriceChange1h:     priceChangeFromSeries(primary, time.Hour),
 		PriceChange4h:     priceChangeFromSeries(primary, 4*time.Hour),
-		OpenInterest:      &OIData{Latest: 0, Average: 0},
-		FundingRate:       0,
+		OpenInterest:      nil, // 预载 K 线构造不含 Gate 合约统计
+		FundingRate:       nil,
 		IntradaySeries:    calculateIntradaySeries(primary),
 		LongerTermContext: nil,
 	}

@@ -689,8 +689,12 @@ func (a *Agent) gatherContext(storeUserID, text string) string {
 		}
 		md, err := market.Get(sym + "USDT")
 		if err == nil && md.CurrentPrice > 0 {
-			parts = append(parts, fmt.Sprintf("[%s/USDT Real-time]\nPrice: $%.4f | 1h: %+.2f%% | 4h: %+.2f%% | RSI7: %.1f | EMA20: %.4f | MACD: %.6f | Funding: %.4f%%",
-				sym, md.CurrentPrice, md.PriceChange1h, md.PriceChange4h, md.CurrentRSI7, md.CurrentEMA20, md.CurrentMACD, md.FundingRate*100))
+			fundingStr := "n/a"
+			if md.FundingRate != nil {
+				fundingStr = fmt.Sprintf("%.4f%%", *md.FundingRate*100)
+			}
+			parts = append(parts, fmt.Sprintf("[%s/USDT Real-time]\nPrice: $%.4f | 1h: %+.2f%% | 4h: %+.2f%% | RSI7: %.1f | EMA20: %.4f | MACD: %.6f | Funding: %s",
+				sym, md.CurrentPrice, md.PriceChange1h, md.PriceChange4h, md.CurrentRSI7, md.CurrentEMA20, md.CurrentMACD, fundingStr))
 			count++
 		}
 	}
