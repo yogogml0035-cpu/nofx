@@ -110,10 +110,12 @@ type ProtectedOpenRequest struct {
 	Symbol      string
 	NotionalUSD float64 // 开仓名义价值（USDT）
 	Leverage    int
-	StopLoss    float64 // 止损触发价
-	TakeProfit  float64 // 止盈触发价
-	MinNotional float64 // 最小下单金额（USDT）；0 表示不设下限
-	SlipRatio   float64 // 市价滑点上限（0.01 = 1%）；0 表示用交易所默认
+	// IsCrossMargin 全仓为 true、逐仓为 false（trader 界面的设置）；提交订单前与 Leverage 一并生效
+	IsCrossMargin bool
+	StopLoss      float64 // 止损触发价
+	TakeProfit    float64 // 止盈触发价
+	MinNotional   float64 // 最小下单金额（USDT）；0 表示不设下限
+	SlipRatio     float64 // 市价滑点上限（0.01 = 1%）；0 表示用交易所默认
 }
 
 // ProtectedOpenResult 随单保护开仓的返回：下单张数与实际成交值用于记录与展示。
@@ -125,9 +127,19 @@ type ProtectedOpenResult struct {
 	Quantity  float64 // 币数量（张数 × 每张币数量，展示与记账用）
 }
 
+// MarginSettingsApplier 按 trader 的设置一次性生效仓位的保证金模式与杠杆。
+// 保证金模式与杠杆在交易所上是一次设置，分开设置时各缺一半信息（模式不知道杠杆、
+// 杠杆不知道模式）。自动交易在开仓与启动网格前调用它，返回错误即不交易。
+type MarginSettingsApplier interface {
+	// ApplyMarginSettings 生效全仓（isCrossMargin 为 true）或逐仓与杠杆，并读回核对；
+	// 交易所拒绝或读回与设置不一致时返回错误。
+	ApplyMarginSettings(symbol string, isCrossMargin bool, leverage int) error
+}
+
 // ProtectedOpener 随开仓单一并提交止损止盈的开仓能力（保护不变量：仓位从存在那一刻起
 // 就带有止损与止盈，成交后核对保护单存在，缺失即平仓）。实现该接口的适配器承载
-// 取价与张数换算；自动交易的开仓路径要求适配器实现它，未实现的适配器不能开仓。
+// 取价与张数换算，并在提交订单前按请求里的保证金模式与杠杆生效仓位的设置；
+// 自动交易的开仓路径要求适配器实现它，未实现的适配器不能开仓。
 type ProtectedOpener interface {
 	// OpenLongProtected 随单保护开多：换算张数并随单提交止损止盈。
 	OpenLongProtected(req ProtectedOpenRequest) (ProtectedOpenResult, error)

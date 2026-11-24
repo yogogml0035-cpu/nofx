@@ -2,7 +2,8 @@ package gate
 
 // 开平仓原语与条件单撤销。AI 自动交易的开仓不经过本文件的 OpenLong/OpenShort
 // （它们是助手手动交易与网格使用的普通市价原语，不带保护）；
-// 随单保护开仓见 protected_open.go，保护单构造与撤销见 protective_orders.go。
+// 随单保护开仓见 protected_open.go，保护单构造与撤销见 protective_orders.go，
+// 保证金模式与杠杆的生效与读回见 margin_settings.go。
 // 数量换算统一走 GetContractSpec 的精确十进制（禁止浮点截断与强制 1 张），
 // 旧的 getContract 与按浮点读取 quanto_multiplier 已删除（计划文档 F34）。
 
@@ -18,33 +19,6 @@ import (
 	"github.com/antihax/optional"
 	"github.com/gate/gateapi-go/v7"
 )
-
-// SetLeverage sets the leverage for a symbol
-func (t *GateTrader) SetLeverage(symbol string, leverage int) error {
-	symbol = t.convertSymbol(symbol)
-
-	_, _, err := t.client.FuturesApi.UpdatePositionLeverage(t.ctx, "usdt", symbol, fmt.Sprintf("%d", leverage), nil)
-	if err != nil {
-		// Gate.io may return error if leverage is already set
-		if strings.Contains(err.Error(), "RISK_LIMIT_EXCEEDED") {
-			logger.Warnf("  [Gate] Leverage %d exceeds limit for %s", leverage, symbol)
-			return nil
-		}
-		return fmt.Errorf("failed to set leverage: %w", err)
-	}
-
-	logger.Infof("  [Gate] Leverage set to %dx for %s", leverage, symbol)
-	return nil
-}
-
-// SetMarginMode sets margin mode (cross or isolated)
-func (t *GateTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
-	// Gate.io uses leverage=0 for cross margin, positive number for isolated
-	// This is handled through UpdatePositionLeverage with cross_leverage_limit
-	// For now, we'll skip explicit margin mode setting as it's tied to leverage
-	logger.Infof("  [Gate] Margin mode is set through leverage (0=cross)")
-	return nil
-}
 
 // openMarket 多空共用的普通市价开仓原语：币数量按最小步长向下取整换算张数，
 // 不足一个最小步长时报错（删除旧的浮点截断与强制 1 张，计划文档 F3/F23）。
@@ -68,10 +42,10 @@ func (t *GateTrader) openMarket(symbol string, quantity float64, leverage int, s
 		}
 	}
 
-	// 沿用现状：杠杆 best-effort 设置，失败不阻断开仓（子任务 5 重写杠杆与保证金模式）
+	// 调用方给了杠杆就必须生效：设置失败不开仓。leverage=0 表示不设置，沿用该合约在交易所的现有设置
 	if leverage > 0 {
 		if err := t.SetLeverage(symbol, leverage); err != nil {
-			logger.Warnf("  [Gate] Failed to set leverage: %v", err)
+			return nil, fmt.Errorf("refusing to open %s %s: %w", side, symbol, err)
 		}
 	}
 

@@ -111,11 +111,10 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 		return types.ProtectedOpenResult{}, fmt.Errorf("invalid protection for %s: %w", symbol, err)
 	}
 
-	// 沿用现状：杠杆 best-effort 设置，失败不阻断开仓（子任务 5 重写杠杆与保证金模式）
-	if req.Leverage > 0 {
-		if err := t.SetLeverage(symbol, req.Leverage); err != nil {
-			logger.Warnf("  [Gate] Failed to set leverage %dx for %s: %v", req.Leverage, symbol, err)
-		}
+	// 保证金模式与杠杆按 trader 的设置一并生效并读回，失败不开仓（D38）。
+	// 不显式设置时首次建仓的合约会落到全仓最大杠杆（W2/W3 实测），设置没有生效就不能开仓。
+	if err := t.ApplyMarginSettings(symbol, req.IsCrossMargin, req.Leverage); err != nil {
+		return types.ProtectedOpenResult{}, fmt.Errorf("refusing to open %s: %w", symbol, err)
 	}
 
 	logger.Infof("  [Gate] OpenProtected: side=%s, contract=%s, size=%s, sl=%v, tp=%v, slip=%s",
