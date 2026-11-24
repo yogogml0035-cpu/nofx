@@ -73,7 +73,8 @@ func (t *GateTrader) GetBalance() (map[string]interface{}, error) {
 
 // walletPrincipal 本金 = total.amount − total.borrowed，按精确十进制相减后再转为 float64。
 // total.amount 必然存在：缺失或解析失败都报错，不按 0 计——统一账户下它是本金的唯一来源。
-// total.borrowed 在没有借款时可能不返回，缺省按 0 计（Gate 对数值为 0 的字段不总是返回）。
+// total.borrowed 缺省按 0 计：SDK 文档把这几个字段都标为可选（实测为 0 时仍然返回 "0"，这里是防御性处理）；
+// 有值但解析失败即报错。
 // 响应的币种带值时必须是请求的币种，否则读数的单位不对。
 func walletPrincipal(total *gateapi.AccountBalance) (float64, error) {
 	if total.Currency != "" && total.Currency != balanceCurrency {

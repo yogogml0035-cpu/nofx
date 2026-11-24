@@ -511,11 +511,7 @@ func (at *AutoTrader) buildGridContext() (*kernel.GridContext, error) {
 	at.gridState.mu.RUnlock()
 
 	// Get account info
-	if account, err := types.ReadAccountBalance(at.trader); err == nil {
-		ctx.TotalEquity = account.Equity
-		ctx.AvailableBalance = account.Available
-		ctx.UnrealizedPnL = account.UnrealizedPnL
-	}
+	at.applyGridAccount(ctx)
 
 	// Get current position
 	positions, err := at.trader.GetPositions()
@@ -530,6 +526,18 @@ func (at *AutoTrader) buildGridContext() (*kernel.GridContext, error) {
 	}
 
 	return ctx, nil
+}
+
+// applyGridAccount 把账户读数填进网格上下文。读不到时保持原样：网格上下文的失败不阻断（原有行为），
+// 回撤检查读不到时会打告警。
+func (at *AutoTrader) applyGridAccount(ctx *kernel.GridContext) {
+	account, err := types.ReadAccountBalance(at.trader)
+	if err != nil {
+		return
+	}
+	ctx.TotalEquity = account.Equity
+	ctx.AvailableBalance = account.Available
+	ctx.UnrealizedPnL = account.UnrealizedPnL
 }
 
 // executeGridDecision executes a single grid decision

@@ -197,7 +197,7 @@ export const translations = {
     balanceUpdateHint:
       'Used to manually update the initial balance baseline (e.g., after deposit/withdrawal)',
     autoFetchBalanceInfo:
-      'The exchange account\'s current principal (balance excluding unrealized P&L) is recorded as the initial balance at creation; you can change it later when editing the trader',
+      "The exchange account's current principal (balance excluding unrealized P&L) is recorded as the initial balance at creation; you can change it later when editing the trader",
     initialBalanceInvalid: 'Initial balance must be greater than 0',
     fetchingBalance: 'Fetching balance...',
     editTrader: 'Save Changes',
@@ -1530,7 +1530,8 @@ export const translations = {
     fetching: '获取中...',
     fetchCurrentBalance: '获取当前余额',
     balanceUpdateHint: '用于手动更新初始余额基准（例如充值/提现后）',
-    autoFetchBalanceInfo: '创建时自动把交易所账户的当前本金（不含浮动盈亏）记为初始余额，之后可在编辑中修改',
+    autoFetchBalanceInfo:
+      '创建时自动把交易所账户的当前本金（不含浮动盈亏）记为初始余额，之后可在编辑中修改',
     initialBalanceInvalid: '初始余额必须大于 0',
     fetchingBalance: '正在获取余额…',
     editTrader: '保存修改',

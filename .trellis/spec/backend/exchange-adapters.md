@@ -136,9 +136,10 @@ Any code that needs the account's principal, unrealized PnL, available margin or
 cycle, the account info API, the position-value cap before an order, the grid drawdown check and grid context, trader
 creation and the initial-balance rebuild, balance sync, and the exchange account state shown on the settings page.
 
-On Gate the trading account is a unified account. `GET /futures/{settle}/accounts` reports `total` as 0 there (the docs
-say `total` only applies to classic futures accounts), so reading `total` as the wallet balance made equity 0, the
-position-value cap 0, and stored an initial balance of 0 for every new trader.
+On Gate the trading account is a unified account. `GET /futures/{settle}/accounts` reports a `total` that has nothing to
+do with the principal there (it reads about 0; the docs say `total` only applies to classic futures accounts), so reading
+`total` as the wallet balance made equity about 0, the position-value cap 0, and stored an initial balance of 0 for every
+new trader.
 
 ### 2. Signatures
 
@@ -150,6 +151,11 @@ const (
     BalanceKeyAvailable     = "availableBalance"
 )
 
+var (
+    ErrBalanceUnreadable    error // the exchange request failed, or the reading does not match the contract
+    ErrPrincipalNotPositive error // the principal is not above 0, so it cannot be an initial balance
+)
+
 type AccountBalance struct {
     Principal     float64 // excludes unrealized PnL, includes realized PnL
     UnrealizedPnL float64
@@ -159,7 +165,7 @@ type AccountBalance struct {
 func (b AccountBalance) InitialBalance() float64 // the principal
 func ParseAccountBalance(m map[string]interface{}) (AccountBalance, error)
 func ReadAccountBalance(t Trader) (AccountBalance, error)
-func ReadInitialBalance(t Trader) (float64, error)
+func ReadInitialBalance(t Trader) (float64, error) // errors with ErrPrincipalNotPositive when the principal is not above 0
 ```
 
 Exchange calls on Gate:
@@ -173,28 +179,44 @@ Exchange calls on Gate:
   `trader/types/balance.go`.
 - Consumers do not read those keys themselves. They call `types.ReadAccountBalance`, or `ParseAccountBalance` when they
   must tell a failed request from an unreadable reading (the exchange account state classifies the two differently).
-- Equity is the first positive value among `totalEquity` and `total_equity`; when the adapter reports neither, it is
-  `Principal + UnrealizedPnL`. Gate reports neither key, so its equity is the sum.
-- The initial balance is the principal (`InitialBalance()`), never the equity.
+- Equity is the first finite positive value among `totalEquity` and `total_equity`; when the adapter reports neither, it is
+  `Principal + UnrealizedPnL`. Gate reports neither key, so its equity is the sum. OKX puts its equity (`totalEq`) in
+  `totalWalletBalance` and therefore also reports `totalEquity`; without that key its equity would count unrealized PnL twice.
+- The initial balance is the principal (`InitialBalance()`), never the equity. `ReadInitialBalance` is the only way to read
+  it for creation, rebuild and sync, so a principal that is not above 0 is rejected everywhere at once.
+- `ErrBalanceUnreadable` and `ErrPrincipalNotPositive` are matched with `errors.Is`. Callers that explain a failure to the
+  user classify by error type, never by matching the message: the API layer sanitizes error text, and a message that
+  contains both `:` and `.` is wiped entirely.
 - Gate's `GetBalance` returns exactly the three keys, does not report equity, and keeps its 15-second cache.
-- `total.borrowed`, `total.unrealised_pnl` and `available` may be omitted by Gate when they are 0; an omitted value reads
-  as 0. A value that is present but malformed is an error.
+- `total.borrowed`, `total.unrealised_pnl` and `available` default to 0 when absent (the SDK marks them optional; in the
+  readings taken so far Gate returned `"0"` for zero values, so the default is defensive). A value that is present but
+  malformed is an error.
 - `total.amount` is required. An omitted or malformed value is an error, never 0: on a unified account it is the only
   source of the principal.
+- An initial balance that a trader already has belongs to the exchange account it was recorded for. When the trader is
+  rebound to another exchange, it is reset to 0 and rebuilt from the new account's principal on load, unless the request
+  gives a new value. The edit form sends `initial_balance` only when the user changed it, for exactly this reason.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Result |
 |---|---|
 | Any of the three keys is missing or is not a finite `float64` | `ParseAccountBalance` errors and names the key; nothing is treated as 0 |
-| The exchange request fails | `ReadAccountBalance` errors; the exchange error stays in the error chain |
+| A reported equity is `0`, NaN or infinite | ignored; equity falls back to `Principal + UnrealizedPnL` |
+| The exchange request fails | `ReadAccountBalance` errors with `ErrBalanceUnreadable`; the exchange error stays in the error chain |
+| The reading does not match the contract | `ReadAccountBalance` errors with `ErrBalanceUnreadable` |
+| The principal is not above 0 | `ReadInitialBalance` errors with `ErrPrincipalNotPositive` |
 | Gate: `total.amount` missing, empty, malformed, or in scientific notation | error; no result is returned and nothing is cached |
 | Gate: `total.currency` is present and is not `USDT` | error |
 | Trading context, account info, or the pre-order check cannot read the balance | the cycle, the request, or the order fails. There is no fallback to another balance field |
 | Grid drawdown check or grid context cannot read the balance | unchanged fail-soft behavior: the check is skipped with a warning; the context keeps zero account fields |
-| Stored initial balance ≤ 0 at load | rebuilt with `ReadInitialBalance`, persisted, logged as a warning |
-| Stored initial balance ≤ 0 at load and the principal cannot be read or is not positive | the trader does not load |
-| `PUT /traders/:id` with a negative `initial_balance` | 400. `0` or an absent field keeps the stored value |
+| Trader creation: the principal cannot be read or is not positive | creation still succeeds; the initial balance is stored as 0 and rebuilt on load |
+| Stored initial balance ≤ 0 or NaN at load | rebuilt with `ReadInitialBalance`, persisted, logged as a warning |
+| Stored initial balance ≤ 0 at load and the principal cannot be read or is not positive | the trader does not load; the error carries `ErrBalanceUnreadable` or `ErrPrincipalNotPositive` |
+| `PUT /traders/:id` with a negative `initial_balance` | 400 |
+| `PUT /traders/:id` with `0`, no field, or the value already stored | the stored value is kept (the same exchange), or reset to 0 (the exchange changed) |
+| `PUT /traders/:id` with a new positive value | the new value is stored, whether or not the exchange changed |
+| Balance sync: the principal cannot be read or is not positive | 500; the stored value is not touched |
 
 Not verified against the real API: accounts with borrowing (`total.borrowed` ≠ 0) and accounts in single-currency margin
 mode. The trading sub-account holds USDT only, with no borrowing.
@@ -206,18 +228,28 @@ mode. The trading sub-account holds USDT only, with no borrowing.
 - Base: the same account with an open position — the principal does not move with the position; unrealized PnL and
   available follow it; equity = principal + unrealized PnL.
 - Bad: the wallet request fails while a trader with a stored initial balance of 0 is loaded — the trader does not load,
-  and the error names the invalid value and carries the exchange error.
+  the error names the invalid value and carries the exchange error, and the API still tells the user that the account
+  balance could not be read.
+- Bad: the trader is rebound to another exchange and the form sends the stored initial balance back unchanged — it is
+  treated as not given and reset.
 
 ### 6. Tests Required
 
-- `trader/types/balance_test.go`: the parse matrix (both equity keys, derived equity, each key missing or non-numeric)
-  and `InitialBalance()` returning the principal.
+- `trader/types/balance_test.go`: the parse matrix (both equity keys, derived equity, each key missing or non-numeric,
+  non-finite reported equity), `InitialBalance()` returning the principal, the typed errors of both read functions, and
+  `ReadInitialBalance` rejecting a principal that is not above 0.
 - `trader/gate/trader_account_test.go`: `httptest` replies in Gate's real response format — borrowing subtracted as exact
-  decimals, each unreadable field, a non-USDT currency, request failures, and the cache.
-- `trader/auto_trader_account_test.go`: the initial balance kept, rebuilt, persisted, and failing closed; the trading
-  context, account info, and position-value cap reading the parsed balance.
-- `api/handler_trader_initial_balance_test.go`, `agent/trader_initial_balance_test.go`: creation, update, sync, the
-  exchange account state, and the assistant's fetcher, with a stubbed probe adapter.
+  decimals, each unreadable field, a non-USDT currency, request failures (`errors.As` → `GateAPIError`), the source of the
+  unrealized PnL, and the cache.
+- `trader/okx/trader_account_test.go`: equity reported separately, not counted twice.
+- `trader/auto_trader_account_test.go`: the initial balance kept, rebuilt (0, negative, NaN), persisted, and failing closed
+  with a typed error that survives wrapping; the trading context, account info, position-value cap, grid drawdown check and
+  grid context reading the parsed balance.
+- `api/handler_trader_initial_balance_test.go`, `agent/trader_initial_balance_test.go`: creation, update (including the
+  exchange-rebinding reset), sync, the exchange account state, the load-failure classification through wrapping and
+  sanitizing, and the assistant's fetcher and rebinding, with a stubbed probe adapter.
+- `web/src/components/trader/TraderConfigModal.test.tsx`, `traderUpdateRequest.test.ts`: the field is sent only when
+  changed, non-positive values block saving, the accessible error state, and the three languages.
 - Readings against the real API live in the owning task's `probe/` directory, never in the unit test suite.
 
 ### 7. Wrong vs Correct
@@ -243,4 +275,26 @@ if err != nil {
     return nil, err
 }
 equity := account.Equity
+```
+
+#### Wrong
+
+```go
+// The reason is matched on text that was sanitized first. A message with both ":" and "." is
+// wiped to "", so this branch is never reached and the user only gets the generic hint.
+switch {
+case strings.Contains(SanitizeError(err, ""), "account principal is not positive"):
+    return "trader.reason.exchange_principal_not_positive"
+}
+```
+
+#### Correct
+
+```go
+switch {
+case errors.Is(err, types.ErrPrincipalNotPositive):
+    return "trader.reason.exchange_principal_not_positive"
+case errors.Is(err, types.ErrBalanceUnreadable):
+    return "trader.reason.exchange_balance_unavailable"
+}
 ```

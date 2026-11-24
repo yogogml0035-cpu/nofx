@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"math"
 )
@@ -13,8 +14,16 @@ const (
 )
 
 // balanceEquityKeys 适配器直接报告权益时使用的键，按优先级排列（各交易所的写法不一）。
-// 不报告权益的适配器（Gate、Binance、OKX、Aster），权益由本金加未实现盈亏得出。
+// 不报告权益的适配器（Gate、Binance、Aster），权益由本金加未实现盈亏得出。
 var balanceEquityKeys = [...]string{"totalEquity", "total_equity"}
+
+var (
+	// ErrBalanceUnreadable 账户读数读不到：交易所请求失败，或读数不符合规范口径。
+	// 调用方用 errors.Is 识别，它经得上层包装，也不受按文本脱敏的影响
+	ErrBalanceUnreadable = errors.New("account balance unavailable")
+	// ErrPrincipalNotPositive 账户本金不为正，不能作为初始资金（初始资金是盈亏统计的基准，必须大于 0）
+	ErrPrincipalNotPositive = errors.New("account principal is not positive")
+)
 
 // AccountBalance 账户读数的规范口径。本金、可用于合约的额度与权益只在这里定义，
 // 交易路径、API 与助手不各自按键名取数。
@@ -48,7 +57,8 @@ func ParseAccountBalance(m map[string]interface{}) (AccountBalance, error) {
 
 	balance.Equity = balance.Principal + balance.UnrealizedPnL
 	for _, key := range balanceEquityKeys {
-		if reported, ok := m[key].(float64); ok && reported > 0 {
+		// 适配器报告的权益只在它是有限的正数时采用
+		if reported, ok := m[key].(float64); ok && reported > 0 && !math.IsInf(reported, 0) {
 			balance.Equity = reported
 			break
 		}
@@ -56,27 +66,34 @@ func ParseAccountBalance(m map[string]interface{}) (AccountBalance, error) {
 	return balance, nil
 }
 
-// ReadAccountBalance 读取并解析适配器的账户读数：交易所请求失败、读数不符合规范口径都返回错误。
+// ReadAccountBalance 读取并解析适配器的账户读数：交易所请求失败、读数不符合规范口径都返回错误，
+// 错误链里有 ErrBalanceUnreadable（请求失败时交易所的错误也留在链里）。
 // 交易路径、API 与助手都经它取数，不各自调用 GetBalance 再解析。
 func ReadAccountBalance(t Trader) (AccountBalance, error) {
 	raw, err := t.GetBalance()
 	if err != nil {
-		return AccountBalance{}, fmt.Errorf("failed to get account balance: %w", err)
+		return AccountBalance{}, fmt.Errorf("%w: failed to get account balance: %w", ErrBalanceUnreadable, err)
 	}
 	balance, err := ParseAccountBalance(raw)
 	if err != nil {
-		return AccountBalance{}, fmt.Errorf("unreadable account balance: %w", err)
+		return AccountBalance{}, fmt.Errorf("%w: unreadable account balance: %w", ErrBalanceUnreadable, err)
 	}
 	return balance, nil
 }
 
 // ReadInitialBalance 读取交易所账户的当前本金，作为创建或重建 trader 时记录的初始资金。
+// 读不到账户读数时错误链里有 ErrBalanceUnreadable；本金不为正时有 ErrPrincipalNotPositive。
 func ReadInitialBalance(t Trader) (float64, error) {
 	balance, err := ReadAccountBalance(t)
 	if err != nil {
 		return 0, err
 	}
-	return balance.InitialBalance(), nil
+	principal := balance.InitialBalance()
+	if principal <= 0 {
+		return 0, fmt.Errorf("%w (%.2f): the initial balance must be above 0; "+
+			"deposit funds or set an initial balance manually", ErrPrincipalNotPositive, principal)
+	}
+	return principal, nil
 }
 
 func balanceField(m map[string]interface{}, key string) (float64, error) {

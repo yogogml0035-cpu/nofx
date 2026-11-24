@@ -85,6 +85,51 @@ describe('TraderConfigModal – initial balance', () => {
     expect(saved.scan_interval_minutes).toBe(3)
   })
 
+  it('edit mode does not send the initial balance when it is untouched', async () => {
+    // 后端把「正值」当作明确给出。没改过时不发送这个字段，
+    // 换绑交易所时旧的初始余额才会被重置、加载时以新账户的本金重建
+    const { onSave } = await renderModal()
+
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    const saved = onSave.mock.calls[0][0] as CreateTraderRequest
+    expect('initial_balance' in saved).toBe(false)
+    expect(saved.name).toBe('demo')
+  })
+
+  it('typing the same number again is not a change', async () => {
+    const { onSave } = await renderModal()
+
+    const input = screen.getByLabelText('Initial Balance ($)')
+    fireEvent.change(input, { target: { value: '107.50' } })
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    const saved = onSave.mock.calls[0][0] as CreateTraderRequest
+    expect('initial_balance' in saved).toBe(false)
+  })
+
+  it('marks the input as invalid and points it at the error while the value is not usable', async () => {
+    await renderModal({ traderData: { ...existingTrader, initial_balance: 0 } })
+
+    const input = screen.getByLabelText(
+      'Initial Balance ($)'
+    ) as HTMLInputElement
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.getAttribute('aria-describedby')).toBe(
+      'trader-initial-balance-hint trader-initial-balance-error'
+    )
+
+    fireEvent.change(input, { target: { value: '25' } })
+
+    expect(input.getAttribute('aria-invalid')).toBe('false')
+    expect(input.getAttribute('aria-describedby')).toBe(
+      'trader-initial-balance-hint'
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('edit mode refuses to save a non-positive initial balance', async () => {
     const { onSave } = await renderModal()
 
@@ -147,5 +192,30 @@ describe('TraderConfigModal – initial balance', () => {
       screen.getByText(/当前本金（不含浮动盈亏）记为初始余额/)
     ).toBeInTheDocument()
     expect(screen.queryByText(/账户净值/)).toBeNull()
+  })
+
+  it.each([
+    ['zh', '初始余额必须大于 0'],
+    ['id', 'Saldo awal harus lebih besar dari 0'],
+  ])(
+    'the invalid-value alert is translated in %s',
+    async (language, alertText) => {
+      window.localStorage.setItem('language', language)
+      await renderModal({
+        traderData: { ...existingTrader, initial_balance: 0 },
+      })
+
+      expect(screen.getByRole('alert').textContent).toBe(alertText)
+    }
+  )
+
+  it.each([
+    ['zh', '当前本金（不含浮动盈亏）记为初始余额'],
+    ['id', 'Prinsipal akun exchange'],
+  ])('the create hint is translated in %s', async (language, createHint) => {
+    window.localStorage.setItem('language', language)
+    await renderModal({ isEditMode: false, traderData: null })
+
+    expect(screen.getByText(new RegExp(createHint))).toBeInTheDocument()
   })
 })

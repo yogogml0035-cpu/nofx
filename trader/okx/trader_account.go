@@ -70,7 +70,10 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 		return nil, err
 	}
 
+	// totalEq 是账户权益（含未实现盈亏），单独报告出来：权益口径统一后，
+	// 不报告权益的适配器会按「totalWalletBalance + totalUnrealizedProfit」算权益，这里会把未实现盈亏多算一次
 	result := map[string]interface{}{
+		"totalEquity":           totalEq,
 		"totalWalletBalance":    totalEq,
 		"availableBalance":      usdtAvail,
 		"totalUnrealizedProfit": usdtUPL,

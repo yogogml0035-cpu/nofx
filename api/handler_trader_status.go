@@ -65,7 +65,8 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		return
 	}
 
-	// The initial balance is the account principal
+	// The initial balance is the account principal. An unreadable account or a principal that is
+	// not positive is an error; the stored value is left alone
 	actualBalance, balanceErr := types.ReadInitialBalance(tempTrader)
 	if balanceErr != nil {
 		logger.Infof("⚠️ Failed to query exchange balance: %v", balanceErr)

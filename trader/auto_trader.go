@@ -343,7 +343,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 // resolveInitialBalance 校验并补齐初始资金。配置里的初始资金大于 0 时照用；不大于 0 是无效值
 // （存量 trader 在交易所读数为 0 时被记成 0），此时读交易所账户的当前本金，以它重建、写回数据库
 // 并记录日志。读不到本金或本金不为正时返回错误：没有有效的初始资金，盈亏与开仓金额都无从计算，
-// trader 不加载。
+// trader 不加载。错误链里带着 types.ErrBalanceUnreadable 或 types.ErrPrincipalNotPositive，
+// 上层按类型识别原因，不靠匹配文案。
 func resolveInitialBalance(t Trader, st *store.Store, userID string, config *AutoTraderConfig) error {
 	if config.InitialBalance > 0 {
 		return nil
@@ -352,11 +353,7 @@ func resolveInitialBalance(t Trader, st *store.Store, userID string, config *Aut
 
 	principal, err := types.ReadInitialBalance(t)
 	if err != nil {
-		return fmt.Errorf("initial balance %.2f is not valid and the account principal could not be read: %w", invalid, err)
-	}
-	if principal <= 0 {
-		return fmt.Errorf("initial balance %.2f is not valid and the account principal is not positive (%.2f); "+
-			"deposit funds or set an initial balance above 0", invalid, principal)
+		return fmt.Errorf("initial balance %.2f is not valid: %w", invalid, err)
 	}
 
 	config.InitialBalance = principal

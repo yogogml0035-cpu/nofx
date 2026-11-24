@@ -5,6 +5,7 @@ import { t } from '../../i18n/translations'
 import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
 import { httpClient } from '../../lib/httpClient'
 import { NofxSelect } from '../ui/select'
+import { parseInitialBalance } from './traderUpdateRequest'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -136,12 +137,20 @@ export function TraderConfigModal({
     setFormData((prev) => ({ ...prev, exchange_id: exchangeId }))
   }
 
-  // 初始余额只在编辑时可改：为空、不是数字或不大于 0 都不能保存
-  const parsedInitialBalance = Number.parseFloat(formData.initial_balance)
-  const initialBalanceValid = Number.isFinite(parsedInitialBalance) && parsedInitialBalance > 0
+  // 初始余额只在编辑时可改：为空、不是十进制数字或不大于 0 都不能保存
+  const parsedInitialBalance = parseInitialBalance(formData.initial_balance)
+  const initialBalanceValid = parsedInitialBalance !== null
+  // 用户没有改过初始余额时不发送这个字段。后端把「正值」当作明确给出，
+  // 换绑交易所时要靠「没有给出」把旧账户的初始余额重置掉
+  const initialBalanceChanged =
+    isEditMode &&
+    parsedInitialBalance !== null &&
+    parsedInitialBalance !== traderData?.initial_balance
 
   const handleSave = async () => {
     if (!onSave) return
+    // 保存按钮已按同样的条件禁用；这里再拦一次，别的入口触发保存时也绕不过校验
+    if (isEditMode && !initialBalanceValid) return
 
     setIsSaving(true)
     try {
@@ -154,8 +163,7 @@ export function TraderConfigModal({
         show_in_competition: formData.show_in_competition,
         scan_interval_minutes: formData.scan_interval_minutes,
       }
-      // 创建时不发送：初始余额由后端取交易所账户的当前本金
-      if (isEditMode) {
+      if (initialBalanceChanged) {
         saveData.initial_balance = parsedInitialBalance
       }
 
@@ -477,15 +485,27 @@ export function TraderConfigModal({
                       handleInputChange('initial_balance', e.target.value)
                     }
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                    min="0"
+                    min="0.01"
                     step="0.01"
                     aria-invalid={!initialBalanceValid}
+                    aria-describedby={
+                      initialBalanceValid
+                        ? 'trader-initial-balance-hint'
+                        : 'trader-initial-balance-hint trader-initial-balance-error'
+                    }
                   />
-                  <p className="text-xs text-[#848E9C] mt-1">
+                  <p
+                    id="trader-initial-balance-hint"
+                    className="text-xs text-[#848E9C] mt-1"
+                  >
                     {t('balanceUpdateHint', language)}
                   </p>
                   {!initialBalanceValid && (
-                    <p className="text-xs text-red-400 mt-1" role="alert">
+                    <p
+                      id="trader-initial-balance-error"
+                      className="text-xs text-red-400 mt-1"
+                      role="alert"
+                    >
                       {t('initialBalanceInvalid', language)}
                     </p>
                   )}

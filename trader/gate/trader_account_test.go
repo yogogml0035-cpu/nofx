@@ -1,10 +1,13 @@
 package gate
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/gate/gateapi-go/v7"
 
 	"nofx/trader/types"
 )
@@ -70,6 +73,7 @@ func futuresAccountBody(total, unrealisedPnl, available string) map[string]inter
 }
 
 func TestGetBalanceReadsUnifiedAccount(t *testing.T) {
+	// 两个接口的未实现盈亏故意取不同的值：钉住「未实现盈亏取自钱包总额」这个来源
 	log := &requestLog{}
 	gt := newLocalGateTrader(t, func(w http.ResponseWriter, r *http.Request) {
 		log.record(r)
@@ -77,7 +81,7 @@ func TestGetBalanceReadsUnifiedAccount(t *testing.T) {
 		case "/api/v4/wallet/total_balance":
 			writeJSON(w, walletTotalBody("107.49769421", "0", "-0.3125", "USDT"))
 		case "/api/v4/futures/usdt/accounts":
-			writeJSON(w, futuresAccountBody("0.000000005", "-0.3125", "107.18519"))
+			writeJSON(w, futuresAccountBody("0.000000005", "-0.2", "107.18519"))
 		default:
 			t.Errorf("unexpected request %s %s", r.Method, r.URL.RequestURI())
 			w.WriteHeader(http.StatusNotFound)
@@ -97,7 +101,7 @@ func TestGetBalanceReadsUnifiedAccount(t *testing.T) {
 		t.Errorf("Principal = %v, want 107.49769421 (wallet total.amount, not the futures account total)", balance.Principal)
 	}
 	if balance.UnrealizedPnL != -0.3125 {
-		t.Errorf("UnrealizedPnL = %v, want -0.3125", balance.UnrealizedPnL)
+		t.Errorf("UnrealizedPnL = %v, want -0.3125 (wallet total.unrealised_pnl, not the futures account unrealised_pnl)", balance.UnrealizedPnL)
 	}
 	if balance.Available != 107.18519 {
 		t.Errorf("Available = %v, want 107.18519 (futures account available)", balance.Available)
@@ -271,8 +275,13 @@ func TestGetBalancePropagatesRequestFailures(t *testing.T) {
 			if !strings.Contains(err.Error(), tt.wantInChain) {
 				t.Errorf("error %q should mention %q", err.Error(), tt.wantInChain)
 			}
-			if !strings.Contains(err.Error(), tt.label) {
-				t.Errorf("exchange error %q is not in the error chain: %q", tt.label, err.Error())
+			// 交易所的带 label 的错误必须留在错误链里：上层要能按类型取出来
+			var gateErr gateapi.GateAPIError
+			if !errors.As(err, &gateErr) {
+				t.Fatalf("the GateAPIError must stay in the error chain, got %q", err.Error())
+			}
+			if gateErr.Label != tt.label {
+				t.Errorf("exchange error label = %q, want %q", gateErr.Label, tt.label)
 			}
 		})
 	}

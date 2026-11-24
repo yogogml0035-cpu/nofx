@@ -13,6 +13,7 @@ import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { useAuth } from '../../contexts/AuthContext'
 import { TraderConfigModal } from './TraderConfigModal'
+import { buildTraderUpdateRequest } from './traderUpdateRequest'
 import { DeepVoidBackground } from '../common/DeepVoidBackground'
 import { ExchangeConfigModal } from './ExchangeConfigModal'
 import { TelegramConfigModal } from './TelegramConfigModal'
@@ -261,18 +262,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         return
       }
 
-      const request = {
-        name: data.name,
-        ai_model_id: data.ai_model_id,
-        exchange_id: data.exchange_id,
-        strategy_id: data.strategy_id,
-        scan_interval_minutes: data.scan_interval_minutes,
-        is_cross_margin: data.is_cross_margin,
-        show_in_competition: data.show_in_competition,
-        initial_balance: data.initial_balance,
-      }
-
-      await api.updateTrader(editingTrader.trader_id, request)
+      await api.updateTrader(
+        editingTrader.trader_id,
+        buildTraderUpdateRequest(data)
+      )
       toast.success(t('aiTradersToast.saved', language))
       setShowEditModal(false)
       setEditingTrader(null)

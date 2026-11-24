@@ -101,18 +101,28 @@ for _, symbol := range e.config.CoinSource.StaticCoins {
 
 ### 2.1 Account Data
 
+Account readings (principal, unrealized PnL, available, equity) have one definition, in
+`trader/types/balance.go`. Callers never read the keys of the map returned by `GetBalance()` themselves:
+
 ```go
-// trader/auto_trader.go:565-583
-balance, err := at.trader.GetBalance()
-equity := balance["total_equity"].(float64)
-available := balance["available_balance"].(float64)
-unrealizedPnL := balance["total_pnl"].(float64)
+// trader/auto_trader_loop.go, buildTradingContext()
+account, err := types.ReadAccountBalance(at.trader)
+if err != nil {
+    return nil, err // the cycle stops; there is no fallback to another balance field
+}
+totalEquity := account.Equity
+availableBalance := account.Available
+totalUnrealizedProfit := account.UnrealizedPnL
 ```
 
-**Extracted Fields:**
-- `total_equity` - Total account equity
-- `available_balance` - Available balance
-- `total_pnl` - Unrealized PnL
+**Fields:**
+- `Principal` - balance excluding unrealized PnL, realized PnL included; also the initial balance
+- `UnrealizedPnL` - unrealized PnL
+- `Available` - margin available for futures
+- `Equity` - reported by the adapter when it has it, otherwise `Principal + UnrealizedPnL`
+
+See `docs/pnl.md` for what each reading means and `.trellis/spec/backend/exchange-adapters.md`
+for the contract.
 
 ### 2.2 Position Data
 

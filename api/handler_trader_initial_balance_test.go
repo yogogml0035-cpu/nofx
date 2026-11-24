@@ -1,10 +1,13 @@
 package api
 
 // 初始资金在 API 层的单元测试（子任务 account-equity）：创建时取交易所账户的本金，
-// 更新时拒绝负值，同步余额取本金。探测用的适配器换成不连交易所的桩。
+// 更新时拒绝负值、换绑交易所时重置旧的初始余额，同步余额取本金，加载失败的原因按错误类型归类。
+// 探测用的适配器换成不连交易所的桩。
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -22,11 +25,14 @@ import (
 )
 
 const (
-	apiTestUser     = "user-1"
-	apiTestExchange = "exchange-1"
-	apiTestAIModel  = "model-1"
-	apiTestStrategy = "strategy-1"
-	apiTestTraderID = "trader-1"
+	apiTestUser       = "user-1"
+	apiTestExchange   = "exchange-1"
+	apiTestExchange2  = "exchange-2"
+	apiTestAIModel    = "model-1"
+	apiTestStrategy   = "strategy-1"
+	apiTestTraderID   = "trader-1"
+	reasonUnreadable  = "系统暂时无法从交易所读取账户余额"
+	reasonNotPositive = "交易所账户的本金不为正：请先入金，或把初始余额改成大于 0 的值"
 )
 
 // apiBalanceStub 探测用的适配器桩：只实现 GetBalance
@@ -40,7 +46,8 @@ func (s *apiBalanceStub) GetBalance() (map[string]interface{}, error) {
 	return s.balance, s.err
 }
 
-// stubExchangeProbe 把探测适配器换成桩，测试结束后恢复
+// stubExchangeProbe 把探测适配器换成桩，测试结束后恢复。
+// 这几个包的测试都不并行（没有 t.Parallel），替换包级变量不会互相干扰
 func stubExchangeProbe(t *testing.T, stub *apiBalanceStub) {
 	t.Helper()
 	original := buildExchangeProbeTrader
@@ -50,7 +57,7 @@ func stubExchangeProbe(t *testing.T, stub *apiBalanceStub) {
 	t.Cleanup(func() { buildExchangeProbeTrader = original })
 }
 
-// newInitialBalanceAPITestEnv 建一个带临时 sqlite 库的 API 服务，库里有一个启用中的 Gate 交易所账户、
+// newInitialBalanceAPITestEnv 建一个带临时 sqlite 库的 API 服务，库里有两个启用中的 Gate 交易所账户、
 // 一个启用中的模型和一条配置不是合法 JSON 的策略。创建只要求策略存在；创建、更新之后后端会重新加载
 // trader，加载在解析策略配置一步失败，不会构造真实的交易所适配器去读余额
 func newInitialBalanceAPITestEnv(t *testing.T) *Server {
@@ -60,10 +67,12 @@ func newInitialBalanceAPITestEnv(t *testing.T) *Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = st.Close() })
 	db := st.GormDB()
-	require.NoError(t, db.Create(&store.Exchange{
-		ID: apiTestExchange, UserID: apiTestUser, Name: "gate", Type: "cex", ExchangeType: "gate", Enabled: true,
-		APIKey: "key", SecretKey: "secret",
-	}).Error)
+	for _, id := range []string{apiTestExchange, apiTestExchange2} {
+		require.NoError(t, db.Create(&store.Exchange{
+			ID: id, UserID: apiTestUser, Name: "gate " + id, Type: "cex", ExchangeType: "gate", Enabled: true,
+			APIKey: "key", SecretKey: "secret",
+		}).Error)
+	}
 	require.NoError(t, db.Create(&store.AIModel{
 		ID: apiTestAIModel, UserID: apiTestUser, Name: "model", Provider: "openai", Enabled: true, APIKey: "key",
 		CustomModelName: "gpt",
@@ -108,6 +117,12 @@ func callHandler(t *testing.T, handler gin.HandlerFunc, method, path, body strin
 	return w
 }
 
+var traderPathParams = gin.Params{{Key: "id", Value: apiTestTraderID}}
+
+func createBody() string {
+	return `{"name":"t","ai_model_id":"` + apiTestAIModel + `","exchange_id":"` + apiTestExchange + `","strategy_id":"` + apiTestStrategy + `"}`
+}
+
 func TestCreateTraderRecordsAccountPrincipal(t *testing.T) {
 	// 桩同时报告了权益 205.31：初始资金取本金 200，不取权益
 	s := newInitialBalanceAPITestEnv(t)
@@ -118,8 +133,7 @@ func TestCreateTraderRecordsAccountPrincipal(t *testing.T) {
 		"totalEquity":                 205.31,
 	}})
 
-	body := `{"name":"t","ai_model_id":"` + apiTestAIModel + `","exchange_id":"` + apiTestExchange + `","strategy_id":"` + apiTestStrategy + `"}`
-	w := callHandler(t, s.handleCreateTrader, http.MethodPost, "/api/traders", body, nil)
+	w := callHandler(t, s.handleCreateTrader, http.MethodPost, "/api/traders", createBody(), nil)
 
 	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
 	var created struct {
@@ -133,22 +147,40 @@ func TestCreateTraderRecordsAccountPrincipal(t *testing.T) {
 	assert.Equal(t, 200.0, record.InitialBalance, "the initial balance is the account principal at creation")
 }
 
-func TestCreateTraderLeavesZeroWhenPrincipalUnreadable(t *testing.T) {
-	// 读取失败不阻断创建：初始资金留 0，由加载时以当前本金重建
-	s := newInitialBalanceAPITestEnv(t)
-	stubExchangeProbe(t, &apiBalanceStub{err: assert.AnError})
-
-	body := `{"name":"t","ai_model_id":"` + apiTestAIModel + `","exchange_id":"` + apiTestExchange + `","strategy_id":"` + apiTestStrategy + `"}`
-	w := callHandler(t, s.handleCreateTrader, http.MethodPost, "/api/traders", body, nil)
-
-	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
-	var created struct {
-		TraderID string `json:"trader_id"`
+func TestCreateTraderLeavesZeroWithoutValidPrincipal(t *testing.T) {
+	// 读不到账户读数，或账户本金不为正：都不阻断创建，初始余额留 0，加载时再以当前本金重建
+	tests := []struct {
+		name string
+		stub *apiBalanceStub
+	}{
+		{name: "exchange read fails", stub: &apiBalanceStub{err: assert.AnError}},
+		{name: "balance is unreadable", stub: &apiBalanceStub{balance: map[string]interface{}{
+			types.BalanceKeyAvailable: 100.0,
+		}}},
+		{name: "principal is zero while equity is positive", stub: &apiBalanceStub{balance: map[string]interface{}{
+			types.BalanceKeyPrincipal: 0.0, types.BalanceKeyUnrealizedPnL: 40.0, types.BalanceKeyAvailable: 10.0, "totalEquity": 40.0,
+		}}},
+		{name: "principal is negative", stub: &apiBalanceStub{balance: map[string]interface{}{
+			types.BalanceKeyPrincipal: -5.0, types.BalanceKeyUnrealizedPnL: 0.0, types.BalanceKeyAvailable: 0.0,
+		}}},
 	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &created))
-	record, err := s.store.Trader().GetByID(created.TraderID)
-	require.NoError(t, err)
-	assert.Zero(t, record.InitialBalance)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newInitialBalanceAPITestEnv(t)
+			stubExchangeProbe(t, tt.stub)
+
+			w := callHandler(t, s.handleCreateTrader, http.MethodPost, "/api/traders", createBody(), nil)
+
+			require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+			var created struct {
+				TraderID string `json:"trader_id"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &created))
+			record, err := s.store.Trader().GetByID(created.TraderID)
+			require.NoError(t, err)
+			assert.Zero(t, record.InitialBalance, "no valid principal: nothing is recorded as the initial balance")
+		})
+	}
 }
 
 func TestCreateTraderRequestHasNoInitialBalanceField(t *testing.T) {
@@ -173,6 +205,7 @@ func TestUpdateTraderInitialBalance(t *testing.T) {
 		{name: "zero keeps the current value", body: `"initial_balance":0`, initial: 200, wantStatus: http.StatusOK, wantValue: 200},
 		{name: "field omitted keeps the current value", body: `"scan_interval_minutes":5`, initial: 200, wantStatus: http.StatusOK, wantValue: 200},
 		{name: "negative value is rejected", body: `"initial_balance":-5`, initial: 200, wantStatus: http.StatusBadRequest, wantValue: 200},
+		{name: "same exchange and the stored value echoed back: kept", body: `"initial_balance":200`, initial: 200, wantStatus: http.StatusOK, wantValue: 200},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -180,11 +213,39 @@ func TestUpdateTraderInitialBalance(t *testing.T) {
 			createStoredTrader(t, s, tt.initial)
 
 			body := `{"name":"t","ai_model_id":"` + apiTestAIModel + `","exchange_id":"` + apiTestExchange + `",` + tt.body + `}`
-			w := callHandler(t, s.handleUpdateTrader, http.MethodPut, "/api/traders/"+apiTestTraderID, body,
-				gin.Params{{Key: "id", Value: apiTestTraderID}})
+			w := callHandler(t, s.handleUpdateTrader, http.MethodPut, "/api/traders/"+apiTestTraderID, body, traderPathParams)
 
 			require.Equal(t, tt.wantStatus, w.Code, w.Body.String())
 			assert.Equal(t, tt.wantValue, storedTrader(t, s).InitialBalance)
+		})
+	}
+}
+
+func TestUpdateTraderRebindingExchangeResetsInitialBalance(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantValue float64
+	}{
+		// 旧值属于原来那个交易所账户：换绑后重置为 0，加载时以新账户的本金重建
+		{name: "field omitted: reset", body: ``, wantValue: 0},
+		{name: "stored value echoed back (the edit form does this when untouched): reset",
+			body: `"initial_balance":200,`, wantValue: 0},
+		{name: "a new value given explicitly: used as is",
+			body: `"initial_balance":350,`, wantValue: 350},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newInitialBalanceAPITestEnv(t)
+			createStoredTrader(t, s, 200)
+
+			body := `{"name":"t","ai_model_id":"` + apiTestAIModel + `","exchange_id":"` + apiTestExchange2 + `",` + tt.body + `"scan_interval_minutes":3}`
+			w := callHandler(t, s.handleUpdateTrader, http.MethodPut, "/api/traders/"+apiTestTraderID, body, traderPathParams)
+
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			record := storedTrader(t, s)
+			assert.Equal(t, apiTestExchange2, record.ExchangeID, "the trader is rebound to the new exchange")
+			assert.Equal(t, tt.wantValue, record.InitialBalance)
 		})
 	}
 }
@@ -200,7 +261,7 @@ func TestSyncBalanceRecordsAccountPrincipal(t *testing.T) {
 	}})
 
 	w := callHandler(t, s.handleSyncBalance, http.MethodPost, "/api/traders/"+apiTestTraderID+"/sync-balance", "",
-		gin.Params{{Key: "id", Value: apiTestTraderID}})
+		traderPathParams)
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, 300.0, storedTrader(t, s).InitialBalance, "sync takes the principal, not the equity")
@@ -221,7 +282,7 @@ func TestSyncBalanceWithInvalidStoredValue(t *testing.T) {
 	}})
 
 	w := callHandler(t, s.handleSyncBalance, http.MethodPost, "/api/traders/"+apiTestTraderID+"/sync-balance", "",
-		gin.Params{{Key: "id", Value: apiTestTraderID}})
+		traderPathParams)
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	var response map[string]interface{}
@@ -230,16 +291,29 @@ func TestSyncBalanceWithInvalidStoredValue(t *testing.T) {
 	assert.Equal(t, 107.49769421, storedTrader(t, s).InitialBalance)
 }
 
-func TestSyncBalanceFailsWhenPrincipalUnreadable(t *testing.T) {
-	s := newInitialBalanceAPITestEnv(t)
-	createStoredTrader(t, s, 100)
-	stubExchangeProbe(t, &apiBalanceStub{balance: map[string]interface{}{types.BalanceKeyAvailable: 50.0}})
+func TestSyncBalanceFailsWithoutValidPrincipal(t *testing.T) {
+	tests := []struct {
+		name string
+		stub *apiBalanceStub
+	}{
+		{name: "balance is unreadable", stub: &apiBalanceStub{balance: map[string]interface{}{types.BalanceKeyAvailable: 50.0}}},
+		{name: "principal is not positive", stub: &apiBalanceStub{balance: map[string]interface{}{
+			types.BalanceKeyPrincipal: 0.0, types.BalanceKeyUnrealizedPnL: 30.0, types.BalanceKeyAvailable: 10.0, "totalEquity": 30.0,
+		}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newInitialBalanceAPITestEnv(t)
+			createStoredTrader(t, s, 100)
+			stubExchangeProbe(t, tt.stub)
 
-	w := callHandler(t, s.handleSyncBalance, http.MethodPost, "/api/traders/"+apiTestTraderID+"/sync-balance", "",
-		gin.Params{{Key: "id", Value: apiTestTraderID}})
+			w := callHandler(t, s.handleSyncBalance, http.MethodPost, "/api/traders/"+apiTestTraderID+"/sync-balance", "",
+				traderPathParams)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Equal(t, 100.0, storedTrader(t, s).InitialBalance, "a failed sync must not touch the stored value")
+			assert.Equal(t, http.StatusInternalServerError, w.Code)
+			assert.Equal(t, 100.0, storedTrader(t, s).InitialBalance, "a failed sync must not touch the stored value")
+		})
+	}
 }
 
 func TestProbeExchangeAccountStateUsesParsedBalance(t *testing.T) {
@@ -282,22 +356,63 @@ func TestProbeExchangeAccountStateUsesParsedBalance(t *testing.T) {
 	})
 }
 
-func TestClassifyTraderSetupReasonForInitialBalance(t *testing.T) {
-	tests := []struct {
-		reason   string
-		wantKey  string
-		contains string
-	}{
-		{reason: "[t] initial balance 0.00 is not valid and the account principal could not be read: failed to get account balance: request timed out",
-			wantKey: "trader.reason.exchange_balance_unavailable", contains: "账户余额"},
-		{reason: "[t] initial balance 0.00 is not valid and the account principal could not be read: unreadable account balance: balance field \"totalWalletBalance\" is missing",
-			wantKey: "trader.reason.exchange_balance_unavailable", contains: "账户余额"},
-		{reason: "[t] initial balance 0.00 is not valid and the account principal is not positive (0.00); deposit funds or set an initial balance above 0",
-			wantKey: "trader.reason.exchange_principal_not_positive", contains: "本金不为正"},
-	}
-	for _, tt := range tests {
-		key, message := classifyTraderSetupReason(tt.reason)
-		assert.Equal(t, tt.wantKey, key, tt.reason)
-		assert.Contains(t, message, tt.contains, tt.reason)
-	}
+// loadFailure 包出 trader 加载失败时的错误。原因本身由 types.ReadInitialBalance 产生
+// （resolveInitialBalance 走的就是它），这里按线上的包装方式补上前缀：
+// resolveInitialBalance 的「initial balance 0.00 is not valid: …」，再是 manager 与 NewAutoTrader 的包装
+func loadFailure(t *testing.T, stub *apiBalanceStub) error {
+	t.Helper()
+	_, err := types.ReadInitialBalance(stub)
+	require.Error(t, err)
+	return fmt.Errorf("failed to create trader: [demo] initial balance %.2f is not valid: %w", 0.0, err)
+}
+
+func TestLoadFailureReasonSurvivesWrappingAndSanitizing(t *testing.T) {
+	// 错误文本同时含「:」和「.」：按 SanitizeError 的文本规则会被整体抹掉，
+	// 所以归类必须认错误类型，不能匹配文案
+	exchangeErr := errors.New("label: INVALID_KEY, message: Invalid key provided")
+
+	t.Run("account balance unreadable", func(t *testing.T) {
+		wrapped := loadFailure(t, &apiBalanceStub{err: exchangeErr})
+		require.Contains(t, wrapped.Error(), exchangeErr.Error())
+		assert.Empty(t, SanitizeError(wrapped, ""), "the text of this error is wiped by sanitizing")
+
+		key, message := classifyTraderSetupError(wrapped)
+		assert.Equal(t, "trader.reason.exchange_balance_unavailable", key)
+		assert.Equal(t, reasonUnreadable, message)
+		assert.Contains(t, describeTraderCreationWarning("demo", wrapped), reasonUnreadable)
+		assert.Contains(t, describeTraderStartError("demo", wrapped), reasonUnreadable)
+		assert.Contains(t, describeTraderLoadError("demo", wrapped), reasonUnreadable)
+		params := traderSetupReasonParams(wrapped, "配置校验未通过")
+		assert.Equal(t, "trader.reason.exchange_balance_unavailable", params["reason_key"])
+		assert.Equal(t, reasonUnreadable, params["reason"])
+	})
+
+	t.Run("account principal not positive", func(t *testing.T) {
+		wrapped := loadFailure(t, &apiBalanceStub{balance: map[string]interface{}{
+			types.BalanceKeyPrincipal: 0.0, types.BalanceKeyUnrealizedPnL: 0.0, types.BalanceKeyAvailable: 0.0,
+		}})
+		assert.Empty(t, SanitizeError(wrapped, ""))
+
+		key, message := classifyTraderSetupError(wrapped)
+		assert.Equal(t, "trader.reason.exchange_principal_not_positive", key)
+		assert.Equal(t, reasonNotPositive, message)
+		assert.Contains(t, describeTraderCreationWarning("demo", wrapped), reasonNotPositive)
+		assert.Contains(t, describeTraderStartError("demo", wrapped), reasonNotPositive)
+		params := traderSetupReasonParams(wrapped, "配置校验未通过")
+		assert.Equal(t, "trader.reason.exchange_principal_not_positive", params["reason_key"])
+		assert.Equal(t, reasonNotPositive, params["reason"])
+	})
+
+	t.Run("other errors keep the text-based classification", func(t *testing.T) {
+		key, message := classifyTraderSetupError(errors.New("trader demo has no strategy configured"))
+		assert.Equal(t, "trader.reason.strategy_missing", key)
+		assert.Equal(t, "当前机器人缺少有效的交易策略配置", message)
+
+		// 敏感文本仍然不外露：只有通用提示
+		params := traderSetupReasonParams(errors.New("dial tcp 127.0.0.1:5432: connection refused"), "配置校验未通过")
+		assert.Equal(t, "trader.reason.unknown", params["reason_key"])
+		assert.Equal(t, "配置校验未通过", params["reason"])
+		assert.Contains(t, describeTraderStartError("demo", errors.New("dial tcp 127.0.0.1:5432: connection refused")), "暂时还不能启动")
+		assert.NotContains(t, describeTraderStartError("demo", errors.New("dial tcp 127.0.0.1:5432: connection refused")), "127.0.0.1")
+	})
 }

@@ -36,6 +36,12 @@ func TestParseAccountBalance(t *testing.T) {
 			wantEquity: 109.75},
 		{name: "reported equity that is not a number is ignored", mutate: func(m map[string]interface{}) { m["totalEquity"] = "111" },
 			wantEquity: 109.75},
+		{name: "reported equity of +Inf is ignored", mutate: func(m map[string]interface{}) { m["totalEquity"] = math.Inf(1) },
+			wantEquity: 109.75},
+		{name: "reported equity of -Inf is ignored", mutate: func(m map[string]interface{}) { m["total_equity"] = math.Inf(-1) },
+			wantEquity: 109.75},
+		{name: "reported equity of NaN is ignored", mutate: func(m map[string]interface{}) { m["totalEquity"] = math.NaN() },
+			wantEquity: 109.75},
 		{name: "negative unrealized pnl", mutate: func(m map[string]interface{}) {
 			m[BalanceKeyUnrealizedPnL] = -7.5
 		}, wantEquity: 100.0},
@@ -128,6 +134,10 @@ func TestReadAccountBalance(t *testing.T) {
 				if !strings.Contains(err.Error(), tt.wantErr) {
 					t.Errorf("error %q should contain %q", err.Error(), tt.wantErr)
 				}
+				// 两种失败都是「读不到账户读数」：调用方按类型识别，不靠匹配文案
+				if !errors.Is(err, ErrBalanceUnreadable) {
+					t.Errorf("error %q must satisfy errors.Is(err, ErrBalanceUnreadable)", err.Error())
+				}
 				return
 			}
 			if err != nil {
@@ -161,9 +171,54 @@ func TestReadInitialBalanceIsPrincipal(t *testing.T) {
 	if principal != 200 {
 		t.Errorf("ReadInitialBalance = %v, want the principal 200", principal)
 	}
+}
 
-	if _, err := ReadInitialBalance(&balanceTraderStub{err: errors.New("exchange down")}); err == nil {
-		t.Error("ReadInitialBalance expected an error when the exchange request fails")
+func TestReadInitialBalanceRejectsNonPositivePrincipal(t *testing.T) {
+	// 初始资金是盈亏统计的基准，本金不为正就不能当初始资金——哪怕适配器报告的权益是正的
+	tests := []struct {
+		name    string
+		balance map[string]interface{}
+	}{
+		{name: "principal is zero, equity reported positive", balance: map[string]interface{}{
+			BalanceKeyPrincipal: 0.0, BalanceKeyUnrealizedPnL: 40.0, BalanceKeyAvailable: 10.0, "totalEquity": 40.0,
+		}},
+		{name: "principal is negative (borrowed exceeds assets)", balance: map[string]interface{}{
+			BalanceKeyPrincipal: -12.5, BalanceKeyUnrealizedPnL: 3.0, BalanceKeyAvailable: 0.0,
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			principal, err := ReadInitialBalance(&balanceTraderStub{balance: tt.balance})
+
+			if err == nil {
+				t.Fatalf("ReadInitialBalance expected an error, got %v", principal)
+			}
+			if !errors.Is(err, ErrPrincipalNotPositive) {
+				t.Errorf("error %q must satisfy errors.Is(err, ErrPrincipalNotPositive)", err.Error())
+			}
+			if errors.Is(err, ErrBalanceUnreadable) {
+				t.Errorf("a readable account with a non-positive principal must not be reported as unreadable: %q", err.Error())
+			}
+			if principal != 0 {
+				t.Errorf("ReadInitialBalance returned %v together with the error", principal)
+			}
+		})
+	}
+}
+
+func TestReadInitialBalanceUnreadableAccount(t *testing.T) {
+	exchangeErr := errors.New("exchange down")
+
+	_, err := ReadInitialBalance(&balanceTraderStub{err: exchangeErr})
+
+	if !errors.Is(err, ErrBalanceUnreadable) {
+		t.Fatalf("error %q must satisfy errors.Is(err, ErrBalanceUnreadable)", err.Error())
+	}
+	if !errors.Is(err, exchangeErr) {
+		t.Errorf("the exchange error must stay in the error chain, got %v", err)
+	}
+	if errors.Is(err, ErrPrincipalNotPositive) {
+		t.Errorf("an unreadable account must not be reported as a non-positive principal: %q", err.Error())
 	}
 }
 

@@ -18,10 +18,13 @@ package main
 //	6     终态：三个合约的设置条目与基线一致；平仓后约 5 秒与 70 秒各读一次不带仓读数
 //	7     提示词预览：用第 1 步的读数渲染系统提示词与用户提示词
 //
-// 还原注册为兜底：中途失败也会全平。凭据从 GATE_KEY / GATE_SECRET 环境变量读取，不落盘、不打印。
+// 兜底还原：提交开仓请求之后，脚本的任何一条退出路径（中途失败、全平失败、有残留）都会先全平目标合约、
+// 撤掉它上面遗留的委托与条件单、再读一遍核对，然后才输出结尾标记；还原不成功时退出码非 0 并提示人工核对。
+// 凭据从 GATE_KEY / GATE_SECRET 环境变量读取，不落盘、不打印。
 // 容器出口走 VPN 不在 key 白名单：在 Docker 内 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64
 // 交叉编译，宿主机运行。证据为 JSONL：默认写到 stdout，用 -out 指定文件时适配器的日志（stdout）
-// 不会混进证据；提示词预览用 -prompt-out 指定文件。带 -dry-run 时只跑只读步骤（预检、1、2、7），到开仓前为止。
+// 不会混进证据；提示词预览用 -prompt-out 指定文件。带 -dry-run 时只跑只读步骤（预检、1、2、7），到开仓前为止；
+// 带 -cleanup-drill 时只演练兜底还原（不开仓）。
 
 import (
 	"context"
@@ -396,13 +399,21 @@ func main() {
 	outPath := flag.String("out", "", "把 JSONL 证据写到文件（默认 stdout）")
 	promptOut := flag.String("prompt-out", "", "把提示词预览写到文件")
 	dryRun := flag.Bool("dry-run", false, "只跑只读步骤（预检、1、2、7），到开仓前为止")
+	cleanupDrill := flag.Bool("cleanup-drill", false,
+		"只演练兜底还原：预检后按「已开仓」走一遍清理。账户必须是空仓，不会下任何单")
 	flag.Parse()
 
-	if *outPath != "" {
-		file, err := os.Create(*outPath)
+	os.Exit(run(*outPath, *promptOut, *dryRun, *cleanupDrill))
+}
+
+// run 执行全部步骤并返回进程退出码。os.Exit 只在 main 里调用：run 的每条返回路径都会先做
+// 兜底还原（需要的话），最后才输出结尾标记，所以清理的结果会记进证据并影响退出码。
+func run(outPath, promptOutPath string, dryRun, cleanupDrill bool) (exit int) {
+	if outPath != "" {
+		file, err := os.Create(outPath)
 		if err != nil {
 			fmt.Println("无法创建证据文件:", err)
-			os.Exit(2)
+			return 2
 		}
 		defer file.Close()
 		out = file
@@ -412,7 +423,7 @@ func main() {
 	secret := os.Getenv("GATE_SECRET")
 	if key == "" || secret == "" {
 		emit(map[string]interface{}{"step": "credentials", "result": "FAIL", "detail": "GATE_KEY / GATE_SECRET 未设置"})
-		os.Exit(2)
+		return 2
 	}
 
 	ctx := context.WithValue(context.Background(), gateapi.ContextGateAPIV4, gateapi.GateAPIV4{Key: key, Secret: secret})
@@ -425,12 +436,12 @@ func main() {
 	baselineSettings, err := readAllSettings(gt)
 	if err != nil {
 		emit(map[string]interface{}{"step": "preflight", "result": "FAIL", "detail": errText(err)})
-		os.Exit(2)
+		return 2
 	}
 	positions, orders, priceOrders, err := residue(client, ctx)
 	if err != nil {
 		emit(map[string]interface{}{"step": "preflight", "result": "FAIL", "detail": errText(err)})
-		os.Exit(2)
+		return 2
 	}
 	observe("preflight", map[string]interface{}{
 		"settings": settingsView(baselineSettings), "positions": positions, "open_orders": orders, "open_price_orders": priceOrders,
@@ -438,41 +449,47 @@ func main() {
 	if positions != 0 || orders != 0 || priceOrders != 0 {
 		emit(map[string]interface{}{"step": "preflight", "result": "FAIL",
 			"detail": fmt.Sprintf("account is not flat: positions=%d open_orders=%d open_price_orders=%d", positions, orders, priceOrders)})
-		os.Exit(2)
+		return 2
 	}
 	ethSettings, hasETH := baselineSettings[target]
 	if !hasETH || !ethSettings.Has {
 		emit(map[string]interface{}{"step": "preflight", "result": "FAIL",
 			"detail": target + " has no position settings entry: opening would create one that cannot be restored"})
-		os.Exit(2)
+		return 2
 	}
 
-	// ===== 兜底还原：退出前若目标合约仍有仓位，市价全平 =====
+	// ===== 兜底还原 =====
+	// opened 在提交开仓请求之前置为 true、在确认零残留之后置为 false。run 的每条返回路径都会
+	// 经过这里：需要还原时先还原，最后才输出结尾标记
 	opened := false
 	defer func() {
-		if !opened {
-			return
+		if cleanupDrill {
+			opened = true
 		}
-		position, err := readPosition(client, ctx)
-		if err == nil && position.Has {
-			fmt.Println("[cleanup] 目标合约仍有仓位，市价全平")
-			if _, err := gt.CloseLong(target, 0); err != nil {
-				fmt.Println("[cleanup] 全平失败，请人工核对账户:", err)
+		if opened {
+			if !cleanup(gt, client, ctx) {
+				failures++
 			}
 		}
+		exit = finish()
 	}()
+
+	if cleanupDrill {
+		observe("cleanup drill", map[string]interface{}{
+			"detail": "no position was opened; the fallback cleanup is run as if one had been",
+		})
+		return
+	}
 
 	// ===== 1 不带仓读数 =====
 	flat, err := types.ReadAccountBalance(gt)
 	if err != nil {
 		step("1 flat reading", false, map[string]interface{}{"error": errText(err)})
-		finish()
 		return
 	}
 	flatRaw, err := readRaw(client, ctx)
 	if err != nil {
 		step("1 flat reading", false, map[string]interface{}{"error": errText(err)})
-		finish()
 		return
 	}
 	amount, _ := rat(flatRaw.WalletAmount)
@@ -495,7 +512,7 @@ func main() {
 			"available": flat.Available, "equity": flat.Equity},
 		"raw": flatRaw, "checks": checks,
 	})
-	// 合约账户的 total 在统一账户下恒为 0：这正是旧口径把权益读成 0 的原因
+	// 合约账户的 total 在统一账户下不是本金（实测在 0 附近：见到过 0.000000005、-0.0016、-0.0025 等值）：旧口径把它当钱包余额，权益因此读成 ≈ 0
 	observe("1 futures account total (not the principal)", map[string]interface{}{
 		"futures_account_total": flatRaw.FuturesTotal, "principal": f(principal),
 		"flat_abs(wallet unrealised − futures unrealised)": f(absDiff(walletUpnl, futuresUpnl)),
@@ -510,7 +527,6 @@ func main() {
 	}, nil, "probe")
 	if err != nil {
 		step("2 initial balance rebuilt on load", false, map[string]interface{}{"error": errText(err)})
-		finish()
 		return
 	}
 	rebuilt, _ := at.GetStatus()["initial_balance"].(float64)
@@ -520,10 +536,9 @@ func main() {
 	})
 	initialBalance := rebuilt
 
-	if *dryRun {
+	if dryRun {
 		observe("dry run", map[string]interface{}{"detail": "stopped before opening a position"})
-		previewPrompt(flat.Equity, flat.Available, flat.UnrealizedPnL, initialBalance, *promptOut)
-		finish()
+		previewPrompt(flat.Equity, flat.Available, flat.UnrealizedPnL, initialBalance, promptOutPath)
 		return
 	}
 
@@ -531,13 +546,11 @@ func main() {
 	price, err := gt.GetMarketPrice(target)
 	if err != nil {
 		step("3 open 0.1 contracts", false, map[string]interface{}{"error": errText(err)})
-		finish()
 		return
 	}
 	spec, err := gt.GetContractSpec(target)
 	if err != nil {
 		step("3 open 0.1 contracts", false, map[string]interface{}{"error": errText(err)})
-		finish()
 		return
 	}
 	multiplier, _ := rat(spec.QuantoMultiplier)
@@ -551,7 +564,6 @@ func main() {
 		step("3 open 0.1 contracts", false, map[string]interface{}{
 			"error": fmt.Sprintf("notional %.4f USDT exceeds the authorized cap of 10 USDT", notional), "price": price,
 		})
-		finish()
 		return
 	}
 	// 下单前先用同一个换算确认得到 0.1 张
@@ -562,7 +574,6 @@ func main() {
 			detail["error"] = errText(err)
 		}
 		step("3 open 0.1 contracts", false, detail)
-		finish()
 		return
 	}
 	opened = true // 从这里起若失败，兜底还原会全平
@@ -574,7 +585,6 @@ func main() {
 	})
 	if err != nil {
 		step("3 open 0.1 contracts", false, map[string]interface{}{"error": errText(err), "price": price, "notional": notional})
-		finish()
 		return
 	}
 	step("3 open 0.1 contracts", result.Contracts == targetContracts, map[string]interface{}{
@@ -756,9 +766,8 @@ func main() {
 	}
 
 	// ===== 7 提示词预览 =====
-	previewPrompt(flat.Equity, flat.Available, flat.UnrealizedPnL, initialBalance, *promptOut)
-
-	finish()
+	previewPrompt(flat.Equity, flat.Available, flat.UnrealizedPnL, initialBalance, promptOutPath)
+	return
 }
 
 // previewPrompt 第 7 步：用不带仓读数渲染提示词，核对账户段
@@ -800,10 +809,61 @@ func allTrue(checks map[string]bool) bool {
 	return true
 }
 
-func finish() {
+// finish 输出结尾标记并返回进程退出码（退出进程只在 main 里做）
+func finish() int {
 	if failures > 0 {
 		emit(map[string]interface{}{"step": "summary", "result": "LIVECHECK_FAIL", "failures": failures})
-		os.Exit(1)
+		return 1
 	}
 	emit(map[string]interface{}{"step": "summary", "result": "LIVECHECK_PASS", "failures": 0})
+	return 0
+}
+
+// cleanup 兜底还原：全平目标合约的仓位，撤掉它上面遗留的委托与条件单（随单止盈止损可能以条件单的
+// 形态留在交易所），最后再读一遍。预检已确认开仓前账户里没有任何持仓与委托，
+// 所以目标合约上此刻的东西都是这次运行留下的。读不到账户时无法确认是否已还原，按失败处理并提示人工核对
+func cleanup(gt *nofxgate.GateTrader, client *gateapi.APIClient, ctx context.Context) bool {
+	position, err := readPosition(client, ctx)
+	if err != nil {
+		time.Sleep(2 * time.Second)
+		position, err = readPosition(client, ctx)
+	}
+	if err != nil {
+		step("cleanup", false, map[string]interface{}{
+			"error":  "cannot read the position of " + target + ": " + errText(err),
+			"action": "请人工核对账户：" + target + " 上是否留有仓位、委托或条件单",
+		})
+		return false
+	}
+	if position.Has {
+		fmt.Println("[cleanup] 目标合约仍有仓位，市价全平")
+		if _, err := gt.CloseLong(target, 0); err != nil {
+			step("cleanup", false, map[string]interface{}{
+				"error": "close failed: " + errText(err), "action": "请人工平掉 " + target + " 的仓位",
+			})
+			return false
+		}
+	}
+	if err := gt.CancelAllOrders(target); err != nil {
+		step("cleanup", false, map[string]interface{}{
+			"error": "cancel orders failed: " + errText(err), "action": "请人工撤销 " + target + " 上的委托与条件单",
+		})
+		return false
+	}
+	time.Sleep(3 * time.Second)
+
+	leftPositions, leftOrders, leftTriggers, resErr := residue(client, ctx)
+	clean := resErr == nil && leftPositions == 0 && leftOrders == 0 && leftTriggers == 0
+	detail := map[string]interface{}{
+		"position_was_open": position.Has, "positions": leftPositions,
+		"open_orders": leftOrders, "open_price_orders": leftTriggers,
+	}
+	if resErr != nil {
+		detail["error"] = errText(resErr)
+	}
+	if !clean {
+		detail["action"] = "请人工核对账户"
+	}
+	step("cleanup", clean, detail)
+	return clean
 }
