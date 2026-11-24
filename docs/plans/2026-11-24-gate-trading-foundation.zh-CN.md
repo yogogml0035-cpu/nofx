@@ -1,6 +1,6 @@
 # Gate 交易基座：统一账户权益、仓位与下单、行情全切 Gate
 
-> 状态：实施中（2026-11-24）。子任务 1 已合入父分支；U1 待确认，不影响子任务 2–5。进度见第 10.5 节。
+> 状态：实施中（2026-11-24）。子任务 1、2 已合入父分支；U1 待确认，不影响子任务 2–5。进度见第 10.5 节。
 > 父分支：`feat/2026_1123_gate-trading-foundation`
 > Trellis 记录：`.trellis/tasks/11-24-gate-trading-foundation/`（2026-11-24 补登；需求与决策以本文件为准，任务记录只做索引与子任务映射）
 
@@ -84,6 +84,10 @@ NOFX 的账户读写、下单保护与行情获取建立在三套与现状不符
 | 条件单改单 | `UpdatePriceTriggeredOrder`（`PUT /futures/{settle}/price_orders/amend/{order_id}`） | 无；撤单函数撤掉该品种全部条件单 |
 | 全仓 / 逐仓 | `UpdateContractPositionLeverage`（杠杆与 `marginMode`：`cross` / `isolated`）；`leverage` 为 0 并给 `cross_leverage_limit` 是全仓；`leverage` 非 0 是逐仓 | `SetLeverage` 传非零杠杆（逐仓）；`SetMarginMode` 是空操作。界面设置的全仓不生效 |
 | 杠杆读回 | `GetLeverage` 在单向持仓模式下不可用（SDK 固定发送空的 `dual_side`，接口拒绝）；持仓条目带 `leverage`、`cross_leverage_limit`、`lever`、`pos_margin_mode`，从未交易过的合约没有条目 | 未读取 |
+| 市价单最大张数 | `market_order_size_max`：市价下单支持的最大张数，默认 0；为 0 时取 `order_size_max`（文档 changelog v4.106.7、v4.106.8） | 未校验；子任务 2 起在张数换算中按两者较小值校验 |
+| 最小步长的依据 | 官方资料没有写明张数必须是 `order_size_min` 的整数倍。《永续合约市场张数精度调整公告》（2026-03-20）把张数精度调整表述为"最小下单张数"由 1 调为 0.1 | 步长取 `order_size_min` 是 D30 的推论，由 W3 真实下单验证 |
+| 请求头的后续 | 公告 48788：默认将改为返回字符串，`X-Gate-Size-Decimal` 随后废弃，生效日期另行公告 | 已按字符串解析，两种情况都兼容 |
+| 条件单的小数张 | `initial.size` 是整数，`initial.amount` 是字符串；两者同时给出时以 `amount` 为准 | 子任务 3 的保护单适配须用 `amount` 提交小数张 |
 
 ### 3.5 官方 SDK
 
@@ -95,6 +99,13 @@ NOFX 的账户读写、下单保护与行情获取建立在三套与现状不符
 | 杠杆与持仓模式 | `UpdateContractPositionLeverage`（杠杆 + `marginMode`）、`SetPositionMode`（`single` / `dual` / `dual_plus`）、`UpdatePositionLeverage`、`UpdatePositionCrossMode` |
 | 数量字段 | SDK 默认带 `X-Gate-Size-Decimal: 1`，张数类字段（委托、持仓、成交的 `size`、`left`、`close_size`，合约的 `order_size_min`、`order_size_max`）都是字符串 |
 | v6.104.3 与 v7.1.8 | 两版合约接口函数完全相同（各 50 个），都没有上面的下单字段与改单接口 |
+
+### 3.7 文档原文留档
+
+合约张数相关的原文摘录留档在子任务 2 的研究文件
+`.trellis/tasks/archive/2026-11/11-24-contract-math/research/gate-contract-size-docs.md`，按主题分节并标注来源：
+API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK 文档（v7.2.184）、两篇 Gate 公告。
+文档站在本机只能经网页阅读器抓取（直连被重置），SDK 文档可从官方仓库直接取。
 
 ### 3.6 回撤监控
 
@@ -194,6 +205,14 @@ NOFX 的账户读写、下单保护与行情获取建立在三套与现状不符
 | F25 | 已完结的委托在完结 10 分钟后不能按 ID 查询 | 下单接口文档说明 | 开仓后的成交核对以下单返回值为准（`action_mode` 默认 `FULL`），不依赖 `GetOrderStatus` |
 | F26 | 卖单部分成交时已成交数量多算一个 `left` | 原式对 `size − left` 取绝对值，而卖单的 `size` 是负数 | 已在子任务 1 修正：先对 `size` 取绝对值再减 `left` |
 | F27 | W1 的对象已不存在 | 用户的手动持仓已于 2026-11-23 平掉 | 保护单的读回、改单、撤销改在 W2 的测试仓位上验证 |
+| F28 | 市价单另有最大张数 | `market_order_size_max` 为 0 时取 `order_size_max`；实测 SOL 为 200000（单笔上限 300000）、ETH 为 8000000（10000000） | 只按 `order_size_max` 校验会放过交易所拒绝的市价单；子任务 2 起按两者较小值校验 |
+| F29 | "步长等于 `order_size_min`"没有官方明文 | 公告只把下单张数精度表述为最小下单张数；没有"整数倍"的说法，也没有不在步长上时交易所如何处理的说明 | 代码从每个合约读步长，不写死 0.1；由 W3 实测确认 |
+| F30 | 交易所层面没有最小下单金额的规定 | 文档站、SDK 文档与公告均未见 | 最小下单金额（默认 10 USDT）只是 NOFX 的策略配置 |
+| F31 | 分批比例向下取整时，"剩余不足一个最小步长"只出现在比例 100% | 平仓量不超过持仓 × 比例；比例小于 100 时剩余至少一个最小步长 | 子任务 10 的"拒绝分批"针对的是比例为 100% 的分批动作 |
+| F32 | 条件单的小数张数量走 `amount` | `initial.size` 是整数，`initial.amount` 是字符串，同时给出时以 `amount` 为准 | 子任务 3 的保护单适配须用 `amount` 提交小数张 |
+| F33 | 以 `float64` 传入的名义价值恰为整数个步长、且带着向下的浮点噪声时会少一格 | `10000 × 1.13 / 100` 得 `112.99999999999999`；换算按入参的最短十进制表示取值 | 方向保守，不会放大订单。子任务 9 计算名义价值时用不出噪声的算法（本金 × 百分比的十分位整数 ÷ 1000），或改传十进制字符串 |
+| F34 | 同一合约接口有两套缓存与两种 `quanto_multiplier` 解析并存 | 子任务 2 新增 `GetContractSpec`（缓存 10 分钟、精确解析）；旧的 `getContract` 永久缓存、按浮点解析 | 子任务 4 接入时统一到 `GetContractSpec`，删除旧的 `getContract` 与各处按浮点读取 `quanto_multiplier` 的代码 |
+| F35 | 平仓换算与币数量换算不校验市价单最大张数；合约元数据不含合约状态 | `SizeForCloseRatio`、`ContractsFromQuantity` 只按步长换算；`ContractSpec` 不读 `in_delisting`、`status` | 子任务 4（开仓前）与子任务 10（全平仓）接入时按需补上 |
 
 ### 6.1 百分比、最小下单金额与本金的制约
 
@@ -354,7 +373,7 @@ NOFX 的账户读写、下单保护与行情获取建立在三套与现状不符
 ### 10.5 实施进度
 
 - [x] 1 `gate-sdk-v7`：`32f63003`，全量 `go test` 通过，只读真实读数 19 项全部成功
-- [ ] 2 `contract-math`
+- [x] 2 `contract-math`：`590ba577`，单测矩阵通过，7 个合约元数据真实读数全部一致（`failed=0 mismatched=0`），`make test` 与 `make build` 通过；独立检查通过
 - [ ] 3 `protective-order-adapter`
 - [ ] 4 `open-position-safety`（W2 开仓与全平、W3）
 - [ ] 5 `unified-trading-params`（W4）

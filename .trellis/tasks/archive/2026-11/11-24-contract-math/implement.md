@@ -33,7 +33,8 @@
        前端 11 个测试文件 142 个用例通过；`make build` 通过。宿主机没有 Go，make 目标里的 go 命令经一个
        转发脚本在 Docker 里执行；子 worktree 没有前端依赖，软链了主仓已安装的 `web/node_modules`
        （两个 worktree 的 `package-lock.json` 一致）
-8. [ ] 合入父分支，归档，推送父分支留档，删除子分支与子 worktree
+8. [x] 已快进合入父分支（父分支 `590ba577` 包含全部 5 个子提交），并在父 worktree 归档（`c5edd1ae`）。
+       父分支推送与子分支、子 worktree 的清理在归档后执行，记在父任务的会话日志里
 
 ## 验证命令
 

@@ -10,7 +10,7 @@
 | 步 | 子任务 slug | Trellis 目录 | 开工前置 | 完成门禁（全过后合父） |
 |---|---|---|---|---|
 | 1 | `gate-sdk-v7` | 无（Trellis 记录建立前已交付） | — | 全量 `go test`；只读真实读数 19 项 |
-| 2 | `contract-math` | `11-24-contract-math` | 1 合父 | 单测矩阵；7 个合约元数据真实读数 |
+| 2 | `contract-math` | `archive/2026-11/11-24-contract-math`（已归档） | 1 合父 | 单测矩阵；7 个合约元数据真实读数 |
 | 3 | `protective-order-adapter` | 开工时创建 | 1 合父 | 单测构造矩阵；真实挂、查、改、撤 |
 | 4 | `open-position-safety` | 开工时创建 | 2、3 合父 | 单测；真实最小开仓全流程（W2 开仓与全平、W3） |
 | 5 | `unified-trading-params` | 开工时创建 | 1、4 合父 | 单测；闲置合约上真实设置并读回（W4） |
