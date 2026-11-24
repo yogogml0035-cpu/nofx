@@ -41,12 +41,12 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 				"currency":       "USDT",
 			}
 
-		// Mock GetPositions - /api/v4/futures/usdt/positions
+			// GetPositions - /api/v4/futures/usdt/positions（SDK 默认带 X-Gate-Size-Decimal: 1，张数为字符串）
 		case strings.Contains(path, "/futures/usdt/positions"):
 			respBody = []map[string]interface{}{
 				{
 					"contract":       "BTC_USDT",
-					"size":           500,
+					"size":           "500",
 					"entry_price":    "50000.00",
 					"mark_price":     "50500.00",
 					"unrealised_pnl": "250.00",
@@ -100,7 +100,7 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 			respBody = map[string]interface{}{
 				"id":         123456,
 				"contract":   "BTC_USDT",
-				"size":       100,
+				"size":       "100",
 				"status":     "finished",
 				"finish_as":  "filled",
 				"fill_price": "50000.00",
@@ -115,7 +115,7 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 			respBody = map[string]interface{}{
 				"id":          123456,
 				"contract":    "BTC_USDT",
-				"size":        100,
+				"size":        "100",
 				"status":      "finished",
 				"finish_as":   "filled",
 				"fill_price":  "50000.00",
@@ -128,7 +128,7 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 		// Mock UpdatePositionLeverage
 		case strings.Contains(path, "/futures/usdt/positions/") && strings.Contains(path, "/leverage"):
 			respBody = map[string]interface{}{
-				"leverage": 10,
+				"leverage": "10",
 			}
 
 		// Mock ListPriceTriggeredOrders

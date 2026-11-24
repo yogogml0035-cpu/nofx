@@ -2,12 +2,13 @@ package gate
 
 import (
 	"fmt"
+	"math"
 	"nofx/trader/types"
 	"strconv"
 	"time"
 
 	"github.com/antihax/optional"
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 )
 
 // GetBalance retrieves account balance
@@ -74,7 +75,11 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	var result []map[string]interface{}
 	for _, pos := range positions {
-		if pos.Size == 0 {
+		size, err := parseRequiredSize("position size", pos.Size)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
+		}
+		if size == 0 {
 			continue // Skip empty positions
 		}
 
@@ -86,10 +91,7 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		// Gate returns position size in contracts, need to convert to base currency
 		// Each contract = quanto_multiplier base currency
-		contractSize := float64(pos.Size)
-		if pos.Size < 0 {
-			contractSize = float64(-pos.Size)
-		}
+		contractSize := math.Abs(size)
 
 		// Get quanto_multiplier from contract info to convert contracts to actual quantity
 		quantoMultiplier := 1.0
@@ -106,7 +108,7 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		// Determine side based on position size
 		side := "long"
-		if pos.Size < 0 {
+		if size < 0 {
 			side = "short"
 		}
 

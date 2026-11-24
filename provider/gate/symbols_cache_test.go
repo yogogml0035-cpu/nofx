@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 )
 
 // funding_rate 映射：Gate 原始小数语义（不 ×100）
 func TestSymbolInfoFundingRate(t *testing.T) {
-	contract := gateapi.Contract{Name: "BTC_USDT", LeverageMax: "100", OrderSizeMin: 1}
+	contract := gateapi.Contract{Name: "BTC_USDT", LeverageMax: "100", OrderSizeMin: "1"}
 	ticker := gateapi.FuturesTicker{Contract: "BTC_USDT", Last: "65000", FundingRate: "0.000057"}
 
 	info, ok := SymbolInfoFromContract(contract, ticker, true)

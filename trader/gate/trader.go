@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"nofx/trader/types"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 )
 
 // GateTrader implements types.Trader interface for Gate.io Futures
@@ -29,6 +30,23 @@ type GateTrader struct {
 	contractsCache      map[string]*gateapi.Contract
 	contractsCacheMutex sync.RWMutex
 	cacheDuration       time.Duration
+}
+
+// parseRequiredSize 解析 Gate 必然返回的数量字段（SDK 以字符串给出，小数张合约带小数部分）
+func parseRequiredSize(field, raw string) (float64, error) {
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q: %w", field, raw, err)
+	}
+	return v, nil
+}
+
+// parseOptionalSize 解析 Gate 在数值为 0 时不返回的数量字段，缺省按 0 计
+func parseOptionalSize(field, raw string) (float64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	return parseRequiredSize(field, raw)
 }
 
 // NewGateTrader creates a new Gate trader instance

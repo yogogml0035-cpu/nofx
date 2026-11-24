@@ -2,6 +2,7 @@ package gate
 
 import (
 	"fmt"
+	"math"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
@@ -12,7 +13,7 @@ import (
 	"time"
 
 	"github.com/antihax/optional"
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 )
 
 // GateTrade represents a trade record from Gate fill history
@@ -78,11 +79,15 @@ func (t *GateTrader) GetTrades(startTime time.Time, limit int) ([]GateTrade, err
 		}
 
 		// Convert contract size to actual quantity
-		absSize := trade.Size
-		if absSize < 0 {
-			absSize = -absSize
+		size, err := parseRequiredSize("trade size", trade.Size)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse trade %d: %w", trade.Id, err)
 		}
-		fillQty := float64(absSize) * quantoMultiplier
+		closeSize, err := parseOptionalSize("trade close_size", trade.CloseSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse trade %d: %w", trade.Id, err)
+		}
+		fillQty := math.Abs(size) * quantoMultiplier
 
 		// Determine side and order action based on size and close_size
 		// Gate close_size field determines if trade is opening or closing:
@@ -93,18 +98,18 @@ func (t *GateTrader) GetTrades(startTime time.Time, limit int) ([]GateTrade, err
 		side := "BUY"
 		orderAction := "open_long"
 
-		if trade.Size > 0 {
+		if size > 0 {
 			side = "BUY"
-			if trade.CloseSize > 0 {
+			if closeSize > 0 {
 				// Closing short position
 				orderAction = "close_short"
 			} else {
 				// Opening long position
 				orderAction = "open_long"
 			}
-		} else if trade.Size < 0 {
+		} else if size < 0 {
 			side = "SELL"
-			if trade.CloseSize < 0 {
+			if closeSize < 0 {
 				// Closing long position
 				orderAction = "close_long"
 			} else {

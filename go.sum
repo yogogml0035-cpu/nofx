@@ -49,8 +49,8 @@ github.com/ferranbt/fastssz v0.1.4 h1:OCDB+dYDEQDvAgtAGnTSidK1Pe2tW3nFV40XyMkTeD
 github.com/ferranbt/fastssz v0.1.4/go.mod h1:Ea3+oeoRGGLGm5shYAeDgu6PGUlcvQhE2fILyD9+tGg=
 github.com/gabriel-vasile/mimetype v1.4.8 h1:FfZ3gj38NjllZIeJAmMhr+qKL8Wu+nOoI3GqacKw1NM=
 github.com/gabriel-vasile/mimetype v1.4.8/go.mod h1:ByKUIKGjh1ODkGM1asKUbQZOLGrPjydw3hYPU2YU9t8=
-github.com/gateio/gateapi-go/v6 v6.104.3 h1:JQ2+s1pG4bL+JeLQyGy9c7YLr7hxRI8g7vkAuQYl75k=
-github.com/gateio/gateapi-go/v6 v6.104.3/go.mod h1:racCcjrdyOUbRDO5eCUGUiyDPrF/ZmwBj/bupPZTVLY=
+github.com/gate/gateapi-go/v7 v7.2.184 h1:9VBLDWcxw4ukrvcTwZi3kqKmwUOLzmij/cj4Dr3xYGg=
+github.com/gate/gateapi-go/v7 v7.2.184/go.mod h1:FMb2Gao96D+abqzMDpwTkpGSxpeBdfEDaRuDMIcud8g=
 github.com/gin-contrib/sse v1.1.0 h1:n0w2GMuUpWDVp7qSpvze6fAu9iRxJY4Hmj6AmBOU05w=
 github.com/gin-contrib/sse v1.1.0/go.mod h1:hxRZ5gVpWMT7Z0B0gSNYqqsSCNIJMjzvm6fqCz9vjwM=
 github.com/gin-gonic/gin v1.11.0 h1:OW/6PLjyusp2PPXtyxKHU0RbX6I/l28FTdDlae5ueWk=

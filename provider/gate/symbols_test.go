@@ -3,16 +3,16 @@ package gate
 import (
 	"testing"
 
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 )
 
 // 验证 Gate 合约+ticker 到 SymbolInfo 的映射与 in_delisting 过滤
 func TestSymbolInfoFromContract(t *testing.T) {
 	contract := gateapi.Contract{
-		Name:        "BTC_USDT",
-		LeverageMax: "100",
-		OrderSizeMin: 1,
-		InDelisting: false,
+		Name:         "BTC_USDT",
+		LeverageMax:  "100",
+		OrderSizeMin: "1",
+		InDelisting:  false,
 	}
 	ticker := gateapi.FuturesTicker{
 		Contract:         "BTC_USDT",
@@ -63,7 +63,7 @@ func TestSymbolInfoFromContractInDelisting(t *testing.T) {
 }
 
 func TestSymbolInfoFromContractMarkPriceFallback(t *testing.T) {
-	contract := gateapi.Contract{Name: "ETH_USDT", LeverageMax: "50", OrderSizeMin: 1}
+	contract := gateapi.Contract{Name: "ETH_USDT", LeverageMax: "50", OrderSizeMin: "1"}
 	ticker := gateapi.FuturesTicker{MarkPrice: "3000.25"}
 
 	info, ok := SymbolInfoFromContract(contract, ticker, true)
@@ -77,7 +77,7 @@ func TestSymbolInfoFromContractMarkPriceFallback(t *testing.T) {
 
 func TestBaseSymbol(t *testing.T) {
 	cases := map[string]string{
-		"BTC_USDT": "BTC",
+		"BTC_USDT":      "BTC",
 		"1000PEPE_USDT": "1000PEPE",
 		"NOSEP":         "NOSEP",
 	}

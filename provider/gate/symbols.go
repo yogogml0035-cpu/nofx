@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -138,7 +138,7 @@ func SymbolInfoFromContract(contract gateapi.Contract, ticker gateapi.FuturesTic
 	if maxLev, err := strconv.ParseFloat(contract.LeverageMax, 64); err == nil {
 		info.MaxLeverage = int(maxLev)
 	}
-	info.SzDecimals = int(contract.OrderSizeMin)
+	info.SzDecimals = int(parseFloat(contract.OrderSizeMin))
 
 	if hasTicker {
 		info.MarkPrice = parseFirstFloat(ticker.Last, ticker.MarkPrice)

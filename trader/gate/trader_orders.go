@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/antihax/optional"
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 )
 
 // SetLeverage sets the leverage for a symbol
@@ -69,8 +69,8 @@ func (t *GateTrader) OpenLong(symbol string, quantity float64, leverage int) (ma
 
 	order := gateapi.FuturesOrder{
 		Contract: symbol,
-		Size:     size, // Positive for long
-		Price:    "0",  // Market order
+		Size:     strconv.FormatInt(size, 10), // Positive for long
+		Price:    "0",                         // Market order
 		Tif:      "ioc",
 		Text:     "t-nofx",
 	}
@@ -128,8 +128,8 @@ func (t *GateTrader) OpenShort(symbol string, quantity float64, leverage int) (m
 
 	order := gateapi.FuturesOrder{
 		Contract: symbol,
-		Size:     -size, // Negative for short
-		Price:    "0",   // Market order
+		Size:     strconv.FormatInt(-size, 10), // Negative for short
+		Price:    "0",                          // Market order
 		Tif:      "ioc",
 		Text:     "t-nofx",
 	}
@@ -195,7 +195,7 @@ func (t *GateTrader) CloseLong(symbol string, quantity float64) (map[string]inte
 	// Close long = sell (use ReduceOnly, not Close which requires Size=0)
 	order := gateapi.FuturesOrder{
 		Contract:   symbol,
-		Size:       -size, // Negative to close long
+		Size:       strconv.FormatInt(-size, 10), // Negative to close long
 		Price:      "0",
 		Tif:        "ioc",
 		ReduceOnly: true,
@@ -268,7 +268,7 @@ func (t *GateTrader) CloseShort(symbol string, quantity float64) (map[string]int
 	// Close short = buy (use ReduceOnly, not Close which requires Size=0)
 	order := gateapi.FuturesOrder{
 		Contract:   symbol,
-		Size:       size, // Positive to close short
+		Size:       strconv.FormatInt(size, 10), // Positive to close short
 		Price:      "0",
 		Tif:        "ioc",
 		ReduceOnly: true,
@@ -449,7 +449,7 @@ func (t *GateTrader) cancelTriggerOrders(symbol string, orderType string) error 
 	for _, order := range orders {
 		// Determine if it's stop loss or take profit based on trigger rule and position
 		// For simplicity, cancel all matching symbol orders
-		_, _, err := t.client.FuturesApi.CancelPriceTriggeredOrder(t.ctx, "usdt", fmt.Sprintf("%d", order.Id))
+		_, _, err := t.client.FuturesApi.CancelPriceTriggeredOrder(t.ctx, "usdt", order.Id)
 		if err != nil {
 			logger.Warnf("  [Gate] Failed to cancel trigger order %d: %v", order.Id, err)
 		}
@@ -463,7 +463,10 @@ func (t *GateTrader) CancelAllOrders(symbol string) error {
 	symbol = t.convertSymbol(symbol)
 
 	// Cancel regular orders
-	_, _, err := t.client.FuturesApi.CancelFuturesOrders(t.ctx, "usdt", symbol, nil)
+	cancelOpts := &gateapi.CancelFuturesOrdersOpts{
+		Contract: optional.NewString(symbol),
+	}
+	_, _, err := t.client.FuturesApi.CancelFuturesOrders(t.ctx, "usdt", cancelOpts)
 	if err != nil {
 		// Ignore if no orders to cancel
 		if !strings.Contains(err.Error(), "ORDER_NOT_FOUND") {
@@ -511,6 +514,15 @@ func (t *GateTrader) GetOrderStatus(symbol string, orderID string) (map[string]i
 		return nil, fmt.Errorf("failed to get order status: %w", err)
 	}
 
+	orderSize, err := parseRequiredSize("order size", order.Size)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse order %s: %w", orderID, err)
+	}
+	orderLeft, err := parseOptionalSize("order left", order.Left)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse order %s: %w", orderID, err)
+	}
+
 	fillPrice, _ := strconv.ParseFloat(order.FillPrice, 64)
 	tkFee, _ := strconv.ParseFloat(order.Tkfr, 64)
 	mkFee, _ := strconv.ParseFloat(order.Mkfr, 64)
@@ -542,12 +554,12 @@ func (t *GateTrader) GetOrderStatus(symbol string, orderID string) (map[string]i
 	}
 
 	side := "BUY"
-	if order.Size < 0 {
+	if orderSize < 0 {
 		side = "SELL"
 	}
 
-	// Convert contract count to actual token quantity
-	executedQty := math.Abs(float64(order.Size-order.Left)) * quantoMultiplier
+	// 成交张数 = |size| − left（卖单的 size 为负数），乘每张的币数量得到实际成交量
+	executedQty := (math.Abs(orderSize) - orderLeft) * quantoMultiplier
 
 	return map[string]interface{}{
 		"orderId":     orderID,
@@ -590,13 +602,18 @@ func (t *GateTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 	for _, order := range orders {
 		price, _ := strconv.ParseFloat(order.Price, 64)
 
+		orderSize, err := parseRequiredSize("order size", order.Size)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse order %d: %w", order.Id, err)
+		}
+
 		side := "BUY"
-		if order.Size < 0 {
+		if orderSize < 0 {
 			side = "SELL"
 		}
 
 		// Convert contract count to actual token quantity
-		quantity := math.Abs(float64(order.Size)) * quantoMultiplier
+		quantity := math.Abs(orderSize) * quantoMultiplier
 
 		result = append(result, types.OpenOrder{
 			OrderID:  fmt.Sprintf("%d", order.Id),
