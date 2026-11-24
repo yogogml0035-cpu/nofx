@@ -30,6 +30,7 @@ type GateTrader struct {
 	contractsCache      map[string]*gateapi.Contract
 	contractsCacheMutex sync.RWMutex
 	cacheDuration       time.Duration
+	contractSpecs       contractSpecCache
 }
 
 // parseRequiredSize 解析 Gate 必然返回的数量字段（SDK 以字符串给出，小数张合约带小数部分）
