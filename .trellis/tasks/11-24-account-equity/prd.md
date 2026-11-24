@@ -75,8 +75,11 @@
 - [x] 界面：编辑表单显示并可修改初始资金，保存后 `GET /api/traders/:id/config` 返回新值；非正值时保存按钮不可用；
       没改过时不发送这个字段；创建表单的提示为新口径；三种语言文案齐全
       ——`TraderConfigModal.test.tsx`（12 个用例）与 `traderUpdateRequest.test.ts`（4 个用例）；
-      在隔离容器栈里实际操作浏览器核对（`probe/ui/README.md` 与截图）
-- [ ] 门禁：`git diff --check`、`make test`、`make build` 全部通过
+      在隔离容器栈里实际操作浏览器核对（`probe/ui/README.md` 与 9 张截图）：没改过不发送、换绑重置、换绑并显式给值、
+      非正值与科学计数法被拦、可访问性属性、中英印尼三种语言的提示与告警
+- [x] 门禁：`git diff --check`、`make test`、`make build` 全部通过
+      ——在最终代码候选 `20a1c61c` 上：`git diff --check` 干净；`make test` 退出码 0（Go 22 个包通过、0 失败；前端 158 个用例）；
+      `make build` 退出码 0
 - [x] 真实读数：不带仓与带仓各一组，经交付的代码读取，本金、未实现盈亏、可用于合约的额度、权益与原始接口返回值互相印证；
       带仓读数结束后无持仓、无挂单、无条件单，仓位设置与开仓前一致。证据留档 `probe/`
       ——入库的一轮 `LIVECHECK_PASS`（在提交 `ed4aed64` 的干净检出上运行，17 条事件：10 步通过 + 6 条观察记录 + 结尾标记），
