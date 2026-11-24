@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/11-24-gate-trading-foundation/prd.md", "reason": "父任务需求映射与跨子任务约束（第 5 条杠杆与保证金模式、安全性不变量）"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "需求与决策以此为准：2 术语、3.1 账户、3.4 下单与保护（全仓/逐仓与杠杆读回）、5 口径、8.1 删除清单、10.2 子任务 5 行、10.3 W4"}
+{"file": ".trellis/tasks/11-24-gate-trading-foundation/design.md", "reason": "跨子任务设计约定：适配层只做换算与校验、解析失败即报错"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量规范：fail-closed 解析、十进制字段、适配层测试约定"}
+{"file": ".trellis/tasks/11-24-unified-trading-params/research/gate-leverage-margin-docs.md", "reason": "杠杆与保证金模式接口的文档原文留档：set_leverage、旧 leverage 接口、Position 杠杆字段（lever 优先的依据）、get_leverage、label 表"}
