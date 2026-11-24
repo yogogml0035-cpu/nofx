@@ -19,7 +19,8 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "11-24-contract-math"
+    "11-24-contract-math",
+    "11-24-protective-order-adapter"
   ],
   "parent": null,
   "relatedFiles": [],
