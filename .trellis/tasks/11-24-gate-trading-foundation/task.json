@@ -18,7 +18,9 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "11-24-contract-math"
+  ],
   "parent": null,
   "relatedFiles": [],
   "notes": "",
