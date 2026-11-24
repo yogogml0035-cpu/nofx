@@ -653,10 +653,10 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		SafeBadRequest(c, "initial_balance must be greater than 0")
 		return
 	}
-	// An initial balance in the request only counts as given when it is a new value. The edit form
-	// sends the stored value back when the user did not touch it, and the initial balance recorded
-	// for the previous exchange must not be carried over to the new one: it is reset and rebuilt
-	// from the new account's principal on load.
+	// An initial balance in the request only counts as given when it is a new value. A caller may
+	// send the stored value back unchanged, and the initial balance recorded for the previous
+	// exchange must not be carried over to the new one: it is reset and rebuilt from the new
+	// account's principal on load.
 	initialBalanceGiven := req.InitialBalance > 0 && req.InitialBalance != existingTrader.InitialBalance
 	resetInitialBalance := exchangeChanged && !initialBalanceGiven
 
@@ -709,6 +709,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	}
 
 	if resetInitialBalance {
+		// TraderStore.Update leaves initial_balance alone when it is not positive, so the reset needs this write
 		logger.Infof("🔄 Exchange changed for trader %s, resetting stale initial_balance to 0", traderID)
 		if err := s.store.Trader().UpdateInitialBalance(userID, traderID, 0); err != nil {
 			SafeInternalError(c, "Failed to reset trader initial balance", err)
