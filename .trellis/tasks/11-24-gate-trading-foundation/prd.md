@@ -54,8 +54,8 @@
 | 1 | `gate-sdk-v7` | 无（Trellis 记录建立前已交付，`32f63003`） | 无 |
 | 2 | `contract-math` | `archive/2026-11/11-24-contract-math`（已归档） | 1 |
 | 3 | `protective-order-adapter` | `archive/2026-11/11-24-protective-order-adapter`（已归档） | 1 |
-| 4 | `open-position-safety` | 开工时创建 | 2、3 |
-| 5 | `unified-trading-params` | 开工时创建 | 1、4 |
+| 4 | `open-position-safety` | `archive/2026-11/11-24-open-position-safety`（已归档） | 2、3 |
+| 5 | `unified-trading-params` | `archive/2026-11/11-24-unified-trading-params`（已归档） | 1、4 |
 | 6 | `drawdown-monitor` | 开工时创建（等 U1） | 2、5 |
 | 7 | `account-equity` | 开工时创建 | 1 |
 | 8 | `strategy-config` | 开工时创建 | 无 |
