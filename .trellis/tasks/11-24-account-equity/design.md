@@ -18,10 +18,12 @@
   删除各自按键名取数与权益公式，改用读取函数
 - `api/handler_trader.go`：创建时取本金；更新时拒绝负的初始资金、换绑交易所时重置旧的初始余额；
   加载失败的原因按错误类型归类
+- `api/server.go`：路由说明同步——创建请求没有初始余额字段；更新接口的初始余额规则（含换绑时重置）与必填字段
 - `api/handler_trader_status.go`：同步余额取本金；旧值为 0 时的除零防护
 - `api/exchange_account_state.go`：账户状态用解析函数；删除 `extractExchangeTotalEquity`、`extractFirstNumeric`
-- `agent/tools.go`：创建 trader 时取本金（取数函数去掉恒为真的 `found`）；换绑交易所时重置旧的初始余额；
+- `agent/tools.go`：创建 trader 时取本金（取数函数去掉恒为真的 `found`）；换绑交易所时重置旧的初始余额，并在工具结果里报告；
   删除 `extractTraderInitialBalance`
+- `agent/skill_execution_handlers.go`：换绑成功后在回复里告诉用户初始余额已重置、会按新账户的本金重建、在哪里修改
 - `agent/skills/trader_management.json`、`agent/skill_management_handlers.go`、`agent/skill_domain_context.go`、`agent/skill_registry.go`：
   运行时提示词里关于初始余额的说法改为新口径（原先写的是「账户净值、不能修改」）
 - `web/src/components/trader/TraderConfigModal.tsx`、`traderUpdateRequest.ts`（新增）、`AITradersPage.tsx`，
@@ -229,6 +231,7 @@ func resolveInitialBalance(t Trader, st *store.Store, userID string, config *Aut
   同步余额取本金与旧值为 0 的防护、读不到或不为正时同步失败、账户状态、加载失败原因的归类
   （原因由 `types.ReadInitialBalance` 产生，按 manager 与 `resolveInitialBalance` 的方式包上前缀后仍归类正确；其他错误仍按文本归类）
 - `agent/trader_initial_balance_test.go`：创建 trader 的初始资金取本金、失败闭合（按类型断言）、换绑交易所时重置
+  （工具结果带重置标记）、技能层回复里的重置说明（中、英；不换绑的更新不附带）
 - 前端：`TraderConfigModal.test.tsx`（12 个用例）——编辑模式显示当前值、改过才随保存发出（没改、重输同一个数都不发）、
   非正值禁用保存并提示、`aria-invalid` 与 `aria-describedby`、存量为 0 的 trader 打开即被拦住、
   创建模式不发送该字段；中、英、印尼三种语言的提示与告警文案。
@@ -271,7 +274,7 @@ func resolveInitialBalance(t Trader, st *store.Store, userID string, config *Aut
 - 权益快照（`saveEquitySnapshot`）里的 `Balance = 权益 − 未实现盈亏` 是既有代码：对 Gate 等于本金（差一个浮点舍入），
   本子任务没有动。父任务收口核对「本金只有一处定义」时会碰到它
 - 设置页显示的余额：Binance、Aster、Gate 从钱包余额变成了权益（字段名本来就是总权益，其他交易所显示的也是权益）
-- 助手的 `manage_trader` 更新动作不能修改初始余额（沿用原值，换绑交易所时重置）；界面可以
+- 助手的 `manage_trader` 更新动作不能修改初始余额（沿用原值，换绑交易所时重置，换绑后回复里会说明）；界面可以
 - 账户仍是跨币种保证金模式；单币种模式下的读数待账户切换后复验（本金取自钱包总额，与保证金模式无关）
 - 钱包总额里的 `total.unrealised_pnl` 覆盖全部业务线（合约、期权、杠杆等），合约账户的 `unrealised_pnl` 只覆盖 USDT 永续；
   只做 USDT 永续时两者相等，账户若持有其他业务线的仓位，权益会包含那些仓位的浮动盈亏
