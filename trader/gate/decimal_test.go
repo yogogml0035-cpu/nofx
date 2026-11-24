@@ -119,4 +119,13 @@ func TestFloorAndCeilDiv(t *testing.T) {
 	assert.Equal(t, "20", ceilDiv(mustRat(t, "10"), mustRat(t, "0.5")).String())
 	assert.Equal(t, "1", ceilDiv(mustRat(t, "0.99"), mustRat(t, "1")).String())
 	assert.Equal(t, "0", ceilDiv(mustRat(t, "0"), mustRat(t, "1")).String())
+
+	// 负数也要名副其实：big.Int.Quo 向零截断，不能直接当向下或向上取整用
+	assert.Equal(t, "-4", floorDiv(mustRat(t, "-3.5"), mustRat(t, "1")).String())
+	assert.Equal(t, "-3", ceilDiv(mustRat(t, "-3.5"), mustRat(t, "1")).String())
+	assert.Equal(t, "-4", floorDiv(mustRat(t, "-4"), mustRat(t, "1")).String())
+	assert.Equal(t, "-4", ceilDiv(mustRat(t, "-4"), mustRat(t, "1")).String())
+	assert.Equal(t, "-3", floorDiv(mustRat(t, "-10"), mustRat(t, "4")).String())
+	assert.Equal(t, "-2", ceilDiv(mustRat(t, "-10"), mustRat(t, "4")).String())
+	assert.Equal(t, "-2", ceilDiv(mustRat(t, "-8"), mustRat(t, "4")).String())
 }

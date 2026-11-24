@@ -14,8 +14,12 @@ import (
 // 常驻的 trader 不能一直用启动时读到的步长。
 const contractSpecCacheTTL = 10 * time.Minute
 
-// snapTolerance 币数量以 float64 传入时允许的浮点噪声（张），远小于任何最小步长
-var snapTolerance = new(big.Rat).SetFrac64(1, 1_000_000_000)
+// 币数量以 float64 传入时允许的浮点噪声（张）：绝对部分与相对部分（按张数）取较大者。
+// 浮点噪声约为张数 × 10⁻¹⁶，只给绝对容差的话超大持仓会落不回步长上；两个值都远小于任何最小步长
+var (
+	snapToleranceAbs = big.NewRat(1, 1_000_000_000)
+	snapToleranceRel = big.NewRat(1, 1_000_000_000_000)
+)
 
 var hundred = big.NewRat(100, 1)
 
@@ -24,11 +28,13 @@ var ErrCloseBelowStep = errors.New("close size below one size step")
 
 // ContractSpec 下单数量换算所需的合约元数据。
 // 取自 GET /futures/{settle}/contracts/{contract}：读取时带 X-Gate-Size-Decimal: 1，
-// order_size_min 才保留小数部分。构造后不可变，方法可并发调用。
+// order_size_min 才保留小数部分。导出的字符串字段供展示与日志，构造后不要修改；方法可并发调用。
 type ContractSpec struct {
-	Name               string // 合约名，如 ETH_USDT
-	QuantoMultiplier   string // 一张合约对应的标的币数量
-	SizeStep           string // 最小下单张数，也是张数的最小步长
+	Name             string // 合约名，如 ETH_USDT
+	QuantoMultiplier string // 一张合约对应的标的币数量
+	// 最小下单张数，取作张数的最小步长。这是设计推论：官方资料没有写明张数必须是它的整数倍，
+	// 见任务 design.md 的“文档依据”
+	SizeStep           string
 	SizeMax            string // 单笔订单的最大张数（order_size_max）
 	MarketOrderSizeMax string // 市价单的最大张数（market_order_size_max）；交易所未设置为 "0"，此时按 SizeMax 计
 
@@ -84,6 +90,9 @@ func NewContractSpec(name, quantoMultiplier, orderSizeMin, orderSizeMax, marketO
 	}
 	if marketMax.Sign() < 0 {
 		return ContractSpec{}, fmt.Errorf("contract %s: market_order_size_max %q is negative", name, marketOrderSizeMax)
+	}
+	if marketMax.Sign() == 0 {
+		marketOrderSizeMax = "0" // "0.00" 之类统一成 "0"
 	}
 	if marketMax.Sign() > 0 && marketMax.Cmp(step) < 0 {
 		return ContractSpec{}, fmt.Errorf(
@@ -142,7 +151,7 @@ func (s ContractSpec) contracts(steps *big.Int) (string, error) {
 type SizeQuote struct {
 	Contracts     string     // 向下取整到最小步长后的张数；只在 Orderable 为真时非空
 	Notional      float64    // Contracts 按参考价折算的名义价值（USDT）
-	MinOrderValue float64    // 当前价格下可下单的最小名义价值（USDT）
+	MinOrderValue float64    // 当前价格下可下单的最小名义价值（USDT）；最少步数超过市价单最大张数时按它下单会被判为超过最大张数，能否下单以 Orderable 为准
 	Skip          SkipReason // 不能下单的原因
 }
 
@@ -161,6 +170,7 @@ const (
 	SizeSkipAboveMax                           // 超过市价单的单笔最大张数
 )
 
+// String 给出给用户与模型看的说明，使用中文；包内的错误信息沿用惯例用英文
 func (r SkipReason) String() string {
 	switch r {
 	case SizeOK:
@@ -316,7 +326,11 @@ func (s ContractSpec) ContractsFromQuantity(quantity float64) (string, error) {
 		return "", fmt.Errorf("quantity %v is below one size step (%s contracts)", quantity, s.SizeStep)
 	}
 	snapped := new(big.Rat).Mul(s.step, new(big.Rat).SetInt(nearest))
-	if new(big.Rat).Abs(new(big.Rat).Sub(contracts, snapped)).Cmp(snapTolerance) > 0 {
+	tolerance := new(big.Rat).Mul(contracts, snapToleranceRel)
+	if tolerance.Cmp(snapToleranceAbs) < 0 {
+		tolerance = snapToleranceAbs
+	}
+	if new(big.Rat).Abs(new(big.Rat).Sub(contracts, snapped)).Cmp(tolerance) > 0 {
 		return "", fmt.Errorf(
 			"quantity %v is not a multiple of size step %s (%s contracts)",
 			quantity, s.SizeStep, contracts.FloatString(12))
@@ -368,7 +382,8 @@ func (t *GateTrader) GetContractSpec(symbol string) (ContractSpec, error) {
 	}
 	spec, err := contractSpecFromGate(&contract)
 	if err != nil {
-		return ContractSpec{}, fmt.Errorf("failed to read contract %s: %w", symbol, err)
+		// 构造函数的报错里已带合约名
+		return ContractSpec{}, fmt.Errorf("failed to read contract info: %w", err)
 	}
 
 	t.contractSpecs.mu.Lock()

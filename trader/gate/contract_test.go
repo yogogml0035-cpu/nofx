@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -53,6 +54,7 @@ func TestNewContractSpec(t *testing.T) {
 		{name: "最大张数小于步长", multiplier: "0.01", sizeMin: "1", sizeMax: "0.5", wantErr: "is below order_size_min"},
 		{name: "市价单上限小于单笔上限", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "2", wantMarketMax: "2"},
 		{name: "市价单上限为 0 时按单笔上限", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "0", wantMarketMax: "0"},
+		{name: "市价单上限写作 0.00 时归一成 0", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "0.00", wantMarketMax: "0"},
 		{name: "市价单上限大于单笔上限", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "5000", wantMarketMax: "5000"},
 		{name: "市价单上限为负", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "-1", wantErr: "is negative"},
 		{name: "市价单上限小于最小步长", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "0.5", wantErr: `market_order_size_max "0.5" is below order_size_min`},
@@ -102,6 +104,7 @@ func TestContractSpec_SizeForNotional(t *testing.T) {
 		{name: "整数张向下取整", spec: btc, price: 60240, notional: 20, minNotional: 10, want: "3", wantNotional: 18.072, wantMin: 12.048},
 		{name: "小数张向下取整", spec: eth, price: 1693, notional: 20, minNotional: 10, want: "1.1", wantNotional: 18.623, wantMin: 10.158},
 		{name: "取整前不足一个最小步长", spec: btc, price: 60240, notional: 5, minNotional: 10, wantSkip: SizeSkipBelowStep, wantMin: 12.048},
+		{name: "最小下单金额为 0 时不足一个最小步长仍是步长原因", spec: btc, price: 60240, notional: 5, minNotional: 0, wantSkip: SizeSkipBelowStep, wantMin: 6.024},
 		{name: "取整后低于最小下单金额", spec: btc, price: 60240, notional: 10, minNotional: 10, wantSkip: SizeSkipBelowMinNotional, wantMin: 12.048},
 		{name: "恰好等于最小下单金额", spec: ten, price: 100, notional: 10, minNotional: 10, want: "1", wantNotional: 10, wantMin: 10},
 		{name: "最小下单金额提高后原先的张数不够", spec: ten, price: 100, notional: 10, minNotional: 20, wantSkip: SizeSkipBelowMinNotional, wantMin: 20},
@@ -352,6 +355,23 @@ func TestContractSpec_ContractsFromQuantity(t *testing.T) {
 	_, err = eth.ContractsFromQuantity(0.0065)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a multiple of size step 0.1")
+
+	t.Run("超大持仓的浮点噪声超过绝对容差", func(t *testing.T) {
+		// 10240003 × 0.0001 的浮点乘法得 1024.0003000000002，换算后是 10240003.000000002 张：
+		// 离步长 2×10⁻⁹ 张，超过绝对容差 10⁻⁹，靠相对容差落回步长
+		var contracts = 10240003.0
+		quantity := contracts * 0.0001
+		require.Equal(t, "1024.0003000000002", strconv.FormatFloat(quantity, 'f', -1, 64))
+
+		got, err := btc.ContractsFromQuantity(quantity)
+		require.NoError(t, err)
+		assert.Equal(t, "10240003", got)
+
+		// 容差放大后，真正不在步长上的数量仍然报错
+		_, err = btc.ContractsFromQuantity(1024.00035)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a multiple of size step 1")
+	})
 }
 
 func TestContractSpec_QuantityFromContracts(t *testing.T) {
@@ -465,10 +485,62 @@ func TestGateTrader_GetContractSpecRejectsInconsistentMetadata(t *testing.T) {
 	_, err := gt.GetContractSpec("ETHUSDT")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "X-Gate-Size-Decimal: 1")
+	assert.Contains(t, err.Error(), "failed to read contract info: contract ETH_USDT: order_size_min")
 
 	// 自相矛盾的元数据不缓存：下一次重新请求
 	fractional.Store(false)
 	_, err = gt.GetContractSpec("ETHUSDT")
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, atomic.LoadInt32(&requests))
+}
+
+func TestGateTrader_GetContractSpecConcurrent(t *testing.T) {
+	var requests int32
+	gt := newLocalGateTrader(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		writeJSON(w, map[string]interface{}{
+			"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
+			"order_size_max": "10000000", "market_order_size_max": "8000000", "enable_decimal": true,
+		})
+	})
+
+	const callers = 64
+	results := make([]ContractSpec, callers)
+	errs := make([]error, callers)
+	var wg sync.WaitGroup
+	for i := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i], errs[i] = gt.GetContractSpec("ETHUSDT")
+		}(i)
+	}
+	wg.Wait()
+
+	for i := range results {
+		require.NoError(t, errs[i])
+		assert.Equal(t, "ETH_USDT", results[i].Name)
+		assert.Equal(t, "0.1", results[i].SizeStep)
+	}
+	// 冷缓存时并发的调用可能各读一次
+	assert.GreaterOrEqual(t, atomic.LoadInt32(&requests), int32(1))
+
+	// 缓存填好后不再请求；同一份元数据可以被多个 goroutine 同时拿来换算
+	served := atomic.LoadInt32(&requests)
+	quotes := make([]SizeQuote, callers)
+	for i := range quotes {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			quotes[i], errs[i] = results[0].SizeForNotional(1700, 20, 10)
+		}(i)
+	}
+	wg.Wait()
+	for i := range quotes {
+		require.NoError(t, errs[i])
+		assert.Equal(t, "1.1", quotes[i].Contracts)
+	}
+	_, err := gt.GetContractSpec("ETHUSDT")
+	require.NoError(t, err)
+	assert.Equal(t, served, atomic.LoadInt32(&requests), "缓存填好后不再请求")
 }

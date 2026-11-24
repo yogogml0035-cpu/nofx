@@ -63,17 +63,23 @@ func pow10(n int) *big.Rat {
 	return new(big.Rat).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(n)), nil))
 }
 
-// floorDiv 返回 a ÷ b 向下取整的整数（a ≥ 0，b > 0）
+// floorDiv 返回 a ÷ b 向下取整的整数（b > 0）。big.Int.Quo 向零截断，负的余数要再减 1
 func floorDiv(a, b *big.Rat) *big.Int {
 	quotient := new(big.Rat).Quo(a, b)
-	return new(big.Int).Quo(quotient.Num(), quotient.Denom())
+	numerator, denominator := quotient.Num(), quotient.Denom()
+	rounded := new(big.Int).Quo(numerator, denominator)
+	if numerator.Sign() < 0 && !quotient.IsInt() {
+		rounded.Sub(rounded, big.NewInt(1))
+	}
+	return rounded
 }
 
-// ceilDiv 返回 a ÷ b 向上取整的整数（a ≥ 0，b > 0）
+// ceilDiv 返回 a ÷ b 向上取整的整数（b > 0）。big.Int.Quo 向零截断，正的余数要再加 1
 func ceilDiv(a, b *big.Rat) *big.Int {
 	quotient := new(big.Rat).Quo(a, b)
-	rounded := new(big.Int).Quo(quotient.Num(), quotient.Denom())
-	if !quotient.IsInt() {
+	numerator, denominator := quotient.Num(), quotient.Denom()
+	rounded := new(big.Int).Quo(numerator, denominator)
+	if numerator.Sign() > 0 && !quotient.IsInt() {
 		rounded.Add(rounded, big.NewInt(1))
 	}
 	return rounded
