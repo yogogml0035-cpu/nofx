@@ -62,10 +62,9 @@
 - [x] 两个旧方法按新语义工作：`SetLeverage` 保持该合约当前的保证金模式、只改杠杆；
       `SetMarginMode` 保持当前生效杠杆、只改模式
       ——单测覆盖三种起始状态；W4 第 7、8 步在真实接口上读回一致
-- [ ] 门禁：`git diff --check`、`make test`、`make build` 全部通过
-      ——第一次全量门禁在独立检查修复之前的代码上通过（后端 22 个含测试的包、前端 11 个文件 142 个用例；
-      `make build` 通过）。修复之后定向测试、vet、`git diff --check` 通过；最终候选上的全量门禁
-      在独立检查复核通过后执行，结果记在 implement.md 第 7 步
+- [x] 门禁：`git diff --check`、`make test`、`make build` 全部通过
+      ——在最终候选 `e1b6fdc3` 上：`git diff --check d135abc3..HEAD` 无输出；`make test` 后端 22 个含测试的包
+      全部 ok、前端 11 个文件 142 个用例通过；`make build` 通过（详见 implement.md 第 7 步）
 - [x] W4 真实验证：在一个未持仓的合约上设置全仓、逐仓与杠杆，从设置接口的返回值与持仓条目读回，
       结束后还原原设置并读回一致；其他合约的设置条目不变；全程不产生持仓与挂单。证据留档 `probe/`
       ——`LIVECHECK_PASS`（23 步 + 1 条观察记录），在最终候选 `d758d3ec` 上运行，
