@@ -1,0 +1,34 @@
+===== W2: DOGE_USDT 17 张（≈9.5U）=====
+
+[DOGE_USDT] 现价 0.05566，目标 17 张（10 币/张），名义价值 9.9353 USDT（含 5% 裕度）
+11-24 17:23:35 [INFO] gate/protected_open.go:121   [Gate] OpenProtected: side=LONG, contract=DOGE_USDT, size=17, sl=0.050094, tp=0.06122600000000001, slip=0.010000
+11-24 17:23:36 [INFO] gate/protected_open.go:163   [Gate] Opened LONG position with attached TP/SL: orderId=56013526820414097, contracts=17, fillPrice=0.055670
+✅ DOGE_USDT 随单保护开仓 orderId=56013526820414097 contracts=17 notional=9.4639 fillPrice=0.05567
+✅ DOGE_USDT 张数核对 期望 17 张，实际 17 张
+✅ DOGE_USDT 仓位核对 side=long positionAmt=170 entry=0.05567 leverage=0
+11-24 17:23:38 [INFO] gate/protected_open.go:192   [Gate] Protection verified via order tpsl: 56013526820414097 sl=0.050094 tp=0.06122600000000001
+✅ DOGE_USDT 保护核对 随单止损止盈已确认
+    条件单列表 status=open 共 0 条（随单 tpsl 为委托级，不经此列表）
+11-24 17:23:38 [INFO] gate/trader_orders.go:164   [Gate] CloseAllLONG: symbol=DOGE_USDT (close=true, size=0)
+11-24 17:23:38 [INFO] gate/trader_orders.go:195   [Gate] Closed LONG position: orderId=56013526820414225, fillPrice=0.0556
+✅ DOGE_USDT 市价全平 close=true, size=0
+✅ DOGE_USDT 终态无残留 
+===== W3: ETH_USDT 0.1 张（最小步长）=====
+
+[ETH_USDT] 现价 1681.77，目标 0.1 张（0.01 币/张），名义价值 1.7659 USDT（含 5% 裕度）
+11-24 17:23:42 [INFO] gate/protected_open.go:121   [Gate] OpenProtected: side=LONG, contract=ETH_USDT, size=0.1, sl=1513.593, tp=1849.9470000000001, slip=0.010000
+11-24 17:23:42 [INFO] gate/protected_open.go:163   [Gate] Opened LONG position with attached TP/SL: orderId=63894861709244629, contracts=0.1, fillPrice=1681.560000
+✅ ETH_USDT 随单保护开仓 orderId=63894861709244629 contracts=0.1 notional=1.6816 fillPrice=1681.56
+✅ ETH_USDT 张数核对 期望 0.1 张，实际 0.1 张
+✅ ETH_USDT 仓位核对 side=long positionAmt=0.001 entry=1681.56 leverage=0
+11-24 17:23:45 [INFO] gate/protected_open.go:192   [Gate] Protection verified via order tpsl: 63894861709244629 sl=1513.593 tp=1849.9470000000001
+✅ ETH_USDT 保护核对 随单止损止盈已确认
+    条件单 id=2125158408565821440 orderType=close-long-order rule=2 trigger=1513.593 kind=止损(true)
+    条件单 id=2125158408561627136 orderType=close-long-order rule=1 trigger=1849.9470000000001 kind=止盈(true)
+    条件单列表 status=open 共 2 条（随单 tpsl 为委托级，不经此列表）
+11-24 17:23:45 [INFO] gate/trader_orders.go:164   [Gate] CloseAllLONG: symbol=ETH_USDT (close=true, size=0)
+11-24 17:23:45 [INFO] gate/trader_orders.go:195   [Gate] Closed LONG position: orderId=63894861709247086, fillPrice=1681.4000
+✅ ETH_USDT 市价全平 close=true, size=0
+✅ ETH_USDT 终态无残留 
+
+LIVECHECK_PASS

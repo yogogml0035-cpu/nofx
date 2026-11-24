@@ -86,9 +86,15 @@ func TestGateTrader_GetPositionsParsesDecimalSizes(t *testing.T) {
 				{"contract": "ETH_USDT", "size": "0", "entry_price": "0", "mark_price": "0", "unrealised_pnl": "0", "liq_price": "0", "leverage": "3", "lever": "3"},
 			})
 		case "/api/v4/futures/usdt/contracts/SOL_USDT":
-			writeJSON(w, map[string]interface{}{"name": "SOL_USDT", "quanto_multiplier": "1"})
+			writeJSON(w, map[string]interface{}{
+				"name": "SOL_USDT", "quanto_multiplier": "1", "order_size_min": "0.1",
+				"order_size_max": "200000", "market_order_size_max": "300000", "enable_decimal": true,
+			})
 		case "/api/v4/futures/usdt/contracts/BTC_USDT":
-			writeJSON(w, map[string]interface{}{"name": "BTC_USDT", "quanto_multiplier": "0.0001"})
+			writeJSON(w, map[string]interface{}{
+				"name": "BTC_USDT", "quanto_multiplier": "0.0001", "order_size_min": "1",
+				"order_size_max": "1000000", "market_order_size_max": "0", "enable_decimal": false,
+			})
 		default:
 			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
 		}
@@ -144,7 +150,10 @@ func TestGateTrader_GetOrderStatusParsesDecimalSizes(t *testing.T) {
 						"tkfr": "0.0005", "mkfr": "0", "create_time": 1700000000, "finish_time": 1700000010,
 					})
 				case "/api/v4/futures/usdt/contracts/ETH_USDT":
-					writeJSON(w, map[string]interface{}{"name": "ETH_USDT", "quanto_multiplier": "0.01"})
+					writeJSON(w, map[string]interface{}{
+						"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
+						"order_size_max": "10000000", "market_order_size_max": "8000000", "enable_decimal": true,
+					})
 				default:
 					http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
 				}
@@ -170,7 +179,10 @@ func TestGateTrader_GetTradesDerivesActionFromStringSizes(t *testing.T) {
 				{"id": 2, "create_time": time.Now().Unix(), "contract": "ETH_USDT", "order_id": "12", "size": "1.25", "close_size": "1.25", "price": "3100", "fee": "-0.01"},
 			})
 		case "/api/v4/futures/usdt/contracts/ETH_USDT":
-			writeJSON(w, map[string]interface{}{"name": "ETH_USDT", "quanto_multiplier": "0.01"})
+			writeJSON(w, map[string]interface{}{
+				"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
+				"order_size_max": "10000000", "market_order_size_max": "8000000", "enable_decimal": true,
+			})
 		default:
 			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
 		}
@@ -190,23 +202,22 @@ func TestGateTrader_GetTradesDerivesActionFromStringSizes(t *testing.T) {
 }
 
 func TestGateTrader_OpenLongSendsContractCountAsString(t *testing.T) {
+	// 开仓是 IOC 市价单：不预撤挂单与条件单（避免误撤已有仓位的保护单），
+	// 直接按精确换算后的张数提交
 	type captured struct {
-		orderBody      map[string]interface{}
-		cancelContract string
-		sizeDecimal    string
+		orderBody   map[string]interface{}
+		sizeDecimal string
 	}
 	capturedCh := make(chan captured, 4)
 	gt := newLocalGateTrader(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodDelete && r.URL.Path == "/api/v4/futures/usdt/orders":
-			capturedCh <- captured{cancelContract: r.URL.Query().Get("contract")}
-			writeJSON(w, []interface{}{})
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v4/futures/usdt/price_orders":
-			writeJSON(w, []interface{}{})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v4/futures/usdt/positions/DOGE_USDT/leverage":
 			writeJSON(w, map[string]interface{}{})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v4/futures/usdt/contracts/DOGE_USDT":
-			writeJSON(w, map[string]interface{}{"name": "DOGE_USDT", "quanto_multiplier": "10"})
+			writeJSON(w, map[string]interface{}{
+				"name": "DOGE_USDT", "quanto_multiplier": "10", "order_size_min": "1",
+				"order_size_max": "1000000", "market_order_size_max": "0", "enable_decimal": false,
+			})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v4/futures/usdt/orders":
 			raw, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
@@ -225,10 +236,8 @@ func TestGateTrader_OpenLongSendsContractCountAsString(t *testing.T) {
 	result, err := gt.OpenLong("DOGEUSDT", 30, 5)
 	require.NoError(t, err)
 
-	cancelled := <-capturedCh
 	placed := <-capturedCh
 
-	assert.Equal(t, "DOGE_USDT", cancelled.cancelContract)
 	assert.Equal(t, "DOGE_USDT", placed.orderBody["contract"])
 	assert.Equal(t, "3", placed.orderBody["size"])
 	assert.Equal(t, "0", placed.orderBody["price"])

@@ -2,7 +2,7 @@ package gate
 
 import (
 	"fmt"
-	"math"
+	"math/big"
 	"nofx/trader/types"
 	"strconv"
 	"time"
@@ -75,11 +75,11 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	var result []map[string]interface{}
 	for _, pos := range positions {
-		size, err := parseRequiredSize("position size", pos.Size)
+		size, err := parseDecimal("position size", pos.Size)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
 		}
-		if size == 0 {
+		if size.Sign() == 0 {
 			continue // Skip empty positions
 		}
 
@@ -89,26 +89,17 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 		unrealizedPnl, _ := strconv.ParseFloat(pos.UnrealisedPnl, 64)
 		leverage, _ := strconv.ParseFloat(pos.Leverage, 64)
 
-		// Gate returns position size in contracts, need to convert to base currency
-		// Each contract = quanto_multiplier base currency
-		contractSize := math.Abs(size)
-
-		// Get quanto_multiplier from contract info to convert contracts to actual quantity
-		quantoMultiplier := 1.0
-		contract, err := t.getContract(pos.Contract)
-		if err == nil && contract != nil {
-			qm, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-			if qm > 0 {
-				quantoMultiplier = qm
-			}
+		// Gate 返回的持仓张数换算为标的币数量：元数据经 GetContractSpec 精确解析，
+		// 失败即报错，不再回落 multiplier=1（猜测值）
+		spec, err := t.GetContractSpec(pos.Contract)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get contract info for %s: %w", pos.Contract, err)
 		}
-
-		// Convert contract count to actual token quantity
-		positionAmt := contractSize * quantoMultiplier
+		positionAmt := spec.contractQuantity(new(big.Rat).Abs(size))
 
 		// Determine side based on position size
 		side := "long"
-		if size < 0 {
+		if size.Sign() < 0 {
 			side = "short"
 		}
 
