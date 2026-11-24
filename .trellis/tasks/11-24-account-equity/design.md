@@ -21,6 +21,7 @@
 - `agent/tools.go`：创建 trader 时取本金；删除 `extractTraderInitialBalance`
 - `web/`：编辑表单的初始资金输入、创建表单的提示、类型与三种语言文案
 - `docs/pnl.md`、`.trellis/spec/backend/exchange-adapters.md`
+- `probe/`：真实读数的验证脚本与证据（`README.md`），界面实测的截图与说明（`ui/README.md`）
 
 不动：其他交易所的适配器（D3）、提示词文本与金额计算（子任务 9）、回撤监控（子任务 6）、`sync-balance` 路由本身。
 
@@ -86,9 +87,11 @@ GET /futures/usdt/accounts                → available
 - 15 秒缓存不变。缓存期间本金、未实现盈亏、可用于合约的额度来自同一次读数
 
 钱包总额接口的官方说明写明它返回的是折算后的估算值、数据可能缓存最多 1 分钟、不建议用于实时计算
-（SDK `GetTotalBalance` 的函数说明）。本金随已实现盈亏、手续费、资金费变动，是慢变量，可以接受；
-权益里的未实现盈亏是否明显滞后，在带仓读数里与合约账户的 `unrealised_pnl`、持仓条目的 `unrealised_pnl` 对比后确定，
-结论写进 `probe/README.md` 与计划文档。
+（SDK `GetTotalBalance` 的函数说明）。带仓读数（`probe/README.md`）的结论是：
+
+- 本金不含浮动盈亏，也不随持仓变动；手续费、已实现盈亏在开平仓那一刻就从本金里结算，没有看到缓存滞后
+- 权益里的未实现盈亏按计划文档取 `total.unrealised_pnl`：约 80 秒内 7 次采样每次都在变，
+  与同一轮合约账户的 `unrealised_pnl` 6 次相等、1 次相差 0.00007，没有看到 1 分钟量级的滞后，所以没有换成合约账户的字段
 
 ### 交易路径
 
@@ -147,47 +150,66 @@ type AccountBalance struct {
 // InitialBalance 创建或重建 trader 初始资金时记录的读数：当时的本金
 func (b AccountBalance) InitialBalance() float64
 
-// ParseAccountBalance 解析适配器 GetBalance 的返回值；规范键缺失或不是数值即报错
+// ParseAccountBalance 解析适配器 GetBalance 的返回值；规范键缺失或不是有限数值即报错
 func ParseAccountBalance(m map[string]interface{}) (AccountBalance, error)
+
+// ReadAccountBalance 读取并解析适配器的账户读数；交易所请求失败、读数不符合口径都返回错误。
+// 交易路径、API 与助手都经它取数
+func ReadAccountBalance(t Trader) (AccountBalance, error)
+
+// ReadInitialBalance 读取交易所账户的当前本金，作为创建或重建 trader 时记录的初始资金
+func ReadInitialBalance(t Trader) (float64, error)
 
 // trader/gate/trader_account.go
 func (t *GateTrader) GetBalance() (map[string]interface{}, error) // 钱包总额 + 合约账户 available
 
 // trader/auto_trader.go
 // resolveInitialBalance 配置里的初始资金不大于 0 时，以交易所账户的当前本金重建并写回数据库
-func resolveInitialBalance(trader Trader, st *store.Store, userID string, config *AutoTraderConfig) error
+func resolveInitialBalance(t Trader, st *store.Store, userID string, config *AutoTraderConfig) error
 ```
+
+例外：`api/exchange_account_state.go` 的账户状态分两步调用 `GetBalance` 与 `ParseAccountBalance`，
+因为它要把「请求失败」（按错误内容归类为凭据无效、无权限等）与「连上了但读数不符合口径」报成两种状态。
 
 ## 测试
 
 - `trader/types/balance_test.go`：解析矩阵——三个键齐全、权益的两个报告键、报告值为 0 时用公式、
-  每个规范键缺失、每个规范键不是数值；`InitialBalance()` 等于本金
-- `trader/gate/trader_account_test.go`：按真实响应格式回复的 httptest 服务——本金含借款时的相减、
-  `total.amount` 缺失与格式错误、币种不是 USDT、合约账户请求失败、缓存命中时不发请求；
-  既有测试套件的 mock 补上钱包总额端点
-- `trader/auto_trader_initial_balance_test.go`：适配器桩 + 临时 sqlite 库——有效值不读交易所；
-  无效值重建并写回；读不到或本金不为正时报错且不写库
-- 交易路径：决策上下文与账户信息的权益、可用余额来自解析结果；读数缺键时返回错误；开仓上限不再回退到可用余额
-- `api`：创建取本金、更新拒绝负值、同步余额取本金与旧值为 0 的防护（适配器桩）
-- `agent`：创建 trader 的初始资金取本金
-- 前端：`TraderConfigModal.test.tsx`——编辑模式显示当前值并随保存发出、非正值禁用保存、创建模式不发送该字段
+  每个规范键缺失、每个规范键不是数值或不是有限数；`InitialBalance()` 等于本金；两个读取函数的错误与错误链
+- `trader/gate/trader_account_test.go`：按真实响应格式回复的 httptest 服务——本金含借款时的精确十进制相减、
+  `total.amount` 缺失与格式错误、币种不是 USDT、合约账户请求失败、缓存命中时不发请求；既有测试套件的 mock 补上钱包总额端点
+- `trader/auto_trader_account_test.go`：适配器桩 + 临时 sqlite 库——有效值不读交易所；无效值（0 或负数）重建并写回；
+  读不到或本金不为正时报错且不写库。决策上下文、账户信息、开仓上限都取自解析结果；读数缺键时返回错误；
+  单仓上限按「本金 + 未实现盈亏」算；读数缺键时不开仓
+- `api/handler_trader_initial_balance_test.go`：创建取本金、读取失败不阻断创建、创建请求没有 `initial_balance` 字段、
+  更新拒绝负值（0 与缺省保持）、同步余额取本金与旧值为 0 的防护、账户状态、加载失败的报错归类
+- `agent/trader_initial_balance_test.go`：创建 trader 的初始资金取本金、失败闭合
+- 前端：`TraderConfigModal.test.tsx`——编辑模式显示当前值并随保存发出、非正值禁用保存并提示、
+  存量为 0 的 trader 打开即被拦住、创建模式不发送该字段且提示为新口径
 
-## 真实读数（`probe/`，只读；带仓读数前沿用 W3 开一个测试仓位）
+## 真实读数（`probe/`，详见 `probe/README.md`）
 
-脚本调用交付的适配器与 `resolveInitialBalance`（与线上同一路径），每步打印读数，证据为 JSONL：
+脚本调用交付的代码（`types.ReadAccountBalance`、`trader.NewAutoTrader` 的加载路径），带仓读数前沿用 W3 开一个测试仓位
+（ETH_USDT 0.1 张，带该合约现有的保证金设置，读数后立即全平）。在提交 `88982a24` 的干净检出上运行，`LIVECHECK_PASS`
+（17 条事件，0 失败）：
 
-| 步 | 操作 | 核对 |
-|---|---|---|
-| 预检 | 账户无持仓、无未完结委托、无未触发条件单；记录 ETH_USDT 的仓位设置与三个合约的设置条目 | 否则中止 |
-| 1 | 不带仓读数：`GetBalance` 与两个原始接口 | 本金 = `total.amount − total.borrowed`；可用 = 合约账户 `available`；权益 = 本金 + 未实现盈亏；解析结果与原始值一致 |
-| 2 | 不带仓的初始资金重建：`resolveInitialBalance`（不接数据库） | 得到本金 |
-| 3 | W3：ETH_USDT 以 0.1 张随单保护开多，请求带该合约现有的保证金模式与杠杆 | 下单张数 0.1；设置读回与基线一致 |
-| 4 | 带仓读数：间隔采样若干次 | 本金与第 1 步一致（已实现盈亏为 0）；未实现盈亏与合约账户、持仓条目的读数对比（缓存是否滞后）；可用 = 本金 + 未实现盈亏 − `position_initial_margin`；权益 = 本金 + 未实现盈亏 |
-| 5 | 全平 | 无持仓、无未完结委托、无未触发条件单 |
-| 6 | 终态 | 三个合约的设置条目与基线一致；本金 = 基线 − 手续费 ± 这一段的已实现盈亏 |
-| 7 | 提示词预览 | 用第 1 步的读数渲染系统提示词与用户提示词，账户段为非零的真实值 |
+| 步 | 结果 |
+|---|---|
+| 1 不带仓读数 | 本金 `107.49604594` = `total.amount − total.borrowed`；可用 `107.49604` = 合约账户 `available`；权益 = 本金 + 0 |
+| 2 加载路径的初始资金重建 | 初始资金给 0 加载 → 重建为 `107.49604594` |
+| 3 W3 开仓 | 0.1 张，成交 1695.89，名义 1.69589 USDT，随单止盈止损核对通过 |
+| 4 带仓读数 | 约 80 秒 7 次采样：本金恒为 `107.49519799`（之差为 0），未实现盈亏在 −0.0013 到 +0.0015 间变动，每次权益 = 本金 + 未实现盈亏 |
+| 5 全平 | 成交 1696.33；无持仓、无未完结委托、无未触发条件单 |
+| 6 终态 | 三个合约的仓位设置与基线一致；本金 `107.49478982`，变化 −0.00125612 = 已实现盈亏 +0.00044 − 两边手续费 |
+| 7 提示词预览 | `Account: Equity 107.50 \| Balance 107.50 (100.0%) \| PnL +0.00%` |
 
-容器出口走 VPN、不在 Gate key 白名单：脚本在 Docker 内交叉编译 `CGO_ENABLED=0 GOOS=darwin GOARCH=arm64`，宿主机运行；
+带仓读数改变了两处设计时的预期：
+
+- 开仓那一刻本金下降的正是开仓手续费（1.69589 × 0.05% = 0.00084795）。「本金不随持仓变动」比较的是持仓期间各次采样，
+  不是开仓前的基线
+- 「可用 = 本金 + 未实现盈亏 − 头寸占用保证金」不严格成立：7 次采样的残差在 −0.00162 到 +0.00029 之间且不恒定。
+  可用额度直接取自合约账户，这条公式只作量级旁证（阈值 0.01 USDT），残差如实记录
+
+运行方式：脚本在 Docker 内交叉编译 `CGO_ENABLED=0 GOOS=darwin GOARCH=arm64`，宿主机运行；
 凭据经环境变量 `GATE_KEY` / `GATE_SECRET` 传入，不落盘、不打印。
 
 ## 已知边界
@@ -198,6 +220,17 @@ func resolveInitialBalance(trader Trader, st *store.Store, userID string, config
 - 账户仍是跨币种保证金模式；单币种模式下的读数待账户切换后复验（本金取自钱包总额，与保证金模式无关）
 - 钱包总额里的 `total.unrealised_pnl` 覆盖全部业务线（合约、期权、杠杆等），合约账户的 `unrealised_pnl` 只覆盖 USDT 永续；
   只做 USDT 永续时两者相等，账户若持有其他业务线的仓位，权益会包含那些仓位的浮动盈亏
-- 加载时的重建要读交易所；容器出口不在白名单的环境里读不到，trader 加载失败并给出原因（与原先「初始资金必须大于 0」的失败一致）
-- 界面实测在隔离的容器栈里做：容器读不到 Gate，创建流程里「取本金」这一步在容器里必然失败，
-  由真实读数（第 2 步，同一函数）与适配器桩的单测覆盖；容器里验证的是编辑流程与创建表单的提示
+- 加载时的重建要读交易所；读不到时 trader 加载失败并给出原因（与原先「初始资金必须大于 0」的失败一致）。
+  容器能连到 Gate 的接口（隔离栈里占位密钥得到的是 `INVALID_KEY`）。按此前会话的实测，容器出口 IP 不在 Gate key 的白名单内，
+  带真实密钥时会被拒；本次没有在容器里用真实密钥验证这一点，送测时需要留意存量 trader 的初始余额能否在送测栈里重建
+- 「可用 = 本金 + 未实现盈亏 − 头寸占用保证金」只是量级上的旁证，交易所内部的计算方式没有文档（见「真实读数」）
+- 手续费与已实现盈亏在开平仓那一刻就从本金里结算：按本金百分比计算的开仓金额（子任务 9）会随每笔交易的手续费缓慢下移
+- 界面：存量初始余额不大于 0 的 trader，在编辑表单里必须先填一个大于 0 的初始余额才能保存任何修改。
+  这是刻意的：没有有效的初始余额，trader 本来就加载不了
+- 界面实测在隔离的容器栈里做（`probe/ui/README.md`）。隔离栈用的是占位密钥，创建流程里「取本金」读不到
+  （Gate 返回 `INVALID_KEY`），验证的是「读取失败不阻断创建」这条路径；读到本金后记录的成功路径由真实读数的第 2 步
+  （同一函数）与处理器级单测覆盖
+- 提示词的数据字典里，`Equity` 的公式写作「可用余额 + 未实现盈亏」、`Balance` 的公式写作「初始资金 + 已实现盈亏」，
+  与第 5 节口径不一致。这是提示词文本，随子任务 9 重写提示词契约时一并改（`probe/prompt-preview-2026-11-24.txt` 开头可见）
+- 编辑表单的「竞技场显示」显示为「隐藏」而服务端的值可能是显示：`GET /api/traders/:id/config` 不返回 `show_in_competition`。
+  既有问题，保存不会改动服务端的值，本子任务没有处理

@@ -1,0 +1,11 @@
+11-24 22:44:55 [INFO] trader/auto_trader.go:224 🤖 [account-equity-probe] Using custom AI
+11-24 22:44:55 [INFO] trader/auto_trader.go:244 📊 [account-equity-probe] Position mode: Isolated Margin
+11-24 22:44:55 [INFO] trader/auto_trader.go:260 🏦 [account-equity-probe] Using Gate.io Futures trading
+11-24 22:44:56 [WARN] trader/auto_trader.go:363 ⚠️ [account-equity-probe] Initial balance 0.00 is not valid, rebuilt from the current account principal: 107.50 USDT
+11-24 22:44:56 [INFO] trader/auto_trader.go:313 ✓ [account-equity-probe] Using strategy engine (strategy configuration loaded)
+11-24 22:44:56 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: ETH_USDT cross 200x
+11-24 22:44:56 [INFO] gate/protected_open.go:120   [Gate] OpenProtected: side=LONG, contract=ETH_USDT, size=0.1, sl=1525.8780000000002, tp=1864.9620000000002, slip=0.010000
+11-24 22:44:56 [INFO] gate/protected_open.go:162   [Gate] Opened LONG position with attached TP/SL: orderId=63894861737980514, contracts=0.1, fillPrice=1695.890000
+11-24 22:44:56 [INFO] gate/protected_open.go:195   [Gate] Protection verified via order tpsl: 63894861737980514 sl=1525.8780000000002 tp=1864.9620000000002
+11-24 22:46:16 [INFO] gate/trader_orders.go:138   [Gate] CloseAllLONG: symbol=ETH_USDT (close=true, size=0)
+11-24 22:46:17 [INFO] gate/trader_orders.go:169   [Gate] Closed LONG position: orderId=63894861738281808, fillPrice=1696.3300

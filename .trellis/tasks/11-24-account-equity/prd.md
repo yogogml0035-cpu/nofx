@@ -54,19 +54,35 @@
 
 ## Acceptance Criteria
 
-- [ ] Gate 取数：本金 = `total.amount − total.borrowed`，未实现盈亏 = `total.unrealised_pnl`，可用于合约的额度 = 合约账户的
+- [x] Gate 取数：本金 = `total.amount − total.borrowed`，未实现盈亏 = `total.unrealised_pnl`，可用于合约的额度 = 合约账户的
       `available`；`total.amount` 缺失或解析失败返回错误，不返回 0；缓存行为不变
-      ——`trader/gate/trader_account_test.go`，用按真实响应格式回复的 httptest 服务覆盖
-- [ ] 口径只定义一处：交易路径 5 处、API 3 处、助手 1 处都经同一个解析函数取数，仓库里不再有散落的键名列表
-      ——`trader/types/balance_test.go` 的解析矩阵；全仓搜索键名字面值只剩适配器与解析函数
-- [ ] 初始资金：创建时取本金；加载时不大于 0 的存量值以当前本金重建、写回数据库并记录日志；读不到本金或本金不为正时
+      ——`trader/gate/trader_account_test.go`，用按真实响应格式回复的 httptest 服务覆盖（含精确十进制相减的判别用例、
+      失败的读数不入缓存）；W3 带仓读数在真实接口上逐项印证
+- [x] 口径只定义一处：交易路径 5 处、API 3 处、助手 1 处都经 `trader/types` 的读取函数取数；
+      全仓搜索：键名列表清零，直接读取适配器余额映射的只剩 `trader/types/balance.go` 与
+      `api/exchange_account_state.go`（后者分两步取数，以便把「请求失败」与「读数不符合口径」报成两种状态）
+      ——`trader/types/balance_test.go` 的解析矩阵
+- [x] 初始资金：创建时取本金；加载时不大于 0 的存量值以当前本金重建、写回数据库并记录日志；读不到本金或本金不为正时
       加载失败；更新接口对负值返回 400，0 或缺省表示保持不变
-      ——`trader/auto_trader_initial_balance_test.go`、`api/handler_trader_initial_balance_test.go`
-- [ ] 界面：编辑表单显示并可修改初始资金，保存后 `GET /api/traders/:id/config` 返回新值；非正值时保存按钮不可用；
+      ——`trader/auto_trader_account_test.go`、`api/handler_trader_initial_balance_test.go`、`agent/trader_initial_balance_test.go`；
+      真实读数的第 2 步（加载路径重建出 `107.49604594`）；隔离栈上 `PUT /api/traders/:id` 的三种情况
+- [x] 界面：编辑表单显示并可修改初始资金，保存后 `GET /api/traders/:id/config` 返回新值；非正值时保存按钮不可用；
       创建表单的提示为新口径；三种语言文案齐全
-      ——前端测试通过；在浏览器里实际操作核对并留截图
+      ——`TraderConfigModal.test.tsx` 5 个用例；在隔离容器栈里实际操作浏览器核对（`probe/ui/README.md`，三张截图），
+      保存后服务端返回 `initial_balance: 500.5`。印尼文只核对了文案键存在
 - [ ] 门禁：`git diff --check`、`make test`、`make build` 全部通过
-- [ ] 真实读数：不带仓与带仓各一组，经交付的适配器代码读取，本金、未实现盈亏、可用于合约的额度、权益与原始接口返回值互相印证；
+- [x] 真实读数：不带仓与带仓各一组，经交付的代码读取，本金、未实现盈亏、可用于合约的额度、权益与原始接口返回值互相印证；
       带仓读数结束后无持仓、无挂单、无条件单，仓位设置与开仓前一致。证据留档 `probe/`
-- [ ] 提示词预览：用真实读数渲染系统提示词与用户提示词的账户段，权益、可用余额、盈亏为非零的真实值。证据留档 `probe/`
+      ——`LIVECHECK_PASS`（在提交 `88982a24` 的干净检出上运行，17 条事件，0 失败），见 `probe/README.md`。
+      一条设计时的预期被实测修正：「可用 = 本金 + 未实现盈亏 − 头寸保证金」不严格成立，只作量级旁证
+- [x] 提示词预览：用真实读数渲染系统提示词与用户提示词的账户段，权益、可用余额为非零的真实值。证据留档 `probe/`
+      ——`probe/prompt-preview-2026-11-24.txt`：`Account: Equity 107.50 | Balance 107.50 (100.0%) | PnL +0.00%`
 - [ ] 独立检查通过（独立检查子智能体；发现的问题已修复并补验）
+
+### 真实验证对设计的修正（2026-11-24）
+
+详见 `research/gate-account-balance-docs.md` H 节与 `probe/README.md`：
+
+- 开仓那一刻本金下降的正是手续费：本金不随**未实现**盈亏变动，但手续费与已实现盈亏是即时结算的
+- 钱包总额的 `total.unrealised_pnl` 没有可见的缓存滞后，权益按计划文档取它
+- 「可用额度 = 本金 + 未实现盈亏 − 头寸占用保证金」不严格成立，交易所内部的计算方式没有文档
