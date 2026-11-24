@@ -512,7 +512,8 @@ func run(outPath, promptOutPath string, dryRun, cleanupDrill bool) (exit int) {
 			"available": flat.Available, "equity": flat.Equity},
 		"raw": flatRaw, "checks": checks,
 	})
-	// 合约账户的 total 在统一账户下不是本金（实测在 0 附近：见到过 0.000000005、-0.0016、-0.0025 等值）：旧口径把它当钱包余额，权益因此读成 ≈ 0
+	// 合约账户的 total 在统一账户下不是本金：读数约等于 0，看起来是合约侧自上次结算以来的未结算净额
+	// （带仓时第 4 轮读到 -0.000837805，正好是本轮开仓手续费；推断，文档没有说明）。旧口径把它当钱包余额，权益因此读成 ≈ 0
 	observe("1 futures account total (not the principal)", map[string]interface{}{
 		"futures_account_total": flatRaw.FuturesTotal, "principal": f(principal),
 		"flat_abs(wallet unrealised − futures unrealised)": f(absDiff(walletUpnl, futuresUpnl)),

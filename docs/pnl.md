@@ -95,7 +95,8 @@ Margin Used    = Position Value / Leverage
 
 **Gate（统一账户）**：本金与未实现盈亏取自钱包总额 `GET /wallet/total_balance?currency=USDT`
 （本金 = `total.amount − total.borrowed`），可用于合约的额度取自 `GET /futures/usdt/accounts` 的 `available`。
-合约账户的 `total` 只适用于经典合约账户，统一账户下是约等于 0 的数、与本金无关，不能作本金。
+合约账户的 `total` 只适用于经典合约账户，统一账户下是一个约等于 0 的数（与本金无关；读数看起来是合约侧
+自上次结算以来未结算的手续费与已实现盈亏，这是按实测读数做的推断），不能作本金。
 钱包总额接口的官方说明写明数据最长缓存 1 分钟；实测里手续费与已实现盈亏是即时结算的，未实现盈亏也没有看到滞后。
 
 ## 6. 用户操作场景
