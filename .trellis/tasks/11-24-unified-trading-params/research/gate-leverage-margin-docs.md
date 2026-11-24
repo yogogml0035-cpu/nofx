@@ -1445,8 +1445,9 @@ XRP_USDT、ADA_USDT）返回 **HTTP 400**、`Content-Type: application/json`、`
 
 完整证据见任务 `probe/README.md` 与 `probe/livecheck-2026-11-24.jsonl`（在 `d758d3ec` 上运行的第三轮；
 此前两轮在读回解析调整之前的代码上，读数相同）。对象 DOGE_USDT，结束后还原为全仓 75x。
-适配器日志里 8 次 `set_leverage` 都是经返回值读回一致的，没有走「读回持仓条目」的回退：
-真实响应里 `lever` 与同模式的旧字段相等。
+适配器日志里 8 次 `set_leverage` 都是经返回值读回一致的，没有走「读回持仓条目」的回退，
+8 次解析都没有触发「矛盾即报错」。字段级的证据是「重复设置」那一次的原始返回体与各步读回的条目，
+这两处 `lever` 与同模式的旧字段相等；其余步骤的原始返回体没有留档。
 
 1. `POST /futures/usdt/positions/DOGE_USDT/set_leverage?leverage=10&margin_mode=cross` **不带 `dual_side`**，
    在单向持仓模式下返回 200。返回体是 Position，带 `mode: "single"`、`pos_margin_mode`、`leverage`、

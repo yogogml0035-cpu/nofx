@@ -25,7 +25,7 @@
      双向持仓模式拒绝）、`SetMarginMode` 保持杠杆
    - `trader/gate/protected_open_test.go`：设置生效先于下单；生效失败不提交订单；请求带 trader 的模式；
      `gateMock` 按线上格式模拟仓位设置条目（无条目 → HTTP 400 + `POSITION_NOT_FOUND`）
-   - `trader/gate/size_test.go`、`trader/gate/trader_test.go` 的桩改为新接口
+   - `trader/gate/size_test.go` 的桩改为新接口；`trader/gate/trader_test.go` 里不可达的 `set_leverage` 桩已删除
    - `trader/auto_trader_orders_test.go`：trader 的全仓 / 逐仓设置传入开仓请求；交易路径不再调用 `SetMarginMode`
    - `trader/auto_trader_grid_margin_test.go`：网格初始化的接入（失败不标记已初始化；其他适配器行为不变）
 5. [x] **迭代期定向测试**：docker go 只跑 `./trader/gate/` 与 `./trader/`——通过；`go vet` 通过；

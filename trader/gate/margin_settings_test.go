@@ -237,6 +237,10 @@ func TestPositionMarginSettingsDistinguishesLabels(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, ErrNoPositionSettings), "CONTRACT_NOT_FOUND 不是「没有条目」")
 	assert.Contains(t, err.Error(), "CONTRACT_NOT_FOUND")
+	// 读条目失败的错误链里带着交易所错误，调用方可以按 label 处理
+	var gateErr gateapi.GateAPIError
+	require.True(t, errors.As(err, &gateErr), "读条目失败的错误链里应带着交易所错误: %v", err)
+	assert.Equal(t, "CONTRACT_NOT_FOUND", gateErr.Label)
 
 	err = gt.SetLeverage("DOGE_USDT", 10)
 	require.Error(t, err, "读条目失败时不得回退成逐仓去设置")
@@ -443,6 +447,38 @@ func TestModeSwitchKeepsLeverage(t *testing.T) {
 	assert.Equal(t, "0", entry["leverage"])
 	assert.Equal(t, "3", entry["cross_leverage_limit"])
 	assert.Equal(t, "3", entry["lever"])
+}
+
+func TestApplyMarginSettingsKeepsExchangeErrorWhenReadBackFails(t *testing.T) {
+	// 接口被交易所拒绝、随后的读回也失败：错误链里是交易所的拒绝错误（不是读回失败的错误，
+	// 也不得被误当成「没有条目」）
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+	mock.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_EXCEEDED", message: "limit [1, 75]"}
+	mock.readSettingsFail = &gateAPIFailure{status: 400, label: "CONTRACT_NOT_FOUND", message: "contract not found"}
+
+	err := gt.ApplyMarginSettings("DOGE_USDT", true, 100)
+
+	require.Error(t, err)
+	var gateErr gateapi.GateAPIError
+	require.True(t, errors.As(err, &gateErr), "接口报错时错误链里应带着交易所的拒绝错误: %v", err)
+	assert.Equal(t, "LEVERAGE_EXCEEDED", gateErr.Label)
+	assert.Contains(t, err.Error(), "reading back failed")
+	assert.Contains(t, err.Error(), "CONTRACT_NOT_FOUND", "读回失败的错误作为上下文保留")
+	assert.False(t, errors.Is(err, ErrNoPositionSettings), "读回失败只是上下文，不表示合约没有条目")
+}
+
+func TestPositionMarginSettingsUnreadableEntry(t *testing.T) {
+	// 条目读不出设置：报错，解析错误留在错误链里
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+	mock.settings["DOGE_USDT"] = map[string]interface{}{"contract": "DOGE_USDT", "pos_margin_mode": "hedge", "lever": "10"}
+
+	_, err := gt.PositionMarginSettings("DOGE_USDT")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "pos_margin_mode")
+	assert.NotNil(t, errors.Unwrap(err), "解析错误应留在错误链里")
 }
 
 func TestMarginSettingsString(t *testing.T) {

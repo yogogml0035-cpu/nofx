@@ -44,8 +44,9 @@ without `dual_side` (the account trades in one-way position mode). It returns a 
 - **Success means a read-back equals the target.** The `set_leverage` response is checked first. If the call
   errors, or the response cannot be read or differs from the target, the position entry
   (`GET /futures/{settle}/positions/{contract}`) is checked instead. If the entry equals the target, the call
-  succeeds. Otherwise it fails, and the returned error wraps the exchange error (`errors.As` → `GateAPIError`),
-  so callers can inspect the label.
+  succeeds. Otherwise it fails, and the returned error wraps the exchange error, so callers can inspect the
+  label with `errors.As` → `GateAPIError`. That holds when the exchange answered with a labelled JSON error;
+  a transport error is wrapped as whatever the SDK returned.
 - `MarginSettings{Cross, Leverage}` is parsed from a position entry:
   - mode from `pos_margin_mode` (`cross` / `isolated`);
   - leverage has two sources: `lever` and the legacy field of the same mode (`cross_leverage_limit` for cross,
@@ -75,7 +76,8 @@ without `dual_side` (the account trades in one-way position mode). It returns a 
 
 Not verified against the real API: `set_leverage` on a contract that has no position entry yet (the first
 open of a new contract), changing the setting while a position or pending orders exist, and accounts in
-single-currency margin mode. These paths are covered by unit tests with a mock exchange only.
+single-currency margin mode. The adapter has no branch for these situations. Only the missing-entry case is
+covered by a unit test with a mock exchange.
 
 `SetLeverage(symbol, leverage)` on Gate keeps the contract's current mode and changes only the leverage;
 a contract with no position entry is set to isolated. `SetMarginMode(symbol, isCross)` keeps the current
@@ -95,6 +97,8 @@ leverage and returns an error wrapping `ErrNoPositionSettings` when there is no 
   fallback-to-entry table (response error / unreadable / mismatch, entry equal or not), the exchange error
   being in the error chain, `POSITION_NOT_FOUND` being the only label that means "no entry", the parse matrix
   including contradictory leverage, and the keep-semantics of the two legacy methods.
+  Secondary error paths are pinned too: the exchange error stays in the chain both when the read-back fails
+  and when reading the entry fails, and a parse error stays in the chain.
 - `trader/gate/protected_open_test.go`: the settings request precedes the order request; a failed setting
   leaves no order body.
 - `trader/auto_trader_orders_test.go`, `trader/auto_trader_grid_margin_test.go`: the trader's setting reaches

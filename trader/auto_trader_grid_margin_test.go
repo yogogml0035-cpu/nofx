@@ -69,13 +69,13 @@ func TestGridMarginSettingsAppliedTogether(t *testing.T) {
 
 func TestGridMarginSettingsFailureIsReturned(t *testing.T) {
 	// 设置没有生效：错误上抛，网格初始化据此终止
-	stub := &marginApplierStub{err: errors.New("label: LEVERAGE_TOO_HIGH, message: leverage too high")}
+	stub := &marginApplierStub{err: errors.New("label: LEVERAGE_EXCEEDED, message: limit [1, 75]")}
 	at := &AutoTrader{config: AutoTraderConfig{}, trader: stub}
 
 	err := at.applyMarginSettings("DOGEUSDT", 5)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LEVERAGE_TOO_HIGH")
+	assert.Contains(t, err.Error(), "LEVERAGE_EXCEEDED")
 	assert.Contains(t, err.Error(), "DOGEUSDT")
 }
 
@@ -101,7 +101,7 @@ func gridConfigForMarginTest() *store.GridStrategyConfig {
 
 func TestInitializeGridRefusesWhenMarginSettingsFail(t *testing.T) {
 	// 设置没有生效的网格不得标记为已初始化
-	stub := &marginApplierStub{price: 0.55, err: errors.New("label: LEVERAGE_TOO_HIGH, message: leverage too high")}
+	stub := &marginApplierStub{price: 0.55, err: errors.New("label: LEVERAGE_EXCEEDED, message: limit [1, 75]")}
 	at := &AutoTrader{
 		config: AutoTraderConfig{IsCrossMargin: true, StrategyConfig: &store.StrategyConfig{GridConfig: gridConfigForMarginTest()}},
 		trader: stub,
@@ -110,7 +110,7 @@ func TestInitializeGridRefusesWhenMarginSettingsFail(t *testing.T) {
 	err := at.InitializeGrid()
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LEVERAGE_TOO_HIGH")
+	assert.Contains(t, err.Error(), "LEVERAGE_EXCEEDED")
 	require.NotNil(t, at.gridState)
 	assert.False(t, at.gridState.IsInitialized)
 	assert.Equal(t, 1, stub.calls)

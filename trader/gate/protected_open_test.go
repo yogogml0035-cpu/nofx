@@ -463,7 +463,7 @@ func TestOpenProtectedAppliesMarginSettingsBeforeOrder(t *testing.T) {
 }
 
 func TestOpenProtectedRefusedWhenMarginSettingsFail(t *testing.T) {
-	// 交易所拒绝设置（如 LEVERAGE_TOO_HIGH）：不开仓，不提交订单
+	// 交易所拒绝设置（如超过合约杠杆上限的 LEVERAGE_EXCEEDED）：不开仓，不提交订单
 	mock := newGateMock()
 	gt := newLocalGateTrader(t, mock.handler)
 	mock.mu.Lock()

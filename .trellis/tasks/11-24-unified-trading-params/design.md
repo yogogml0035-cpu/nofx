@@ -180,7 +180,9 @@ func (t *GateTrader) ApplyMarginSettings(symbol string, isCrossMargin bool, leve
 - 新接口 `set_leverage` 线上已部署（W4 实测；子任务 3 实测过改单接口在线上是 404，两者不同），
   没有用到旧接口 `positions/{contract}/leverage` 的回退
 - 文档没有说明带仓或有挂单时能否修改设置；label 表里有 `POSITION_HOLDING` 与 `ORDER_PENDING`。
-  W4 只在未持仓的合约上做，这种情况没有测；运行中被交易所拒绝时按失败闭合处理，不开新仓
+  W4 只在未持仓的合约上做，这种情况没有测；运行中被交易所拒绝时按失败闭合处理，不开新仓。
+  带仓时 `lever` 与同模式旧字段是否一致也没有测：不一致的话读回报错、不开仓（闭合），
+  但走 `ApplyMarginSettings` 时交易所上的设置已经改了
 - 双向与分仓持仓模式下 `dual_side` 是否必填没有测（账户是单向持仓模式）；返回体的 `mode` 不是
   `single` 时适配器报错
 - 助手手动交易与网格共用的 `GridTraderAdapter` 仍以「失败只告警」的方式调用 `SetLeverage`（各交易所共用，本子任务不动）

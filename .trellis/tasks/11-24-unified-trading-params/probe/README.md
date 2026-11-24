@@ -22,7 +22,7 @@
 docker run --rm -v "$PWD":/w -w /w -v nofx-gocache:/go -e GOPROXY=https://goproxy.cn,direct \
   golang:1.25-alpine sh -c 'CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o /tmp/w4livecheck \
   ./.trellis/tasks/11-24-unified-trading-params/probe/livecheck.go'
-GATE_KEY=… GATE_SECRET=… /tmp/w4livecheck -out livecheck-2026-11-24.jsonl > livecheck.adapter-log.txt
+GATE_KEY=… GATE_SECRET=… /tmp/w4livecheck -out livecheck-2026-11-24.jsonl > livecheck-2026-11-24.adapter-log.txt
 ```
 
 ## 对象与基线
@@ -70,8 +70,8 @@ GATE_KEY=… GATE_SECRET=… /tmp/w4livecheck -out livecheck-2026-11-24.jsonl > 
 5. **跨币种保证金模式下逐仓可设置并读回**。`SetMarginMode` 切换模式时是适配器先读回当前杠杆、再带着它设置
    （第 8 步：逐仓 10x → 全仓 10x）；交易所自身在切换模式时是否保留杠杆没有测。
 6. **适配器对 8 次 `set_leverage` 的返回值都读回一致**：适配器日志里 8 行都是「Margin settings applied」，
-   没有一次走「读回持仓条目」的回退。也就是说在真实响应里 `lever` 与同模式的旧字段相等，
-   「矛盾即报错」的解析规则没有误伤。
+   没有一次走「读回持仓条目」的回退，8 次解析都没有触发「矛盾即报错」。字段级的证据是第 2 步的原始
+   返回体（全仓）与各步读回的条目，这两处 `lever` 与同模式的旧字段相等；逐仓的原始返回体没有留档。
 7. **返回体与持仓条目逐字段比对只在第 2 步的原始调用上做过**（一致）。其余步骤是：返回值经适配器核对
    等于目标设置，条目经脚本读回等于目标设置。
 
