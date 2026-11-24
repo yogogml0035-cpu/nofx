@@ -308,6 +308,21 @@ func buildTraderUpdateArgsFromSession(session skillSession) traderUpdateArgs {
 	return args
 }
 
+// traderInitialBalanceResetNote 换绑交易所会把交易员的初始余额重置，等交易员加载时再按新账户的本金重建。
+// 这不是用户要求过的改动，要告诉用户；其余更新不附带说明
+func traderInitialBalanceResetNote(toolResult, lang string) string {
+	var result struct {
+		InitialBalanceReset bool `json:"initial_balance_reset"`
+	}
+	if err := json.Unmarshal([]byte(toolResult), &result); err != nil || !result.InitialBalanceReset {
+		return ""
+	}
+	if lang == "zh" {
+		return "\n\n绑定的交易所变了，初始余额已重置：交易员加载时会按新账户当前的本金（不含浮动盈亏）重建。想用别的数值，请在网页的交易员编辑页修改。"
+	}
+	return "\n\nThe linked exchange changed, so the initial balance was reset: when the trader loads, it is rebuilt from the new account's current principal (excluding unrealized P&L). To use a different value, edit the trader on the web page."
+}
+
 type modelUpdatePatch struct {
 	Enabled         *bool
 	APIKey          string
@@ -1523,27 +1538,28 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 				return "That change did not go through: " + errMsg
 			}
 			a.rememberReferencesFromToolResult(userID, "manage_trader", resp)
+			note := traderInitialBalanceResetNote(resp, lang)
 			if lang == "zh" {
 				switch session.Action {
 				case "configure_strategy":
-					return "已更新交易员策略。"
+					return "已更新交易员策略。" + note
 				case "configure_exchange":
-					return "已更新交易员交易所。"
+					return "已更新交易员交易所。" + note
 				case "configure_model":
-					return "已更新交易员模型。"
+					return "已更新交易员模型。" + note
 				default:
-					return "已更新交易员绑定。"
+					return "已更新交易员绑定。" + note
 				}
 			}
 			switch session.Action {
 			case "configure_strategy":
-				return "Updated the trader strategy."
+				return "Updated the trader strategy." + note
 			case "configure_exchange":
-				return "Updated the trader exchange."
+				return "Updated the trader exchange." + note
 			case "configure_model":
-				return "Updated the trader model."
+				return "Updated the trader model." + note
 			default:
-				return "Updated trader bindings."
+				return "Updated trader bindings." + note
 			}
 		}
 		if fieldValue(session, skillDAGStepField) == "" {
@@ -1583,14 +1599,15 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 				}
 				return "That change did not go through: " + errMsg
 			}
+			note := traderInitialBalanceResetNote(resp, lang)
 			if lang == "zh" {
-				reply := "已更新交易员配置。"
+				reply := "已更新交易员配置。" + note
 				if len(warnings) > 0 {
 					reply += "\n\n已按手动面板范围自动调整：\n- " + strings.Join(warnings, "\n- ")
 				}
 				return reply
 			}
-			reply := "Updated trader config."
+			reply := "Updated trader config." + note
 			if len(warnings) > 0 {
 				reply += "\n\nAdjusted to stay within the manual editor limits:\n- " + strings.Join(warnings, "\n- ")
 			}

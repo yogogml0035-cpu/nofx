@@ -2363,7 +2363,8 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 	if err := a.store.Trader().Update(record); err != nil {
 		return fmt.Sprintf(`{"error":"failed to update trader: %s"}`, err)
 	}
-	if exchangeID != existing.ExchangeID {
+	exchangeRebound := exchangeID != existing.ExchangeID
+	if exchangeRebound {
 		// 换绑交易所：旧初始余额属于原来那个账户。与页面编辑一致，重置后在加载时以新账户的本金重建
 		record.InitialBalance = 0
 		if err := a.store.Trader().UpdateInitialBalance(storeUserID, record.ID, 0); err != nil {
@@ -2378,6 +2379,8 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 		"status": "ok",
 		"action": "update",
 		"trader": safeTraderForTool(record, record.IsRunning),
+		// 换绑交易所时初始余额被重置：技能层据此告诉用户
+		"initial_balance_reset": exchangeRebound,
 	})
 	return string(result)
 }

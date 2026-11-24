@@ -123,6 +123,9 @@ func TestToolUpdateTraderRebindingExchangeResetsInitialBalance(t *testing.T) {
 		if strings.Contains(resp, `"error"`) {
 			t.Fatalf("expected the update to succeed, got: %s", resp)
 		}
+		if !toolResultReportsInitialBalanceReset(resp) {
+			t.Fatalf("the tool result must report that the initial balance was reset, got: %s", resp)
+		}
 		traders, err := st.Trader().List("default")
 		if err != nil || len(traders) != 1 {
 			t.Fatalf("list traders: %v (%d)", err, len(traders))
@@ -148,6 +151,9 @@ func TestToolUpdateTraderRebindingExchangeResetsInitialBalance(t *testing.T) {
 		if strings.Contains(resp, `"error"`) {
 			t.Fatalf("expected the update to succeed, got: %s", resp)
 		}
+		if toolResultReportsInitialBalanceReset(resp) {
+			t.Fatalf("the initial balance is only reset when the exchange changes, got: %s", resp)
+		}
 		var result struct {
 			Trader struct {
 				InitialBalance      float64 `json:"initial_balance"`
@@ -162,6 +168,97 @@ func TestToolUpdateTraderRebindingExchangeResetsInitialBalance(t *testing.T) {
 		}
 		if result.Trader.ScanIntervalMinutes != 10 {
 			t.Fatalf("expected the scan interval to be updated, got %d", result.Trader.ScanIntervalMinutes)
+		}
+	})
+}
+
+func toolResultReportsInitialBalanceReset(toolResult string) bool {
+	var result struct {
+		InitialBalanceReset bool `json:"initial_balance_reset"`
+	}
+	if err := json.Unmarshal([]byte(toolResult), &result); err != nil {
+		return false
+	}
+	return result.InitialBalanceReset
+}
+
+// 用户让助手给交易员换绑交易所：初始余额被重置不是用户要求过的改动，回复里要说清楚，
+// 并告诉用户去哪里改；不换绑的更新不附带这句
+func TestTraderManagementTellsUserWhenRebindingResetsInitialBalance(t *testing.T) {
+	newEnv := func(t *testing.T) (*Agent, string, string) {
+		t.Helper()
+		st, err := store.New(filepath.Join(t.TempDir(), "trader-rebind-reply.db"))
+		if err != nil {
+			t.Fatalf("create store: %v", err)
+		}
+		a := New(nil, st, DefaultConfig(), slog.Default())
+		if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
+			t.Fatalf("seed model: %v", err)
+		}
+		firstExchange, err := st.Exchange().Create("default", "binance", "First", true, "api-test", "secret-test", "", false, "", "", "", "", "", "", 0)
+		if err != nil {
+			t.Fatalf("seed exchange: %v", err)
+		}
+		secondExchange, err := st.Exchange().Create("default", "binance", "Second", true, "api-test-2", "secret-test-2", "", false, "", "", "", "", "", "", 0)
+		if err != nil {
+			t.Fatalf("seed exchange: %v", err)
+		}
+		if err := st.Trader().Create(&store.Trader{
+			ID: "trader-1", UserID: "default", Name: "demo", AIModelID: "default_deepseek",
+			ExchangeID: firstExchange, InitialBalance: 200, ScanIntervalMinutes: 3,
+		}); err != nil {
+			t.Fatalf("seed trader: %v", err)
+		}
+		return a, firstExchange, secondExchange
+	}
+	updateSession := func(exchangeID string) skillSession {
+		return skillSession{
+			Name:      "trader_management",
+			Action:    "update",
+			Phase:     "collecting",
+			TargetRef: &EntityReference{ID: "trader-1"},
+			Fields:    map[string]string{"exchange_id": exchangeID},
+		}
+	}
+
+	t.Run("rebinding: the reply explains the reset", func(t *testing.T) {
+		a, _, secondExchange := newEnv(t)
+
+		reply := a.executeTraderManagementAction("default", 99, "zh", "把 demo 换到 Second", updateSession(secondExchange))
+
+		if !strings.HasPrefix(reply, "已更新交易员配置。") {
+			t.Fatalf("expected the update to be reported as done, got: %q", reply)
+		}
+		if !strings.Contains(reply, "初始余额已重置") || !strings.Contains(reply, "新账户当前的本金") || !strings.Contains(reply, "交易员编辑页") {
+			t.Fatalf("expected the reply to explain the initial balance reset, got: %q", reply)
+		}
+	})
+
+	t.Run("rebinding: the English reply explains the reset", func(t *testing.T) {
+		a, _, secondExchange := newEnv(t)
+
+		reply := a.executeTraderManagementAction("default", 99, "en", "switch demo to Second", updateSession(secondExchange))
+
+		if !strings.HasPrefix(reply, "Updated trader config.") {
+			t.Fatalf("expected the update to be reported as done, got: %q", reply)
+		}
+		if !strings.Contains(reply, "initial balance was reset") || !strings.Contains(reply, "new account's current principal") || !strings.Contains(reply, "edit the trader on the web page") {
+			t.Fatalf("expected the reply to explain the initial balance reset, got: %q", reply)
+		}
+	})
+
+	t.Run("an update that keeps the exchange says nothing about a reset", func(t *testing.T) {
+		a, firstExchange, _ := newEnv(t)
+		session := updateSession(firstExchange)
+		session.Fields["scan_interval_minutes"] = "10"
+
+		reply := a.executeTraderManagementAction("default", 99, "zh", "把 demo 的扫描间隔改成 10 分钟", session)
+
+		if !strings.HasPrefix(reply, "已更新交易员配置。") {
+			t.Fatalf("expected the update to be reported as done, got: %q", reply)
+		}
+		if strings.Contains(reply, "初始余额") {
+			t.Fatalf("the initial balance is untouched, so the reply must not mention a reset, got: %q", reply)
 		}
 	})
 }
