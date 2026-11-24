@@ -85,7 +85,7 @@ func ceilDiv(a, b *big.Rat) *big.Int {
 	return rounded
 }
 
-// ratFloat 把有理数转换为 float64，用于展示与日志
+// ratFloat 把有理数转换为最近的 float64（精确十进制运算的结果在此处一次性舍入）
 func ratFloat(value *big.Rat) float64 {
 	f, _ := value.Float64()
 	return f

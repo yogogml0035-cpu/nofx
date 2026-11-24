@@ -138,19 +138,12 @@ func (at *AutoTrader) checkMaxDrawdown() (bool, float64) {
 	}
 
 	// Get current equity
-	balance, err := at.trader.GetBalance()
+	account, err := types.ReadAccountBalance(at.trader)
 	if err != nil {
+		logger.Warnf("[Grid] Drawdown not checked, account balance unavailable: %v", err)
 		return false, 0
 	}
-
-	currentEquity := 0.0
-	if equity, ok := balance["total_equity"].(float64); ok {
-		currentEquity = equity
-	} else if total, ok := balance["totalWalletBalance"].(float64); ok {
-		if unrealized, ok := balance["totalUnrealizedProfit"].(float64); ok {
-			currentEquity = total + unrealized
-		}
-	}
+	currentEquity := account.Equity
 
 	if currentEquity <= 0 {
 		return false, 0
@@ -518,17 +511,10 @@ func (at *AutoTrader) buildGridContext() (*kernel.GridContext, error) {
 	at.gridState.mu.RUnlock()
 
 	// Get account info
-	balance, err := at.trader.GetBalance()
-	if err == nil {
-		if equity, ok := balance["total_equity"].(float64); ok {
-			ctx.TotalEquity = equity
-		}
-		if available, ok := balance["availableBalance"].(float64); ok {
-			ctx.AvailableBalance = available
-		}
-		if unrealized, ok := balance["totalUnrealizedProfit"].(float64); ok {
-			ctx.UnrealizedPnL = unrealized
-		}
+	if account, err := types.ReadAccountBalance(at.trader); err == nil {
+		ctx.TotalEquity = account.Equity
+		ctx.AvailableBalance = account.Available
+		ctx.UnrealizedPnL = account.UnrealizedPnL
 	}
 
 	// Get current position

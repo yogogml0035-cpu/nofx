@@ -99,24 +99,12 @@ func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, error) {
 	}
 
 	// Get balance (needed for multiple checks)
-	balance, err := at.trader.GetBalance()
+	account, err := types.ReadAccountBalance(at.trader)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get account balance: %w", err)
+		return 0, err
 	}
-	availableBalance := 0.0
-	if avail, ok := balance["availableBalance"].(float64); ok {
-		availableBalance = avail
-	}
-
-	// Get equity for position value ratio check
-	equity := 0.0
-	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
-		equity = eq
-	} else if eq, ok := balance["totalWalletBalance"].(float64); ok && eq > 0 {
-		equity = eq
-	} else {
-		equity = availableBalance // Fallback to available balance
-	}
+	availableBalance := account.Available
+	equity := account.Equity
 
 	// [CODE ENFORCED] Position Value Ratio Check: position_value <= equity × ratio
 	positionSize, wasCapped := at.enforcePositionValueRatio(decision.PositionSizeUSD, equity, decision.Symbol)

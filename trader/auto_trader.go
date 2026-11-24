@@ -16,6 +16,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/trader/types"
 	"sync"
 	"time"
 )
@@ -292,36 +293,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		return nil, fmt.Errorf("unsupported trading platform: %s", config.Exchange)
 	}
 
-	// Validate initial balance configuration, auto-fetch from exchange if 0
-	if config.InitialBalance <= 0 {
-		logger.Infof("📊 [%s] Initial balance not set, attempting to fetch current balance from exchange...", config.Name)
-		account, err := trader.GetBalance()
-		if err != nil {
-			return nil, fmt.Errorf("initial balance not set and unable to fetch balance from exchange: %w", err)
-		}
-		// Try multiple balance field names (different exchanges return different formats)
-		balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
-		var foundBalance float64
-		for _, key := range balanceKeys {
-			if balance, ok := account[key].(float64); ok && balance > 0 {
-				foundBalance = balance
-				break
-			}
-		}
-		if foundBalance > 0 {
-			config.InitialBalance = foundBalance
-			logger.Infof("✓ [%s] Auto-fetched initial balance: %.2f USDT", config.Name, foundBalance)
-			// Save to database so it persists across restarts
-			if st != nil {
-				if err := st.Trader().UpdateInitialBalance(userID, config.ID, foundBalance); err != nil {
-					logger.Infof("⚠️  [%s] Failed to save initial balance to database: %v", config.Name, err)
-				} else {
-					logger.Infof("✓ [%s] Initial balance saved to database", config.Name)
-				}
-			}
-		} else {
-			return nil, fmt.Errorf("initial balance must be greater than 0, please set InitialBalance in config or ensure exchange account has balance")
-		}
+	// Initial balance: keep a valid value, rebuild an invalid one from the account principal
+	if err := resolveInitialBalance(trader, st, userID, &config); err != nil {
+		return nil, fmt.Errorf("[%s] %w", config.Name, err)
 	}
 
 	// Get last cycle number (for recovery)
@@ -364,6 +338,36 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil
+}
+
+// resolveInitialBalance 校验并补齐初始资金。配置里的初始资金大于 0 时照用；不大于 0 是无效值
+// （存量 trader 在交易所读数为 0 时被记成 0），此时读交易所账户的当前本金，以它重建、写回数据库
+// 并记录日志。读不到本金或本金不为正时返回错误：没有有效的初始资金，盈亏与开仓金额都无从计算，
+// trader 不加载。
+func resolveInitialBalance(t Trader, st *store.Store, userID string, config *AutoTraderConfig) error {
+	if config.InitialBalance > 0 {
+		return nil
+	}
+	invalid := config.InitialBalance
+
+	principal, err := types.ReadInitialBalance(t)
+	if err != nil {
+		return fmt.Errorf("initial balance %.2f is not valid and the account principal could not be read: %w", invalid, err)
+	}
+	if principal <= 0 {
+		return fmt.Errorf("initial balance %.2f is not valid and the account principal is not positive (%.2f); "+
+			"deposit funds or set an initial balance above 0", invalid, principal)
+	}
+
+	config.InitialBalance = principal
+	logger.Warnf("⚠️ [%s] Initial balance %.2f is not valid, rebuilt from the current account principal: %.2f USDT",
+		config.Name, invalid, principal)
+	if st != nil {
+		if err := st.Trader().UpdateInitialBalance(userID, config.ID, principal); err != nil {
+			logger.Warnf("⚠️ [%s] Failed to save the rebuilt initial balance to database: %v", config.Name, err)
+		}
+	}
+	return nil
 }
 
 // Run runs the automatic trading main loop

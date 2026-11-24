@@ -197,7 +197,8 @@ export const translations = {
     balanceUpdateHint:
       'Used to manually update the initial balance baseline (e.g., after deposit/withdrawal)',
     autoFetchBalanceInfo:
-      'The system will automatically fetch your account equity as the initial balance',
+      'The exchange account\'s current principal (balance excluding unrealized P&L) is recorded as the initial balance at creation; you can change it later when editing the trader',
+    initialBalanceInvalid: 'Initial balance must be greater than 0',
     fetchingBalance: 'Fetching balance...',
     editTrader: 'Save Changes',
     createTraderButton: 'Create Trader',
@@ -1529,7 +1530,8 @@ export const translations = {
     fetching: '获取中...',
     fetchCurrentBalance: '获取当前余额',
     balanceUpdateHint: '用于手动更新初始余额基准（例如充值/提现后）',
-    autoFetchBalanceInfo: '系统将自动获取您的账户净值作为初始余额',
+    autoFetchBalanceInfo: '创建时自动把交易所账户的当前本金（不含浮动盈亏）记为初始余额，之后可在编辑中修改',
+    initialBalanceInvalid: '初始余额必须大于 0',
     fetchingBalance: '正在获取余额…',
     editTrader: '保存修改',
     createTraderButton: '创建交易员',
@@ -2813,7 +2815,8 @@ export const translations = {
     balanceUpdateHint:
       'Digunakan untuk memperbarui saldo awal secara manual (misal setelah deposit/withdraw)',
     autoFetchBalanceInfo:
-      'Sistem akan otomatis mengambil ekuitas akun Anda sebagai saldo awal',
+      'Prinsipal akun exchange saat ini (saldo tanpa PnL belum terealisasi) dicatat sebagai saldo awal saat pembuatan; dapat diubah nanti saat mengedit trader',
+    initialBalanceInvalid: 'Saldo awal harus lebih besar dari 0',
     fetchingBalance: 'Mengambil saldo...',
     editTrader: 'Simpan Perubahan',
     createTraderButton: 'Buat Trader',

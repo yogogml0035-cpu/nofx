@@ -9,6 +9,7 @@ import (
 
 	"nofx/logger"
 	"nofx/store"
+	"nofx/trader/types"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -21,14 +22,15 @@ const (
 
 // AI trader management related structures
 type CreateTraderRequest struct {
-	Name                string  `json:"name" binding:"required"`
-	AIModelID           string  `json:"ai_model_id" binding:"required"`
-	ExchangeID          string  `json:"exchange_id" binding:"required"`
-	StrategyID          string  `json:"strategy_id"` // Strategy ID (new version)
-	InitialBalance      float64 `json:"initial_balance"`
-	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	IsCrossMargin       *bool   `json:"is_cross_margin"`     // Pointer type, nil means use default value true
-	ShowInCompetition   *bool   `json:"show_in_competition"` // Pointer type, nil means use default value true
+	Name       string `json:"name" binding:"required"`
+	AIModelID  string `json:"ai_model_id" binding:"required"`
+	ExchangeID string `json:"exchange_id" binding:"required"`
+	StrategyID string `json:"strategy_id"` // Strategy ID (new version)
+	// The initial balance is not a request field: it is recorded from the exchange account's
+	// principal at creation and edited afterwards through the update endpoint
+	ScanIntervalMinutes int   `json:"scan_interval_minutes"`
+	IsCrossMargin       *bool `json:"is_cross_margin"`     // Pointer type, nil means use default value true
+	ShowInCompetition   *bool `json:"show_in_competition"` // Pointer type, nil means use default value true
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
 	AltcoinLeverage      int    `json:"altcoin_leverage"`
@@ -220,8 +222,11 @@ func classifyTraderSetupReason(reason string) (string, string) {
 		return "trader.reason.exchange_account_init_failed", "交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配"
 	case strings.Contains(lower, "unsupported trading platform"):
 		return "trader.reason.exchange_unsupported", "当前交易所类型暂不支持机器人初始化"
-	case strings.Contains(lower, "initial balance not set and unable to fetch balance from exchange"):
+	case strings.Contains(lower, "unreadable account balance"),
+		strings.Contains(lower, "account principal could not be read"):
 		return "trader.reason.exchange_balance_unavailable", "系统暂时无法从交易所读取账户余额"
+	case strings.Contains(lower, "account principal is not positive"):
+		return "trader.reason.exchange_principal_not_positive", "交易所账户的本金不为正：请先入金，或把初始余额改成大于 0 的值"
 	case strings.Contains(lower, "timeout"), strings.Contains(lower, "no such host"), strings.Contains(lower, "connection refused"):
 		return "trader.reason.exchange_service_unreachable", "系统暂时无法连接交易所服务"
 	default:
@@ -424,8 +429,9 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3 // Default 3 minutes, not allowed to be less than 3
 	}
 
-	// Query exchange actual balance, override user input
-	actualBalance := req.InitialBalance // Default to use user input
+	// The initial balance is the account principal at creation. A failed reading does not block
+	// creation: the trader is stored with 0 and the value is rebuilt from the principal on load
+	initialBalance := 0.0
 	exchanges, err := s.store.Exchange().List(userID)
 	if err != nil {
 		SafeError(c, http.StatusInternalServerError,
@@ -460,18 +466,14 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			))
 			return
 		} else if tempTrader != nil {
-			// Query actual balance
-			balanceInfo, balanceErr := tempTrader.GetBalance()
+			principal, balanceErr := types.ReadInitialBalance(tempTrader)
 			if balanceErr != nil {
-				logger.Infof("⚠️ Failed to query exchange balance, using user input for initial balance: %v", balanceErr)
+				logger.Infof("⚠️ Failed to read the account principal for trader %s, its initial balance will be rebuilt on load: %v",
+					traderID, balanceErr)
 			} else {
-				if extractedBalance, found := extractExchangeTotalEquity(balanceInfo); found {
-					actualBalance = extractedBalance
-					logger.Infof("✓ Queried exchange total equity: %.2f %s (user input: %.2f)",
-						actualBalance, accountAssetForExchange(exchangeCfg.ExchangeType), req.InitialBalance)
-				} else {
-					logger.Infof("⚠️ Unable to extract total equity from balance info, balanceInfo=%v, using user input for initial balance", balanceInfo)
-				}
+				initialBalance = principal
+				logger.Infof("✓ Initial balance of trader %s recorded from the account principal: %.2f %s",
+					traderID, principal, accountAssetForExchange(exchangeCfg.ExchangeType))
 			}
 		}
 	}
@@ -485,7 +487,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		AIModelID:            req.AIModelID,
 		ExchangeID:           req.ExchangeID,
 		StrategyID:           req.StrategyID, // Associated strategy ID (new version)
-		InitialBalance:       actualBalance,  // Use actual queried balance
+		InitialBalance:       initialBalance,
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       req.TradingSymbols,
@@ -628,6 +630,10 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	}
 
 	exchangeChanged := req.ExchangeID != "" && req.ExchangeID != existingTrader.ExchangeID
+	if req.InitialBalance < 0 {
+		SafeBadRequest(c, "initial_balance must be greater than 0")
+		return
+	}
 	resetInitialBalance := exchangeChanged && req.InitialBalance <= 0
 
 	initialBalance := existingTrader.InitialBalance

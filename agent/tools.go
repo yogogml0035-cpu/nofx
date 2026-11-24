@@ -28,6 +28,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/trader/types"
 )
 
 // cachedTools holds the static tool definitions (built once, reused per message).
@@ -1033,6 +1034,7 @@ func safeExchangeForTool(ex *store.Exchange) safeExchangeToolConfig {
 	}
 }
 
+// defaultTraderInitialBalanceFetcher 读交易所账户的当前本金，作为新建 trader 的初始资金（计划文档第 5 节）
 func defaultTraderInitialBalanceFetcher(exchangeCfg *store.Exchange, userID string) (float64, bool, error) {
 	if exchangeCfg == nil {
 		return 0, false, fmt.Errorf("exchange config not found")
@@ -1041,14 +1043,15 @@ func defaultTraderInitialBalanceFetcher(exchangeCfg *store.Exchange, userID stri
 	if err != nil {
 		return 0, false, err
 	}
-	balanceInfo, err := probe.GetBalance()
+	principal, err := types.ReadInitialBalance(probe)
 	if err != nil {
 		return 0, false, err
 	}
-	return extractTraderInitialBalance(balanceInfo)
+	return principal, true, nil
 }
 
-func buildTraderExchangeProbe(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
+// buildTraderExchangeProbe 按交易所配置构造探测用的适配器。是变量：单元测试里换成不连交易所的桩。
+var buildTraderExchangeProbe = func(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
 	switch exchangeCfg.ExchangeType {
 	case "binance":
 		return binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID), nil
@@ -1080,33 +1083,6 @@ func buildTraderExchangeProbe(exchangeCfg *store.Exchange, userID string) (trade
 	default:
 		return nil, fmt.Errorf("unsupported exchange type: %s", exchangeCfg.ExchangeType)
 	}
-}
-
-func extractTraderInitialBalance(balanceInfo map[string]interface{}) (float64, bool, error) {
-	for _, key := range []string{"total_equity", "totalEquity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"} {
-		raw, ok := balanceInfo[key]
-		if !ok {
-			continue
-		}
-		switch v := raw.(type) {
-		case float64:
-			return v, true, nil
-		case float32:
-			return float64(v), true, nil
-		case int:
-			return float64(v), true, nil
-		case int64:
-			return float64(v), true, nil
-		case int32:
-			return float64(v), true, nil
-		case string:
-			parsed, err := strconv.ParseFloat(v, 64)
-			if err == nil {
-				return parsed, true, nil
-			}
-		}
-	}
-	return 0, false, fmt.Errorf("initial balance not set and unable to fetch balance from exchange")
 }
 
 func safeModelForTool(model *store.AIModel) safeModelToolConfig {
