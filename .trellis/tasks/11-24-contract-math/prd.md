@@ -62,7 +62,9 @@
       ——`TestGateTrader_GetContractSpec*`（含 64 个 goroutine 的并发调用）
 - [x] 7 个合约元数据真实读数：解析结果与接口原始字段逐项一致，每个合约给出当前价格下的最小可交易额；
       输出留档到本任务 `probe/`（代码提交 `62ab50a5`，`contracts=7 failed=0 mismatched=0`）
-- [ ] `git diff --check`、`make test`、`make build` 通过，现有测试不做修改
+- [x] `git diff --check`、`make test`、`make build` 通过，现有测试不做修改
+      ——在 `5d41dde5` 上执行：后端 22 个含测试的包全部通过，前端 11 个测试文件 142 个用例通过；
+      现有测试文件与 `go.mod`、`go.sum` 均未改动
 
 ## Non-Goals
 

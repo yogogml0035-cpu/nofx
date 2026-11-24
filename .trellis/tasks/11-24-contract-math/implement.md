@@ -29,7 +29,10 @@
        - 验证脚本的输出带 UTC 时间与代码提交号，凭据改为可选（只调公开接口）；
          按 `62ab50a5` 重跑读数仍是 `contracts=7 failed=0 mismatched=0`
        - 留给后续子任务的事项记入计划文档 F31、F33–F35
-7. [ ] 门禁：`git diff --check`、`make test`、`make build`
+7. [x] 门禁（在 `5d41dde5` 上执行一次）：`git diff --check` 通过；`make test` 后端 22 个含测试的包全部通过、
+       前端 11 个测试文件 142 个用例通过；`make build` 通过。宿主机没有 Go，make 目标里的 go 命令经一个
+       转发脚本在 Docker 里执行；子 worktree 没有前端依赖，软链了主仓已安装的 `web/node_modules`
+       （两个 worktree 的 `package-lock.json` 一致）
 8. [ ] 合入父分支，归档，推送父分支留档，删除子分支与子 worktree
 
 ## 验证命令
