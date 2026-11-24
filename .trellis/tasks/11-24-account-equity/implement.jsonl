@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/11-24-gate-trading-foundation/prd.md", "reason": "父任务需求映射与跨子任务约束（第 1 条账户权益与本金、安全性不变量、跨子任务验收标准第 1 条：五项口径各只有一处定义）"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "需求与决策以此为准：3.1 账户、4 决策 D4/D18、5 口径与不变量（本金/权益/可用于合约的额度/初始资金）、8.2 删除清单、10.2 子任务 7 行、10.3 W3"}
+{"file": ".trellis/tasks/11-24-gate-trading-foundation/design.md", "reason": "跨子任务设计约定：适配层只做换算与校验、解析失败即报错"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量规范：fail-closed 解析、十进制字段、适配层测试约定（真实响应格式的 httptest、只读真实读数放 probe/）"}
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "交易路径与适配层的契约写法；本任务在其下新增账户读数契约"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "载荷只在一处解码、消费方用类型化投影（余额映射的解析收敛到 trader/types）"}
+{"file": ".trellis/tasks/11-24-account-equity/research/gate-account-balance-docs.md", "reason": "文档原文留档：wallet/total_balance 的 total.amount / borrowed / unrealised_pnl 定义与 1 分钟缓存说明、SDK 的 TotalBalance 模型、Agent 页账户工具、文档未写明的项、规划期只读实测的原始返回"}
