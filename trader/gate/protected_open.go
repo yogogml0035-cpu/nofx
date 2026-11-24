@@ -240,6 +240,6 @@ func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 		return nil
 	}
 	return fmt.Errorf(
-		"protection missing for %s (order %s, side %q): stop loss present=%v, take profit present=%v, open trigger orders=%d; closing position",
+		"protection missing for %s (order %s, side %q): stop loss present=%v, take profit present=%v, open trigger orders=%d; caller must close immediately",
 		symbol, orderID, side, hasSL, hasTP, len(views))
 }
