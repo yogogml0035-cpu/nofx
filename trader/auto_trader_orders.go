@@ -166,20 +166,16 @@ func (at *AutoTrader) executeProtectedOpen(decision *kernel.Decision, actionReco
 		return err
 	}
 
-	// Set margin mode（部分适配器需要；Gate 当前是提示性实现，子任务 5 重写）
-	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
-		logger.Infof("  ⚠️ Failed to set margin mode: %v", err)
-		// Continue execution, doesn't affect trading
-	}
-
+	// 保证金模式与杠杆随开仓请求交给适配器，在提交订单前一并生效；生效失败适配器返回错误，不开仓
 	req := types.ProtectedOpenRequest{
-		Symbol:      decision.Symbol,
-		NotionalUSD: positionSize,
-		Leverage:    decision.Leverage,
-		StopLoss:    decision.StopLoss,
-		TakeProfit:  decision.TakeProfit,
-		MinNotional: at.minOrderNotional(),
-		SlipRatio:   marketOrderSlipRatio,
+		Symbol:        decision.Symbol,
+		NotionalUSD:   positionSize,
+		Leverage:      decision.Leverage,
+		IsCrossMargin: at.config.IsCrossMargin,
+		StopLoss:      decision.StopLoss,
+		TakeProfit:    decision.TakeProfit,
+		MinNotional:   at.minOrderNotional(),
+		SlipRatio:     marketOrderSlipRatio,
 	}
 	var result types.ProtectedOpenResult
 	if side == "SHORT" {

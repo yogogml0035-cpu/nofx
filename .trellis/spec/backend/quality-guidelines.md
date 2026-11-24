@@ -28,6 +28,18 @@ A missing, malformed, or self-contradictory field in an exchange response is an 
 substitute a default (for example forcing an order to one contract). Return an error that names
 the field and the raw value.
 
+### Logging and continuing when an exchange-side setting fails
+
+When the caller asked for a setting that decides the order's risk (leverage, margin mode) and the
+exchange call fails or cannot be read back, do not log a warning and place the order anyway. The
+order would go out with whatever the exchange already has. Return the error and place nothing.
+Contract and reference implementation: [Exchange Adapter Contracts](./exchange-adapters.md).
+
+Known exceptions, kept as they are: the shared `GridTraderAdapter.PlaceLimitOrder` (in `trader/interface.go`
+and `trader/types/interface.go`) and the two-call path for adapters without `MarginSettingsApplier` in
+`trader/auto_trader_grid.go`. Both still log and continue, because other exchanges' adapters are not being
+changed; new code must not add to them.
+
 ---
 
 ## Required Patterns
@@ -58,6 +70,13 @@ test proves nothing.
 Use `httptest` servers that reply in the exchange's real response format, and say so in the test
 comment. Read-only checks against the real API belong in a separate script under the task's
 `probe/` directory, never in the unit test suite.
+
+Error responses in these servers must set `Content-Type: application/json` **before** calling
+`WriteHeader`. The Gate SDK only decodes the error `label` into `GateAPIError` when the response
+content type is JSON; otherwise the code under test receives `GenericOpenAPIError` and a label
+check silently takes the wrong branch. Go's test server sniffs a body written without a content
+type as `text/plain`. Gate's real error responses are JSON, for example an unknown position is
+HTTP 400 with `{"label":"POSITION_NOT_FOUND"}`.
 
 ---
 

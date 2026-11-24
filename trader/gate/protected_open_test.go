@@ -27,10 +27,54 @@ type gateMock struct {
 	orderByID        map[string]map[string]interface{} // GET /orders/{id} 的返回
 	contractOverride map[string]map[string]interface{} // 合约名 → 自定义元数据（特殊场景用）
 	tickerOverride   map[string]string                 // 合约名 → 自定义最新价
+
+	// 仓位设置（合约 → 持仓条目，线上格式）。set_leverage 更新条目并返回它；
+	// 没有条目的合约 GET positions/{contract} 返回 POSITION_NOT_FOUND
+	settings map[string]map[string]interface{}
+	// setLeverageFail 非 nil 时 set_leverage 返回这个错误（模拟交易所拒绝）
+	setLeverageFail *gateAPIFailure
+	// readSettingsFail 非 nil 时 GET positions/{contract} 返回这个错误（模拟读条目失败）
+	readSettingsFail *gateAPIFailure
+	// setLeverageRespondsWith 非 nil 时 set_leverage 的返回值由它给出且不写入条目（模拟被截断的读回）
+	setLeverageRespondsWith func(mode, leverage string) map[string]interface{}
+	// requests 收到的请求（"方法 路径?查询串"），用于断言顺序
+	requests []string
+}
+
+// gateAPIFailure 模拟交易所的错误响应（非 2xx + label）
+type gateAPIFailure struct {
+	status  int
+	label   string
+	message string
 }
 
 func newGateMock() *gateMock {
-	return &gateMock{orderByID: map[string]map[string]interface{}{}}
+	return &gateMock{orderByID: map[string]map[string]interface{}{}, settings: map[string]map[string]interface{}{}}
+}
+
+// positionEntry 仓位设置条目的线上格式：size=0 的合约也有条目；
+// 全仓时 leverage 为 "0"、杠杆在 cross_leverage_limit；lever 两种模式都带
+func positionEntry(contract, mode, leverage string) map[string]interface{} {
+	return nextEntry(contract, nil, mode, leverage)
+}
+
+// nextEntry 模拟 set_leverage 之后的条目（W4 实测的形态）：
+// 逐仓时 leverage 与 lever 是新杠杆，cross_leverage_limit 残留上一次全仓的值
+func nextEntry(contract string, prev map[string]interface{}, mode, leverage string) map[string]interface{} {
+	entry := map[string]interface{}{
+		"contract": contract, "size": "0", "mode": "single",
+		"pos_margin_mode": mode, "lever": leverage,
+		"leverage": "0", "cross_leverage_limit": "0",
+	}
+	if mode == "cross" {
+		entry["cross_leverage_limit"] = leverage
+	} else {
+		entry["leverage"] = leverage
+		if prev != nil {
+			entry["cross_leverage_limit"] = prev["cross_leverage_limit"]
+		}
+	}
+	return entry
 }
 
 // contractResponse 按 Gate Contract 模型返回 DOGE（步长 1）或 ETH（步长 0.1）的元数据
@@ -96,6 +140,14 @@ func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(v)
 	}
+	m.mu.Lock()
+	request := r.Method + " " + path
+	if r.URL.RawQuery != "" {
+		request += "?" + r.URL.RawQuery
+	}
+	m.requests = append(m.requests, request)
+	m.mu.Unlock()
+
 	switch {
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/futures/usdt/contracts/"):
 		contract := strings.TrimPrefix(path, "/futures/usdt/contracts/")
@@ -137,12 +189,84 @@ func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			writeObj(m.priceOrders)
 		}
-	case r.Method == http.MethodPost && strings.HasSuffix(path, "/leverage"):
-		writeObj(map[string]interface{}{"leverage": "10"})
+	// 仓位设置条目：GET positions/{contract}（没有条目 → POSITION_NOT_FOUND）
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/futures/usdt/positions/"):
+		contract := strings.TrimPrefix(path, "/futures/usdt/positions/")
+		m.mu.Lock()
+		entry := m.settings[contract]
+		readFail := m.readSettingsFail
+		m.mu.Unlock()
+		if readFail != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(readFail.status)
+			fmt.Fprintf(w, `{"label":%q,"message":%q}`, readFail.label, readFail.message)
+			return
+		}
+		if entry == nil {
+			// 线上实测：没有条目的合约返回 HTTP 400 + application/json + POSITION_NOT_FOUND
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, `{"label":"POSITION_NOT_FOUND","message":"position not found"}`)
+			return
+		}
+		writeObj(entry)
+	// 设置仓位保证金模式与杠杆：POST positions/{contract}/set_leverage（leverage + margin_mode）
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/set_leverage"):
+		contract := strings.TrimSuffix(strings.TrimPrefix(path, "/futures/usdt/positions/"), "/set_leverage")
+		query := r.URL.Query()
+		m.mu.Lock()
+		if m.setLeverageFail != nil {
+			failure := *m.setLeverageFail
+			m.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(failure.status)
+			fmt.Fprintf(w, `{"label":%q,"message":%q}`, failure.label, failure.message)
+			return
+		}
+		entry := nextEntry(contract, m.settings[contract], query.Get("margin_mode"), query.Get("leverage"))
+		if m.setLeverageRespondsWith != nil {
+			entry = m.setLeverageRespondsWith(query.Get("margin_mode"), query.Get("leverage"))
+		} else {
+			m.settings[contract] = entry
+		}
+		m.mu.Unlock()
+		writeObj(entry)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, `{"label":"NOT_FOUND","message":"%s %s"}`, r.Method, path)
 	}
+}
+
+// requestsSnapshot 返回到目前为止收到的请求
+func (m *gateMock) requestsSnapshot(t *testing.T) []string {
+	t.Helper()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.requests...)
+}
+
+// settingSnapshot 返回合约当前的仓位设置条目
+func (m *gateMock) settingSnapshot(t *testing.T, contract string) map[string]interface{} {
+	t.Helper()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry := m.settings[contract]
+	if entry == nil {
+		return nil
+	}
+	copied := map[string]interface{}{}
+	for key, value := range entry {
+		copied[key] = value
+	}
+	return copied
+}
+
+// assertNoOrder 断言没有提交任何订单
+func (m *gateMock) assertNoOrder(t *testing.T) {
+	t.Helper()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	assert.Empty(t, m.orderBodies, "不得提交订单")
 }
 
 func (m *gateMock) lastOrderBody(t *testing.T) map[string]interface{} {
@@ -275,6 +399,11 @@ func TestOpenProtectedRejects(t *testing.T) {
 			}(),
 			wantErr: "slip ratio must be in (0, 0.5]",
 		},
+		{
+			name:    "杠杆非正",
+			req:     types.ProtectedOpenRequest{Symbol: "DOGE_USDT", NotionalUSD: 95.5, StopLoss: 0.48, TakeProfit: 0.65},
+			wantErr: "leverage must be at least 1",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -283,11 +412,88 @@ func TestOpenProtectedRejects(t *testing.T) {
 			_, err := gt.OpenLongProtected(c.req)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), c.wantErr)
-			mock.mu.Lock()
-			assert.Empty(t, mock.orderBodies, "被拒绝的请求不得提交订单")
-			mock.mu.Unlock()
+			mock.assertNoOrder(t)
+			for _, request := range mock.requestsSnapshot(t) {
+				assert.NotContains(t, request, "/set_leverage", "被拒绝的请求不得改动交易所的仓位设置")
+			}
 		})
 	}
+}
+
+func TestOpenProtectedAppliesMarginSettingsBeforeOrder(t *testing.T) {
+	// 保证金模式与杠杆按 trader 的设置在下单前一并生效（D38）；接口不带 dual_side（单向持仓模式）
+	cases := []struct {
+		name   string
+		cross  bool
+		system string
+	}{
+		{name: "全仓", cross: true, system: "cross"},
+		{name: "逐仓", cross: false, system: "isolated"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mock := newGateMock()
+			gt := newLocalGateTrader(t, mock.handler)
+
+			req := longRequest(95.5)
+			req.IsCrossMargin = c.cross
+			_, err := gt.OpenLongProtected(req)
+			require.NoError(t, err)
+
+			requests := mock.requestsSnapshot(t)
+			setting := "POST /futures/usdt/positions/DOGE_USDT/set_leverage?leverage=10&margin_mode=" + c.system
+			settingAt, orderAt := -1, -1
+			for i, request := range requests {
+				switch request {
+				case setting:
+					settingAt = i
+				case "POST /futures/usdt/orders":
+					orderAt = i
+				}
+			}
+			require.NotEqual(t, -1, settingAt, "下单前必须先生效仓位设置: %v", requests)
+			require.NotEqual(t, -1, orderAt)
+			assert.Less(t, settingAt, orderAt, "仓位设置必须先于下单请求")
+			entry := mock.settingSnapshot(t, "DOGE_USDT")
+			require.NotNil(t, entry)
+			assert.Equal(t, c.system, entry["pos_margin_mode"])
+			assert.Equal(t, "10", entry["lever"])
+		})
+	}
+}
+
+func TestOpenProtectedRefusedWhenMarginSettingsFail(t *testing.T) {
+	// 交易所拒绝设置（如超过合约杠杆上限的 LEVERAGE_EXCEEDED）：不开仓，不提交订单
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+	mock.mu.Lock()
+	mock.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_EXCEEDED", message: "limit [1, 75]"}
+	mock.mu.Unlock()
+
+	_, err := gt.OpenLongProtected(longRequest(95.5))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing to open")
+	assert.Contains(t, err.Error(), "LEVERAGE_EXCEEDED")
+	mock.assertNoOrder(t)
+	assert.Nil(t, mock.settingSnapshot(t, "DOGE_USDT"), "被拒绝的设置不得改动条目")
+}
+
+func TestOpenProtectedRefusedWhenSettingsReadBackMismatch(t *testing.T) {
+	// 接口返回 200 但读回的不是目标设置（如被截断），持仓条目也对不上：不开仓
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+	mock.mu.Lock()
+	mock.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "isolated", "3")
+	mock.setLeverageRespondsWith = func(mode, leverage string) map[string]interface{} {
+		return positionEntry("DOGE_USDT", mode, "3")
+	}
+	mock.mu.Unlock()
+
+	_, err := gt.OpenLongProtected(longRequest(95.5))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing to open")
+	assert.Contains(t, err.Error(), "position shows")
+	mock.assertNoOrder(t)
 }
 
 func TestOpenProtectedETHFractionalStep(t *testing.T) {
@@ -301,6 +507,7 @@ func TestOpenProtectedETHFractionalStep(t *testing.T) {
 	req := types.ProtectedOpenRequest{
 		Symbol:      "ETH_USDT",
 		NotionalUSD: 10.02, // 一张 0.0056 USDT（0.01×0.56）：10.02 → 1789.2 张，落在 0.1 步长
+		Leverage:    10,
 		StopLoss:    0.48,
 		TakeProfit:  0.65,
 		MinNotional: 10,

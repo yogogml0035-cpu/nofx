@@ -22,7 +22,8 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 		return nil, err
 	}
 
-	// Note: Margin mode should be set by the caller (AutoTrader) before opening position via SetMarginMode
+	// Note: Margin mode is not set here. Adapters without MarginSettingsApplier only reach the plain
+	// market primitives; the AI open path requires ProtectedOpener, which applies mode and leverage together
 
 	// Format quantity to correct precision
 	quantityStr, err := t.FormatQuantity(symbol, quantity)
@@ -77,7 +78,8 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 		return nil, err
 	}
 
-	// Note: Margin mode should be set by the caller (AutoTrader) before opening position via SetMarginMode
+	// Note: Margin mode is not set here. Adapters without MarginSettingsApplier only reach the plain
+	// market primitives; the AI open path requires ProtectedOpener, which applies mode and leverage together
 
 	// Format quantity to correct precision
 	quantityStr, err := t.FormatQuantity(symbol, quantity)

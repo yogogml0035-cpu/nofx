@@ -125,12 +125,6 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 				"mkfr":        "0.0002",
 			}
 
-		// Mock UpdatePositionLeverage
-		case strings.Contains(path, "/futures/usdt/positions/") && strings.Contains(path, "/leverage"):
-			respBody = map[string]interface{}{
-				"leverage": "10",
-			}
-
 		// Mock ListPriceTriggeredOrders
 		case strings.Contains(path, "/futures/usdt/price_orders"):
 			respBody = []map[string]interface{}{}

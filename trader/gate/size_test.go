@@ -205,14 +205,26 @@ func TestGateTrader_OpenLongSendsContractCountAsString(t *testing.T) {
 	// 开仓是 IOC 市价单：不预撤挂单与条件单（避免误撤已有仓位的保护单），
 	// 直接按精确换算后的张数提交
 	type captured struct {
-		orderBody   map[string]interface{}
-		sizeDecimal string
+		orderBody    map[string]interface{}
+		sizeDecimal  string
+		setLeverageQ string
 	}
 	capturedCh := make(chan captured, 4)
+	var setLeverageQuery string
 	gt := newLocalGateTrader(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v4/futures/usdt/positions/DOGE_USDT/leverage":
-			writeJSON(w, map[string]interface{}{})
+		// 从未设置过的合约没有仓位设置条目：线上返回 HTTP 400 + POSITION_NOT_FOUND
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v4/futures/usdt/positions/DOGE_USDT":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			writeJSON(w, map[string]string{"label": "POSITION_NOT_FOUND", "message": "position not found"})
+		// 设置杠杆走 set_leverage；没有条目的合约按逐仓
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v4/futures/usdt/positions/DOGE_USDT/set_leverage":
+			setLeverageQuery = r.URL.RawQuery
+			writeJSON(w, map[string]interface{}{
+				"contract": "DOGE_USDT", "pos_margin_mode": "isolated",
+				"leverage": "5", "cross_leverage_limit": "0", "lever": "5",
+			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v4/futures/usdt/contracts/DOGE_USDT":
 			writeJSON(w, map[string]interface{}{
 				"name": "DOGE_USDT", "quanto_multiplier": "10", "order_size_min": "1",
@@ -237,6 +249,9 @@ func TestGateTrader_OpenLongSendsContractCountAsString(t *testing.T) {
 	require.NoError(t, err)
 
 	placed := <-capturedCh
+
+	// 调用方给了杠杆 5：下单前先把它生效（没有条目的合约按逐仓），设置失败就不开仓
+	assert.Equal(t, "leverage=5&margin_mode=isolated", setLeverageQuery)
 
 	assert.Equal(t, "DOGE_USDT", placed.orderBody["contract"])
 	assert.Equal(t, "3", placed.orderBody["size"])
