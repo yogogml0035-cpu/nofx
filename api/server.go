@@ -229,7 +229,7 @@ The initial balance is not part of the body: it is recorded from the exchange ac
 			s.routeWithSchema(protected, "PUT", "/traders/:id", "Update trader configuration",
 				`:id = trader_id from GET /api/my-traders
 Body: {"name":"<string>","ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<EXACT id from GET /api/strategies>","scan_interval_minutes":<int, min 3>,"is_cross_margin":<bool>,"initial_balance":<number, must be above 0; omit or send 0 to keep the current value. When exchange_id changes to another account, the initial balance is reset and rebuilt from the new account's principal when the trader loads, unless a new value is sent in the same request>}
-Only include fields you want to change.`,
+name, ai_model_id and exchange_id are required: send their current values when you only change other fields.`,
 				s.handleUpdateTrader)
 			s.routeWithSchema(protected, "DELETE", "/traders/:id", "Delete trader",
 				`:id = trader_id from GET /api/my-traders. Stops and permanently removes the trader and all its data.`,
