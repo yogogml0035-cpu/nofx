@@ -51,7 +51,7 @@ const (
     ProtectiveStopLoss ProtectiveKind = iota + 1 // 止损
     ProtectiveTakeProfit                          // 止盈
 )
-func (k ProtectiveKind) String() string // "stop_loss" / "take_profit"
+func (k ProtectiveKind) String() string // 中文「止损」/「止盈」，给用户与模型看；包内错误信息沿用英文惯例
 
 // 触发规则常量（Gate 语义，非 NOFX 方向语义）
 const (
@@ -109,7 +109,7 @@ func (t *GateTrader) CancelProtectiveOrder(orderID string) error
 
 // CancelProtectiveOrdersByKind 撤销合约上指定类型的未触发保护单（F10 的语义修正）：
 // 先 ListTriggerOrders，逐条判定 Kind，只撤匹配者；无法判定类型的条件单不撤（fail-closed），
-// 返回撤销的张数列表；单个撤销失败即中止并返回错误
+// 返回已成功撤销的订单 ID 列表；单个撤销失败即中止并返回错误
 func (t *GateTrader) CancelProtectiveOrdersByKind(symbol string, kind ProtectiveKind) ([]string, error)
 ```
 
@@ -126,7 +126,7 @@ func (t *GateTrader) CancelProtectiveOrdersByKind(symbol string, kind Protective
    且实测当前 API 创建的触价单一律被拒（新路径 404 未部署、旧路径 code 1077，research H.2）。
    改单封装保留（SDK 规范路径，W2 有仓位时补测），修改止损止盈的实际路径由撤旧建新
    （撤销 + 构造 + 提交）承担，子任务 11 在其上做亏损上限校验（D34）。
-5. **`AmendProtectiveOrderSize` 只发 `amount`**：两字段同给以 `amount` 为准，`size` 因
+5. **`AmendProtectiveOrderSize` 只发 `amount`**：两字段同给以 `amount` 为准，`size` 零值经
    omitempty 不随请求发送；正负号按「平多仓为负、平空仓为正」的方向约定，与创建接口文档一致。
 6. **改单响应**：SDK 返回 `TriggerOrderResponse`（Id/IdString），本设计回传 ID 字符串供日志。
 7. **查询不做单条 Get**：已完结条件单 10 分钟后不能按 ID 查询（F25），列表查询是唯一

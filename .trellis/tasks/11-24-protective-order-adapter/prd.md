@@ -47,14 +47,20 @@
 
 ## Acceptance Criteria
 
-- [ ] 单测构造矩阵：方向（多/空）× 保护类型（止损/止盈）→ `rule`、`order_type`、`initial`
+- [x] 单测构造矩阵：方向（多/空）× 保护类型（止损/止盈）→ `rule`、`order_type`、`initial`
       （`size`/`close`/`price`/`tif`）逐项断言；非法方向、非法类型、非正价格、随单止损止盈
       顺序颠倒全部报错
-- [ ] 查询视图解析：触发价字符串解析失败即报错；类型判定矩阵（方向 × 规则 → 止损/止盈）正确
-- [ ] 改单请求体：路径与请求体的订单 ID 一致；张数经 `amount` 提交；不带 `rule`
-- [ ] 门禁：`git diff --check`、`make test`、`make build` 全部通过
-- [ ] 真实验证：挂 → 查 → 改单尝试 → 撤旧建新 → 查 → 撤 → 确认无残留，全程在同一合约上、
+- [x] 查询视图解析：触发价字符串解析失败即报错；类型判定矩阵（方向 × 规则 → 止损/止盈）正确
+- [x] 改单请求体：路径与请求体的订单 ID 一致；张数经 `amount` 提交；不带 `rule`
+- [x] 门禁：`git diff --check`、`make test`、`make build` 全部通过
+      ——后端 22 个含测试的包全部通过，前端 11 个测试文件 142 个用例通过；`make build` 通过。
+      宿主机没有 Go，make 目标里的 go 命令经转发脚本在 Docker 里执行（脚本带 CGO_ENABLED=1
+      与 gcc 安装，go-sqlite3 需要 cgo）；子 worktree 软链主仓已安装的 `web/node_modules`
+- [x] 真实验证：挂 → 查 → 改单尝试 → 撤旧建新 → 查 → 撤 → 确认无残留，全程在同一合约上、
       立即还原；过程与读数留档 `probe/`
+      ——`LIVECHECK_PASS steps=10`（`livecheck-2026-11-24.jsonl`），终态零残留；独立核查
+      `open trigger orders: 0 / open orders: 0`（CLEAN）。改单与仓位级条件单被交易所拒绝的
+      实测结论与替代路径验证见上文与 research H 节
 
 ### 真实验证对交易所行为的实测结论（2026-11-24）
 

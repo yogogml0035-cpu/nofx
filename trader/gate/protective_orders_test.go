@@ -188,8 +188,8 @@ func TestClassifyTriggerOrder(t *testing.T) {
 
 func TestParseTriggerOrder(t *testing.T) {
 	order := gateapi.FuturesPriceTriggeredOrder{
-		Id:       12345,
-		IdString: "12345",
+		Id:        12345,
+		IdString:  "12345",
 		OrderType: "close-long-position",
 		Initial: gateapi.FuturesInitialOrder{
 			Contract: "ETH_USDT",
