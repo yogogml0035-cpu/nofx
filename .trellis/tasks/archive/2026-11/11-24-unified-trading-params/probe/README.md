@@ -21,7 +21,7 @@
 ```bash
 docker run --rm -v "$PWD":/w -w /w -v nofx-gocache:/go -e GOPROXY=https://goproxy.cn,direct \
   golang:1.25-alpine sh -c 'CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o /tmp/w4livecheck \
-  ./.trellis/tasks/11-24-unified-trading-params/probe/livecheck.go'
+  ./.trellis/tasks/archive/2026-11/11-24-unified-trading-params/probe/livecheck.go'
 GATE_KEY=… GATE_SECRET=… /tmp/w4livecheck -out livecheck-2026-11-24.jsonl > livecheck-2026-11-24.adapter-log.txt
 ```
 
