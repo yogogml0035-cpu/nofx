@@ -18,10 +18,10 @@
 - 现状（计划文档第 3.4 节、F16）：`SetLeverage` 走旧接口 `positions/{contract}/leverage` 且只传非零杠杆，
   结果恒为逐仓；`SetMarginMode` 是空操作，只打一行日志。用户在 trader 界面选了全仓也不生效。
 - 两个方法分开调用时，保证金模式与杠杆各缺一半信息；AI 开仓路径对杠杆设置失败只告警不阻断。
-- 实测（2026-11-24，只读）：本账户 `position_mode=single`、`margin_mode=1`（跨币种）。交易所在该账户下
-  对首次建仓的合约默认套用「全仓 + 该合约最大杠杆」：DOGE_USDT 为全仓 75x、ETH_USDT 为全仓 200x
-  （子任务 4 的 W2/W3 开仓传的是杠杆 0，没有改设置）；BTC_USDT 是全仓 10x。
-  不显式设置就会落到全仓最大杠杆，这是本子任务要消除的风险。
+- 实测（2026-11-24，只读）：本账户 `position_mode=single`、`margin_mode=1`（跨币种）。子任务 4 的 W2/W3
+  开仓传的是杠杆 0、没有调用杠杆设置，之后 DOGE_USDT、ETH_USDT 的条目是全仓 + 该合约的最大杠杆
+  （75x、200x）；BTC_USDT 是全仓 10x。也就是说不显式设置，首次建仓的合约在本账户下会落到全仓最大杠杆，
+  这是本子任务要消除的风险。
 - `GET /futures/{settle}/get_leverage/{contract}` 在单向持仓模式下必须同时带 `pos_margin_mode` 与
   `dual_side` 才返回 200，返回值三个合约都是 `10`，与持仓条目的 `lever`（75、200）不一致，不能用于读回。
   读回以 `set_leverage` 的返回值与持仓条目（`GET /futures/{settle}/positions/{contract}`）为准。
@@ -50,17 +50,34 @@
 
 ## Acceptance Criteria
 
-- [ ] 一次性生效：全仓 / 逐仓 × 杠杆 → 请求路径 `positions/{contract}/set_leverage`、
+- [x] 一次性生效：全仓 / 逐仓 × 杠杆 → 请求路径 `positions/{contract}/set_leverage`、
       参数 `leverage` 与 `margin_mode`、不带 `dual_side`；返回值读回一致才算成功，
       不一致、交易所拒绝、杠杆非正都报错
-- [ ] 失败不开仓：设置生效失败或读回不一致时，随单保护开仓返回错误且没有提交订单
-- [ ] 接入：AI 开仓与网格初始化都按 trader 的设置生效；旧的独立 `SetMarginMode` 调用、
+      ——`trader/gate/margin_settings_test.go` 逐项覆盖；W4 在真实接口上读回一致
+- [x] 失败不开仓：设置生效失败或读回不一致时，随单保护开仓返回错误且没有提交订单
+      ——`trader/gate/protected_open_test.go`；普通市价原语在调用方给了杠杆时同样失败即不开仓
+- [x] 接入：AI 开仓与网格初始化都按 trader 的设置生效；旧的独立 `SetMarginMode` 调用、
       「尽力而为」的杠杆设置与 `RISK_LIMIT_EXCEEDED` 分支已删除
-- [ ] 两个旧方法按新语义工作：`SetLeverage` 保持该合约当前的保证金模式、只改杠杆；
+      ——`trader/auto_trader_orders_test.go`、`trader/auto_trader_grid_margin_test.go`；网格在设置生效后才标记已初始化
+- [x] 两个旧方法按新语义工作：`SetLeverage` 保持该合约当前的保证金模式、只改杠杆；
       `SetMarginMode` 保持当前生效杠杆、只改模式
-- [ ] 门禁：`git diff --check`、`make test`、`make build` 全部通过
-- [ ] W4 真实验证：在一个未持仓的合约上设置全仓、逐仓与杠杆，从设置接口的返回值与持仓条目读回，
+      ——单测覆盖三种起始状态；W4 第 7、8 步在真实接口上读回一致
+- [x] 门禁：`git diff --check`、`make test`、`make build` 全部通过
+      ——（独立检查收口后的结果见 implement.md 第 7 步）
+- [x] W4 真实验证：在一个未持仓的合约上设置全仓、逐仓与杠杆，从设置接口的返回值与持仓条目读回，
       结束后还原原设置并读回一致；其他合约的设置条目不变；全程不产生持仓与挂单。证据留档 `probe/`
+      ——`LIVECHECK_PASS`（24 步），`probe/livecheck-2026-11-24.jsonl`；DOGE_USDT 还原为全仓 75x，
+      BTC_USDT、ETH_USDT 条目不变
+
+### 真实验证对交易所行为的实测结论（2026-11-24）
+
+详见 `research/gate-leverage-margin-docs.md` G 节与 `probe/README.md`：
+
+- `set_leverage` 线上已部署；单向持仓模式下不带 `dual_side` 返回 200
+- 逐仓时条目的 `cross_leverage_limit` 残留上一次全仓的值，`lever` 才是两种模式通用的当前杠杆；
+  读回解析因此以 `lever` 优先
+- 重复设置同一组值返回 200；超过合约上限被拒的 label 是 `LEVERAGE_EXCEEDED`（不在文档的 label 表里）
+- 账户处于跨币种保证金模式时逐仓可用。单币种模式下的读回、带仓或有挂单时能否修改设置，没有测
 
 ## Notes
 

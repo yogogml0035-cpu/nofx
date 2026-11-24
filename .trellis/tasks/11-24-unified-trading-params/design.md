@@ -33,8 +33,19 @@
 | Agent 文档页：`cex_fx_update_fx_position_leverage`（调整杠杆）只有工具名，没有参数说明；页面上没有「全仓」「逐仓」字样 | E | 文档站原文 |
 | `get_leverage` 在单向持仓模式下不带 `dual_side` 一律 `INVALID_PARAM_VALUE`；带上 `dual_side=dual_long` 返回 200，但三个合约都返回 `10`，与持仓条目的 `lever`（75、200）不一致 | 2026-11-24 只读实测 | 实测 |
 | 持仓条目带 `leverage`、`cross_leverage_limit`、`lever`、`pos_margin_mode`；`size=0` 的合约也有条目 | 2026-11-24 只读实测（BTC 全仓 10x、DOGE 全仓 75x、ETH 全仓 200x，三个字段互相一致） | 实测 |
-| 交易所在本账户下对首次建仓的合约默认套用全仓 + 该合约的最大杠杆 | 2026-11-24 只读实测（子任务 4 的 W2/W3 传杠杆 0，之后条目的读数） | 实测 |
+| 没有显式设置时，首次建仓的合约在本账户下落到全仓 + 该合约的最大杠杆 | 2026-11-24 只读实测：子任务 4 的 W2/W3 传杠杆 0、没有调用设置接口，之后 DOGE、ETH 的条目是全仓 75x、200x（research G.1） | 实测 |
 | 合约元数据 `leverage_min` / `leverage_max` / `cross_leverage_default`：BTC 1 / 200 / 10，DOGE 1 / 75 / 10，ETH 1 / 200 / 10 | 2026-11-24 只读实测 | 实测 |
+
+W4（2026-11-24，`probe/README.md`、research G.3）：
+
+| 设计项 | 依据 | 性质 |
+|---|---|---|
+| `set_leverage` 线上已部署：不带 `dual_side`，单向持仓模式下返回 200，返回体是 Position（带 `mode: "single"`） | W4 第 1 步 | 实测 |
+| 条目形态：全仓 `leverage="0"`、`cross_leverage_limit=N`、`lever=N`；逐仓 `leverage=N`、`lever=N`，`cross_leverage_limit` 残留上一次全仓的值 | W4 第 1–8 步 | 实测 |
+| 重复设置同一组值返回 200，不报 `NO_CHANGE` | W4 第 2 步 | 实测 |
+| 超过合约杠杆上限被拒：`LEVERAGE_EXCEEDED`（`limit [1, 75]`）；这个 label 不在根页的 label 表里 | W4 第 6 步 | 实测 |
+| 从未设置过的合约 `GET positions/{contract}` 返回 HTTP 400 + `POSITION_NOT_FOUND` | 只读实测（SOL、LTC、XRP、ADA） | 实测 |
+| 账户处于跨币种保证金模式时逐仓可设置并读回；切换模式时新接口把杠杆带过去 | W4 第 4–8 步 | 实测 |
 
 不采用 `get_leverage` 做读回：单向持仓模式下它的入参与返回值都不反映该合约的实际设置（实测）。
 SDK v7.2.184 的英文定义与文档站在路径、参数、字段上一致（research F 节）。
@@ -50,7 +61,7 @@ ApplyMarginSettings(symbol, isCrossMargin, leverage)
      不带 dual_side（账户是单向持仓模式）
   3. 读回核对：返回的 Position 解析出的设置 == 目标设置 → 成功
   4. 否则读回持仓条目（GET positions/{contract}）再核对一次：
-       条目 == 目标设置 → 成功（重复设置同一组值时交易所返回 NO_CHANGE、请求超时但交易所已生效等情况）
+       条目 == 目标设置 → 成功（如请求超时但交易所已生效；W4 实测重复设置同一组值时交易所直接返回 200）
        否则 → 报错（带上请求值、读回值、交易所错误）
 ```
 
@@ -127,8 +138,9 @@ func (t *GateTrader) ApplyMarginSettings(symbol string, isCrossMargin bool, leve
 3. **失败闭合**：设置没有读回一致就不继续。旧的 `RISK_LIMIT_EXCEEDED` 被吞成成功的分支删除。
 4. **不做本地杠杆范围校验**：文档没有给出 `set_leverage` 的取值范围；范围以交易所为准，
    被拒绝（`LEVERAGE_TOO_HIGH` / `LEVERAGE_TOO_LOW`）或被截断都会在读回核对时暴露。
-5. **不带 `dual_side`**：文档页面标它为可选；NOFX 的下单模型建立在单向持仓模式上
-   （张数带方向、`close=true` 全平）。是否必须带，以 W4 第 1 步为准。
+5. **不带 `dual_side`**：文档页面标它为可选（changelog 另有「改为必填」的说法），W4 实测单向持仓模式下
+   不带它返回 200。NOFX 的下单模型建立在单向持仓模式上（张数带方向、`close=true` 全平），
+   所以返回体带 `mode` 时必须是 `single`，否则报错。
 
 ## 真实写操作验证（W4，D35 授权范围内）
 
@@ -159,9 +171,12 @@ func (t *GateTrader) ApplyMarginSettings(symbol string, isCrossMargin bool, leve
 
 - W4 在账户当前的跨币种保证金模式下完成；单币种模式下的读回需在账户切换后复验（只读即可）。
   代码不依赖账户的 `margin_mode`，依据是文档「统一账户永续合约的 API 操作与经典账户完全相同」
-- 新接口是否已在线上部署，以 W4 第 1 步为准。子任务 3 实测过改单接口在线上是 404。
-  若 `set_leverage` 同样未部署，改用文档的旧接口（`leverage=0&cross_leverage_limit=N` 为全仓、
-  `leverage=N` 为逐仓），并在收口记录里写明「新接口未部署」
+- 新接口 `set_leverage` 线上已部署（W4 实测；子任务 3 实测过改单接口在线上是 404，两者不同），
+  没有用到旧接口 `positions/{contract}/leverage` 的回退
 - 文档没有说明带仓或有挂单时能否修改设置；label 表里有 `POSITION_HOLDING` 与 `ORDER_PENDING`。
-  W4 只在未持仓的合约上做；运行中被交易所拒绝时按失败闭合处理，不开新仓
+  W4 只在未持仓的合约上做，这种情况没有测；运行中被交易所拒绝时按失败闭合处理，不开新仓
+- 双向与分仓持仓模式下 `dual_side` 是否必填没有测（账户是单向持仓模式）；返回体的 `mode` 不是
+  `single` 时适配器报错
 - 助手手动交易与网格共用的 `GridTraderAdapter` 仍以「失败只告警」的方式调用 `SetLeverage`（各交易所共用，本子任务不动）
+- 助手手动交易（`agent/trade.go` 的 `execute_trade`）走普通市价原语，不带保证金模式：沿用该合约当前的模式，
+  从未设置过的合约按逐仓。它不读取 trader 界面的全仓 / 逐仓开关，是否跟随该开关不在本子任务范围内

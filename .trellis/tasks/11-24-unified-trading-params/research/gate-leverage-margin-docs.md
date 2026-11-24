@@ -1399,3 +1399,77 @@ OAuth2 Scopes 表里的一行：`trade | 现货与合约交易 | cex_spot_create
 - Futures 分页与根页 changelog 有不同步的先例：分页里「修改单个自动订单」写的是 `PUT /futures/{settle}/price_orders/amend`，根页 changelog `v4.106.160`（2026-10-16）写的是「由 `PUT /futures/{settle}/price_orders/amend` 改为 `PUT /futures/{settle}/price_orders/amend/{order_id}`」。这与本题无关，只说明分页可能滞后于 changelog。
 - 根页 changelog `v4.106.20` 写「`FuturesAccount` 模型：删除 `cross_settle` 字段」，Futures 分页页尾的 FuturesAccount 模型表仍然列着 `» cross_settle`。
 - Agent 页正文里有一段面向 AI 客户端的一键安装指令文本（让客户端输入一句话自动配置 Gate Skills 和 MCP），以及 CLI 安装命令。它们是页面正文，本次没有执行，也没有摘录。
+
+## G. 实测补充（2026-11-24，非文档原文，仅用于核对文档说法）
+
+交易子账户，USDT 永续。只读探测用宿主机上的 Python 脚本（签名请求），写操作见任务 `probe/`。
+以下结论都只在本账户上验证过，标注了适用范围。
+
+### G.1 账户与持仓设置条目（只读）
+
+`GET /futures/usdt/accounts`：`position_mode=single`、`margin_mode=1`（跨币种保证金）、`in_dual_mode=false`、
+`enable_credit=true`、`available=107.49769`、`total≈0`。账户内无持仓、无未完结委托、无未触发条件单。
+
+`GET /futures/usdt/positions` 返回 3 个条目，都是 `size=0`、`mode=single`：
+
+| 合约 | `pos_margin_mode` | `leverage` | `cross_leverage_limit` | `lever` | `leverage_max` |
+|---|---|---|---|---|---|
+| BTC_USDT | cross | 0 | 10 | 10 | 200 |
+| DOGE_USDT | cross | 0 | 75 | 75 | 75 |
+| ETH_USDT | cross | 0 | 200 | 200 | 200 |
+
+DOGE_USDT、ETH_USDT 的条目是子任务 4 的 W2/W3 开仓留下的：条目的 `update_time` 是 2026-11-24T09:23:38Z
+与 09:23:45Z，与 W2/W3 的运行时刻吻合；当时的脚本传的是杠杆 0，没有调用任何杠杆设置接口
+（BTC_USDT 的 `update_time` 是 2026-11-23T19:37:32Z，对应用户手动 BTC 持仓平掉的时刻）。
+也就是说，本账户下首次建仓的合约在没有显式设置时落到「全仓 + 该合约的最大杠杆」。这是从这两条读数
+得出的结论，不是文档说法；合约元数据里的 `cross_leverage_default=10` 没有体现在这两条读数上。合约元数据实测：BTC `leverage_min=1`、`leverage_max=200`、`cross_leverage_default=10`；
+DOGE 1 / 75 / 10；ETH 1 / 200 / 10。
+
+`GET /futures/usdt/positions/{contract}`：有条目的合约返回 200；从未设置过的合约（SOL_USDT、LTC_USDT、
+XRP_USDT、ADA_USDT）返回 **HTTP 400**、`Content-Type: application/json`、`{"label":"POSITION_NOT_FOUND"}`。
+
+### G.2 `get_leverage/{contract}` 在单向持仓模式下的行为（只读）
+
+| 查询串 | 结果 |
+|---|---|
+| （无参数） | 400 `INVALID_PARAM_VALUE`：`Invalid request parameter 'pos_margin_mode' value: ` |
+| `pos_margin_mode=cross` 或 `isolated` | 400 `INVALID_PARAM_VALUE`：`Invalid request parameter 'dual_side' value: ` |
+| `pos_margin_mode=&dual_side=` | 400，先报 `pos_margin_mode` |
+| `pos_margin_mode=cross&dual_side=dual_long` | 200 `{"Lever":"10"}` |
+
+带齐两个参数才返回 200，但 BTC、DOGE、ETH 三个合约都返回 `10`，与各自条目的 `lever`（10、75、200）不一致。
+页面把 `dual_side` 标为必选（A.2），实测也确实必填；它的返回值在单向持仓模式下不反映该合约的设置。
+本任务不用它读回。
+
+### G.3 W4：`set_leverage` 真实设置并读回
+
+完整证据见任务 `probe/README.md` 与 `probe/livecheck-2026-11-24.jsonl`。对象 DOGE_USDT，结束后还原为全仓 75x。
+
+1. `POST /futures/usdt/positions/DOGE_USDT/set_leverage?leverage=10&margin_mode=cross` **不带 `dual_side`**，
+   在单向持仓模式下返回 200。返回体是 Position，带 `mode: "single"`、`pos_margin_mode`、`leverage`、
+   `cross_leverage_limit`、`lever`。——「未找到的项 4」（`dual_side` 何时不传）在单向持仓模式下有了答案；
+   双向与分仓模式下是否必填没有测。
+2. 字段形态：
+
+   | 设置 | `pos_margin_mode` | `leverage` | `cross_leverage_limit` | `lever` |
+   |---|---|---|---|---|
+   | 全仓 10x | cross | 0 | 10 | 10 |
+   | 全仓 5x | cross | 0 | 5 | 5 |
+   | 逐仓 5x | isolated | 5 | 5 | 5 |
+   | 逐仓 3x | isolated | 3 | **5** | 3 |
+   | `SetLeverage` 10x（保持逐仓） | isolated | 10 | **5** | 10 |
+   | 切回全仓 | cross | 0 | 10 | 10 |
+
+   逐仓时 `cross_leverage_limit` 残留上一次全仓的值。A.11 的字段描述没有提这一点；`lever` 在两种模式下
+   都是当前杠杆，与 A.11 / D.1 对 `lever` 的描述一致。
+3. 重复设置同一组值（全仓 10x 再设一次）返回 200，不报 `NO_CHANGE`。
+4. 全仓 100x（超过 DOGE_USDT 的 `leverage_max=75`）被拒：`label: LEVERAGE_EXCEEDED`、`message: limit [1, 75]`，
+   条目不变。**`LEVERAGE_EXCEEDED` 不在 C.2 的 label 表里**，表里相近的只有 `LEVERAGE_TOO_HIGH` / `LEVERAGE_TOO_LOW`。
+   message 里的范围下限是 1。文档没有写 `set_leverage` 的取值范围（「未找到的项 2」），这是实测得到的边界。
+5. 账户处于跨币种保证金模式（`margin_mode=1`）时，逐仓可以设置并读回。单币种模式下没有测。
+
+### G.4 仍然没有答案的
+
+- 带持仓或有挂单时 `set_leverage` 是否被拒（label 表里的 `POSITION_HOLDING`、`ORDER_PENDING` 是否用于这个接口）：
+  没有测。W4 只在未持仓的合约上做。
+- 单币种保证金模式下的读回：没有测（账户切换需要 unified 权限或由用户在交易所侧操作）。
