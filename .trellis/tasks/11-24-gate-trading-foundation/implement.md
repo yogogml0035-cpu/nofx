@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | 1 | `gate-sdk-v7` | 无（Trellis 记录建立前已交付） | — | 全量 `go test`；只读真实读数 19 项 |
 | 2 | `contract-math` | `archive/2026-11/11-24-contract-math`（已归档） | 1 合父 | 单测矩阵；7 个合约元数据真实读数 |
-| 3 | `protective-order-adapter` | 开工时创建 | 1 合父 | 单测构造矩阵；真实挂、查、改、撤 |
+| 3 | `protective-order-adapter` | `archive/2026-11/11-24-protective-order-adapter`（已归档） | 1 合父 | 单测构造矩阵；真实挂、查、改、撤 |
 | 4 | `open-position-safety` | 开工时创建 | 2、3 合父 | 单测；真实最小开仓全流程（W2 开仓与全平、W3） |
 | 5 | `unified-trading-params` | 开工时创建 | 1、4 合父 | 单测；闲置合约上真实设置并读回（W4） |
 | 6 | `drawdown-monitor` | 开工时创建（等 U1） | 2、5 合父 | 单测；带仓的只读真实读数 |
