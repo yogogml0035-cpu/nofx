@@ -5,6 +5,8 @@ package gate
 // set_leverage 更新条目并返回它，没有条目的合约 GET positions/{contract} 返回 POSITION_NOT_FOUND。
 
 import (
+	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -64,12 +66,12 @@ func TestApplyMarginSettingsFailsClosed(t *testing.T) {
 		wantErrs []string
 	}{
 		{
-			name: "交易所拒绝（杠杆过高）",
+			name: "交易所拒绝（超过合约杠杆上限，线上实测的 label）",
 			arrange: func(m *gateMock) {
 				m.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "75")
-				m.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_TOO_HIGH", message: "leverage too high"}
+				m.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_EXCEEDED", message: "limit [1, 75]"}
 			},
-			wantErrs: []string{"LEVERAGE_TOO_HIGH"},
+			wantErrs: []string{"LEVERAGE_EXCEEDED"},
 		},
 		{
 			name: "接口返回 200 但返回值与条目都不是目标设置（被截断）",
@@ -120,23 +122,133 @@ func TestApplyMarginSettingsFailsClosed(t *testing.T) {
 	}
 }
 
-func TestApplyMarginSettingsAlreadyInEffect(t *testing.T) {
-	// 重复设置同一组值：交易所返回 NO_CHANGE，持仓条目已是目标设置 → 成功
+func TestApplyMarginSettingsFallsBackToPositionEntry(t *testing.T) {
+	// 接口报错、返回值读不出或与目标不一致时读回持仓条目：条目等于目标设置才算成功，否则报错。
+	// W4 实测重复设置同一组值时交易所直接返回 200，不走这条回退；这里模拟的是请求超时后重试、
+	// 或交易所以错误表示「没有变化」之类的情形
+	cases := []struct {
+		name    string
+		arrange func(m *gateMock)
+		wantErr bool
+	}{
+		{
+			name: "接口报错，条目已是目标设置 → 成功",
+			arrange: func(m *gateMock) {
+				m.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "10")
+				m.setLeverageFail = &gateAPIFailure{status: 400, label: "NO_CHANGE", message: "no change"}
+			},
+		},
+		{
+			name: "接口返回 200 但返回值读不出，条目等于目标设置 → 成功",
+			arrange: func(m *gateMock) {
+				m.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "10")
+				m.setLeverageRespondsWith = func(mode, leverage string) map[string]interface{} {
+					return map[string]interface{}{"contract": "DOGE_USDT", "pos_margin_mode": mode}
+				}
+			},
+		},
+		{
+			name: "接口返回 200 但返回值与目标不一致，条目等于目标设置 → 成功",
+			arrange: func(m *gateMock) {
+				m.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "10")
+				m.setLeverageRespondsWith = func(mode, leverage string) map[string]interface{} {
+					return positionEntry("DOGE_USDT", mode, "3")
+				}
+			},
+		},
+		{
+			name: "接口返回 200 但返回值读不出，条目也不等于目标设置 → 报错",
+			arrange: func(m *gateMock) {
+				m.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "3")
+				m.setLeverageRespondsWith = func(mode, leverage string) map[string]interface{} {
+					return map[string]interface{}{"contract": "DOGE_USDT", "pos_margin_mode": mode}
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "接口返回 200 但返回值与目标不一致，条目也不等于目标设置 → 报错",
+			arrange: func(m *gateMock) {
+				m.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "3")
+				m.setLeverageRespondsWith = func(mode, leverage string) map[string]interface{} {
+					return positionEntry("DOGE_USDT", mode, "3")
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "接口报错，条目也不等于目标设置 → 报错",
+			arrange: func(m *gateMock) {
+				m.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "10")
+				m.setLeverageFail = &gateAPIFailure{status: 400, label: "NO_CHANGE", message: "no change"}
+			},
+			wantErr: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mock := newGateMock()
+			gt := newLocalGateTrader(t, mock.handler)
+			c.arrange(mock)
+			leverage := 10
+			if c.wantErr {
+				leverage = 5 // 目标 5x：条目（全仓 10x 或 3x）与返回值都对不上
+			}
+
+			err := gt.ApplyMarginSettings("DOGE_USDT", true, leverage)
+
+			if c.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "position shows")
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, []string{
+				"POST /futures/usdt/positions/DOGE_USDT/set_leverage?leverage=" + strconv.Itoa(leverage) + "&margin_mode=cross",
+				"GET /futures/usdt/positions/DOGE_USDT",
+			}, mock.requestsSnapshot(t), "接口没有确认目标设置时必须读回持仓条目")
+		})
+	}
+}
+
+func TestApplyMarginSettingsWrapsExchangeError(t *testing.T) {
+	// 交易所的错误保留在错误链里：调用方可用 errors.As 取出 GateAPIError 与 label
 	mock := newGateMock()
 	gt := newLocalGateTrader(t, mock.handler)
-	mock.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "10")
-	mock.setLeverageFail = &gateAPIFailure{status: 400, label: "NO_CHANGE", message: "no change"}
+	mock.settings["DOGE_USDT"] = positionEntry("DOGE_USDT", "cross", "75")
+	mock.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_EXCEEDED", message: "limit [1, 75]"}
 
-	require.NoError(t, gt.ApplyMarginSettings("DOGE_USDT", true, 10))
-	assert.Equal(t, []string{
-		"POST /futures/usdt/positions/DOGE_USDT/set_leverage?leverage=10&margin_mode=cross",
-		"GET /futures/usdt/positions/DOGE_USDT",
-	}, mock.requestsSnapshot(t), "接口报错后读回持仓条目核对")
+	err := gt.ApplyMarginSettings("DOGE_USDT", true, 100)
 
-	// 条目是另一组值：接口报错且读回对不上，不算成功
-	err := gt.ApplyMarginSettings("DOGE_USDT", true, 5)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "position shows")
+	var gateErr gateapi.GateAPIError
+	require.True(t, errors.As(err, &gateErr), "交易所错误应可从错误链取出: %v", err)
+	assert.Equal(t, "LEVERAGE_EXCEEDED", gateErr.Label)
+}
+
+func TestPositionMarginSettingsDistinguishesLabels(t *testing.T) {
+	// 只有 POSITION_NOT_FOUND 代表「没有仓位设置条目」；其他 label 是读失败的错误，
+	// 不得被当成没有条目——否则 SetLeverage 会在读失败时把合约设成逐仓
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+	mock.readSettingsFail = &gateAPIFailure{status: 400, label: "CONTRACT_NOT_FOUND", message: "contract not found"}
+
+	_, err := gt.PositionMarginSettings("DOGE_USDT")
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrNoPositionSettings), "CONTRACT_NOT_FOUND 不是「没有条目」")
+	assert.Contains(t, err.Error(), "CONTRACT_NOT_FOUND")
+
+	err = gt.SetLeverage("DOGE_USDT", 10)
+	require.Error(t, err, "读条目失败时不得回退成逐仓去设置")
+	assert.Contains(t, err.Error(), "CONTRACT_NOT_FOUND")
+
+	err = gt.SetMarginMode("DOGE_USDT", true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CONTRACT_NOT_FOUND")
+
+	for _, request := range mock.requestsSnapshot(t) {
+		assert.NotContains(t, request, "/set_leverage", "读失败时不发设置请求")
+	}
 }
 
 func TestPositionMarginSettingsHTTP(t *testing.T) {
@@ -211,7 +323,8 @@ func TestSetMarginModeKeepsLeverage(t *testing.T) {
 }
 
 func TestMarginSettingsFromPosition(t *testing.T) {
-	// 杠杆优先取 lever；没有可用的 lever 时按模式取旧字段（全仓 cross_leverage_limit、逐仓 leverage）
+	// 杠杆取 lever 与同模式的旧字段（全仓 cross_leverage_limit、逐仓 leverage）：
+	// 只有一个能读时用它，两个都能读时必须相等
 	cases := []struct {
 		name     string
 		position gateapi.Position
@@ -235,10 +348,27 @@ func TestMarginSettingsFromPosition(t *testing.T) {
 			want:     MarginSettings{Leverage: 3},
 		},
 		{
-			// 文档 Position 响应示例的形态：mode isolated、leverage "0"、cross_leverage_limit "0"、lever "30"
-			name:     "旧字段自相矛盾时以 lever 为准",
+			// 文档 Position 响应示例的形态：mode isolated、leverage "0"、cross_leverage_limit "0"、lever "30"。
+			// 逐仓只看 leverage（"0" 读不出杠杆），所以取 lever；残留的 cross_leverage_limit 不参与
+			name:     "同模式的旧字段读不出杠杆时取 lever（文档示例的形态）",
 			position: gateapi.Position{PosMarginMode: "isolated", Leverage: "0", CrossLeverageLimit: "0", Lever: "30"},
 			want:     MarginSettings{Leverage: 30},
+		},
+		{
+			name:     "同模式的旧字段缺失时取 lever",
+			position: gateapi.Position{PosMarginMode: "cross", Leverage: "0", Lever: "10"},
+			want:     MarginSettings{Cross: true, Leverage: 10},
+		},
+		{
+			// 两个来源都能读却不一致：自相矛盾的读数，不替交易所挑一个（父任务 design.md 约定 3）
+			name:     "lever 与同模式的旧字段矛盾（全仓）",
+			position: gateapi.Position{PosMarginMode: "cross", Leverage: "0", CrossLeverageLimit: "75", Lever: "10"},
+			wantErr:  true,
+		},
+		{
+			name:     "lever 与同模式的旧字段矛盾（逐仓）",
+			position: gateapi.Position{PosMarginMode: "isolated", Leverage: "5", Lever: "3"},
+			wantErr:  true,
 		},
 		{
 			name:     "没有 lever 的旧响应：全仓取 cross_leverage_limit",
@@ -284,9 +414,9 @@ func TestMarginSettingsFromPosition(t *testing.T) {
 	}
 }
 
-func TestModeSwitchCarriesLeverage(t *testing.T) {
+func TestModeSwitchKeepsLeverage(t *testing.T) {
 	// W4 实测的条目形态：切到逐仓后 cross_leverage_limit 残留上一次全仓的值，读回仍以当前杠杆为准；
-	// 再切回全仓时新接口把杠杆带过去
+	// SetMarginMode 切回全仓时先读回当前杠杆、再带着它设置（适配器保持杠杆；交易所自身是否保留没有测）
 	mock := newGateMock()
 	gt := newLocalGateTrader(t, mock.handler)
 
@@ -301,8 +431,13 @@ func TestModeSwitchCarriesLeverage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, MarginSettings{Leverage: 3}, got)
 
-	// 逐仓 3x → 全仓 3x
+	// 逐仓 3x → 全仓 3x：读条目，再带 leverage=3 设成全仓
+	mock.requests = nil
 	require.NoError(t, gt.SetMarginMode("DOGE_USDT", true))
+	assert.Equal(t, []string{
+		"GET /futures/usdt/positions/DOGE_USDT",
+		"POST /futures/usdt/positions/DOGE_USDT/set_leverage?leverage=3&margin_mode=cross",
+	}, mock.requestsSnapshot(t))
 	entry = mock.settingSnapshot(t, "DOGE_USDT")
 	assert.Equal(t, "cross", entry["pos_margin_mode"])
 	assert.Equal(t, "0", entry["leverage"])
@@ -319,12 +454,12 @@ func TestOpenMarketLeverage(t *testing.T) {
 	// 调用方给了杠杆：必须生效，失败即不开仓
 	mock := newGateMock()
 	gt := newLocalGateTrader(t, mock.handler)
-	mock.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_TOO_HIGH", message: "leverage too high"}
+	mock.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_EXCEEDED", message: "limit [1, 75]"}
 
 	_, err := gt.OpenLong("DOGE_USDT", 170, 10)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refusing to open")
-	assert.Contains(t, err.Error(), "LEVERAGE_TOO_HIGH")
+	assert.Contains(t, err.Error(), "LEVERAGE_EXCEEDED")
 	mock.assertNoOrder(t)
 
 	// leverage=0 表示不设置：不发设置请求，直接下单，沿用该合约在交易所的现有设置

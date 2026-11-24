@@ -33,6 +33,8 @@ type gateMock struct {
 	settings map[string]map[string]interface{}
 	// setLeverageFail 非 nil 时 set_leverage 返回这个错误（模拟交易所拒绝）
 	setLeverageFail *gateAPIFailure
+	// readSettingsFail 非 nil 时 GET positions/{contract} 返回这个错误（模拟读条目失败）
+	readSettingsFail *gateAPIFailure
 	// setLeverageRespondsWith 非 nil 时 set_leverage 的返回值由它给出且不写入条目（模拟被截断的读回）
 	setLeverageRespondsWith func(mode, leverage string) map[string]interface{}
 	// requests 收到的请求（"方法 路径?查询串"），用于断言顺序
@@ -192,7 +194,14 @@ func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 		contract := strings.TrimPrefix(path, "/futures/usdt/positions/")
 		m.mu.Lock()
 		entry := m.settings[contract]
+		readFail := m.readSettingsFail
 		m.mu.Unlock()
+		if readFail != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(readFail.status)
+			fmt.Fprintf(w, `{"label":%q,"message":%q}`, readFail.label, readFail.message)
+			return
+		}
 		if entry == nil {
 			// 线上实测：没有条目的合约返回 HTTP 400 + application/json + POSITION_NOT_FOUND
 			w.Header().Set("Content-Type", "application/json")
@@ -382,7 +391,7 @@ func TestOpenProtectedRejects(t *testing.T) {
 			wantErr: "slip ratio must be in (0, 0.5]",
 		},
 		{
-			name:    "滑点比率非正",
+			name: "滑点比率非正",
 			req: func() types.ProtectedOpenRequest {
 				r := longRequest(95.5)
 				r.SlipRatio = -0.01
@@ -458,13 +467,13 @@ func TestOpenProtectedRefusedWhenMarginSettingsFail(t *testing.T) {
 	mock := newGateMock()
 	gt := newLocalGateTrader(t, mock.handler)
 	mock.mu.Lock()
-	mock.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_TOO_HIGH", message: "leverage too high"}
+	mock.setLeverageFail = &gateAPIFailure{status: 400, label: "LEVERAGE_EXCEEDED", message: "limit [1, 75]"}
 	mock.mu.Unlock()
 
 	_, err := gt.OpenLongProtected(longRequest(95.5))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refusing to open")
-	assert.Contains(t, err.Error(), "LEVERAGE_TOO_HIGH")
+	assert.Contains(t, err.Error(), "LEVERAGE_EXCEEDED")
 	mock.assertNoOrder(t)
 	assert.Nil(t, mock.settingSnapshot(t, "DOGE_USDT"), "被拒绝的设置不得改动条目")
 }

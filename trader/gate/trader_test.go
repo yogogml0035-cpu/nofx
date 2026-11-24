@@ -125,13 +125,6 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 				"mkfr":        "0.0002",
 			}
 
-		// Mock set_leverage（设置仓位的保证金模式与杠杆，返回 Position：全仓条目的线上格式）
-		case strings.Contains(path, "/futures/usdt/positions/") && strings.Contains(path, "/set_leverage"):
-			respBody = map[string]interface{}{
-				"contract": "BTC_USDT", "pos_margin_mode": "cross",
-				"leverage": "0", "cross_leverage_limit": "10", "lever": "10",
-			}
-
 		// Mock ListPriceTriggeredOrders
 		case strings.Contains(path, "/futures/usdt/price_orders"):
 			respBody = []map[string]interface{}{}

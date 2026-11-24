@@ -45,7 +45,7 @@ W4（2026-11-24，`probe/README.md`、research G.3）：
 | 重复设置同一组值返回 200，不报 `NO_CHANGE` | W4 第 2 步 | 实测 |
 | 超过合约杠杆上限被拒：`LEVERAGE_EXCEEDED`（`limit [1, 75]`）；这个 label 不在根页的 label 表里 | W4 第 6 步 | 实测 |
 | 从未设置过的合约 `GET positions/{contract}` 返回 HTTP 400 + `POSITION_NOT_FOUND` | 只读实测（SOL、LTC、XRP、ADA） | 实测 |
-| 账户处于跨币种保证金模式时逐仓可设置并读回；切换模式时新接口把杠杆带过去 | W4 第 4–8 步 | 实测 |
+| 账户处于跨币种保证金模式时逐仓可设置并读回；`SetMarginMode` 读回当前杠杆后带着它切换模式，切换后杠杆不变（适配器保持杠杆；交易所自身在切换模式时是否保留杠杆没有测） | W4 第 4–8 步 | 实测 |
 
 不采用 `get_leverage` 做读回：单向持仓模式下它的入参与返回值都不反映该合约的实际设置（实测）。
 SDK v7.2.184 的英文定义与文档站在路径、参数、字段上一致（research F 节）。
@@ -66,8 +66,13 @@ ApplyMarginSettings(symbol, isCrossMargin, leverage)
 ```
 
 「成功」的定义：设置接口的返回值或持仓条目之一显示的正是目标设置。
-解析时杠杆优先取 `lever`（文档指定的统一表示）；响应里没有可用的 `lever` 时按模式取旧字段
-（全仓 `cross_leverage_limit`、逐仓 `leverage`）。两处都对不上就报错，调用方不得继续下单。
+接口报错、返回值读不出或与目标不一致时都读回持仓条目核对。两处都对不上就报错，
+错误链里带着交易所的错误（可用 `errors.As` 取出 `GateAPIError`），调用方不得继续下单。
+
+解析时杠杆有两个来源：`lever`（文档指定的统一表示）与同模式下的旧字段（全仓 `cross_leverage_limit`、
+逐仓 `leverage`）。只有一个能读时用它；两个都能读时必须相等，对不上就是自相矛盾的读数，
+该次读回视为不可读（不替交易所挑一个，父任务 design.md 约定 3）。旧字段只看同模式的那个：
+逐仓时 `cross_leverage_limit` 残留上一次全仓的值（W4 实测），全仓时 `leverage` 恒为 0。
 
 ### 接入 AI 开仓
 
@@ -118,7 +123,7 @@ var ErrNoPositionSettings = errors.New("no position settings for contract")
 // MarginSettings 合约当前的仓位设置
 type MarginSettings struct {
     Cross    bool // 全仓为 true，逐仓为 false
-    Leverage int  // 当前杠杆：优先取 lever，旧响应没有 lever 时按模式取设置字段
+    Leverage int  // 当前杠杆：lever 与同模式的旧字段，只有一个能读时用它，都能读时必须相等
 }
 
 // PositionMarginSettings 读回合约的仓位设置（GET positions/{contract}）；
@@ -132,7 +137,8 @@ func (t *GateTrader) ApplyMarginSettings(symbol string, isCrossMargin bool, leve
 ### 设计要点
 
 1. **解析**：`marginSettingsFromPosition` 的模式只接受 `cross` / `isolated`；杠杆经 `parseDecimal`
-   精确解析，必须是正整数且在 `int` 范围内。`lever` 取不到正整数时才按模式取旧字段。
+   精确解析，必须是正整数且在 `int` 范围内。`lever` 与同模式旧字段只有一个能读时用它，
+   都能读时不相等即报错。
 2. **没有条目是明确的状态**：`GET positions/{contract}` 返回 `POSITION_NOT_FOUND` 时返回
    `ErrNoPositionSettings`，调用方按语义决定；其他错误原样返回。
 3. **失败闭合**：设置没有读回一致就不继续。旧的 `RISK_LIMIT_EXCEEDED` 被吞成成功的分支删除。
@@ -180,3 +186,10 @@ func (t *GateTrader) ApplyMarginSettings(symbol string, isCrossMargin bool, leve
 - 助手手动交易与网格共用的 `GridTraderAdapter` 仍以「失败只告警」的方式调用 `SetLeverage`（各交易所共用，本子任务不动）
 - 助手手动交易（`agent/trade.go` 的 `execute_trade`）走普通市价原语，不带保证金模式：沿用该合约当前的模式，
   从未设置过的合约按逐仓。它不读取 trader 界面的全仓 / 逐仓开关，是否跟随该开关不在本子任务范围内
+- **从没有设置过的合约上 `set_leverage` 没有在真实接口上测**。这是 AI 首次开新合约的常规路径，也是本子任务
+  要消除的「落到交易所默认设置」的场景；W4 的对象是已有条目的合约。单元测试按「交易所会建条目」模拟；
+  如果交易所拒绝，结果是开不了新合约（失败闭合），不会开错仓。要实测需要在一个可弃合约上留一条
+  无法还原为「无条目」的条目，需用户授权后再做
+- 设置是合约级的：同一合约上已有反向持仓时，开仓前生效设置会同时改动这个仓位的杠杆与保证金模式
+- `openMarket` 在 `leverage=0` 时仍然下单，首次建仓的合约会落到交易所的默认设置。助手手动交易要求杠杆大于 0，
+  目前没有生产调用方走这条路径

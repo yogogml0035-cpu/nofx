@@ -42,14 +42,18 @@ without `dual_side` (the account trades in one-way position mode). It returns a 
 - `IsCrossMargin` comes from the trader's UI setting (`AutoTraderConfig.IsCrossMargin`); `Leverage` comes from
   the decision or the grid config.
 - **Success means a read-back equals the target.** The `set_leverage` response is checked first. If the call
-  errors or the response cannot be read, the position entry (`GET /futures/{settle}/positions/{contract}`) is
-  checked instead. If neither equals the target, the call fails.
+  errors, or the response cannot be read or differs from the target, the position entry
+  (`GET /futures/{settle}/positions/{contract}`) is checked instead. If the entry equals the target, the call
+  succeeds. Otherwise it fails, and the returned error wraps the exchange error (`errors.As` → `GateAPIError`),
+  so callers can inspect the label.
 - `MarginSettings{Cross, Leverage}` is parsed from a position entry:
   - mode from `pos_margin_mode` (`cross` / `isolated`);
-  - leverage from `lever` (must be a positive integer). Only when `lever` is unusable, fall back to the mode's
-    legacy field: `cross_leverage_limit` for cross, `leverage` for isolated.
-  - `cross_leverage_limit` keeps the last cross value while the contract is isolated, so it must not be read as
-    the leverage of an isolated position.
+  - leverage has two sources: `lever` and the legacy field of the same mode (`cross_leverage_limit` for cross,
+    `leverage` for isolated), each read as an exact decimal that must be a positive integer. When only one is
+    readable, it is used. When both are readable they must be equal; a difference is a contradictory read-back
+    and is an error. Do not pick one of them.
+  - Only the same-mode legacy field takes part: `cross_leverage_limit` keeps the last cross value while the
+    contract is isolated, and `leverage` is `0` while it is cross.
 - `Position.Mode`, when present, must be `single`.
 - An adapter that implements `ProtectedOpener` applies the request's margin settings before submitting the order.
 - The trading path does not call `SetMarginMode` on its own: an adapter that supports the one-shot apply gets a
@@ -61,11 +65,17 @@ without `dual_side` (the account trades in one-way position mode). It returns a 
 |---|---|
 | `leverage < 1` | error, no request sent |
 | Exchange rejects the call (e.g. `LEVERAGE_EXCEEDED`) and the entry does not already match | error; the caller must not place the order |
-| Response or entry is unreadable (unknown mode, leverage not a positive integer) | error |
-| Response and entry differ from the target (e.g. the exchange clamped the value) | error |
-| The call errors but the entry already equals the target (e.g. the request timed out after it was applied) | success |
+| Response is unreadable or differs from the target; the entry equals the target | success |
+| Response and entry both differ from the target or cannot be read (unknown mode, leverage not a positive integer, contradictory leverage) | error |
+| The call errors; the entry equals the target (e.g. the request timed out after it was applied) | success |
+| The call errors; the entry differs or cannot be read | error, with the exchange error in the chain |
 | `GET positions/{contract}` answers `POSITION_NOT_FOUND` (HTTP 400 on Gate) | `ErrNoPositionSettings` |
+| `GET positions/{contract}` fails with any other label | that error is returned as is; it is never treated as "no entry" |
 | Entry `mode` is present and is not `single` | error |
+
+Not verified against the real API: `set_leverage` on a contract that has no position entry yet (the first
+open of a new contract), changing the setting while a position or pending orders exist, and accounts in
+single-currency margin mode. These paths are covered by unit tests with a mock exchange only.
 
 `SetLeverage(symbol, leverage)` on Gate keeps the contract's current mode and changes only the leverage;
 a contract with no position entry is set to isolated. `SetMarginMode(symbol, isCross)` keeps the current
@@ -81,8 +91,10 @@ leverage and returns an error wrapping `ErrNoPositionSettings` when there is no 
 
 ### 6. Tests Required
 
-- `trader/gate/margin_settings_test.go`: request path and query per mode, read-back mismatch, exchange
-  rejection, repeated setting, the parse matrix, and the keep-semantics of the two legacy methods.
+- `trader/gate/margin_settings_test.go`: request path and query per mode, every branch of the
+  fallback-to-entry table (response error / unreadable / mismatch, entry equal or not), the exchange error
+  being in the error chain, `POSITION_NOT_FOUND` being the only label that means "no entry", the parse matrix
+  including contradictory leverage, and the keep-semantics of the two legacy methods.
 - `trader/gate/protected_open_test.go`: the settings request precedes the order request; a failed setting
   leaves no order body.
 - `trader/auto_trader_orders_test.go`, `trader/auto_trader_grid_margin_test.go`: the trader's setting reaches

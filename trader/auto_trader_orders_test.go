@@ -138,8 +138,9 @@ func TestProtectedOpenCarriesTraderMarginMode(t *testing.T) {
 				trader:                stub,
 				positionFirstSeenTime: map[string]int64{},
 			}
+			// 杠杆用一个不常见的值：断言必须来自决策，而不是恰好与桩里的常量相同
 			decision := &kernel.Decision{
-				Action: c.action, Symbol: "DOGEUSDT", Leverage: 10,
+				Action: c.action, Symbol: "DOGEUSDT", Leverage: 7,
 				PositionSizeUSD: 15, StopLoss: 0.48, TakeProfit: 0.65,
 			}
 
@@ -153,7 +154,7 @@ func TestProtectedOpenCarriesTraderMarginMode(t *testing.T) {
 
 			require.Len(t, stub.requests, 1)
 			assert.Equal(t, c.cross, stub.requests[0].IsCrossMargin, "trader 的保证金模式设置必须随开仓请求传出")
-			assert.Equal(t, 10, stub.requests[0].Leverage, "杠杆取自决策")
+			assert.Equal(t, 7, stub.requests[0].Leverage, "杠杆取自决策")
 			assert.Equal(t, "DOGEUSDT", stub.requests[0].Symbol)
 			assert.Zero(t, stub.marginModeCalls, "保证金模式由适配器与杠杆一并生效，交易路径不再单独设置")
 		})

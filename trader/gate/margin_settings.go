@@ -35,7 +35,7 @@ var ErrNoPositionSettings = errors.New("no position settings for contract")
 // MarginSettings 合约当前的仓位设置
 type MarginSettings struct {
 	Cross    bool // 全仓为 true，逐仓为 false
-	Leverage int  // 当前杠杆：优先取 lever，旧响应没有 lever 时按模式取设置字段
+	Leverage int  // 当前杠杆：lever 与同模式的旧字段，只有一个能读时用它，都能读时必须相等
 }
 
 // String 输出给日志看的「模式 杠杆」
@@ -73,10 +73,11 @@ func positiveIntField(field, raw string) (int, error) {
 
 // marginSettingsFromPosition 解析持仓条目或 set_leverage 返回值里的仓位设置。
 // 持仓模式（带 mode 字段时）必须是单向：设置接口不带 dual_side，双向持仓下的设置不属于任何一个方向。
-// 模式只接受 cross / isolated。杠杆优先取 lever：文档写明它是「仓位当前杠杆，逐仓和全仓都可以
-// 用该字段表示，逐步替换 leverage 和 cross_leverage_limit」；旧的 leverage 字段在全仓时为 0，
-// cross_leverage_limit 在逐仓时残留上一次全仓的值（W4 实测），响应里没有 lever 时才按模式取旧字段。
-// 读数缺失或自相矛盾时是错误，不回落猜测值。
+// 模式只接受 cross / isolated。杠杆有两个来源：lever（文档写明它是「仓位当前杠杆，逐仓和全仓都可以
+// 用该字段表示，逐步替换 leverage 和 cross_leverage_limit」）与同模式下的旧字段（全仓
+// cross_leverage_limit、逐仓 leverage）。只有一个能读时用它；两个都能读时必须相等——对不上就是
+// 自相矛盾的读数，不替交易所挑一个。旧字段只看同模式的那个：逐仓时 cross_leverage_limit
+// 残留上一次全仓的值（W4 实测），全仓时 leverage 恒为 0。
 func marginSettingsFromPosition(position *gateapi.Position) (MarginSettings, error) {
 	if position.Mode != "" && position.Mode != positionModeSingle {
 		return MarginSettings{}, fmt.Errorf("position mode %q is not %q: NOFX trades in one-way position mode",
@@ -93,18 +94,23 @@ func marginSettingsFromPosition(position *gateapi.Position) (MarginSettings, err
 			position.PosMarginMode, marginModeCross, marginModeIsolated)
 	}
 
-	leverage, leverErr := positiveIntField("lever", position.Lever)
-	if leverErr != nil {
-		field, raw := "leverage", position.Leverage
-		if cross {
-			field, raw = "cross_leverage_limit", position.CrossLeverageLimit
-		}
-		var err error
-		if leverage, err = positiveIntField(field, raw); err != nil {
-			return MarginSettings{}, fmt.Errorf("position leverage is unreadable (lever %q): %w", position.Lever, err)
-		}
+	field, raw := "leverage", position.Leverage
+	if cross {
+		field, raw = "cross_leverage_limit", position.CrossLeverageLimit
 	}
-	return MarginSettings{Cross: cross, Leverage: leverage}, nil
+	lever, leverErr := positiveIntField("lever", position.Lever)
+	legacy, legacyErr := positiveIntField(field, raw)
+	switch {
+	case leverErr != nil && legacyErr != nil:
+		return MarginSettings{}, fmt.Errorf("position leverage is unreadable: %v; %v", leverErr, legacyErr)
+	case leverErr != nil:
+		return MarginSettings{Cross: cross, Leverage: legacy}, nil
+	case legacyErr != nil:
+		return MarginSettings{Cross: cross, Leverage: lever}, nil
+	case lever != legacy:
+		return MarginSettings{}, fmt.Errorf("position leverage is contradictory: lever %d, %s %d", lever, field, legacy)
+	}
+	return MarginSettings{Cross: cross, Leverage: lever}, nil
 }
 
 // PositionMarginSettings 读回合约的仓位设置（GET /futures/{settle}/positions/{contract}）。
@@ -132,9 +138,10 @@ func (t *GateTrader) PositionMarginSettings(symbol string) (MarginSettings, erro
 // 走文档的新接口 set_leverage（leverage + margin_mode），不带 dual_side：NOFX 的下单模型
 // 建立在单向持仓模式上。
 //
-// 成功的定义是读回的设置正是目标设置：先看设置接口的返回值；接口报错或返回值无法确认时，
-// 再读回持仓条目（如请求超时但交易所已生效；W4 实测重复设置同一组值时交易所直接返回 200）。
-// 两处都对不上就返回错误，调用方不得继续下单。
+// 成功的定义是读回的设置正是目标设置：先看设置接口的返回值；接口报错、返回值读不出或与目标
+// 不一致时，再读回持仓条目，条目等于目标设置即成功（如请求超时但交易所已生效；W4 实测重复设置
+// 同一组值时交易所直接返回 200，不走这条回退）。两处都对不上就返回错误并带上交易所的错误
+// （可用 errors.As 取出 GateAPIError），调用方不得继续下单。
 func (t *GateTrader) ApplyMarginSettings(symbol string, isCrossMargin bool, leverage int) error {
 	if leverage < 1 {
 		return fmt.Errorf("leverage must be at least 1, got %d", leverage)
@@ -168,10 +175,10 @@ func (t *GateTrader) ApplyMarginSettings(symbol string, isCrossMargin bool, leve
 		return nil
 	}
 	if readErr != nil {
-		return fmt.Errorf("failed to apply margin settings %s %s: %v; reading back failed: %v",
+		return fmt.Errorf("failed to apply margin settings %s %s: %w; reading back failed: %v",
 			symbol, want, err, readErr)
 	}
-	return fmt.Errorf("failed to apply margin settings %s %s: %v; position shows %s %s",
+	return fmt.Errorf("failed to apply margin settings %s %s: %w; position shows %s %s",
 		symbol, want, err, symbol, current)
 }
 

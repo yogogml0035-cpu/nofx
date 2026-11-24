@@ -35,6 +35,11 @@ exchange call fails or cannot be read back, do not log a warning and place the o
 order would go out with whatever the exchange already has. Return the error and place nothing.
 Contract and reference implementation: [Exchange Adapter Contracts](./exchange-adapters.md).
 
+Known exceptions, kept as they are: the shared `GridTraderAdapter.PlaceLimitOrder` (in `trader/interface.go`
+and `trader/types/interface.go`) and the two-call path for adapters without `MarginSettingsApplier` in
+`trader/auto_trader_grid.go`. Both still log and continue, because other exchanges' adapters are not being
+changed; new code must not add to them.
+
 ---
 
 ## Required Patterns

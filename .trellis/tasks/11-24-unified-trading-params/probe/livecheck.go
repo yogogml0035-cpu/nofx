@@ -5,13 +5,14 @@ package main
 // 结束后还原原设置。设置操作全部调用交付的适配器代码（与线上同一路径）；
 // 只读用途（账户、持仓条目、挂单）与第 2 步对「重复设置」的原始响应观察使用单独的 SDK 客户端。
 //
-//	预检  账户的持仓模式与保证金模式；目标合约无持仓、无挂单、无条件单；
+//	预检  账户的持仓模式、保证金模式与可用余额；全账户无未完结委托与未触发条件单，目标合约无持仓；
 //	      记录三个合约的仓位设置条目作为基线；从未设置过的合约读不到条目
-//	1     全仓 10x            2  再设一次全仓 10x（重复设置）
+//	1     全仓 10x            2  再设一次全仓 10x（重复设置；另做一次原始调用，只观察不计成败）
 //	3     全仓 5x             4  逐仓 5x           5  逐仓 3x
 //	6     非法值：超过合约上限（100 > 75）、杠杆 0 —— 预期被拒且读回不变
 //	7     SetLeverage 10x（保持逐仓）   8  SetMarginMode 全仓（保持杠杆）
-//	9     还原为基线           10 终态：三个合约的条目与基线一致，无持仓与挂单
+//	9     还原为基线           10 终态：三个合约的条目与基线一致，可用余额与预检一致，
+//	      全账户无未完结委托与未触发条件单
 //
 // 还原不依赖前面步骤的结果（用预检记录的基线），并注册为兜底：中途失败也会执行。
 // 凭据从 GATE_KEY / GATE_SECRET 环境变量读取，不落盘、不打印凭据。
@@ -27,10 +28,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 
-	"github.com/antihax/optional"
 	"github.com/gate/gateapi-go/v7"
 
 	nofxgate "nofx/trader/gate"
@@ -42,6 +43,9 @@ const target = "DOGE_USDT"
 var watched = []string{"BTC_USDT", "DOGE_USDT", "ETH_USDT"}
 
 var failures int
+
+// exchangeLabelRe 适配器报出的交易所错误形如「label: LEVERAGE_EXCEEDED, message: …」
+var exchangeLabelRe = regexp.MustCompile(`label: [A-Z_]+`)
 
 // out 证据输出；适配器的日志走 stdout
 var out io.Writer = os.Stdout
@@ -87,6 +91,16 @@ func step(name string, ok bool, detail map[string]interface{}) {
 		detail["result"] = "FAIL"
 		failures++
 	}
+	emit(detail)
+}
+
+// observe 只记录、不计入成败：没有可断言的内容、但要留档的读数
+func observe(name string, detail map[string]interface{}) {
+	if detail == nil {
+		detail = map[string]interface{}{}
+	}
+	detail["step"] = name
+	detail["result"] = "OBSERVED"
 	emit(detail)
 }
 
@@ -161,9 +175,10 @@ func run() int {
 		step("preflight account", false, map[string]interface{}{"error": errText(err)})
 		return 1
 	}
+	availableBefore := account.Available
 	step("preflight account", true, map[string]interface{}{
 		"position_mode": account.PositionMode, "margin_mode": account.MarginMode,
-		"in_dual_mode": account.InDualMode, "available": account.Available,
+		"in_dual_mode": account.InDualMode, "available": availableBefore,
 	})
 
 	baseline := map[string]entry{}
@@ -187,14 +202,15 @@ func run() int {
 		step("preflight orders", false, map[string]interface{}{"error": errText(err)})
 		return 1
 	}
-	triggers, _, err := rawClient.FuturesApi.ListPriceTriggeredOrders(ctx, "usdt", "open",
-		&gateapi.ListPriceTriggeredOrdersOpts{Contract: optional.NewString(target)})
+	// 全账户范围：W4 期间账户里不应有任何未完结委托或未触发条件单
+	triggers, _, err := rawClient.FuturesApi.ListPriceTriggeredOrders(ctx, "usdt", "open", nil)
 	if err != nil {
 		step("preflight price orders", false, map[string]interface{}{"error": errText(err)})
 		return 1
 	}
 	idle := len(orders) == 0 && len(triggers) == 0
-	step("preflight idle", idle, map[string]interface{}{"open_orders": len(orders), "open_price_orders": len(triggers)})
+	step("preflight idle", idle, map[string]interface{}{
+		"open_orders": len(orders), "open_price_orders": len(triggers), "scope": "account-wide"})
 	if !idle {
 		return 1
 	}
@@ -255,7 +271,7 @@ func run() int {
 	apply("2 repeat cross 10x via adapter", true, 10)
 	// 原始调用：观察交易所对「设置成与当前相同的值」的响应
 	repeatPosition, _, repeatErr := rawClient.FuturesApi.UpdateContractPositionLeverage(ctx, "usdt", target, "10", "cross", nil)
-	step("2 repeat cross 10x raw observe", true, map[string]interface{}{
+	observe("2 repeat cross 10x raw", map[string]interface{}{
 		"error": errText(repeatErr), "response": toEntry(repeatPosition)})
 	expectSettings("2 read back", "cross", 10)
 
@@ -273,7 +289,9 @@ func run() int {
 
 	// ===== 6 非法值：预期被拒，读回不变 =====
 	err = gt.ApplyMarginSettings(target, true, 100) // 超过 DOGE_USDT 的杠杆上限 75
-	step("6 above max rejected", err != nil, map[string]interface{}{"error": errText(err)})
+	// 必须是交易所拒绝且 label 被原样报出，而不是适配器本地的其他错误或一次「成功」
+	step("6 above max rejected by exchange", err != nil && exchangeLabelRe.MatchString(err.Error()),
+		map[string]interface{}{"error": errText(err)})
 	err = gt.ApplyMarginSettings(target, true, 0)
 	step("6 zero leverage rejected", err != nil, map[string]interface{}{"error": errText(err)})
 	expectSettings("6 read back unchanged", "isolated", 3)
@@ -305,14 +323,24 @@ func run() int {
 	if err != nil {
 		unchanged = false
 	}
-	triggers, _, err = rawClient.FuturesApi.ListPriceTriggeredOrders(ctx, "usdt", "open",
-		&gateapi.ListPriceTriggeredOrdersOpts{Contract: optional.NewString(target)})
+	triggers, _, err = rawClient.FuturesApi.ListPriceTriggeredOrders(ctx, "usdt", "open", nil)
 	if err != nil {
 		unchanged = false
 	}
-	clean := unchanged && len(orders) == 0 && len(triggers) == 0
+	// 可用余额与预检一致：W4 只改设置、不下单，不应有资金变动
+	finalAccount, _, err := rawClient.FuturesApi.ListFuturesAccounts(ctx, "usdt")
+	if err != nil {
+		unchanged = false
+	}
+	availableAfter := ""
+	if err == nil {
+		availableAfter = finalAccount.Available
+	}
+	clean := unchanged && len(orders) == 0 && len(triggers) == 0 && availableAfter == availableBefore
 	step("10 final state", clean, map[string]interface{}{
-		"entries": final, "open_orders": len(orders), "open_price_orders": len(triggers)})
+		"entries": final, "open_orders": len(orders), "open_price_orders": len(triggers),
+		"available_before": availableBefore, "available_after": availableAfter,
+		"account_error": errText(err)})
 
 	if failures > 0 {
 		fmt.Fprintf(out, "LIVECHECK_FAIL failures=%d\n", failures)
