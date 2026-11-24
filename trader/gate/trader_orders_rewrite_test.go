@@ -157,6 +157,20 @@ func TestContractsFromQuantityFloor(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "16", contracts)
 
+	// "张数 × 每张币数量" 的浮点乘法噪声（运行时变量，常量会被编译器精确折叠）：
+	// 容差内吸附回 17 张，向上噪声不放大、向下噪声不少算
+	multiplier := 10.0
+	steps := 17
+	noisyUp := float64(steps) * multiplier * (1 + 1e-15)
+	contracts, err = spec.ContractsFromQuantityFloor(noisyUp)
+	require.NoError(t, err)
+	assert.Equal(t, "17", contracts, "向上噪声吸附，不放大订单")
+
+	noisyDown := float64(steps) * multiplier * (1 - 1e-15)
+	contracts, err = spec.ContractsFromQuantityFloor(noisyDown)
+	require.NoError(t, err)
+	assert.Equal(t, "17", contracts, "向下噪声吸附，不少算一步")
+
 	// 0.9 张不足一步 → 报错，不强制成 1 张
 	_, err = spec.ContractsFromQuantityFloor(9)
 	require.Error(t, err)

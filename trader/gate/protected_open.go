@@ -177,21 +177,31 @@ func (t *GateTrader) OpenShortProtected(req types.ProtectedOpenRequest) (types.P
 
 // VerifyOrderProtection 核对开仓委托的保护单存在（保护不变量，计划文档第 5 节）：
 // 1) 委托回读的随单止损止盈触发价都在（随单 tpsl 已被交易所接受）；
-// 2) 否则该合约的未触发条件单同时包含止损与止盈（随单 tpsl 在委托完结后转为
-//    仓位级条件单的形态，W2 实测确认实际行为）。
-// 两条都不满足时报错，错误里带上实际观察到的条件单情况。
+// 2) 否则该合约的未触发条件单同时包含本次开仓方向的止损与止盈（随单 tpsl 在委托
+//    完结后转为委托级条件单的形态，W2 实测确认实际行为）。
+// 方向从委托张数符号推导（多正空负），列表里只统计同侧的条件单：
+// 遗留的反向止损止盈对不能让新仓位被误判为受保护。
+// 两条路径都不满足时报错，错误里带上实际观察到的条件单情况。
 func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 	if orderID == "" {
 		return errors.New("cannot verify protection without order id")
 	}
 	symbol = t.convertSymbol(symbol)
 
+	// 委托方向：多正空负；查询失败时方向未知（空串），列表按同侧配对核对
+	side := ""
 	order, _, err := t.client.FuturesApi.GetFuturesOrder(t.ctx, "usdt", orderID)
 	if err == nil {
 		if order.TpslSlTriggerPrice != "" && order.TpslTpTriggerPrice != "" {
 			logger.Infof("  [Gate] Protection verified via order tpsl: %s sl=%s tp=%s",
 				orderID, order.TpslSlTriggerPrice, order.TpslTpTriggerPrice)
 			return nil
+		}
+		if size, parseErr := parseDecimal("order size", order.Size); parseErr == nil && size.Sign() != 0 {
+			side = "SHORT"
+			if size.Sign() > 0 {
+				side = "LONG"
+			}
 		}
 	} else {
 		// 已完结的委托在完结 10 分钟后不能按 ID 查询（计划文档 F25）；
@@ -203,23 +213,33 @@ func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 	if err != nil {
 		return fmt.Errorf("protection verification for %s failed: %w", symbol, err)
 	}
-	var hasSL, hasTP bool
+	slSides := map[string]bool{}
+	tpSides := map[string]bool{}
 	for _, view := range views {
-		if view.Contract != symbol {
+		if view.Contract != symbol || !view.KindKnown || view.Side == "" {
 			continue
 		}
-		switch {
-		case view.KindKnown && view.Kind == ProtectiveStopLoss:
-			hasSL = true
-		case view.KindKnown && view.Kind == ProtectiveTakeProfit:
-			hasTP = true
+		if side != "" && view.Side != side {
+			continue
+		}
+		switch view.Kind {
+		case ProtectiveStopLoss:
+			slSides[view.Side] = true
+		case ProtectiveTakeProfit:
+			tpSides[view.Side] = true
+		}
+	}
+	hasSL, hasTP := false, false
+	for viewSide := range slSides {
+		if tpSides[viewSide] {
+			hasSL, hasTP = true, true
 		}
 	}
 	if hasSL && hasTP {
-		logger.Infof("  [Gate] Protection verified via trigger orders: %s has %d open trigger orders (SL+TP)", symbol, len(views))
+		logger.Infof("  [Gate] Protection verified via trigger orders: %s side=%s has %d open trigger orders (SL+TP)", symbol, side, len(views))
 		return nil
 	}
 	return fmt.Errorf(
-		"protection missing for %s (order %s): stop loss present=%v, take profit present=%v, open trigger orders=%d; closing position",
-		symbol, orderID, hasSL, hasTP, len(views))
+		"protection missing for %s (order %s, side %q): stop loss present=%v, take profit present=%v, open trigger orders=%d; closing position",
+		symbol, orderID, side, hasSL, hasTP, len(views))
 }

@@ -13,6 +13,7 @@ import (
 	"nofx/store"
 	"nofx/trader/types"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -202,24 +203,24 @@ func (at *AutoTrader) executeProtectedOpen(decision *kernel.Decision, actionReco
 
 	// Record order to database and poll for confirmation
 	orderResult := map[string]interface{}{"orderId": result.OrderID}
-	at.recordAndConfirmOrder(orderResult, decision.Symbol, "open_"+side, result.Quantity, result.FillPrice, decision.Leverage, 0)
+	at.recordAndConfirmOrder(orderResult, decision.Symbol, "open_"+strings.ToLower(side), result.Quantity, result.FillPrice, decision.Leverage, 0)
 
-	// Record position opening time
-	posKey := decision.Symbol + "_" + side
+	// Record position opening time（循环侧的 key 用 GetPositions 的小写方向，保持一致）
+	posKey := decision.Symbol + "_" + strings.ToLower(side)
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
 	// 保护不变量：成交后核对保护单存在；缺失立即平仓并报错
 	if err := opener.VerifyOrderProtection(decision.Symbol, result.OrderID); err != nil {
 		logger.Infof("  🚨 %v", err)
-		var closeOrder map[string]interface{}
 		var closeErr error
 		if side == "SHORT" {
-			closeOrder, closeErr = at.trader.CloseShort(decision.Symbol, 0)
+			_, closeErr = at.trader.CloseShort(decision.Symbol, 0)
 		} else {
-			closeOrder, closeErr = at.trader.CloseLong(decision.Symbol, 0)
+			_, closeErr = at.trader.CloseLong(decision.Symbol, 0)
 		}
 		if closeErr != nil {
-			return fmt.Errorf("opened without protection and emergency close FAILED (close order %v): %w", closeOrder, err)
+			// 两条信息都必须保留：核对为什么失败、平仓为什么失败（仓位此刻仍无保护留在交易所）
+			return fmt.Errorf("opened without protection (%v) and emergency close FAILED: %w", err, closeErr)
 		}
 		return fmt.Errorf("opened without protection, closed immediately: %w", err)
 	}

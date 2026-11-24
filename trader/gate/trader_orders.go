@@ -230,7 +230,11 @@ func (t *GateTrader) GetMarketPrice(symbol string) (float64, error) {
 		return 0, fmt.Errorf("no ticker data for %s", symbol)
 	}
 
-	price, _ := strconv.ParseFloat(tickers[0].Last, 64)
+	// 开/平仓取价的唯一来源：脏数据直接报错（带字段名与原始值），不回落 0
+	price, err := strconv.ParseFloat(tickers[0].Last, 64)
+	if err != nil || price <= 0 {
+		return 0, fmt.Errorf("invalid last price for %s: %q", symbol, tickers[0].Last)
+	}
 	return price, nil
 }
 

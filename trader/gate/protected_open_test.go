@@ -20,11 +20,13 @@ import (
 // gateMock 按 Gate 线上格式响应契约（DOGE_USDT：整数张；ETH_USDT：0.1 张步长），
 // 并记录收到的下单请求体供断言。
 type gateMock struct {
-	mu          sync.Mutex
-	orderBodies []map[string]interface{}
-	positions   []map[string]interface{}       // GET /positions 的返回；nil 表示空仓
-	priceOrders []map[string]interface{}       // GET /price_orders 的返回
-	orderByID   map[string]map[string]interface{} // GET /orders/{id} 的返回
+	mu               sync.Mutex
+	orderBodies      []map[string]interface{}
+	positions        []map[string]interface{}          // GET /positions 的返回；nil 表示空仓
+	priceOrders      []map[string]interface{}          // GET /price_orders 的返回
+	orderByID        map[string]map[string]interface{} // GET /orders/{id} 的返回
+	contractOverride map[string]map[string]interface{} // 合约名 → 自定义元数据（特殊场景用）
+	tickerOverride   map[string]string                 // 合约名 → 自定义最新价
 }
 
 func newGateMock() *gateMock {
@@ -96,9 +98,19 @@ func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/futures/usdt/contracts/"):
-		writeObj(contractResponse(strings.TrimPrefix(path, "/futures/usdt/contracts/")))
+		contract := strings.TrimPrefix(path, "/futures/usdt/contracts/")
+		if override, ok := m.contractOverride[contract]; ok {
+			writeObj(override)
+		} else {
+			writeObj(contractResponse(contract))
+		}
 	case r.Method == http.MethodGet && path == "/futures/usdt/tickers":
-		writeObj([]map[string]interface{}{{"contract": "DOGE_USDT", "last": "0.56"}})
+		contract := r.URL.Query().Get("contract")
+		if last, ok := m.tickerOverride[contract]; ok {
+			writeObj([]map[string]interface{}{{"contract": contract, "last": last}})
+		} else {
+			writeObj([]map[string]interface{}{{"contract": "DOGE_USDT", "last": "0.56"}})
+		}
 	case r.Method == http.MethodGet && path == "/futures/usdt/positions":
 		if m.positions == nil {
 			writeObj([]map[string]interface{}{})
@@ -300,6 +312,60 @@ func TestOpenProtectedETHFractionalStep(t *testing.T) {
 	// 小数张合约：张数是十进制字符串且落在 0.1 步长上
 	assert.Regexp(t, `^-?\d+\.\d$`, body["size"], "ETH 张数保留 0.1 步长的小数位")
 	assert.NotEmpty(t, res.Contracts)
+}
+
+func TestOpenProtectedAboveMarketMax(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+	mock.mu.Lock()
+	// 市价单最大张数 20（order_size_max 更大，取较小者）：17 张可过，40 张被拒（F28）
+	mock.contractOverride = map[string]map[string]interface{}{
+		"DOGE_USDT": {
+			"name": "DOGE_USDT", "quanto_multiplier": "10", "order_size_min": "1",
+			"order_size_max": "1000000", "market_order_size_max": "20", "enable_decimal": false,
+		},
+	}
+	mock.mu.Unlock()
+
+	_, err := gt.OpenLongProtected(longRequest(95.5)) // 17 张 ≤ 20
+	require.NoError(t, err)
+
+	_, err = gt.OpenLongProtected(longRequest(224)) // 40 张 > 20
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "超过市价单最大张数")
+
+	mock.mu.Lock()
+	require.Len(t, mock.orderBodies, 1, "被拒的请求不得提交订单")
+	mock.mu.Unlock()
+}
+
+func TestVerifyOrderProtectionIgnoresOtherSide(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+	mock.mu.Lock()
+	// 本次开空（委托 size 为负）：列表里遗留的多头止损止盈对不算保护
+	mock.orderByID["99123"] = func() map[string]interface{} {
+		resp := filledOrderResponse(99123, "-17", "0.5600", "", "")
+		return resp
+	}()
+	mock.priceOrders = []map[string]interface{}{
+		positionLevelTriggerOrder(551, "DOGE_USDT", "LONG", "SL"),
+		positionLevelTriggerOrder(552, "DOGE_USDT", "LONG", "TP"),
+	}
+	mock.mu.Unlock()
+
+	err := gt.VerifyOrderProtection("DOGE_USDT", "99123")
+	require.Error(t, err, "反向遗留的止损止盈对不得让空头仓位被误判为受保护")
+	assert.Contains(t, err.Error(), "protection missing")
+
+	// 换成本侧（空头）的止损止盈对 → 受保护
+	mock.mu.Lock()
+	mock.priceOrders = []map[string]interface{}{
+		positionLevelTriggerOrder(551, "DOGE_USDT", "SHORT", "SL"),
+		positionLevelTriggerOrder(552, "DOGE_USDT", "SHORT", "TP"),
+	}
+	mock.mu.Unlock()
+	assert.NoError(t, gt.VerifyOrderProtection("DOGE_USDT", "99123"))
 }
 
 func TestVerifyOrderProtectionViaOrderTpsl(t *testing.T) {

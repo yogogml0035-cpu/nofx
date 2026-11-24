@@ -342,6 +342,8 @@ func (s ContractSpec) ContractsFromQuantity(quantity float64) (string, error) {
 // 与 ContractsFromQuantity 不同：数量不落在步长上时向下取整而不是报错
 // （部分平仓量由调用方给出，取整只向下，不放大订单）；
 // 取整后不足一个最小步长时报错，不强制成一步。
+// 数量带着"张数 × 每张币数量"浮点乘法的噪声时，容差内吸附回步长再取值，
+// 向下噪声不会因此少算一步。
 func (s ContractSpec) ContractsFromQuantityFloor(quantity float64) (string, error) {
 	if err := s.check(); err != nil {
 		return "", err
@@ -355,6 +357,22 @@ func (s ContractSpec) ContractsFromQuantityFloor(quantity float64) (string, erro
 	}
 
 	contracts := new(big.Rat).Quo(quantityValue, s.multiplier)
+	stepsExact := new(big.Rat).Quo(contracts, s.step)
+	nearest := new(big.Int).Quo(stepsExact.Num(), stepsExact.Denom())
+	if new(big.Int).Lsh(new(big.Int).Mod(stepsExact.Num(), stepsExact.Denom()), 1).Cmp(stepsExact.Denom()) >= 0 {
+		nearest.Add(nearest, big.NewInt(1))
+	}
+	if nearest.Sign() > 0 {
+		snapped := new(big.Rat).Mul(s.step, new(big.Rat).SetInt(nearest))
+		tolerance := new(big.Rat).Mul(contracts, snapToleranceRel)
+		if tolerance.Cmp(snapToleranceAbs) < 0 {
+			tolerance = snapToleranceAbs
+		}
+		if new(big.Rat).Abs(new(big.Rat).Sub(contracts, snapped)).Cmp(tolerance) <= 0 {
+			return formatDecimal(snapped, s.stepScale)
+		}
+	}
+
 	steps := floorDiv(contracts, s.step)
 	if steps.Sign() == 0 {
 		return "", fmt.Errorf("quantity %v is below one size step (%s contracts)", quantity, s.SizeStep)
