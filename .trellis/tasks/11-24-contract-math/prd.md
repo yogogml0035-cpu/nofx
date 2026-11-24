@@ -16,6 +16,7 @@
 1. **合约元数据读取**：从 `GET /futures/usdt/contracts/{contract}` 读取 `quanto_multiplier`、`order_size_min`、
    `order_size_max`、`market_order_size_max`、`enable_decimal`，带 `X-Gate-Size-Decimal: 1` 请求头。
    最小步长取 `order_size_min`（整数张合约为 1 张，小数张合约按接口返回的值，如 0.1 张）。
+   官方资料没有写明张数必须是它的整数倍，这是 D30 的推论，由子任务 4 的 W3 实测确认。
    读取结果带缓存，过期后重新读取；读取失败不缓存。
 2. **USDT 名义价值换算为下单张数**（D24、D30）：
    - 张数 = 名义价值 ÷（价格 × `quanto_multiplier`），按该合约的最小步长向下取整
@@ -46,17 +47,21 @@
 
 ## Acceptance Criteria
 
-- [ ] 元数据解析矩阵：整数张合约、小数张合约、缺少小数张请求头导致 `order_size_min` 为 0、字段为空或非数字、
+- [x] 元数据解析矩阵：整数张合约、小数张合约、缺少小数张请求头导致 `order_size_min` 为 0、字段为空或非数字、
       `enable_decimal` 与步长不一致、最大张数小于步长、市价单上限未设置、小于或大于单笔上限
-- [ ] 名义价值换算矩阵：整数张向下取整、小数张向下取整、不足一个最小步长、取整后低于最小下单金额、
-      恰好等于最小下单金额、超过市价单最大张数、最小可交易额
-- [ ] 浮点会算错的边界按十进制语义给出正确结果：商恰为整数时不掉一格，`0.0003 ÷ 0.0001` 得 3
-- [ ] 计划文档第 6.1 节两张表（下单位置表、当前本金下各合约所需百分比）用同一组价格复算一致
-- [ ] 分批比例矩阵：全平、可分批、换算后不足一个最小步长、持仓张数不在步长上、比例越界；
-      比例小于 100% 时剩余至少一个最小步长
-- [ ] 元数据缓存：有效期内不重复请求，过期后重新请求，请求失败与元数据不合法都不缓存
-- [ ] 7 个合约元数据真实读数：解析结果与接口原始字段逐项一致，每个合约给出当前价格下的最小可交易额；
-      输出留档到本任务 `probe/`
+      ——`TestNewContractSpec`
+- [x] 名义价值换算矩阵：整数张向下取整、小数张向下取整、不足一个最小步长、取整后低于最小下单金额、
+      恰好等于最小下单金额、超过市价单最大张数、最小可交易额 ——`TestContractSpec_SizeForNotional`
+- [x] 浮点会算错的边界按十进制语义给出正确结果：商恰为整数时不掉一格，`0.0003 ÷ 0.0001` 得 3
+      ——`TestContractSpec_SizeForNotionalAvoidsFloatTruncation`、`TestContractSpec_ContractsFromQuantity`
+- [x] 计划文档第 6.1 节两张表（下单位置表、当前本金下各合约所需百分比）用同一组价格复算一致
+      ——`TestContractSpec_SizeForNotionalMatchesPlanTable`、`TestContractSpec_MinOrderablePercentMatchesPlanTable`
+- [x] 分批比例矩阵：全平、可分批、换算后不足一个最小步长、持仓张数不在步长上、比例越界；
+      比例小于 100% 时剩余至少一个最小步长 ——`TestContractSpec_SizeForCloseRatio` 及其性质测试
+- [x] 元数据缓存：有效期内不重复请求，过期后重新请求，请求失败与元数据不合法都不缓存
+      ——`TestGateTrader_GetContractSpec*`（含 64 个 goroutine 的并发调用）
+- [x] 7 个合约元数据真实读数：解析结果与接口原始字段逐项一致，每个合约给出当前价格下的最小可交易额；
+      输出留档到本任务 `probe/`（代码提交 `62ab50a5`，`contracts=7 failed=0 mismatched=0`）
 - [ ] `git diff --check`、`make test`、`make build` 通过，现有测试不做修改
 
 ## Non-Goals

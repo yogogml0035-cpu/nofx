@@ -6,46 +6,61 @@
 
 ## Overview
 
-<!--
-Document your project's quality standards here.
-
-Questions to answer:
-- What patterns are forbidden?
-- What linting rules do you enforce?
-- What are your testing requirements?
-- What code review standards apply?
--->
-
-(To be filled by the team)
+This file records the standards the team has actually agreed on. Sections that are still
+"(To be filled by the team)" have no project-specific rule yet; follow the surrounding code.
 
 ---
 
 ## Forbidden Patterns
 
-<!-- Patterns that should never be used and why -->
+### Deriving order sizes with float division
 
-(To be filled by the team)
+Do not convert between base-asset quantity, price, and contract count with `float64` arithmetic
+and then truncate (`int64(quantity / multiplier)`). The result depends on binary rounding:
+`0.0003 / 0.0001` truncates to 2, and `8.6 / 0.1` is `85.99999999999999`.
+
+Use the exact-decimal helpers in `trader/gate/decimal.go` (`math/big.Rat`), or integers scaled
+to the field's precision, for every conversion that decides what is sent to an exchange.
+
+### Falling back to a guessed value when exchange data cannot be parsed
+
+A missing, malformed, or self-contradictory field in an exchange response is an error. Do not
+substitute a default (for example forcing an order to one contract). Return an error that names
+the field and the raw value.
 
 ---
 
 ## Required Patterns
 
-<!-- Patterns that must always be used -->
+### Exchange quantity and price fields are decimal strings
 
-(To be filled by the team)
+Parse them as exact decimals. Gate contract counts are decimal strings (`"3"`, `"0.6"`) and are
+the canonical unit for an order's `size`; base-asset quantity is derived for display only.
+
+Gate metadata is read with `X-Gate-Size-Decimal: 1` (the SDK default). Without it,
+`order_size_min` is `0` for contracts that support fractional sizes.
+
+Reference implementation: `trader/gate/contract.go` (`ContractSpec`, `SizeForNotional`,
+`SizeForCloseRatio`, `ContractsFromQuantity`).
 
 ---
 
 ## Testing Requirements
 
-<!-- What level of testing is expected -->
+### Demonstrating floating-point error
 
-(To be filled by the team)
+Compute the value at runtime (from variables or function results). A constant expression is
+folded exactly by the compiler, so `3 * 0.0001` written as a constant carries no error and the
+test proves nothing.
+
+### Exchange adapters
+
+Use `httptest` servers that reply in the exchange's real response format, and say so in the test
+comment. Read-only checks against the real API belong in a separate script under the task's
+`probe/` directory, never in the unit test suite.
 
 ---
 
 ## Code Review Checklist
-
-<!-- What reviewers should check -->
 
 (To be filled by the team)

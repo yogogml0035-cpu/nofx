@@ -2,7 +2,8 @@ package main
 
 // 只读验证（子任务 contract-math）：经项目适配层读取 7 个合约的元数据，与 SDK 原始字段逐项对照，
 // 并用当前最新价换算下单张数与最小可交易额。只调用公开的合约查询与 ticker，脚本里没有任何写操作。
-// 凭据只用于按生产路径构造适配器，经环境变量 GATE_KEY / GATE_SECRET 传入，不落盘、不打印。
+// 凭据可选：给出 GATE_KEY / GATE_SECRET 时按生产路径构造适配器；脚本不落盘、不打印凭据。
+// LIVECHECK_COMMIT 可给出被验证的提交号，写进输出首行的元信息。
 
 import (
 	"context"
@@ -18,6 +19,13 @@ import (
 )
 
 var contracts = []string{"BTC_USDT", "ETH_USDT", "SOL_USDT", "ZEC_USDT", "HYPE_USDT", "DOGE_USDT", "XAU_USDT"}
+
+type metaLine struct {
+	GeneratedAt string    `json:"generated_at_utc"`
+	Commit      string    `json:"code_commit,omitempty"`
+	MinNotional float64   `json:"min_notional_usdt"`
+	Notionals   []float64 `json:"notionals_usdt"`
+}
 
 type quoteLine struct {
 	Notional      float64 `json:"notional_usdt"`
@@ -41,22 +49,21 @@ type contractLine struct {
 }
 
 func main() {
-	key, secret := os.Getenv("GATE_KEY"), os.Getenv("GATE_SECRET")
-	if key == "" || secret == "" {
-		panic("GATE_KEY / GATE_SECRET 未设置")
-	}
+	const minNotional = 10
+	// 计划文档 6.1 节的 10U、20U，以及当前本金 107.5U 下的 10% 与 20%
+	notionals := []float64{10, 10.75, 20, 21.5}
+	emit(metaLine{
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339), Commit: os.Getenv("LIVECHECK_COMMIT"),
+		MinNotional: minNotional, Notionals: notionals,
+	})
 
-	gt := nofxgate.NewGateTrader(key, secret)
+	gt := nofxgate.NewGateTrader(os.Getenv("GATE_KEY"), os.Getenv("GATE_SECRET"))
 
 	// 不带凭据的客户端，用来取 SDK 的原始返回做对照（公开接口）
 	cfg := gateapi.NewConfiguration()
 	cfg.HTTPClient = &http.Client{Timeout: 30 * time.Second}
 	client := gateapi.NewAPIClient(cfg)
 	ctx := context.Background()
-
-	const minNotional = 10
-	// 计划文档 6.1 节的 10U、20U，以及当前本金 107.5U 下的 10% 与 20%
-	notionals := []float64{10, 10.75, 20, 21.5}
 
 	failed, mismatched := 0, 0
 	for _, name := range contracts {
@@ -66,7 +73,7 @@ func main() {
 		if err != nil {
 			line.Error = fmt.Sprintf("raw: %v", err)
 			failed++
-			print(line)
+			emit(line)
 			continue
 		}
 		line.Raw = map[string]any{
@@ -79,7 +86,7 @@ func main() {
 		if err != nil {
 			line.Error = fmt.Sprintf("spec: %v", err)
 			failed++
-			print(line)
+			emit(line)
 			continue
 		}
 		line.Spec = map[string]any{
@@ -97,7 +104,7 @@ func main() {
 		if err != nil {
 			line.Error = fmt.Sprintf("price: %v", err)
 			failed++
-			print(line)
+			emit(line)
 			continue
 		}
 		line.LastPrice = price
@@ -106,7 +113,7 @@ func main() {
 		if err != nil {
 			line.Error = fmt.Sprintf("one contract: %v", err)
 			failed++
-			print(line)
+			emit(line)
 			continue
 		}
 		line.ValuePerContract = one * price
@@ -137,7 +144,7 @@ func main() {
 				line.MinOrderContracts = minQuote.Contracts
 			}
 		}
-		print(line)
+		emit(line)
 	}
 
 	fmt.Printf("contracts=%d failed=%d mismatched=%d\n", len(contracts), failed, mismatched)
@@ -146,8 +153,9 @@ func main() {
 	}
 }
 
-func print(line contractLine) {
-	raw, err := json.Marshal(line)
+// emit 把一条结果输出成一行 JSON
+func emit(v any) {
+	raw, err := json.Marshal(v)
 	if err != nil {
 		panic(err)
 	}
