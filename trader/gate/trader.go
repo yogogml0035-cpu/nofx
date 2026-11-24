@@ -3,6 +3,7 @@ package gate
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"net/http"
 	"nofx/trader/types"
 	"strconv"
@@ -27,8 +28,6 @@ type GateTrader struct {
 	cachedPositions     []map[string]interface{}
 	positionsCacheTime  time.Time
 	positionsCacheMutex sync.RWMutex
-	contractsCache      map[string]*gateapi.Contract
-	contractsCacheMutex sync.RWMutex
 	cacheDuration       time.Duration
 	contractSpecs       contractSpecCache
 }
@@ -50,6 +49,14 @@ func parseOptionalSize(field, raw string) (float64, error) {
 	return parseRequiredSize(field, raw)
 }
 
+// parseOptionalRat 同 parseOptionalSize，但保留精确十进制值
+func parseOptionalRat(field, raw string) (*big.Rat, error) {
+	if raw == "" {
+		return big.NewRat(0, 1), nil
+	}
+	return parseDecimal(field, raw)
+}
+
 // NewGateTrader creates a new Gate trader instance
 func NewGateTrader(apiKey, secretKey string) *GateTrader {
 	config := gateapi.NewConfiguration()
@@ -68,12 +75,11 @@ func NewGateTrader(apiKey, secretKey string) *GateTrader {
 	)
 
 	return &GateTrader{
-		apiKey:         apiKey,
-		secretKey:      secretKey,
-		client:         client,
-		ctx:            ctx,
-		contractsCache: make(map[string]*gateapi.Contract),
-		cacheDuration:  15 * time.Second,
+		apiKey:        apiKey,
+		secretKey:     secretKey,
+		client:        client,
+		ctx:           ctx,
+		cacheDuration: 15 * time.Second,
 	}
 }
 
@@ -94,32 +100,6 @@ func (t *GateTrader) convertSymbol(symbol string) string {
 // revertSymbol converts symbol back to standard format (e.g., BTC_USDT -> BTCUSDT)
 func (t *GateTrader) revertSymbol(symbol string) string {
 	return strings.ReplaceAll(symbol, "_", "")
-}
-
-// getContract fetches contract info with caching
-func (t *GateTrader) getContract(symbol string) (*gateapi.Contract, error) {
-	symbol = t.convertSymbol(symbol)
-
-	// Check cache
-	t.contractsCacheMutex.RLock()
-	if contract, ok := t.contractsCache[symbol]; ok {
-		t.contractsCacheMutex.RUnlock()
-		return contract, nil
-	}
-	t.contractsCacheMutex.RUnlock()
-
-	// Fetch from API
-	contract, _, err := t.client.FuturesApi.GetFuturesContract(t.ctx, "usdt", symbol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get contract info: %w", err)
-	}
-
-	// Update cache
-	t.contractsCacheMutex.Lock()
-	t.contractsCache[symbol] = &contract
-	t.contractsCacheMutex.Unlock()
-
-	return &contract, nil
 }
 
 // clearCache clears all caches

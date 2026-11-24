@@ -1,8 +1,15 @@
 package gate
 
+// 开平仓原语与条件单撤销。AI 自动交易的开仓不经过本文件的 OpenLong/OpenShort
+// （它们是助手手动交易与网格使用的普通市价原语，不带保护）；
+// 随单保护开仓见 protected_open.go，保护单构造与撤销见 protective_orders.go。
+// 数量换算统一走 GetContractSpec 的精确十进制（禁止浮点截断与强制 1 张），
+// 旧的 getContract 与按浮点读取 quanto_multiplier 已删除（计划文档 F34）。
+
 import (
+	"errors"
 	"fmt"
-	"math"
+	"math/big"
 	"nofx/logger"
 	"nofx/trader/types"
 	"strconv"
@@ -39,118 +46,156 @@ func (t *GateTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	return nil
 }
 
-// OpenLong opens a long position
-func (t *GateTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+// openMarket 多空共用的普通市价开仓原语：币数量按最小步长向下取整换算张数，
+// 不足一个最小步长时报错（删除旧的浮点截断与强制 1 张，计划文档 F3/F23）。
+func (t *GateTrader) openMarket(symbol string, quantity float64, leverage int, side string) (map[string]interface{}, error) {
 	symbol = t.convertSymbol(symbol)
 
-	// Cancel old orders first
-	if err := t.CancelAllOrders(symbol); err != nil {
-		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
-	}
-
-	// Set leverage
-	if err := t.SetLeverage(symbol, leverage); err != nil {
-		logger.Warnf("  [Gate] Failed to set leverage: %v", err)
-	}
-
-	// Get contract info for size calculation
-	contract, err := t.getContract(symbol)
+	spec, err := t.GetContractSpec(symbol)
 	if err != nil {
 		return nil, err
 	}
+	contracts, err := spec.ContractsFromQuantityFloor(quantity)
+	if err != nil {
+		return nil, fmt.Errorf("open %s %s skipped: %w", side, symbol, err)
+	}
 
-	// Gate uses contract size units (each contract = quanto_multiplier base currency)
-	// size = quantity / quanto_multiplier
-	quantoMultiplier, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-	size := int64(quantity / quantoMultiplier)
-	if size <= 0 {
-		size = 1
+	size := contracts
+	if side == "SHORT" {
+		size, err = negateDecimal(contracts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// 沿用现状：杠杆 best-effort 设置，失败不阻断开仓（子任务 5 重写杠杆与保证金模式）
+	if leverage > 0 {
+		if err := t.SetLeverage(symbol, leverage); err != nil {
+			logger.Warnf("  [Gate] Failed to set leverage: %v", err)
+		}
 	}
 
 	order := gateapi.FuturesOrder{
 		Contract: symbol,
-		Size:     strconv.FormatInt(size, 10), // Positive for long
-		Price:    "0",                         // Market order
+		Size:     size,
+		Price:    "0", // 市价单
 		Tif:      "ioc",
 		Text:     "t-nofx",
 	}
 
-	logger.Infof("  [Gate] OpenLong: symbol=%s, size=%d, leverage=%d", symbol, size, leverage)
+	logger.Infof("  [Gate] Open%s: symbol=%s, size=%s, leverage=%d", side, symbol, size, leverage)
 
 	result, _, err := t.client.FuturesApi.CreateFuturesOrder(t.ctx, "usdt", order, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open long position: %w", err)
+		return nil, fmt.Errorf("failed to open %s position: %w", side, err)
 	}
-
-	// Clear cache
 	t.clearCache()
 
-	// Parse fill price from result
 	fillPrice, _ := strconv.ParseFloat(result.FillPrice, 64)
 
-	logger.Infof("  [Gate] Opened long position: orderId=%d, fillPrice=%.4f", result.Id, fillPrice)
+	logger.Infof("  [Gate] Opened %s position: orderId=%d, fillPrice=%.4f", side, result.Id, fillPrice)
 
 	return map[string]interface{}{
-		"orderId":   fmt.Sprintf("%d", result.Id),
+		"orderId":   strconv.FormatInt(result.Id, 10),
 		"symbol":    t.revertSymbol(symbol),
 		"status":    "FILLED",
 		"fillPrice": fillPrice,
 		"avgPrice":  fillPrice,
 	}, nil
+}
+
+// OpenLong opens a long position
+func (t *GateTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return t.openMarket(symbol, quantity, leverage, "LONG")
 }
 
 // OpenShort opens a short position
 func (t *GateTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
-	symbol = t.convertSymbol(symbol)
+	return t.openMarket(symbol, quantity, leverage, "SHORT")
+}
 
-	// Cancel old orders first
-	if err := t.CancelAllOrders(symbol); err != nil {
-		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
-	}
-
-	// Set leverage
-	if err := t.SetLeverage(symbol, leverage); err != nil {
-		logger.Warnf("  [Gate] Failed to set leverage: %v", err)
-	}
-
-	// Get contract info for size calculation
-	contract, err := t.getContract(symbol)
+// findPositionSize 读取该合约指定方向的当前持仓张数（字符串，带方向符号）。
+// 直接查交易所不经 GetPositions 缓存：全平前的持仓状态必须是当前值。
+func (t *GateTrader) findPositionSize(symbol, side string) (string, error) {
+	positions, _, err := t.client.FuturesApi.ListPositions(t.ctx, "usdt", nil)
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("failed to get positions: %w", err)
 	}
+	for _, pos := range positions {
+		if pos.Contract != symbol {
+			continue
+		}
+		size, err := parseDecimal("position size", pos.Size)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
+		}
+		if size.Sign() == 0 {
+			continue
+		}
+		// 多头持仓为正、空头为负（单向持仓模式）
+		if (side == "SHORT") == (size.Sign() < 0) {
+			return pos.Size, nil
+		}
+	}
+	return "", fmt.Errorf("%s position not found for %s", strings.ToLower(side), symbol)
+}
 
-	// Gate uses contract size units
-	quantoMultiplier, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-	size := int64(quantity / quantoMultiplier)
-	if size <= 0 {
-		size = 1
-	}
+// closePosition 多空共用的平仓原语。quantity=0 为全平：按文档语义提交 close=true + size=0
+// （C.1 节：单仓模式下平仓需要设置 size 为 0、close 为 true），不再换算张数；
+// quantity>0 为部分平（网格/助手使用）：币数量按最小步长向下取整 + reduce_only，
+// 不足一个最小步长时报错。
+func (t *GateTrader) closePosition(symbol string, quantity float64, side string) (map[string]interface{}, error) {
+	symbol = t.convertSymbol(symbol)
 
 	order := gateapi.FuturesOrder{
 		Contract: symbol,
-		Size:     strconv.FormatInt(-size, 10), // Negative for short
-		Price:    "0",                          // Market order
+		Price:    "0", // 市价单
 		Tif:      "ioc",
-		Text:     "t-nofx",
+		Text:     "t-nofx-close",
 	}
 
-	logger.Infof("  [Gate] OpenShort: symbol=%s, size=%d, leverage=%d", symbol, -size, leverage)
+	if quantity == 0 {
+		// 确认仓位存在与方向，给出明确错误而不是依赖交易所的模糊拒绝
+		if _, err := t.findPositionSize(symbol, side); err != nil {
+			return nil, err
+		}
+		order.Close = true
+		order.Size = "0"
+		logger.Infof("  [Gate] CloseAll%s: symbol=%s (close=true, size=0)", side, symbol)
+	} else {
+		spec, err := t.GetContractSpec(symbol)
+		if err != nil {
+			return nil, err
+		}
+		contracts, err := spec.ContractsFromQuantityFloor(quantity)
+		if err != nil {
+			return nil, fmt.Errorf("close %s %s skipped: %w", side, symbol, err)
+		}
+		// 平多卖出为负、平空买入为正
+		size := contracts
+		if side == "LONG" {
+			size, err = negateDecimal(contracts)
+			if err != nil {
+				return nil, err
+			}
+		}
+		order.Size = size
+		order.ReduceOnly = true
+		logger.Infof("  [Gate] Close%s: symbol=%s, size=%s (reduce_only)", side, symbol, size)
+	}
 
 	result, _, err := t.client.FuturesApi.CreateFuturesOrder(t.ctx, "usdt", order, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open short position: %w", err)
+		return nil, fmt.Errorf("failed to close %s position: %w", side, err)
 	}
-
-	// Clear cache
 	t.clearCache()
 
-	// Parse fill price from result
 	fillPrice, _ := strconv.ParseFloat(result.FillPrice, 64)
 
-	logger.Infof("  [Gate] Opened short position: orderId=%d, fillPrice=%.4f", result.Id, fillPrice)
+	logger.Infof("  [Gate] Closed %s position: orderId=%d, fillPrice=%.4f", side, result.Id, fillPrice)
 
 	return map[string]interface{}{
-		"orderId":   fmt.Sprintf("%d", result.Id),
+		"orderId":   strconv.FormatInt(result.Id, 10),
 		"symbol":    t.revertSymbol(symbol),
 		"status":    "FILLED",
 		"fillPrice": fillPrice,
@@ -158,145 +203,14 @@ func (t *GateTrader) OpenShort(symbol string, quantity float64, leverage int) (m
 	}, nil
 }
 
-// CloseLong closes a long position
+// CloseLong closes a long position (quantity=0 means close all)
 func (t *GateTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
-	symbol = t.convertSymbol(symbol)
-
-	// If quantity is 0, get current position
-	if quantity == 0 {
-		positions, err := t.GetPositions()
-		if err != nil {
-			return nil, err
-		}
-		for _, pos := range positions {
-			posSymbol := t.convertSymbol(pos["symbol"].(string))
-			if posSymbol == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
-				break
-			}
-		}
-		if quantity == 0 {
-			return nil, fmt.Errorf("long position not found for %s", symbol)
-		}
-	}
-
-	// Get contract info for size calculation
-	contract, err := t.getContract(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	quantoMultiplier, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-	size := int64(quantity / quantoMultiplier)
-	if size <= 0 {
-		size = 1
-	}
-
-	// Close long = sell (use ReduceOnly, not Close which requires Size=0)
-	order := gateapi.FuturesOrder{
-		Contract:   symbol,
-		Size:       strconv.FormatInt(-size, 10), // Negative to close long
-		Price:      "0",
-		Tif:        "ioc",
-		ReduceOnly: true,
-		Text:       "t-nofx-close",
-	}
-
-	logger.Infof("  [Gate] CloseLong: symbol=%s, size=%d", symbol, -size)
-
-	result, _, err := t.client.FuturesApi.CreateFuturesOrder(t.ctx, "usdt", order, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to close long position: %w", err)
-	}
-
-	// Clear cache
-	t.clearCache()
-
-	// Parse fill price from result
-	fillPrice, _ := strconv.ParseFloat(result.FillPrice, 64)
-
-	logger.Infof("  [Gate] Closed long position: orderId=%d, fillPrice=%.4f", result.Id, fillPrice)
-
-	return map[string]interface{}{
-		"orderId":   fmt.Sprintf("%d", result.Id),
-		"symbol":    t.revertSymbol(symbol),
-		"status":    "FILLED",
-		"fillPrice": fillPrice,
-		"avgPrice":  fillPrice,
-	}, nil
+	return t.closePosition(symbol, quantity, "LONG")
 }
 
-// CloseShort closes a short position
+// CloseShort closes a short position (quantity=0 means close all)
 func (t *GateTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
-	symbol = t.convertSymbol(symbol)
-
-	// If quantity is 0, get current position
-	if quantity == 0 {
-		positions, err := t.GetPositions()
-		if err != nil {
-			return nil, err
-		}
-		for _, pos := range positions {
-			posSymbol := t.convertSymbol(pos["symbol"].(string))
-			if posSymbol == symbol && pos["side"] == "short" {
-				quantity = pos["positionAmt"].(float64)
-				break
-			}
-		}
-		if quantity == 0 {
-			return nil, fmt.Errorf("short position not found for %s", symbol)
-		}
-	}
-
-	// Ensure quantity is positive
-	if quantity < 0 {
-		quantity = -quantity
-	}
-
-	// Get contract info for size calculation
-	contract, err := t.getContract(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	quantoMultiplier, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-	size := int64(quantity / quantoMultiplier)
-	if size <= 0 {
-		size = 1
-	}
-
-	// Close short = buy (use ReduceOnly, not Close which requires Size=0)
-	order := gateapi.FuturesOrder{
-		Contract:   symbol,
-		Size:       strconv.FormatInt(size, 10), // Positive to close short
-		Price:      "0",
-		Tif:        "ioc",
-		ReduceOnly: true,
-		Text:       "t-nofx-close",
-	}
-
-	logger.Infof("  [Gate] CloseShort: symbol=%s, size=%d", symbol, size)
-
-	result, _, err := t.client.FuturesApi.CreateFuturesOrder(t.ctx, "usdt", order, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to close short position: %w", err)
-	}
-
-	// Clear cache
-	t.clearCache()
-
-	// Parse fill price from result
-	fillPrice, _ := strconv.ParseFloat(result.FillPrice, 64)
-
-	logger.Infof("  [Gate] Closed short position: orderId=%d, fillPrice=%.4f", result.Id, fillPrice)
-
-	return map[string]interface{}{
-		"orderId":   fmt.Sprintf("%d", result.Id),
-		"symbol":    t.revertSymbol(symbol),
-		"status":    "FILLED",
-		"fillPrice": fillPrice,
-		"avgPrice":  fillPrice,
-	}, nil
+	return t.closePosition(symbol, quantity, "SHORT")
 }
 
 // GetMarketPrice gets the current market price
@@ -320,145 +234,38 @@ func (t *GateTrader) GetMarketPrice(symbol string) (float64, error) {
 	return price, nil
 }
 
+// errStandaloneProtective 独立止损止盈委托在 Gate 上不再支持：AI 开仓的止损止盈随开仓单
+// 一并提交（protected_open.go），修改走撤旧建新（protective_orders.go）。
+// 旧的独立实现四个方向的触发规则都与文档相反、close=true 带非零 size、无 order_type
+// （计划文档 F6/F8），已删除；方法因 types.Trader 接口被网格路径占用而保留。
+var errStandaloneProtective = errors.New(
+	"standalone stop-loss/take-profit orders are not supported on gate: " +
+		"open with attached TP/SL via ProtectedOpener, amend via cancel-and-replace")
+
 // SetStopLoss sets a stop loss order
 func (t *GateTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
-	symbol = t.convertSymbol(symbol)
-
-	contract, err := t.getContract(symbol)
-	if err != nil {
-		return err
-	}
-
-	quantoMultiplier, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-	size := int64(quantity / quantoMultiplier)
-	if size <= 0 {
-		size = 1
-	}
-
-	// For long position, stop loss means sell when price drops
-	// For short position, stop loss means buy when price rises
-	if strings.ToUpper(positionSide) == "LONG" {
-		size = -size
-	}
-
-	// Use price trigger order
-	trigger := gateapi.FuturesPriceTriggeredOrder{
-		Initial: gateapi.FuturesInitialOrder{
-			Contract:   symbol,
-			Size:       size,
-			Price:      "0", // Market order
-			Tif:        "ioc",
-			ReduceOnly: true,
-			Close:      true,
-		},
-		Trigger: gateapi.FuturesPriceTrigger{
-			StrategyType: 0, // Close position
-			PriceType:    0, // Latest price
-			Price:        fmt.Sprintf("%.8f", stopPrice),
-			Rule:         1, // Price <= trigger price
-		},
-	}
-
-	if strings.ToUpper(positionSide) == "SHORT" {
-		trigger.Trigger.Rule = 2 // Price >= trigger price for short stop loss
-	}
-
-	_, _, err = t.client.FuturesApi.CreatePriceTriggeredOrder(t.ctx, "usdt", trigger)
-	if err != nil {
-		return fmt.Errorf("failed to set stop loss: %w", err)
-	}
-
-	logger.Infof("  [Gate] Stop loss set: %s @ %.4f", symbol, stopPrice)
-	return nil
+	return errStandaloneProtective
 }
 
 // SetTakeProfit sets a take profit order
 func (t *GateTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
-	symbol = t.convertSymbol(symbol)
-
-	contract, err := t.getContract(symbol)
-	if err != nil {
-		return err
-	}
-
-	quantoMultiplier, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-	size := int64(quantity / quantoMultiplier)
-	if size <= 0 {
-		size = 1
-	}
-
-	// For long position, take profit means sell when price rises
-	// For short position, take profit means buy when price drops
-	if strings.ToUpper(positionSide) == "LONG" {
-		size = -size
-	}
-
-	trigger := gateapi.FuturesPriceTriggeredOrder{
-		Initial: gateapi.FuturesInitialOrder{
-			Contract:   symbol,
-			Size:       size,
-			Price:      "0", // Market order
-			Tif:        "ioc",
-			ReduceOnly: true,
-			Close:      true,
-		},
-		Trigger: gateapi.FuturesPriceTrigger{
-			StrategyType: 0, // Close position
-			PriceType:    0, // Latest price
-			Price:        fmt.Sprintf("%.8f", takeProfitPrice),
-			Rule:         2, // Price >= trigger price for long take profit
-		},
-	}
-
-	if strings.ToUpper(positionSide) == "SHORT" {
-		trigger.Trigger.Rule = 1 // Price <= trigger price for short take profit
-	}
-
-	_, _, err = t.client.FuturesApi.CreatePriceTriggeredOrder(t.ctx, "usdt", trigger)
-	if err != nil {
-		return fmt.Errorf("failed to set take profit: %w", err)
-	}
-
-	logger.Infof("  [Gate] Take profit set: %s @ %.4f", symbol, takeProfitPrice)
-	return nil
+	return errStandaloneProtective
 }
 
-// CancelStopLossOrders cancels stop loss orders
+// CancelStopLossOrders cancels stop loss orders (only classified stop-loss trigger orders, F10)
 func (t *GateTrader) CancelStopLossOrders(symbol string) error {
-	return t.cancelTriggerOrders(symbol, "stop_loss")
+	_, err := t.CancelProtectiveOrdersByKind(symbol, ProtectiveStopLoss)
+	return err
 }
 
-// CancelTakeProfitOrders cancels take profit orders
+// CancelTakeProfitOrders cancels take profit orders (only classified take-profit trigger orders, F10)
 func (t *GateTrader) CancelTakeProfitOrders(symbol string) error {
-	return t.cancelTriggerOrders(symbol, "take_profit")
+	_, err := t.CancelProtectiveOrdersByKind(symbol, ProtectiveTakeProfit)
+	return err
 }
 
-// cancelTriggerOrders cancels trigger orders of a specific type
-func (t *GateTrader) cancelTriggerOrders(symbol string, orderType string) error {
-	symbol = t.convertSymbol(symbol)
-
-	opts := &gateapi.ListPriceTriggeredOrdersOpts{
-		Contract: optional.NewString(symbol),
-	}
-
-	orders, _, err := t.client.FuturesApi.ListPriceTriggeredOrders(t.ctx, "usdt", "open", opts)
-	if err != nil {
-		return err
-	}
-
-	for _, order := range orders {
-		// Determine if it's stop loss or take profit based on trigger rule and position
-		// For simplicity, cancel all matching symbol orders
-		_, _, err := t.client.FuturesApi.CancelPriceTriggeredOrder(t.ctx, "usdt", order.Id)
-		if err != nil {
-			logger.Warnf("  [Gate] Failed to cancel trigger order %d: %v", order.Id, err)
-		}
-	}
-
-	return nil
-}
-
-// CancelAllOrders cancels all pending orders for a symbol
+// CancelAllOrders cancels all pending orders for a symbol: resting orders and all
+// open trigger orders (类型不区分，全撤是该接口的语义；按类型撤销走 CancelProtectiveOrdersByKind)
 func (t *GateTrader) CancelAllOrders(symbol string) error {
 	symbol = t.convertSymbol(symbol)
 
@@ -475,34 +282,36 @@ func (t *GateTrader) CancelAllOrders(symbol string) error {
 	}
 
 	// Cancel trigger orders
-	t.cancelTriggerOrders(symbol, "")
+	views, err := t.ListTriggerOrders(symbol)
+	if err != nil {
+		logger.Warnf("  [Gate] Failed to list trigger orders for cancel: %v", err)
+		return nil
+	}
+	for _, view := range views {
+		if err := t.CancelProtectiveOrder(view.OrderID()); err != nil {
+			logger.Warnf("  [Gate] Failed to cancel trigger order %s: %v", view.OrderID(), err)
+		}
+	}
 
 	return nil
 }
 
 // CancelStopOrders cancels all stop orders (stop loss and take profit)
 func (t *GateTrader) CancelStopOrders(symbol string) error {
-	t.CancelStopLossOrders(symbol)
-	t.CancelTakeProfitOrders(symbol)
-	return nil
+	if _, err := t.CancelProtectiveOrdersByKind(symbol, ProtectiveStopLoss); err != nil {
+		return err
+	}
+	_, err := t.CancelProtectiveOrdersByKind(symbol, ProtectiveTakeProfit)
+	return err
 }
 
-// FormatQuantity formats quantity to correct precision
+// FormatQuantity formats quantity to correct precision (contracts, floor to size step)
 func (t *GateTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
-	contract, err := t.getContract(symbol)
+	spec, err := t.GetContractSpec(symbol)
 	if err != nil {
-		return fmt.Sprintf("%.4f", quantity), nil
+		return "", err
 	}
-
-	// Gate uses quanto_multiplier for contract size
-	quantoMultiplier, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-	if quantoMultiplier > 0 {
-		// Calculate number of contracts
-		numContracts := quantity / quantoMultiplier
-		return fmt.Sprintf("%.0f", math.Floor(numContracts)), nil
-	}
-
-	return fmt.Sprintf("%.4f", quantity), nil
+	return spec.ContractsFromQuantityFloor(quantity)
 }
 
 // GetOrderStatus gets the status of an order
@@ -514,11 +323,16 @@ func (t *GateTrader) GetOrderStatus(symbol string, orderID string) (map[string]i
 		return nil, fmt.Errorf("failed to get order status: %w", err)
 	}
 
-	orderSize, err := parseRequiredSize("order size", order.Size)
+	spec, err := t.GetContractSpec(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	orderSize, err := parseDecimal("order size", order.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse order %s: %w", orderID, err)
 	}
-	orderLeft, err := parseOptionalSize("order left", order.Left)
+	orderLeft, err := parseOptionalRat("order left", order.Left)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse order %s: %w", orderID, err)
 	}
@@ -527,16 +341,6 @@ func (t *GateTrader) GetOrderStatus(symbol string, orderID string) (map[string]i
 	tkFee, _ := strconv.ParseFloat(order.Tkfr, 64)
 	mkFee, _ := strconv.ParseFloat(order.Mkfr, 64)
 	totalFee := tkFee + mkFee
-
-	// Get quanto_multiplier to convert contracts to actual quantity
-	quantoMultiplier := 1.0
-	contract, contractErr := t.getContract(symbol)
-	if contractErr == nil && contract != nil {
-		qm, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-		if qm > 0 {
-			quantoMultiplier = qm
-		}
-	}
 
 	// Map status
 	status := "NEW"
@@ -554,12 +358,18 @@ func (t *GateTrader) GetOrderStatus(symbol string, orderID string) (map[string]i
 	}
 
 	side := "BUY"
-	if orderSize < 0 {
+	if orderSize.Sign() < 0 {
 		side = "SELL"
 	}
 
-	// 成交张数 = |size| − left（卖单的 size 为负数），乘每张的币数量得到实际成交量
-	executedQty := (math.Abs(orderSize) - orderLeft) * quantoMultiplier
+	// 成交张数 = |size| − left（卖单的 size 为负数），乘每张的币数量得到实际成交量。
+	// 张数差为负时按 0 计（left 不应超过 |size|，防脏数据放大）
+	executedContracts := new(big.Rat).Abs(orderSize)
+	executedContracts.Sub(executedContracts, orderLeft)
+	if executedContracts.Sign() < 0 {
+		executedContracts.SetInt64(0)
+	}
+	executedQty := spec.contractQuantity(executedContracts)
 
 	return map[string]interface{}{
 		"orderId":     orderID,
@@ -579,6 +389,11 @@ func (t *GateTrader) GetOrderStatus(symbol string, orderID string) (map[string]i
 func (t *GateTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 	symbol = t.convertSymbol(symbol)
 
+	spec, err := t.GetContractSpec(symbol)
+	if err != nil {
+		return nil, err
+	}
+
 	opts := &gateapi.ListFuturesOrdersOpts{
 		Contract: optional.NewString(symbol),
 	}
@@ -588,35 +403,25 @@ func (t *GateTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 		return nil, fmt.Errorf("failed to get open orders: %w", err)
 	}
 
-	// Get quanto_multiplier to convert contracts to actual quantity
-	quantoMultiplier := 1.0
-	contract, err := t.getContract(symbol)
-	if err == nil && contract != nil {
-		qm, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-		if qm > 0 {
-			quantoMultiplier = qm
-		}
-	}
-
 	var result []types.OpenOrder
 	for _, order := range orders {
 		price, _ := strconv.ParseFloat(order.Price, 64)
 
-		orderSize, err := parseRequiredSize("order size", order.Size)
+		orderSize, err := parseDecimal("order size", order.Size)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse order %d: %w", order.Id, err)
 		}
 
 		side := "BUY"
-		if orderSize < 0 {
+		if orderSize.Sign() < 0 {
 			side = "SELL"
 		}
 
-		// Convert contract count to actual token quantity
-		quantity := math.Abs(orderSize) * quantoMultiplier
+		// Convert contract count to actual token quantity (display only)
+		quantity := spec.contractQuantity(new(big.Rat).Abs(orderSize))
 
 		result = append(result, types.OpenOrder{
-			OrderID:  fmt.Sprintf("%d", order.Id),
+			OrderID:  strconv.FormatInt(order.Id, 10),
 			Symbol:   t.revertSymbol(order.Contract),
 			Side:     side,
 			Type:     "LIMIT",
@@ -627,38 +432,46 @@ func (t *GateTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 	}
 
 	// Also get trigger orders
-	triggerOpts := &gateapi.ListPriceTriggeredOrdersOpts{
-		Contract: optional.NewString(symbol),
+	views, err := t.ListTriggerOrders(symbol)
+	if err != nil {
+		return result, nil
 	}
-
-	triggerOrders, _, err := t.client.FuturesApi.ListPriceTriggeredOrders(t.ctx, "usdt", "open", triggerOpts)
-	if err == nil {
-		for _, order := range triggerOrders {
-			triggerPrice, _ := strconv.ParseFloat(order.Trigger.Price, 64)
-
-			side := "BUY"
-			if order.Initial.Size < 0 {
-				side = "SELL"
-			}
-
-			orderType := "STOP_MARKET"
-			if order.Trigger.Rule == 2 {
-				orderType = "TAKE_PROFIT_MARKET"
-			}
-
-			// Convert contract count to actual token quantity
-			quantity := math.Abs(float64(order.Initial.Size)) * quantoMultiplier
-
-			result = append(result, types.OpenOrder{
-				OrderID:   fmt.Sprintf("%d", order.Id),
-				Symbol:    t.revertSymbol(order.Initial.Contract),
-				Side:      side,
-				Type:      orderType,
-				StopPrice: triggerPrice,
-				Quantity:  quantity,
-				Status:    "NEW",
-			})
+	for _, view := range views {
+		// 小数张条件单的初始委托在 amount（字符串），整数张在 size（F32）；
+		// amount 非空但解析失败是脏数据，报错而不是回落 size
+		quantityRat, err := parseOptionalRat("trigger order amount", view.InitialAmount)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse trigger order %s: %w", view.OrderID(), err)
 		}
+		if quantityRat.Sign() == 0 && view.InitialAmount == "" {
+			quantityRat.SetInt64(view.InitialSize)
+		}
+
+		side := "BUY"
+		if quantityRat.Sign() < 0 {
+			side = "SELL"
+		}
+
+		// 类型展示以可判定的止损/止盈为准；方向未知的普通条件单按触发规则近似
+		orderType := "STOP_MARKET"
+		switch {
+		case view.KindKnown && view.Kind == ProtectiveTakeProfit:
+			orderType = "TAKE_PROFIT_MARKET"
+		case !view.KindKnown && view.TriggerRule == PriceRuleGE:
+			orderType = "TAKE_PROFIT_MARKET"
+		}
+
+		quantity := spec.contractQuantity(new(big.Rat).Abs(quantityRat))
+
+		result = append(result, types.OpenOrder{
+			OrderID:   view.OrderID(),
+			Symbol:    t.revertSymbol(view.Contract),
+			Side:      side,
+			Type:      orderType,
+			StopPrice: view.TriggerPrice,
+			Quantity:  quantity,
+			Status:    "NEW",
+		})
 	}
 
 	return result, nil

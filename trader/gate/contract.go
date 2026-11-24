@@ -338,6 +338,30 @@ func (s ContractSpec) ContractsFromQuantity(quantity float64) (string, error) {
 	return formatDecimal(snapped, s.stepScale)
 }
 
+// ContractsFromQuantityFloor 把标的币数量换算为合约张数，按最小步长向下取整。
+// 与 ContractsFromQuantity 不同：数量不落在步长上时向下取整而不是报错
+// （部分平仓量由调用方给出，取整只向下，不放大订单）；
+// 取整后不足一个最小步长时报错，不强制成一步。
+func (s ContractSpec) ContractsFromQuantityFloor(quantity float64) (string, error) {
+	if err := s.check(); err != nil {
+		return "", err
+	}
+	quantityValue, err := decimalFromFloat("quantity", quantity)
+	if err != nil {
+		return "", err
+	}
+	if quantityValue.Sign() <= 0 {
+		return "", fmt.Errorf("quantity must be positive, got %v", quantity)
+	}
+
+	contracts := new(big.Rat).Quo(quantityValue, s.multiplier)
+	steps := floorDiv(contracts, s.step)
+	if steps.Sign() == 0 {
+		return "", fmt.Errorf("quantity %v is below one size step (%s contracts)", quantity, s.SizeStep)
+	}
+	return s.contracts(steps)
+}
+
 // QuantityFromContracts 把合约张数换算为标的币数量，用于展示与记账
 func (s ContractSpec) QuantityFromContracts(contracts string) (float64, error) {
 	if err := s.check(); err != nil {
@@ -351,6 +375,12 @@ func (s ContractSpec) QuantityFromContracts(contracts string) (float64, error) {
 		return 0, fmt.Errorf("contracts %s is not a multiple of size step %s", contracts, s.SizeStep)
 	}
 	return ratFloat(new(big.Rat).Mul(size, s.multiplier)), nil
+}
+
+// contractQuantity 把已解析的张数换算为标的币数量（精确十进制，float64 仅用于展示与记账）。
+// 张数可以带符号（持仓、委托的方向）。
+func (s ContractSpec) contractQuantity(contracts *big.Rat) float64 {
+	return ratFloat(new(big.Rat).Mul(contracts, s.multiplier))
 }
 
 // contractSpecEntry 缓存中的一条合约元数据

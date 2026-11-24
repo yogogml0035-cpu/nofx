@@ -104,6 +104,41 @@ type Trader interface {
 	GetOpenOrders(symbol string) ([]OpenOrder, error)
 }
 
+// ProtectedOpenRequest 随单保护开仓的请求：名义价值与保护触发价由调用方（交易路径）决定，
+// 张数换算、取价与提交由适配器完成。
+type ProtectedOpenRequest struct {
+	Symbol      string
+	NotionalUSD float64 // 开仓名义价值（USDT）
+	Leverage    int
+	StopLoss    float64 // 止损触发价
+	TakeProfit  float64 // 止盈触发价
+	MinNotional float64 // 最小下单金额（USDT）；0 表示不设下限
+	SlipRatio   float64 // 市价滑点上限（0.01 = 1%）；0 表示用交易所默认
+}
+
+// ProtectedOpenResult 随单保护开仓的返回：下单张数与实际成交值用于记录与展示。
+type ProtectedOpenResult struct {
+	OrderID   string
+	Contracts string  // 下单张数（十进制字符串）
+	Notional  float64 // 张数 × 价格的实际名义价值（USDT）
+	FillPrice float64
+	Quantity  float64 // 币数量（张数 × 每张币数量，展示与记账用）
+}
+
+// ProtectedOpener 随开仓单一并提交止损止盈的开仓能力（保护不变量：仓位从存在那一刻起
+// 就带有止损与止盈，成交后核对保护单存在，缺失即平仓）。实现该接口的适配器承载
+// 取价与张数换算；自动交易的开仓路径要求适配器实现它，未实现的适配器不能开仓。
+type ProtectedOpener interface {
+	// OpenLongProtected 随单保护开多：换算张数并随单提交止损止盈。
+	OpenLongProtected(req ProtectedOpenRequest) (ProtectedOpenResult, error)
+
+	// OpenShortProtected 随单保护开空：换算张数并随单提交止损止盈。
+	OpenShortProtected(req ProtectedOpenRequest) (ProtectedOpenResult, error)
+
+	// VerifyOrderProtection 开仓成交后核对保护单存在；缺失返回错误（调用方立即平仓）。
+	VerifyOrderProtection(symbol, orderID string) error
+}
+
 // OpenOrder represents a pending order on the exchange
 type OpenOrder struct {
 	OrderID      string  `json:"order_id"`

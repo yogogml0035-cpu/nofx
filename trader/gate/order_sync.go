@@ -2,7 +2,7 @@ package gate
 
 import (
 	"fmt"
-	"math"
+	"math/big"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
@@ -68,14 +68,10 @@ func (t *GateTrader) GetTrades(startTime time.Time, limit int) ([]GateTrade, err
 				trade.Id, trade.Price, fillPrice, err)
 		}
 
-		// Get quanto_multiplier for this contract to convert size to base currency
-		quantoMultiplier := 1.0
-		contract, err := t.getContract(trade.Contract)
-		if err == nil && contract != nil {
-			qm, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-			if qm > 0 {
-				quantoMultiplier = qm
-			}
+		// 张数换算为标的币数量：元数据经 GetContractSpec 精确解析，失败即报错
+		spec, err := t.GetContractSpec(trade.Contract)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get contract info for %s: %w", trade.Contract, err)
 		}
 
 		// Convert contract size to actual quantity
@@ -87,7 +83,11 @@ func (t *GateTrader) GetTrades(startTime time.Time, limit int) ([]GateTrade, err
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse trade %d: %w", trade.Id, err)
 		}
-		fillQty := math.Abs(size) * quantoMultiplier
+		sizeRat, err := parseDecimal("trade size", trade.Size)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse trade %d: %w", trade.Id, err)
+		}
+		fillQty := spec.contractQuantity(new(big.Rat).Abs(sizeRat))
 
 		// Determine side and order action based on size and close_size
 		// Gate close_size field determines if trade is opening or closing:
