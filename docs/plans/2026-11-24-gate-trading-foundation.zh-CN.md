@@ -1,6 +1,6 @@
 # Gate 交易基座：统一账户权益、仓位与下单、行情全切 Gate
 
-> 状态：实施中（2026-11-24）。子任务 1–3 已合入父分支；U1 待确认，不影响子任务 4–5。进度见第 10.5 节。
+> 状态：实施中（2026-11-24）。子任务 1–4 已合入父分支；U1 待确认，不影响子任务 5。进度见第 10.5 节。
 > 父分支：`feat/2026_1123_gate-trading-foundation`
 > Trellis 记录：`.trellis/tasks/11-24-gate-trading-foundation/`（2026-11-24 补登；需求与决策以本文件为准，任务记录只做索引与子任务映射）
 
@@ -380,7 +380,7 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 - [x] 1 `gate-sdk-v7`：`32f63003`，全量 `go test` 通过，只读真实读数 19 项全部成功
 - [x] 2 `contract-math`：`590ba577`，单测矩阵通过，7 个合约元数据真实读数全部一致（`failed=0 mismatched=0`），`make test` 与 `make build` 通过；独立检查通过
 - [x] 3 `protective-order-adapter`：`12c2a249`（381d7f02 + 5f5160a4），单测矩阵通过，真实挂、查、撤与随单止盈止损全部成功（`LIVECHECK_PASS steps=10`，终态零残留）；改单被交易所拒绝（新路径 404 未部署、旧路径 code 1077 拒绝 API 触价单，research H.2），撤旧建新替代路径验证通过；仓位级条件单无持仓被拒（H.1），其真实验证并入 W2；独立检查 PASS（1 P2 + 6 P3 已修复），`make test` 与 `make build` 通过
-- [ ] 4 `open-position-safety`（W2 开仓与全平、W3）
+- [x] 4 `open-position-safety`：`60db88da`（0df83b9a + 9156ec34 + 7850ab5d + 7e45d47f），门禁 `git diff --check`、`make test`、`make build` 全过；W2（DOGE_USDT 17 张随单保护开仓→核对→全平→零残留）与 W3（ETH_USDT 0.1 张最小步长开平）实测 `LIVECHECK_PASS`；独立检查 1 P1 + 1 P2 + 4 P3 全部修复并复核 PASS。实测发现：随单 tpsl 是委托级保护，小数张合约（ETH）以 `close-long-order` 出现在未触发条件单列表（可按 ID 撤销、分类正确），整数张合约（DOGE）不出现在列表——`VerifyOrderProtection` 以委托回读 + 列表双路径覆盖两种形态；子任务 10、11 的管理路径设计须先复核此行为（证据见归档任务的 `probe/README.md`）
 - [ ] 5 `unified-trading-params`（W4）
 - [ ] 6 `drawdown-monitor`（等 U1）
 - [ ] 7 `account-equity`

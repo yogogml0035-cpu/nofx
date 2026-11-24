@@ -20,7 +20,8 @@
   "subtasks": [],
   "children": [
     "11-24-contract-math",
-    "11-24-protective-order-adapter"
+    "11-24-protective-order-adapter",
+    "11-24-open-position-safety"
   ],
   "parent": null,
   "relatedFiles": [],
