@@ -1443,7 +1443,10 @@ XRP_USDT、ADA_USDT）返回 **HTTP 400**、`Content-Type: application/json`、`
 
 ### G.3 W4：`set_leverage` 真实设置并读回
 
-完整证据见任务 `probe/README.md` 与 `probe/livecheck-2026-11-24.jsonl`。对象 DOGE_USDT，结束后还原为全仓 75x。
+完整证据见任务 `probe/README.md` 与 `probe/livecheck-2026-11-24.jsonl`（在 `d758d3ec` 上运行的第三轮；
+此前两轮在读回解析调整之前的代码上，读数相同）。对象 DOGE_USDT，结束后还原为全仓 75x。
+适配器日志里 8 次 `set_leverage` 都是经返回值读回一致的，没有走「读回持仓条目」的回退：
+真实响应里 `lever` 与同模式的旧字段相等。
 
 1. `POST /futures/usdt/positions/DOGE_USDT/set_leverage?leverage=10&margin_mode=cross` **不带 `dual_side`**，
    在单向持仓模式下返回 200。返回体是 Position，带 `mode: "single"`、`pos_margin_mode`、`leverage`、
@@ -1467,8 +1470,15 @@ XRP_USDT、ADA_USDT）返回 **HTTP 400**、`Content-Type: application/json`、`
    条目不变。**`LEVERAGE_EXCEEDED` 不在 C.2 的 label 表里**，表里相近的只有 `LEVERAGE_TOO_HIGH` / `LEVERAGE_TOO_LOW`。
    message 里的范围下限是 1。文档没有写 `set_leverage` 的取值范围（「未找到的项 2」），这是实测得到的边界。
 5. 账户处于跨币种保证金模式（`margin_mode=1`）时，逐仓可以设置并读回。单币种模式下没有测。
+   第 8 步的全仓 10x 是 `SetMarginMode` 先读回当前杠杆、再带 `leverage=10` 设置得到的；
+   交易所自身在切换模式时是否保留杠杆没有测。
 
 ### G.4 仍然没有答案的
+
+- 从未设置过的合约（没有仓位设置条目）上调用 `set_leverage` 是否会建条目：没有测。W4 的对象是已有条目的合约；
+  实测需要在一个可弃合约上留一条无法还原为「无条目」的条目。
+- 返回体与持仓条目逐字段比对只在「重复设置」那一次原始调用上做过（一致）；其余步骤是返回值经适配器核对、
+  条目经脚本读回，各自等于目标设置。
 
 - 带持仓或有挂单时 `set_leverage` 是否被拒（label 表里的 `POSITION_HOLDING`、`ORDER_PENDING` 是否用于这个接口）：
   没有测。W4 只在未持仓的合约上做。

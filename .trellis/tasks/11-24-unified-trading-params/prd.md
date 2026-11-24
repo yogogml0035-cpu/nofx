@@ -62,22 +62,27 @@
 - [x] 两个旧方法按新语义工作：`SetLeverage` 保持该合约当前的保证金模式、只改杠杆；
       `SetMarginMode` 保持当前生效杠杆、只改模式
       ——单测覆盖三种起始状态；W4 第 7、8 步在真实接口上读回一致
-- [x] 门禁：`git diff --check`、`make test`、`make build` 全部通过
-      ——（独立检查收口后的结果见 implement.md 第 7 步）
+- [ ] 门禁：`git diff --check`、`make test`、`make build` 全部通过
+      ——第一次全量门禁在独立检查修复之前的代码上通过（后端 22 个含测试的包、前端 11 个文件 142 个用例；
+      `make build` 通过）。修复之后定向测试、vet、`git diff --check` 通过；最终候选上的全量门禁
+      在独立检查复核通过后执行，结果记在 implement.md 第 7 步
 - [x] W4 真实验证：在一个未持仓的合约上设置全仓、逐仓与杠杆，从设置接口的返回值与持仓条目读回，
       结束后还原原设置并读回一致；其他合约的设置条目不变；全程不产生持仓与挂单。证据留档 `probe/`
-      ——`LIVECHECK_PASS`（24 步），`probe/livecheck-2026-11-24.jsonl`；DOGE_USDT 还原为全仓 75x，
-      BTC_USDT、ETH_USDT 条目不变
+      ——`LIVECHECK_PASS`（23 步 + 1 条观察记录），在最终候选 `d758d3ec` 上运行，
+      `probe/livecheck-2026-11-24.jsonl` 与适配器日志；DOGE_USDT 还原为全仓 75x，BTC_USDT、ETH_USDT
+      条目不变，可用余额前后一致
 
 ### 真实验证对交易所行为的实测结论（2026-11-24）
 
 详见 `research/gate-leverage-margin-docs.md` G 节与 `probe/README.md`：
 
 - `set_leverage` 线上已部署；单向持仓模式下不带 `dual_side` 返回 200
-- 逐仓时条目的 `cross_leverage_limit` 残留上一次全仓的值，`lever` 才是两种模式通用的当前杠杆；
-  读回解析因此以 `lever` 优先
+- 逐仓时条目的 `cross_leverage_limit` 残留上一次全仓的值，`lever` 才是两种模式通用的当前杠杆。
+  读回解析用 `lever` 与同模式的旧字段互相印证：只有一个能读时用它，都能读时必须相等。
+  真实响应里两者一致（适配器日志里 8 次设置都是经返回值读回通过的）
 - 重复设置同一组值返回 200；超过合约上限被拒的 label 是 `LEVERAGE_EXCEEDED`（不在文档的 label 表里）
-- 账户处于跨币种保证金模式时逐仓可用。单币种模式下的读回、带仓或有挂单时能否修改设置，没有测
+- 账户处于跨币种保证金模式时逐仓可用。单币种模式下的读回、带仓或有挂单时能否修改设置，
+  以及从未设置过的合约上的 `set_leverage`，都没有在真实接口上测（见 design.md 已知边界）
 
 ## Notes
 

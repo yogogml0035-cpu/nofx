@@ -32,11 +32,16 @@
    本次改动的行 `gofmt` 无差异（`protected_open.go`、`protected_open_test.go`、`types/interface.go`
    基线里就有的偏差没有重排）
 6. [x] **W4 真实验证** `probe/livecheck.go`（design.md 的十步 + 只读探测），还原并核对基线，证据留档。
-   ——两轮均 `LIVECHECK_PASS`（24 步），终轮在最终候选上运行，证据 `probe/livecheck-2026-11-24.jsonl`。
-   DOGE_USDT 还原为全仓 75x，BTC_USDT、ETH_USDT 条目不变，无持仓、无挂单。
+   ——三轮均 `LIVECHECK_PASS`，入库的是第三轮：在最终候选 `d758d3ec` 的干净检出上运行（23 步 + 1 条观察记录），
+   证据 `probe/livecheck-2026-11-24.jsonl` 与适配器日志。DOGE_USDT 还原为全仓 75x，BTC_USDT、ETH_USDT
+   条目不变，可用余额前后一致，无持仓、无挂单、无条件单。
    实测结论回写 design.md 与 research G 节：`set_leverage` 线上已部署（不带 `dual_side`）；
    逐仓条目的 `cross_leverage_limit` 残留旧值；重复设置返回 200；超过上限的 label 是 `LEVERAGE_EXCEEDED`
 7. [ ] **门禁**：`git diff --check`、`make test`、`make build`
+   ——第一次全量门禁在独立检查修复之前的代码上通过（`MAKE_TEST_EXIT=0`：后端 22 个含测试的包 ok、
+   18 个包没有测试文件，前端 11 个文件 142 个用例通过；`MAKE_BUILD_EXIT=0`）。独立检查修复之后
+   定向测试（`./trader/gate/`、`./trader/`）、vet、`git diff --check` 通过；最终候选上的全量门禁
+   在复核通过后执行，结果补记在这里
 8. [ ] **独立检查**：trellis-check 子智能体检查，问题由主会话修复并补验
 9. [ ] **收口**：规格更新 → 提交子分支 → 父 worktree 合入 → 归档子任务 → 推送父分支 →
    删除子分支与子 worktree → 同步计划文档 10.5 节与父任务的 `prd.md`、`implement.md`
