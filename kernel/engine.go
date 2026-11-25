@@ -35,7 +35,11 @@ type PositionInfo struct {
 
 // AccountInfo account information
 type AccountInfo struct {
-	TotalEquity      float64 `json:"total_equity"`      // Account equity
+	// Principal is the basis of open-position sizing: it excludes unrealized
+	// P&L and includes realized P&L (plan §5). Fill it through
+	// types.ReadAccountBalance; do not recompute it per call site.
+	Principal        float64 `json:"principal"`
+	TotalEquity      float64 `json:"total_equity"`      // Account equity = principal + unrealized P&L
 	AvailableBalance float64 `json:"available_balance"` // Available balance
 	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // Unrealized profit/loss
 	TotalPnL         float64 `json:"total_pnl"`         // Total profit/loss
@@ -101,11 +105,16 @@ type Decision struct {
 	Action string `json:"action"` // Standard: "open_long", "open_short", "close_long", "close_short", "hold", "wait"
 	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
-	// Opening position parameters
-	Leverage        int     `json:"leverage,omitempty"`
-	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
-	StopLoss        float64 `json:"stop_loss,omitempty"`
-	TakeProfit      float64 `json:"take_profit,omitempty"`
+	// Opening position parameters. The notional is computed by the engine from
+	// principal × position_percent (D22/D24); the model supplies only direction,
+	// leverage, protection prices and confidence.
+	Leverage   int     `json:"leverage,omitempty"`
+	StopLoss   float64 `json:"stop_loss,omitempty"`
+	TakeProfit float64 `json:"take_profit,omitempty"`
+	// NotionalUSD is the code-computed open notional (USDT), filled by
+	// validateDecision and read by the trading path. json:"-" keeps a
+	// model-supplied amount from ever reaching execution.
+	NotionalUSD float64 `json:"-"`
 
 	// Grid trading parameters
 	Price      float64 `json:"price,omitempty"`       // Limit order price (for grid)
@@ -114,9 +123,8 @@ type Decision struct {
 	OrderID    string  `json:"order_id,omitempty"`    // Order ID (for cancel)
 
 	// Common parameters
-	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
-	RiskUSD    float64 `json:"risk_usd,omitempty"`   // Maximum USD risk
-	Reasoning  string  `json:"reasoning"`
+	Confidence int    `json:"confidence,omitempty"` // Confidence level (0-100)
+	Reasoning  string `json:"reasoning"`
 }
 
 // FullDecision AI's complete decision (including chain of thought)

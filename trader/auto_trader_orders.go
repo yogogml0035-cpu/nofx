@@ -105,9 +105,12 @@ func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, error) {
 	}
 	availableBalance := account.Available
 
-	// The old equity×ratio cap is gone: the opened notional is principal ×
-	// position_percent, computed and enforced by the engine (plan step 9).
-	positionSize := decision.PositionSizeUSD
+	// The open notional is computed and validated by the engine from principal ×
+	// position_percent (D22/D24); the model never supplies an amount.
+	positionSize := decision.NotionalUSD
+	if positionSize <= 0 {
+		return 0, fmt.Errorf("decision for %s has no code-computed open notional", decision.Symbol)
+	}
 
 	// ⚠️ Auto-adjust position size if insufficient margin
 	marginFactor := marginOverheadFactor/float64(decision.Leverage) + takerFeeRate
@@ -118,7 +121,7 @@ func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, error) {
 		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
 			positionSize, maxAffordablePositionSize, adjustedSize)
 		positionSize = adjustedSize
-		decision.PositionSizeUSD = positionSize
+		decision.NotionalUSD = positionSize
 	}
 
 	// [CODE ENFORCED] Minimum position size check

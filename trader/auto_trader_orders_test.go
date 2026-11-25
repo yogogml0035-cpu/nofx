@@ -46,12 +46,12 @@ func TestOpenRefusedWithoutProtectedOpener(t *testing.T) {
 	at := newRefusalTrader()
 
 	decision := &kernel.Decision{
-		Action:          "open_long",
-		Symbol:          "DOGEUSDT",
-		Leverage:        10,
-		PositionSizeUSD: 15,
-		StopLoss:        0.48,
-		TakeProfit:      0.65,
+		Action:      "open_long",
+		Symbol:      "DOGEUSDT",
+		Leverage:    10,
+		NotionalUSD: 15,
+		StopLoss:    0.48,
+		TakeProfit:  0.65,
 	}
 	actionRecord := &store.DecisionAction{}
 
@@ -143,7 +143,7 @@ func TestProtectedOpenCarriesTraderMarginMode(t *testing.T) {
 			// 杠杆用一个不常见的值：断言必须来自决策，而不是恰好与桩里的常量相同
 			decision := &kernel.Decision{
 				Action: c.action, Symbol: "DOGEUSDT", Leverage: 7,
-				PositionSizeUSD: 15, StopLoss: 0.48, TakeProfit: 0.65,
+				NotionalUSD: 15, StopLoss: 0.48, TakeProfit: 0.65,
 			}
 
 			var err error

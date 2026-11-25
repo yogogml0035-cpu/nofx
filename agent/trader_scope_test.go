@@ -98,17 +98,17 @@ func TestGetDecisionsToolReturnsRecentTraderDecisionEvidence(t *testing.T) {
 		CycleNumber:         151,
 		Timestamp:           time.Now(),
 		Success:             false,
-		ErrorMessage:        "Failed to get AI decision: failed to parse AI response: decision validation failed: decision #1 validation failed: BTCUSDT opening amount too small (28.00 USDT), must be ≥60.00 USDT",
+		ErrorMessage:        "Failed to execute open_short: ❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
 		AIRequestDurationMs: 25878,
 		CandidateCoins:      []string{"BTCUSDT"},
 		ExecutionLog:        []string{"AI call duration: 25878 ms"},
-		DecisionJSON:        `[{"symbol":"BTCUSDT","action":"open_short","position_size_usd":28}]`,
+		DecisionJSON:        `[{"symbol":"BTCUSDT","action":"open_short","leverage":5,"stop_loss":99000,"take_profit":95000,"confidence":80}]`,
 	}); err != nil {
 		t.Fatalf("seed rejected decision: %v", err)
 	}
 
 	raw := a.toolGetDecisions("default", `{"trader_name":"alpha","limit":2}`)
-	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "opening amount too small", "must be ≥60.00 USDT"} {
+	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "below minimum", "20.00 USDT"} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("expected decision evidence %q in tool response, got: %s", want, raw)
 		}
@@ -190,17 +190,17 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 		CycleNumber:         2,
 		Timestamp:           time.Now(),
 		Success:             false,
-		ErrorMessage:        "Failed to get AI decision: failed to parse AI response: decision validation failed: decision #1 validation failed: BTCUSDT opening amount too small (28.00 USDT), must be ≥60.00 USDT",
+		ErrorMessage:        "Failed to execute open_short: ❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
 		AIRequestDurationMs: 25878,
 		CandidateCoins:      []string{"BTCUSDT"},
 		ExecutionLog:        []string{"AI call duration: 25878 ms"},
-		DecisionJSON:        `[{"symbol":"BTCUSDT","action":"open_short","position_size_usd":28}]`,
+		DecisionJSON:        `[{"symbol":"BTCUSDT","action":"open_short","leverage":5,"stop_loss":99000,"take_profit":95000,"confidence":80}]`,
 	}); err != nil {
 		t.Fatalf("seed decision: %v", err)
 	}
 
 	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
-	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 28.00 USDT", "最小下单要求 60.00 USDT", "增加账户资金", "调高策略里的开仓金额百分比", "最小开仓金额（默认 10 USDT）"} {
+	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 10.75 USDT", "最小下单要求 20.00 USDT", "增加账户资金", "调高策略里的开仓金额百分比", "最小开仓金额（默认 10 USDT）"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected diagnosis to include %q, got: %s", want, reply)
 		}
@@ -239,9 +239,9 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		CycleNumber:    3,
 		Timestamp:      time.Now(),
 		Success:        false,
-		ErrorMessage:   "BTCUSDT opening amount too small (28.00 USDT), must be ≥60.00 USDT",
+		ErrorMessage:   "❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
 		CandidateCoins: []string{"BTCUSDT"},
-		DecisionJSON:   `[{"symbol":"BTCUSDT","action":"open_short","position_size_usd":28}]`,
+		DecisionJSON:   `[{"symbol":"BTCUSDT","action":"open_short","leverage":5,"stop_loss":99000,"take_profit":95000,"confidence":80}]`,
 	}); err != nil {
 		t.Fatalf("seed decision: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		t.Fatalf("expected LLM request to be captured")
 	}
 	prompt := llm.lastRequest.Messages[1].Content
-	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "opening amount too small", "decision_json"} {
+	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "below minimum", "decision_json"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("expected LLM evidence prompt to include %q, got: %s", want, prompt)
 		}

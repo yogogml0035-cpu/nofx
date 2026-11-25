@@ -86,9 +86,11 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	}
 	pruneCandidateCoinsWithoutMarketData(ctx)
 
-	// 2. Build System Prompt using strategy engine
+	// 2. Build System Prompt using strategy engine.
+	//    The notional shown in the prompt is principal × position_percent — the
+	//    same code-enforced amount the decisions are sized with below.
 	riskConfig := engine.GetRiskControlConfig()
-	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, variant)
+	systemPrompt := engine.BuildSystemPrompt(ctx.Account.Principal, variant)
 
 	// 3. Build User Prompt using strategy engine
 	userPrompt := engine.BuildUserPrompt(ctx)
@@ -101,13 +103,15 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		return nil, fmt.Errorf("AI API call failed: %w", err)
 	}
 
-	// 5. Parse AI response
-	decision, err := parseFullDecisionResponse(
-		aiResponse,
-		ctx.Account.TotalEquity,
-		riskConfig.BTCETHMaxLeverage,
-		riskConfig.AltcoinMaxLeverage,
-	)
+	// 5. Parse AI response. Open notional, protection direction and the loss cap
+	//    are validated and filled in here; the model does not supply an amount.
+	decision, err := parseFullDecisionResponse(aiResponse, DecisionSizing{
+		Principal:       ctx.Account.Principal,
+		PositionPercent: riskConfig.PositionPercent,
+		BTCETHLeverage:  riskConfig.BTCETHMaxLeverage,
+		AltcoinLeverage: riskConfig.AltcoinMaxLeverage,
+		Prices:          marketPrices(ctx),
+	})
 
 	if decision != nil {
 		decision.Timestamp = time.Now()
@@ -228,7 +232,7 @@ func pruneCandidateCoinsWithoutMarketData(ctx *Context) {
 // AI Response Parsing
 // ============================================================================
 
-func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
+func parseFullDecisionResponse(aiResponse string, sizing DecisionSizing) (*FullDecision, error) {
 	cotTrace := extractCoTTrace(aiResponse)
 
 	decisions, err := extractDecisions(aiResponse)
@@ -239,7 +243,7 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
-	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+	if err := validateDecisions(decisions, sizing); err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
@@ -250,6 +254,17 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		CoTTrace:  cotTrace,
 		Decisions: decisions,
 	}, nil
+}
+
+// marketPrices 取本轮提示词里每个标的的现价，供决策校验使用（模型看到的是同一组数据）。
+func marketPrices(ctx *Context) map[string]float64 {
+	prices := make(map[string]float64, len(ctx.MarketDataMap))
+	for symbol, data := range ctx.MarketDataMap {
+		if data != nil {
+			prices[symbol] = data.CurrentPrice
+		}
+	}
+	return prices
 }
 
 func extractCoTTrace(response string) string {

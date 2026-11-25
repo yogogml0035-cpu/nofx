@@ -25,7 +25,8 @@
     "11-24-unified-trading-params",
     "11-24-account-equity",
     "11-25-drawdown-monitor",
-    "11-25-strategy-config"
+    "11-25-strategy-config",
+    "11-25-sizing-engine"
   ],
   "parent": null,
   "relatedFiles": [],

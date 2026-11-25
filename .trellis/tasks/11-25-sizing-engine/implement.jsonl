@@ -1,0 +1,4 @@
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "需求权威：§5 口径、§8.3 删除清单、D12/D18/D19/D22/D23/D24/D30/D34、F33 浮点噪声"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量规范：精确十进制、解析失败即错误、fail-closed"}
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "交易路径↔适配器契约：名义价值/张数与开仓设置"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层一致性：store→kernel→trader→api/前端/助手合同"}

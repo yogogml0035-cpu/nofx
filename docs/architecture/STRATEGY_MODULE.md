@@ -179,7 +179,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 
 **Core File:** `decision/engine.go:700-818`
 
-**Entry Method:** `StrategyEngine.BuildSystemPrompt(accountEquity, variant)`
+**Entry Method:** `StrategyEngine.BuildSystemPrompt(principal, variant)` (principal is the account principal; open notional = principal × position_percent)
 
 ### 3.1 Prompt Structure (8 Sections)
 
@@ -221,7 +221,9 @@ if roleDefinition == "" {
 maxPositions := config.RiskControl.MaxPositions           // Default: 3
 positionPercent := config.RiskControl.PositionPercent     // Default: 10 (%): open notional = principal × percent
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // Default: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // Default: 10 USDT (user configurable)
+minPositionSize := config.RiskControl.MinPositionSize     // Default: 10 USDT (user configurable, checked after rounding to the size step)
+// Loss at the stop loss must stay ≤ 2% of the principal (D34). Open notional, contract
+// count and the loss cap are all computed by code; the decision JSON has no amount fields.
 ```
 
 **AI Guided (Suggested Values):**
@@ -247,11 +249,9 @@ minConfidence := config.RiskControl.MinConfidence            // Default: 75
     "symbol": "BTCUSDT",
     "action": "open_long",
     "leverage": 5,
-    "position_size_usd": 100.00,
     "stop_loss": 65000.00,
     "take_profit": 72000.00,
     "confidence": 85,
-    "risk_usd": 20.00,
     "reasoning": "..."
   }
 ]
@@ -363,7 +363,7 @@ RetryDelay: 2 seconds (exponential backoff)
 
 **Core File:** `decision/engine.go:1303-1604`
 
-**Entry Method:** `parseFullDecisionResponse(response, accountEquity, leverage, ratio)`
+**Entry Method:** `parseFullDecisionResponse(response, DecisionSizing)` (sizing, protection direction and the 2% loss cap are validated here)
 
 ### 6.1 Parsing Flow
 
@@ -440,19 +440,18 @@ func fixMissingQuotes(s string) string {
 ### 6.5 Decision Validation
 
 ```go
-// decision/engine.go:1480-1602
-func validateDecisions(decisions []Decision, equity, leverage, ratio float64) error {
+// kernel/engine_position.go
+func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. Validate action type
         validActions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait"}
 
         // 2. Open position validation
         if isOpenAction(d.Action) {
-            // Leverage range check
-            // Position size check
-            // Stop loss/take profit check
-            // Risk/reward ratio check
-            // Confidence check
+            // Leverage cap: auto-adjusted down to the configured limit
+            // Open notional = principal × position_percent (computed by code into NotionalUSD)
+            // Stop loss / take profit > 0 and on opposite sides of the current price (long: SL < price < TP; short reversed)
+            // Loss at the stop loss ≤ 2% of principal (D34), otherwise refused
         }
 
         // 3. Close position validation
@@ -468,15 +467,16 @@ func validateDecisions(decisions []Decision, equity, leverage, ratio float64) er
 ```go
 // decision/engine.go:128-143
 type Decision struct {
-    Symbol          string   // Trading pair: "BTCUSDT"
-    Action          string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
-    Leverage        int      // Leverage multiplier
-    PositionSizeUSD float64  // Position value (USDT)
-    StopLoss        float64  // Stop loss price
-    TakeProfit      float64  // Take profit price
-    Confidence      int      // Confidence 0-100
-    RiskUSD         float64  // Max risk (USDT)
-    Reasoning       string   // Decision reasoning
+    Symbol      string   // Trading pair: "BTCUSDT"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+    Leverage    int      // Leverage multiplier
+    StopLoss    float64  // Stop loss price
+    TakeProfit  float64  // Take profit price
+    Confidence  int      // Confidence 0-100
+    Reasoning   string   // Decision reasoning
+
+    // Computed by the engine from principal × position_percent; never read from the model (json:"-")
+    NotionalUSD float64
 }
 ```
 

@@ -355,10 +355,10 @@ StrategyConfig fields:
   risk_control.max_positions: max simultaneous positions (1=single coin, 3=diversified, 5=wide)
   risk_control.btc_eth_max_leverage: BTC/ETH leverage (conservative:3-5, moderate:5-10, aggressive:10-20)
   risk_control.altcoin_max_leverage: altcoin leverage (usually lower than BTC leverage)
-  risk_control.position_percent: open notional = principal × percent (1-20, step 0.1, default 10)
+  risk_control.position_percent: open notional = principal × percent, computed and enforced by the backend (1-20, step 0.1, default 10); the AI decision JSON has no amount field
   risk_control.max_margin_usage: 0.5-0.95 (default 0.9 = use up to 90% margin)
-  risk_control.min_position_size: minimum USDT per trade (default 10, user configurable)
-  risk_control.min_risk_reward_ratio: minimum profit/loss ratio required (default 3 = 3:1)
+  risk_control.min_position_size: minimum USDT per trade, checked after rounding to the contract size step (default 10, user configurable)
+  risk_control.min_risk_reward_ratio: minimum profit/loss ratio (default 3 = 3:1; AI prompt guidance only, not code-enforced)
   risk_control.min_confidence: minimum AI confidence to open position (default 75, range 60-90)
   prompt_sections.role_definition: describe the AI's trading persona and goal
   prompt_sections.trading_frequency: guidelines on how often to trade

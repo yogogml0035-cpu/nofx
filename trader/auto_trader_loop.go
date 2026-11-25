@@ -202,7 +202,7 @@ func (at *AutoTrader) runCycle() error {
 	//     logger.Infof("  [%d] %s: %s - %s", i+1, d.Symbol, d.Action, d.Reasoning)
 	//     if d.Action == "open_long" || d.Action == "open_short" {
 	//        logger.Infof("      Leverage: %dx | Position: %.2f USDT | Stop loss: %.4f | Take profit: %.4f",
-	//           d.Leverage, d.PositionSizeUSD, d.StopLoss, d.TakeProfit)
+	//           d.Leverage, d.NotionalUSD, d.StopLoss, d.TakeProfit)
 	//     }
 	// }
 	logger.Info()
@@ -406,6 +406,9 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	totalEquity := account.Equity
 	totalUnrealizedProfit := account.UnrealizedPnL
 	availableBalance := account.Available
+	// The engine sizes open positions from the principal (D22: principal ×
+	// position_percent), not from the equity.
+	principal := account.Principal
 
 	// 2. Get position information
 	positions, err := at.trader.GetPositions()
@@ -544,6 +547,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		BTCETHLeverage:  btcEthLeverage,
 		AltcoinLeverage: altcoinLeverage,
 		Account: kernel.AccountInfo{
+			Principal:        principal,
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
 			UnrealizedPnL:    totalUnrealizedProfit,
