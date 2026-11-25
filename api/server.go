@@ -335,7 +335,7 @@ IMPORTANT: For most use cases just POST {"name":"<name>"} — the backend fills 
 StrategyConfig fields:
   coin_source.static_coins: ["BTCUSDT","ETHUSDT"] — hand-picked Gate USDT perpetual symbols (the only coin source)
   coin_source.excluded_coins: coins to filter out from the candidate list
-  indicators.klines.primary_timeframe: "1m"|"3m"|"5m"|"15m"|"1h"|"4h" — scalping→"5m", trend/swing→"1h"/"4h"
+  indicators.klines.primary_timeframe: "10s"|"1m"|"5m"|"15m"|"30m"|"1h"|"4h"|"8h"|"1d"|"7d"|"1w"|"30d" (Gate candlestick intervals; D25) — scalping→"5m", trend/swing→"1h"/"4h"
   indicators.klines.primary_count: number of candles (20-100)
   indicators.klines.enable_multi_timeframe: true for trend/swing analysis
   indicators.klines.selected_timeframes: e.g. ["5m","15m","1h","4h"]
@@ -355,10 +355,9 @@ StrategyConfig fields:
   risk_control.max_positions: max simultaneous positions (1=single coin, 3=diversified, 5=wide)
   risk_control.btc_eth_max_leverage: BTC/ETH leverage (conservative:3-5, moderate:5-10, aggressive:10-20)
   risk_control.altcoin_max_leverage: altcoin leverage (usually lower than BTC leverage)
-  risk_control.btc_eth_max_position_value_ratio: max position size as multiple of equity (default 5)
-  risk_control.altcoin_max_position_value_ratio: default 1
+  risk_control.position_percent: open notional = principal × percent (1-20, step 0.1, default 10)
   risk_control.max_margin_usage: 0.5-0.95 (default 0.9 = use up to 90% margin)
-  risk_control.min_position_size: minimum USDT per trade (default 12)
+  risk_control.min_position_size: minimum USDT per trade (default 10, user configurable)
   risk_control.min_risk_reward_ratio: minimum profit/loss ratio required (default 3 = 3:1)
   risk_control.min_confidence: minimum AI confidence to open position (default 75, range 60-90)
   prompt_sections.role_definition: describe the AI's trading persona and goal

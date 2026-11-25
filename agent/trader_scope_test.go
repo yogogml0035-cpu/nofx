@@ -200,7 +200,7 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 	}
 
 	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
-	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 28.00 USDT", "最小下单要求 60.00 USDT", "增加账户资金", "不能手动修改"} {
+	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 28.00 USDT", "最小下单要求 60.00 USDT", "增加账户资金", "调高策略里的开仓金额百分比", "最小开仓金额（默认 10 USDT）"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected diagnosis to include %q, got: %s", want, reply)
 		}
@@ -896,7 +896,7 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 		},
 	}
 	reply := formatStrategyCreateFinalConfirmation("zh", session, cfg)
-	for _, want := range []string{"最大持仓数（System enforced）", "BTC/ETH 单币仓位上限（System enforced）", "最大保证金使用率（System enforced）", "最小开仓金额（System enforced）"} {
+	for _, want := range []string{"最大持仓数（System enforced）", "开仓金额百分比：10.0%", "最大保证金使用率（System enforced）", "最小开仓金额：10.00 USDT"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected final summary to display %q, got: %s", want, reply)
 		}
@@ -905,6 +905,20 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 	resp := applyStrategyConfigPatch(&cfg, "max_margin_usage", "0.5")
 	if resp == nil || !strings.Contains(resp.Error(), "System enforced") {
 		t.Fatalf("expected system enforced edit to be rejected, got: %v", resp)
+	}
+
+	// 最小开仓金额与开仓金额百分比现在是可编辑策略项
+	if err := applyStrategyConfigPatch(&cfg, "min_position_size", "30"); err != nil {
+		t.Fatalf("expected min_position_size edit to be accepted, got: %v", err)
+	}
+	if cfg.RiskControl.MinPositionSize != 30 {
+		t.Fatalf("expected stored min_position_size 30, got %v", cfg.RiskControl.MinPositionSize)
+	}
+	if err := applyStrategyConfigPatch(&cfg, "position_percent", "15"); err != nil {
+		t.Fatalf("expected position_percent edit to be accepted, got: %v", err)
+	}
+	if cfg.RiskControl.PositionPercent != 15 {
+		t.Fatalf("expected stored position_percent 15, got %v", cfg.RiskControl.PositionPercent)
 	}
 }
 

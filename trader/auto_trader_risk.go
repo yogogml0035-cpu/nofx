@@ -217,52 +217,6 @@ func isBTCETH(symbol string) bool {
 	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
 }
 
-// isMajorAsset returns true for assets that should use the BTC/ETH higher
-// position-value tier rather than the altcoin (1x equity) tier.
-func isMajorAsset(symbol string) bool {
-	return isBTCETH(symbol)
-}
-
-// enforcePositionValueRatio checks and enforces position value ratio limits (CODE ENFORCED)
-// Returns the adjusted position size (capped if necessary) and whether the position was capped
-// positionSizeUSD: the original position size in USD
-// equity: the account equity
-// symbol: the trading symbol
-func (at *AutoTrader) enforcePositionValueRatio(positionSizeUSD float64, equity float64, symbol string) (float64, bool) {
-	if at.config.StrategyConfig == nil {
-		return positionSizeUSD, false
-	}
-
-	riskControl := at.config.StrategyConfig.RiskControl
-
-	// Get the appropriate position value ratio limit. BTC/ETH uses the
-	// higher tier; pure altcoins use the lower tier.
-	var maxPositionValueRatio float64
-	if isMajorAsset(symbol) {
-		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
-		if maxPositionValueRatio <= 0 {
-			maxPositionValueRatio = 5.0 // Default: 5x for BTC/ETH
-		}
-	} else {
-		maxPositionValueRatio = riskControl.AltcoinMaxPositionValueRatio
-		if maxPositionValueRatio <= 0 {
-			maxPositionValueRatio = 1.0 // Default: 1x for altcoins
-		}
-	}
-
-	// Calculate max allowed position value = equity × ratio
-	maxPositionValue := equity * maxPositionValueRatio
-
-	// Check if position size exceeds limit
-	if positionSizeUSD > maxPositionValue {
-		logger.Infof("  ⚠️ [RISK CONTROL] Position %.2f USDT exceeds limit (equity %.2f × %.1fx = %.2f USDT max for %s), capping",
-			positionSizeUSD, equity, maxPositionValueRatio, maxPositionValue, symbol)
-		return maxPositionValue, true
-	}
-
-	return positionSizeUSD, false
-}
-
 // enforceMinPositionSize checks minimum position size (CODE ENFORCED)
 func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
 	if at.config.StrategyConfig == nil {
@@ -271,7 +225,7 @@ func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
 
 	minSize := at.config.StrategyConfig.RiskControl.MinPositionSize
 	if minSize <= 0 {
-		minSize = 12 // Default: 12 USDT
+		minSize = 10 // Default: 10 USDT (D19)
 	}
 
 	if positionSizeUSD < minSize {

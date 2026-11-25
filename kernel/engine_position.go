@@ -9,16 +9,19 @@ import (
 // Decision Validation
 // ============================================================================
 
-func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
+func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	for i := range decisions {
-		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
+		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
 			return fmt.Errorf("decision #%d validation failed: %w", i+1, err)
 		}
 	}
 	return nil
 }
 
-func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
+// validateDecision checks one AI decision. accountEquity is kept for the
+// sizing rewrite in plan step 9 (loss cap D34); the old equity×ratio cap is
+// gone — notional now comes from principal × position_percent.
+func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	validActions := map[string]bool{
 		"open_long":   true,
 		"open_short":  true,
@@ -34,16 +37,11 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 
 	if d.Action == "open_long" || d.Action == "open_short" {
 		// Asset tiering for validation:
-		//   - BTC/ETH crypto perps use the BTC/ETH tier (typically 5x equity).
-		//   - Everything else is altcoin (1x equity by default).
+		//   - BTC/ETH crypto perps use the BTC/ETH leverage tier.
+		//   - Everything else uses the altcoin tier.
 		maxLeverage := altcoinLeverage
-		posRatio := altcoinPosRatio
-		maxPositionValue := accountEquity * posRatio
-		isMajor := d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT"
-		if isMajor {
+		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
 			maxLeverage = btcEthLeverage
-			posRatio = btcEthPosRatio
-			maxPositionValue = accountEquity * posRatio
 		}
 
 		if d.Leverage <= 0 {
@@ -71,13 +69,6 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 			}
 		}
 
-		tolerance := maxPositionValue * 0.01
-		if d.PositionSizeUSD > maxPositionValue+tolerance {
-			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-				return fmt.Errorf("BTC/ETH single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
-			}
-			return fmt.Errorf("altcoin single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
-		}
 		if d.StopLoss <= 0 || d.TakeProfit <= 0 {
 			return fmt.Errorf("stop loss and take profit must be greater than 0")
 		}

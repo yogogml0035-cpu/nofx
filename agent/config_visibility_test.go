@@ -200,8 +200,9 @@ func TestToolManageStrategyUpdateRejectsOutOfRangeLeverageBeforeSave(t *testing.
 	}
 }
 
-func TestToolManageStrategyRejectsFixedMinPositionSizeUpdates(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "strategy-fixed-min-position.db")
+func TestToolManageStrategyUpdatesMinPositionSize(t *testing.T) {
+	// 最小下单金额自 D19 起是策略可编辑项（默认 10）：助手更新应生效而不是被锁定拒绝。
+	dbPath := filepath.Join(t.TempDir(), "strategy-editable-min-position.db")
 	st, err := store.New(dbPath)
 	if err != nil {
 		t.Fatalf("create store: %v", err)
@@ -214,19 +215,22 @@ func TestToolManageStrategyRejectsFixedMinPositionSizeUpdates(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	strategy := &store.Strategy{
-		ID:            "strategy-fixed-min-position",
-		UserID:        "default",
-		Name:          "固定最小开仓策略",
+		ID:          "strategy-editable-min-position",
+		UserID:      "default",
+		Name:        "可编辑最小开仓策略",
 		Description: "test",
 		Config:      string(rawCfg),
 	}
 	if err := st.Strategy().Create(strategy); err != nil {
 		t.Fatalf("create strategy: %v", err)
 	}
+	if cfg.RiskControl.MinPositionSize != 10 {
+		t.Fatalf("expected default min position size 10, got %v", cfg.RiskControl.MinPositionSize)
+	}
 
-	resp := a.toolManageStrategy("default", `{"action":"update","strategy_id":"strategy-fixed-min-position","config":{"risk_control":{"min_position_size":20}}}`)
-	if !strings.Contains(resp, "固定值 12 USDT") {
-		t.Fatalf("expected fixed min position size rejection, got: %s", resp)
+	resp := a.toolManageStrategy("default", `{"action":"update","strategy_id":"strategy-editable-min-position","config":{"risk_control":{"min_position_size":20}}}`)
+	if strings.Contains(resp, "System enforced") || strings.Contains(resp, "error") {
+		t.Fatalf("expected min position size update to be accepted, got: %s", resp)
 	}
 
 	updated, err := st.Strategy().Get("default", strategy.ID)
@@ -237,8 +241,8 @@ func TestToolManageStrategyRejectsFixedMinPositionSizeUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse updated strategy config: %v", err)
 	}
-	if parsed.RiskControl.MinPositionSize != 12 {
-		t.Fatalf("expected stored min position size to remain fixed at 12, got %v", parsed.RiskControl.MinPositionSize)
+	if parsed.RiskControl.MinPositionSize != 20 {
+		t.Fatalf("expected stored min position size 20, got %v", parsed.RiskControl.MinPositionSize)
 	}
 }
 
@@ -365,8 +369,11 @@ func TestSkillVisibleFieldSummaryForStrategyCoversManualPageFields(t *testing.T)
 			t.Fatalf("expected field label %q in summary, got: %s", expected, summary)
 		}
 	}
-	if strings.Contains(summary, "最小开仓金额") {
-		t.Fatalf("strategy field summary should not expose fixed min position size editing: %s", summary)
+	// ⑧：最小开仓金额（D19 可自定义、默认 10）与开仓金额百分比（D23）是可见可编辑字段
+	for _, expected := range []string{"最小开仓金额", "开仓金额百分比"} {
+		if !strings.Contains(summary, expected) {
+			t.Fatalf("strategy field summary should expose editable %q, got: %s", expected, summary)
+		}
 	}
 }
 

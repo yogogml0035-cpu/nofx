@@ -34,14 +34,14 @@ const (
 	marketOrderSlipRatio = 0.01
 )
 
-// minOrderNotional 策略配置的最小下单金额（USDT），与 enforceMinPositionSize 同源同默认
+// minOrderNotional 策略配置的最小下单金额（USDT），与 enforceMinPositionSize 同源同默认（D19：默认 10）
 func (at *AutoTrader) minOrderNotional() float64 {
 	if at.config.StrategyConfig == nil {
-		return 12
+		return 10
 	}
 	minSize := at.config.StrategyConfig.RiskControl.MinPositionSize
 	if minSize <= 0 {
-		return 12
+		return 10
 	}
 	return minSize
 }
@@ -98,19 +98,16 @@ func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, error) {
 		}
 	}
 
-	// Get balance (needed for multiple checks)
+	// Get balance (needed for margin checks)
 	account, err := types.ReadAccountBalance(at.trader)
 	if err != nil {
 		return 0, err
 	}
 	availableBalance := account.Available
-	equity := account.Equity
 
-	// [CODE ENFORCED] Position Value Ratio Check: position_value <= equity × ratio
-	positionSize, wasCapped := at.enforcePositionValueRatio(decision.PositionSizeUSD, equity, decision.Symbol)
-	if wasCapped {
-		decision.PositionSizeUSD = positionSize
-	}
+	// The old equity×ratio cap is gone: the opened notional is principal ×
+	// position_percent, computed and enforced by the engine (plan step 9).
+	positionSize := decision.PositionSizeUSD
 
 	// ⚠️ Auto-adjust position size if insufficient margin
 	marginFactor := marginOverheadFactor/float64(decision.Leverage) + takerFeeRate

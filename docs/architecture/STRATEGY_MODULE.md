@@ -219,10 +219,9 @@ if roleDefinition == "" {
 ```go
 // decision/engine.go:725-749
 maxPositions := config.RiskControl.MaxPositions           // Default: 3
-altcoinMaxRatio := config.RiskControl.AltcoinMaxPositionValueRatio  // Default: 1.0
-btcethMaxRatio := config.RiskControl.BTCETHMaxPositionValueRatio    // Default: 5.0
+positionPercent := config.RiskControl.PositionPercent     // Default: 10 (%): open notional = principal × percent
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // Default: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // Default: 12 USDT
+minPositionSize := config.RiskControl.MinPositionSize     // Default: 10 USDT (user configurable)
 ```
 
 **AI Guided (Suggested Values):**
@@ -508,7 +507,6 @@ sort.SliceStable(decisions, func(i, j int) bool {
 | Check | Method | Action |
 |-------|--------|--------|
 | Max positions | `enforceMaxPositions()` | Reject new opens |
-| Position value cap | `enforcePositionValueRatio()` | Auto reduce size |
 | Min position | `enforceMinPositionSize()` | Reject small orders |
 | Margin adjustment | Auto calculate | Adjust by available balance |
 
@@ -575,7 +573,7 @@ at.store.Decision().LogDecision(record)
 | **CoT Extract** | `decision/engine.go:1327-1345` | `extractCoTTrace()` |
 | **JSON Extract** | `decision/engine.go:1347-1408` | `extractDecisions()` |
 | **Decision Valid** | `decision/engine.go:1480-1602` | `validateDecisions()` |
-| **Risk Enforce** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforcePositionValueRatio()` |
+| **Risk Enforce** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforceMinPositionSize()` |
 | **Strategy Config** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
 
 ---
@@ -618,10 +616,9 @@ type StrategyConfig struct {
         MaxPositions               int     // Max positions
         BTCETHMaxLeverage          int     // BTC/ETH max leverage
         AltcoinMaxLeverage         int     // Altcoin max leverage
-        BTCETHMaxPositionValueRatio float64 // BTC/ETH position ratio cap
-        AltcoinMaxPositionValueRatio float64 // Altcoin position ratio cap
+        PositionPercent            float64 // Open notional = principal × percent (1-20, default 10)
         MaxMarginUsage             float64 // Max margin usage
-        MinPositionSize            float64 // Min position size
+        MinPositionSize            float64 // Min position size (default 10 USDT)
         MinRiskRewardRatio         float64 // Min risk/reward ratio
         MinConfidence              int     // Min confidence
     }

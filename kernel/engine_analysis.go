@@ -107,8 +107,6 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		ctx.Account.TotalEquity,
 		riskConfig.BTCETHMaxLeverage,
 		riskConfig.AltcoinMaxLeverage,
-		riskConfig.BTCETHMaxPositionValueRatio,
-		riskConfig.AltcoinMaxPositionValueRatio,
 	)
 
 	if decision != nil {
@@ -144,7 +142,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		if primaryTimeframe != "" {
 			timeframes = append(timeframes, primaryTimeframe)
 		} else {
-			timeframes = append(timeframes, "3m")
+			timeframes = append(timeframes, "5m")
 		}
 		if config.Indicators.Klines.LongerTimeframe != "" {
 			timeframes = append(timeframes, config.Indicators.Klines.LongerTimeframe)
@@ -230,7 +228,7 @@ func pruneCandidateCoinsWithoutMarketData(ctx *Context) {
 // AI Response Parsing
 // ============================================================================
 
-func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) (*FullDecision, error) {
+func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
 	cotTrace := extractCoTTrace(aiResponse)
 
 	decisions, err := extractDecisions(aiResponse)
@@ -241,7 +239,7 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
-	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
+	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
