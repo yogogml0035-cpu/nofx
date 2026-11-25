@@ -70,8 +70,8 @@ func TestOpenRefusedWithoutProtectedOpener(t *testing.T) {
 func TestMinOrderNotional(t *testing.T) {
 	at := newRefusalTrader()
 
-	// 无策略配置时默认 12（与 enforceMinPositionSize 同源）
-	assert.InDelta(t, 12, at.minOrderNotional(), 1e-9)
+	// 无策略配置时默认 10（与 enforceMinPositionSize 同源，D19）
+	assert.InDelta(t, 10, at.minOrderNotional(), 1e-9)
 
 	minSize := 10.0
 	at.config.StrategyConfig = &store.StrategyConfig{}

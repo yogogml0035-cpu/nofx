@@ -79,12 +79,29 @@ func TestLeverageFallback(t *testing.T) {
 			wantLeverage:    0,
 			wantError:       true,
 		},
+		{
+			// 权益×倍数的上限随倍数字段一起删除（D18/D22/D23）：大额名义价值不再被拒绝，
+			// 金额由引擎按本金×百分比计算是计划第 9 步
+			name: "Notional above equity multiple no longer rejected",
+			decision: Decision{
+				Symbol:          "SOLUSDT",
+				Action:          "open_long",
+				Leverage:        3,
+				PositionSizeUSD: 5000,
+				StopLoss:        50,
+				TakeProfit:      200,
+			},
+			accountEquity:   100,
+			btcEthLeverage:  10,
+			altcoinLeverage: 5,
+			wantLeverage:    3,
+			wantError:       false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Use default position value ratios for testing (10x for BTC/ETH, 1.5x for altcoins)
-			err := validateDecision(&tt.decision, tt.accountEquity, tt.btcEthLeverage, tt.altcoinLeverage, 10.0, 1.5)
+			err := validateDecision(&tt.decision, tt.accountEquity, tt.btcEthLeverage, tt.altcoinLeverage)
 
 			// Check error status
 			if (err != nil) != tt.wantError {

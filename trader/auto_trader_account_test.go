@@ -297,9 +297,10 @@ func TestGetAccountInfoRejectsUnreadableBalance(t *testing.T) {
 	assert.Contains(t, err.Error(), "unreadable")
 }
 
-func TestOpenPositionValueCapUsesEquityFromPrincipal(t *testing.T) {
-	// 单仓上限 = 权益 × 比例。Gate 的权益是本金 + 未实现盈亏（桩不报告 totalEquity）：
-	// 本金 100 + 未实现盈亏 50 → 上限 150，而不是只按本金或只按可用余额算
+func TestOpenNotionalIsNoLongerCappedByEquityRatio(t *testing.T) {
+	// 权益×倍数的单仓上限随倍数字段整体删除（⑧ strategy-config）：决策金额不再被
+	// 权益封顶，只剩可用保证金自动缩减与最小下单门槛。本金 100 + 浮盈 50（权益 150）
+	// 时 500 USDT 的决策金额原样进入下单请求。
 	stub := &accountProtectedStub{
 		protectedCaptureStub: &protectedCaptureStub{},
 		balance:              canonicalBalance(100, 50, 1000),
@@ -307,7 +308,7 @@ func TestOpenPositionValueCapUsesEquityFromPrincipal(t *testing.T) {
 	at := &AutoTrader{
 		exchange: "gate",
 		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
-			RiskControl: store.RiskControlConfig{BTCETHMaxPositionValueRatio: 1},
+			RiskControl: store.RiskControlConfig{PositionPercent: 10, MinPositionSize: 10},
 		}},
 		trader:                stub,
 		positionFirstSeenTime: map[string]int64{},
@@ -320,7 +321,7 @@ func TestOpenPositionValueCapUsesEquityFromPrincipal(t *testing.T) {
 	require.NoError(t, at.executeOpenLongWithRecord(decision, &store.DecisionAction{}))
 
 	require.Len(t, stub.requests, 1)
-	assert.InDelta(t, 150.0, stub.requests[0].NotionalUSD, 1e-9)
+	assert.InDelta(t, 500.0, stub.requests[0].NotionalUSD, 1e-9)
 }
 
 func TestOpenRefusedWhenBalanceIsUnreadable(t *testing.T) {

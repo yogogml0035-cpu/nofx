@@ -44,20 +44,16 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 
 	// 3. Hard constraints (risk control).
 	//
-	// `singleSymbol` is true for strategies that deliberately trade just one
-	// instrument (the quick-create flow, single-asset templates). For those,
-	// the "BTC/ETH vs Altcoin" two-tier categorization is irrelevant and
-	// actively misleading — we surface a single position-value limit instead.
-	btcEthPosValueRatio := riskControl.BTCETHMaxPositionValueRatio
-	if btcEthPosValueRatio <= 0 {
-		btcEthPosValueRatio = 5.0
-	}
-	altcoinPosValueRatio := riskControl.AltcoinMaxPositionValueRatio
-	if altcoinPosValueRatio <= 0 {
-		altcoinPosValueRatio = 1.0
+	// Open-position notional is principal × position_percent (D22/D23); the
+	// engine-enforced amount computation lands with plan step 9. ClampLimits
+	// guarantees a sane percent, the guard below only covers hand-built
+	// configs that skipped normalization.
+	positionPercent := riskControl.PositionPercent
+	if positionPercent <= 0 {
+		positionPercent = store.DefaultPositionPercent
 	}
 
-	writeHardConstraints(&sb, accountEquity, riskControl, btcEthPosValueRatio, altcoinPosValueRatio, singleSymbol, primarySymbol, zh)
+	writeHardConstraints(&sb, accountEquity, riskControl, positionPercent, singleSymbol, primarySymbol, zh)
 
 	// 4. Trading frequency (editable)
 	if promptSections.TradingFrequency != "" {
@@ -121,7 +117,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 
 	// 7. Output format — schema spec stays in English (this is a parser
 	//    contract; reasoning copy is localized below).
-	writeOutputFormat(&sb, accountEquity, btcEthPosValueRatio, riskControl, singleSymbol, primarySymbol, zh)
+	writeOutputFormat(&sb, accountEquity, positionPercent, riskControl, singleSymbol, primarySymbol, zh)
 
 	// 8. Custom Prompt.
 	customPrompt := e.config.CustomPrompt
@@ -179,7 +175,7 @@ func writeModeVariant(sb *strings.Builder, variant string, zh bool) {
 	}
 }
 
-func writeHardConstraints(sb *strings.Builder, accountEquity float64, riskControl store.RiskControlConfig, btcEthPosValueRatio, altcoinPosValueRatio float64, singleSymbol bool, primarySymbol string, zh bool) {
+func writeHardConstraints(sb *strings.Builder, accountEquity float64, riskControl store.RiskControlConfig, positionPercent float64, singleSymbol bool, primarySymbol string, zh bool) {
 	if zh {
 		sb.WriteString("# 风控硬约束\n\n")
 		sb.WriteString("## 代码强制 (后端校验, 无法绕过):\n")
@@ -190,28 +186,13 @@ func writeHardConstraints(sb *strings.Builder, accountEquity float64, riskContro
 		sb.WriteString(fmt.Sprintf("- Max Positions: %d instruments simultaneously\n", riskControl.MaxPositions))
 	}
 
-	if singleSymbol {
-		// One symbol — pick the higher of the two configured ratios so the
-		// limit isn't accidentally clamped to the altcoin cap for a stock.
-		ratio := altcoinPosValueRatio
-		if btcEthPosValueRatio > ratio {
-			ratio = btcEthPosValueRatio
-		}
-		maxVal := accountEquity * ratio
-		symLabel := primarySymbol
-		if zh {
-			sb.WriteString(fmt.Sprintf("- 单仓最大价值 (%s): %.0f USDT (= 权益 %.0f × %.1fx)\n", symLabel, maxVal, accountEquity, ratio))
-		} else {
-			sb.WriteString(fmt.Sprintf("- Position Value Limit (%s): max %.0f USDT (= equity %.0f × %.1fx)\n", symLabel, maxVal, accountEquity, ratio))
-		}
+	// Open-position notional is fixed by the strategy percent (D22/D23); the
+	// principal-based amount computation lands with plan step 9.
+	notional := accountEquity * positionPercent / 100
+	if zh {
+		sb.WriteString(fmt.Sprintf("- 开仓名义价值: %.0f USDT (= 权益 %.0f × %.1f%%)\n", notional, accountEquity, positionPercent))
 	} else {
-		if zh {
-			sb.WriteString(fmt.Sprintf("- 单仓最大价值 (山寨币/股票): %.0f USDT (= 权益 %.0f × %.1fx)\n", accountEquity*altcoinPosValueRatio, accountEquity, altcoinPosValueRatio))
-			sb.WriteString(fmt.Sprintf("- 单仓最大价值 (BTC/ETH): %.0f USDT (= 权益 %.0f × %.1fx)\n", accountEquity*btcEthPosValueRatio, accountEquity, btcEthPosValueRatio))
-		} else {
-			sb.WriteString(fmt.Sprintf("- Position Value Limit (Altcoin/Stock): max %.0f USDT (= equity %.0f × %.1fx)\n", accountEquity*altcoinPosValueRatio, accountEquity, altcoinPosValueRatio))
-			sb.WriteString(fmt.Sprintf("- Position Value Limit (BTC/ETH): max %.0f USDT (= equity %.0f × %.1fx)\n", accountEquity*btcEthPosValueRatio, accountEquity, btcEthPosValueRatio))
-		}
+		sb.WriteString(fmt.Sprintf("- Open Position Notional: %.0f USDT (= equity %.0f × %.1f%%)\n", notional, accountEquity, positionPercent))
 	}
 
 	if zh {
@@ -249,34 +230,24 @@ func writeHardConstraints(sb *strings.Builder, accountEquity float64, riskContro
 		sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
 	}
 
-	// Position sizing guidance
-	exampleRatio := btcEthPosValueRatio
-	if singleSymbol {
-		exampleRatio = altcoinPosValueRatio
-		if btcEthPosValueRatio > exampleRatio {
-			exampleRatio = btcEthPosValueRatio
-		}
-	}
+	// Position sizing guidance — the amount is fixed by the strategy percent;
+	// confidence decides whether to act at all (contract cleanup in plan step 9).
 	if zh {
 		sb.WriteString("## 仓位大小指引\n")
-		sb.WriteString("根据置信度和上面的单仓最大价值算出 `position_size_usd`:\n")
-		sb.WriteString("- 高置信 (≥85): 用最大价值的 80-100%%\n")
-		sb.WriteString("- 中置信 (70-84): 用最大价值的 50-80%%\n")
-		sb.WriteString("- 低置信 (60-69): 用最大价值的 30-50%%\n")
-		sb.WriteString(fmt.Sprintf("- 示例: 权益 %.0f × %.1fx = 最大 %.0f USDT\n", accountEquity, exampleRatio, accountEquity*exampleRatio))
-		sb.WriteString("- **不要**直接拿 available_balance 当 position_size_usd, 用上面的单仓最大价值!\n\n")
+		sb.WriteString("开仓名义价值由策略的仓位百分比固定（见上方硬约束）:\n")
+		sb.WriteString(fmt.Sprintf("- 名义价值 = 权益 %.0f × %.1f%% ≈ %.0f USDT\n", accountEquity, positionPercent, notional))
+		sb.WriteString("- 达到入场标准时 `position_size_usd` 填该名义价值; 置信不足或行情不利时选择等待, 不要自行放大或缩小金额\n")
+		sb.WriteString("- **不要**直接拿 available_balance 当 position_size_usd\n\n")
 	} else {
 		sb.WriteString("## Position Sizing Guidance\n")
-		sb.WriteString("Calculate `position_size_usd` from your confidence and the Position Value Limits above:\n")
-		sb.WriteString("- High confidence (≥85): use 80-100%% of the position value limit\n")
-		sb.WriteString("- Medium confidence (70-84): use 50-80%% of the position value limit\n")
-		sb.WriteString("- Low confidence (60-69): use 30-50%% of the position value limit\n")
-		sb.WriteString(fmt.Sprintf("- Example: equity %.0f × %.1fx = max %.0f USDT\n", accountEquity, exampleRatio, accountEquity*exampleRatio))
-		sb.WriteString("- **DO NOT** just use available_balance as position_size_usd. Use the Position Value Limit!\n\n")
+		sb.WriteString("Open position notional is fixed by the strategy percent (see Hard Constraints):\n")
+		sb.WriteString(fmt.Sprintf("- Notional = equity %.0f × %.1f%% ≈ %.0f USDT\n", accountEquity, positionPercent, notional))
+		sb.WriteString("- When entry standards are met, set `position_size_usd` to that notional; otherwise wait — do not resize on your own\n")
+		sb.WriteString("- **DO NOT** just use available_balance as position_size_usd\n\n")
 	}
 }
 
-func writeOutputFormat(sb *strings.Builder, accountEquity, btcEthPosValueRatio float64, riskControl store.RiskControlConfig, singleSymbol bool, primarySymbol string, zh bool) {
+func writeOutputFormat(sb *strings.Builder, accountEquity, positionPercent float64, riskControl store.RiskControlConfig, singleSymbol bool, primarySymbol string, zh bool) {
 	// Output format schema MUST stay English/structural; parser depends on it.
 	sb.WriteString("# Output Format (Strictly Follow)\n\n")
 	if zh {
@@ -308,12 +279,11 @@ func writeOutputFormat(sb *strings.Builder, accountEquity, btcEthPosValueRatio f
 		if riskControl.BTCETHMaxLeverage > lev {
 			lev = riskControl.BTCETHMaxLeverage
 		}
-		ratio := btcEthPosValueRatio // already chosen as the larger above when single-symbol
-		size := accountEquity * ratio
+		size := accountEquity * positionPercent / 100
 		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"%s\", \"action\": \"open_long\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 0, \"take_profit\": 0, \"confidence\": 85, \"risk_usd\": 0},\n", primarySymbol, lev, size))
 		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"%s\", \"action\": \"wait\"}\n", primarySymbol))
 	} else {
-		examplePositionSize := accountEquity * btcEthPosValueRatio
+		examplePositionSize := accountEquity * positionPercent / 100
 		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n",
 			riskControl.BTCETHMaxLeverage, examplePositionSize))
 		sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")

@@ -218,10 +218,9 @@ if roleDefinition == "" {
 ```go
 // decision/engine.go:725-749
 maxPositions := config.RiskControl.MaxPositions           // 默认: 3
-altcoinMaxRatio := config.RiskControl.AltcoinMaxPositionValueRatio  // 默认: 1.0
-btcethMaxRatio := config.RiskControl.BTCETHMaxPositionValueRatio    // 默认: 5.0
+positionPercent := config.RiskControl.PositionPercent     // 默认: 10%（开仓名义价值 = 本金 × 该百分比）
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // 默认: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // 默认: 12 USDT
+minPositionSize := config.RiskControl.MinPositionSize     // 默认: 10 USDT（用户可配置）
 ```
 
 **AI引导 (建议值):**
@@ -507,7 +506,6 @@ sort.SliceStable(decisions, func(i, j int) bool {
 | 检查项 | 方法 | 动作 |
 |--------|------|------|
 | 最大持仓数 | `enforceMaxPositions()` | 拒绝新开仓 |
-| 仓位价值上限 | `enforcePositionValueRatio()` | 自动缩减仓位 |
 | 最小仓位 | `enforceMinPositionSize()` | 拒绝过小订单 |
 | 保证金调整 | 自动计算 | 根据可用余额调整 |
 
@@ -574,7 +572,7 @@ at.store.Decision().LogDecision(record)
 | **思维链提取** | `decision/engine.go:1327-1345` | `extractCoTTrace()` |
 | **JSON提取** | `decision/engine.go:1347-1408` | `extractDecisions()` |
 | **决策验证** | `decision/engine.go:1480-1602` | `validateDecisions()` |
-| **风控执行** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforcePositionValueRatio()` |
+| **风控执行** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforceMinPositionSize()` |
 | **策略配置** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
 
 ---
@@ -617,8 +615,7 @@ type StrategyConfig struct {
         MaxPositions               int     // 最大持仓数
         BTCETHMaxLeverage          int     // BTC/ETH最大杠杆
         AltcoinMaxLeverage         int     // 山寨币最大杠杆
-        BTCETHMaxPositionValueRatio float64 // BTC/ETH仓位比例上限
-        AltcoinMaxPositionValueRatio float64 // 山寨币仓位比例上限
+        PositionPercent            float64 // 开仓名义价值 = 本金 × 该百分比（1-20，默认 10）
         MaxMarginUsage             float64 // 最大保证金使用率
         MinPositionSize            float64 // 最小仓位
         MinRiskRewardRatio         float64 // 最小风险回报比

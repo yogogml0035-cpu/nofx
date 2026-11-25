@@ -327,10 +327,8 @@ func validateTradeAction(
 	riskControl := cfg.RiskControl
 
 	maxLeverage := riskControl.AltcoinMaxLeverage
-	maxPositionValueRatio := riskControl.AltcoinMaxPositionValueRatio
 	if isMajorTradeSymbol(trade.Symbol) {
 		maxLeverage = riskControl.BTCETHMaxLeverage
-		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
 	}
 	if maxLeverage <= 0 {
 		maxLeverage = 5
@@ -344,29 +342,14 @@ func validateTradeAction(
 
 	minPositionSize := riskControl.MinPositionSize
 	if minPositionSize <= 0 {
-		minPositionSize = 12
+		minPositionSize = 10
 	}
 	if positionValue < minPositionSize {
 		return fmt.Errorf("position value %.2f USDT is below configured minimum %.2f USDT", positionValue, minPositionSize)
 	}
 
-	if maxPositionValueRatio <= 0 {
-		if isBTCETHSymbol(trade.Symbol) {
-			maxPositionValueRatio = 5.0
-		} else {
-			maxPositionValueRatio = 1.0
-		}
-	}
-	maxPositionValue := equity * maxPositionValueRatio
-	if positionValue > maxPositionValue {
-		return fmt.Errorf(
-			"position value %.2f USDT exceeds configured limit %.2f USDT (equity %.2f x %.2f)",
-			positionValue,
-			maxPositionValue,
-			equity,
-			maxPositionValueRatio,
-		)
-	}
+	// The old equity×position-value-ratio cap is gone with the percent-based
+	// sizing (D18/D22/D23); engine-enforced amounts land in plan step 9.
 	return nil
 }
 
@@ -375,9 +358,8 @@ func isBTCETHSymbol(symbol string) bool {
 	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
 }
 
-// isMajorTradeSymbol mirrors trader/auto_trader_risk.isMajorAsset for the
-// chat-execute path: BTC/ETH crypto perps get the higher BTC/ETH risk tier —
-// their per-position caps should not be clamped to the 1x altcoin tier.
+// isMajorTradeSymbol marks BTC/ETH crypto perps as the higher leverage tier
+// for the chat-execute path.
 func isMajorTradeSymbol(symbol string) bool {
 	return isBTCETHSymbol(symbol)
 }

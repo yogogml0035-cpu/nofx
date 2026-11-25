@@ -3087,26 +3087,11 @@ func strategyLockedFieldError(lang, field string) string {
 			return "最大持仓数是 System enforced 字段，策略编辑页不提供普通输入控件，Agent 不能修改。"
 		}
 		return "Max positions is System enforced in the strategy editor and cannot be changed by the agent."
-	case "btceth_max_position_value_ratio":
-		if lang == "zh" {
-			return "BTC/ETH 单币仓位上限是 System enforced 字段，策略编辑页不提供普通输入控件，Agent 不能修改。"
-		}
-		return "BTC/ETH position value ratio is System enforced in the strategy editor and cannot be changed by the agent."
-	case "altcoin_max_position_value_ratio":
-		if lang == "zh" {
-			return "山寨币单币仓位上限是 System enforced 字段，策略编辑页不提供普通输入控件，Agent 不能修改。"
-		}
-		return "Altcoin position value ratio is System enforced in the strategy editor and cannot be changed by the agent."
 	case "max_margin_usage":
 		if lang == "zh" {
 			return "最大保证金使用率是 System enforced 字段，策略编辑页不提供普通输入控件，Agent 不能修改。"
 		}
 		return "Max margin usage is System enforced in the strategy editor and cannot be changed by the agent."
-	case "min_position_size":
-		if lang == "zh" {
-			return "最小开仓金额是系统固定值 12 USDT，手动面板里也是 System enforced，Agent 不能修改。"
-		}
-		return "The minimum position size is a fixed system value of 12 USDT. It is System enforced in the manual panel and cannot be changed by the agent."
 	default:
 		if lang == "zh" {
 			return "这个字段是系统固定项，Agent 不能修改。"
@@ -3119,11 +3104,8 @@ func strategyConfigContainsLockedField(config map[string]any) (string, bool) {
 	if len(config) == 0 {
 		return "", false
 	}
-	if _, ok := config["min_position_size"]; ok {
-		return "min_position_size", true
-	}
 	if risk, ok := config["risk_control"].(map[string]any); ok {
-		for _, field := range []string{"max_positions", "btc_eth_max_position_value_ratio", "btceth_max_position_value_ratio", "altcoin_max_position_value_ratio", "max_margin_usage", "min_position_size"} {
+		for _, field := range []string{"max_positions", "max_margin_usage"} {
 			if _, ok := risk[field]; ok {
 				return field, true
 			}
@@ -3131,7 +3113,7 @@ func strategyConfigContainsLockedField(config map[string]any) (string, bool) {
 	}
 	if aiConfig, ok := config["ai_config"].(map[string]any); ok {
 		if risk, ok := aiConfig["risk_control"].(map[string]any); ok {
-			for _, field := range []string{"max_positions", "btc_eth_max_position_value_ratio", "btceth_max_position_value_ratio", "altcoin_max_position_value_ratio", "max_margin_usage", "min_position_size"} {
+			for _, field := range []string{"max_positions", "max_margin_usage"} {
 				if _, ok := risk[field]; ok {
 					return field, true
 				}
