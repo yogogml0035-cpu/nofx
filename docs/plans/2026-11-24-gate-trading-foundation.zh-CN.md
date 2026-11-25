@@ -227,6 +227,8 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 | F38 | 统一账户下合约账户的 `total` 不是本金：读数 ≈ 0，与「合约侧自上次结算以来的未结算净额（手续费 + 已实现盈亏）」对得上；清零的触发条件没有验证（文档也没写它在统一账户下的含义） | 子任务 7 的三轮带仓读数（归档任务 research H.4、probe/README.md 实测结论 4） | 旧口径把它当钱包余额 → 权益 ≈ 0、开不了仓。已由子任务 7 根除：本金改取钱包总额，合约账户只读 `available` |
 | F39 | 本金（钱包总额 `total.amount − total.borrowed`）不随未实现盈亏变动，但手续费与已实现盈亏在开平仓那一刻即时结算；钱包总额的 `unrealised_pnl` 13 秒采样看不到「1 分钟缓存」滞后 | 子任务 7 第 4 轮带仓读数：7 次采样本金恒定、开仓降幅 = 开仓手续费（差 1e-8）、平仓 5 秒与 70 秒读数相同 | 「权益 = 本金 + 未实现盈亏」成立；初始资金创建时取本金，读不到或本金不为正时按类型失败闭合 |
 | F40 | 「可用额度 = `amount` + `unrealised_pnl` − `position_initial_margin`」不严格成立：残差 −0.0003…+0.0001（约 1.7U 仓位上到 −0.0016）且不恒定，交易所内部的计算方式没有文档 | 子任务 7 第 4 轮带仓读数的量级校验（阈值 0.01 内通过，残差不恒定） | 可用额度直接取合约账户的 `available`，公式只作量级旁证；§3.1 的表述已同步更正 |
+| F41 | ⑧ 交付时新增的许可周期 `10s`/`7d`/`30d` 在当前引擎取数链路（CoinAnk/市场旧路径）没有实现；选了这些周期的策略运行时按既有「逐币 log 跳过」路径失败，不崩溃 | ⑧ 独立检查 P3 留档（D25 定义的是配置选项集合，取数在 ⑫ `market-source`/⑬ `engine-klines-gate` 落地） | 父 feature 是整体送测/交付（⑫⑬ 均排在合入 main 之前），不构成 ⑧ 缺陷；⑬ 验收须覆盖新周期的真实取数 |
+| F42 | `position_percent` 同名异义：新策略字段 `risk_control.position_percent`（开仓金额百分比，D23）与网格风险展示 `web/src/types/trading.ts` 的 `RiskInfo.position_percent`（持仓占用率）无关 | ⑧ 检查期间的跨层检索确认 | 不改名、不在 ⑧ 范围；后续检索/沟通时必须带前缀区分 |
 
 ### 6.1 百分比、最小下单金额与本金的制约
 
@@ -400,7 +402,7 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
       提示词预览，W3 级开平仓一次、终态零残留）；第二轮界面实测核对换绑重置、改过才发送、创建失败原因与中英印尼文案；
       独立检查复审 PASS（首轮 NEEDS FIX 的 1 项 P1、3 项 P2、9 项 P3 全部修复，变异 0 存活）。因 U1 未决，第 7 步先于第 6 步实施。
       任务归档 `.trellis/tasks/archive/2026-11/11-24-account-equity/`
-- [ ] 8 `strategy-config`
+- [x] 8 `strategy-config`：`9fd74a2c`（子分支 `7d23b28a` + 修复 `324015a0`），最终候选上 `git diff --check`、`make test`（Go 22 包 + 前端 158 用例）、`make build`、`tsc --noEmit`、`vite build` 全过；独立检查 **PASS**（无 P0/P1；1 P2 + 4 P3——P2 测试断言收紧为 `"error"` JSON 约定、P3-1 删死代码 `trader.isBTCETH`、P3-4 英文标签改 "position size percent"，均已修复并定向补验 `go build ./...` + `go test ./trader/ ./agent/` 全绿；P3-2/P3-3 留档为 F41/F42）。交付：权益×仓位价值倍数的整套旧语义一次性删除（`store/strategy.go` 字段/clamp/diff、`kernel/engine_position.go` 上限块与 ratio 参数、`kernel/engine_prompt.go` 硬约束/仓位大小指引/输出示例、`engine_analysis.go` 透传、`trader/auto_trader_risk.go` 封顶、`agent/trade.go` 助手下单上限拒绝、助手锁定名单/摘要（中英）/关键词/编辑分支/不开单诊断与 planner 指令段、`skills/strategy_diagnosis.json`、`skills/trader_diagnosis.json`、`api/server.go` schema、`STRATEGY_MODULE.md/.zh-CN.md` 两份）；新增 `risk_control.position_percent`（1–20、步长 0.1、默认 10，存量缺失 0 值补默认；clamp 7 例矩阵单测）；`min_position_size` 默认 12→10 并解锁为可编辑项（编辑器输入框、助手目录/编辑分支、摘要去 System enforced、诊断「不能手动修改」文案中英翻转、四处兜底同步，旧「锁定拒绝」断言翻转为「生效」）；周期按 D25 收敛为 {10s,1m,5m,15m,30m,1h,4h,8h,1d,7d,1w,30d}（`normalizeTimeframe` 矩阵 + 别名、前端 `IndicatorEditor` 选项数组、api schema 行、旧配置兜底 `"3m"→"5m"`）。边界确认：kernel 12/60 硬编码最小与盈亏比校验按计划保留给 ⑨；`validKlineInterval`（行情工具输入）与 `market/timeframe.go` 属 ⑫⑮ 边界未动。任务归档 `.trellis/tasks/archive/2026-11/11-25-strategy-config/`
 - [ ] 9 `sizing-engine`
 - [ ] 10 `partial-close`（W2 分批平仓）
 - [ ] 11 `protective-order-management`（W2 改止损止盈）
