@@ -223,7 +223,7 @@ func Format(data *Data) string {
 	}
 
 	if data.IntradaySeries != nil {
-		sb.WriteString("Intraday series (3‑minute intervals, oldest → latest):\n\n")
+		sb.WriteString("Intraday series (5‑minute intervals, oldest → latest):\n\n")
 
 		if len(data.IntradaySeries.MidPrices) > 0 {
 			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.IntradaySeries.MidPrices)))
@@ -246,10 +246,10 @@ func Format(data *Data) string {
 		}
 
 		if len(data.IntradaySeries.Volume) > 0 {
-			sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
+			sb.WriteString(fmt.Sprintf("Volume (USDT): %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
 		}
 
-		sb.WriteString(fmt.Sprintf("3m ATR (14‑period): %.3f\n\n", data.IntradaySeries.ATR14))
+		sb.WriteString(fmt.Sprintf("5m ATR (14‑period): %.3f\n\n", data.IntradaySeries.ATR14))
 	}
 
 	if data.LongerTermContext != nil {
@@ -261,7 +261,7 @@ func Format(data *Data) string {
 		sb.WriteString(fmt.Sprintf("3‑Period ATR: %.3f vs. 14‑Period ATR: %.3f\n\n",
 			data.LongerTermContext.ATR3, data.LongerTermContext.ATR14))
 
-		sb.WriteString(fmt.Sprintf("Current Volume: %.3f vs. Average Volume: %.3f\n\n",
+		sb.WriteString(fmt.Sprintf("Current Volume (USDT): %.3f vs. Average Volume (USDT): %.3f\n\n",
 			data.LongerTermContext.CurrentVolume, data.LongerTermContext.AverageVolume))
 
 		if len(data.LongerTermContext.MACDValues) > 0 {
@@ -276,7 +276,7 @@ func Format(data *Data) string {
 	// Multi-timeframe data (new)
 	if len(data.TimeframeData) > 0 {
 		// Output sorted by timeframe
-		timeframeOrder := []string{"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"}
+		timeframeOrder := []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"}
 		for _, tf := range timeframeOrder {
 			if tfData, ok := data.TimeframeData[tf]; ok {
 				sb.WriteString(fmt.Sprintf("=== %s Timeframe ===\n\n", strings.ToUpper(tf)))
@@ -292,7 +292,7 @@ func Format(data *Data) string {
 func formatTimeframeData(sb *strings.Builder, data *TimeframeSeriesData) {
 	// Use OHLCV table format if kline data is available
 	if len(data.Klines) > 0 {
-		sb.WriteString("Time(UTC)      Open      High      Low       Close     Volume\n")
+		sb.WriteString("Time(UTC)      Open      High      Low       Close     Volume(USDT)\n")
 		for i, k := range data.Klines {
 			t := time.Unix(k.Time/1000, 0).UTC()
 			timeStr := t.Format("01-02 15:04")
@@ -308,7 +308,7 @@ func formatTimeframeData(sb *strings.Builder, data *TimeframeSeriesData) {
 		// Fallback to old format for backward compatibility
 		sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.MidPrices)))
 		if len(data.Volume) > 0 {
-			sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.Volume)))
+			sb.WriteString(fmt.Sprintf("Volume (USDT): %s\n\n", formatFloatSlice(data.Volume)))
 		}
 	}
 
@@ -462,15 +462,23 @@ func priceChangeFromSeries(series []Kline, duration time.Duration) float64 {
 	return 0
 }
 
-// isStaleData detects stale data (consecutive price freeze)
-// Fix DOGEUSDT-style issue: consecutive N periods with completely unchanged prices indicate data source anomaly
+// isStaleData 检测数据陈旧（连续一段时间的价格冻结 + 成交量为 0）。
+// 判定窗口按 K 线间隔换算成至少 15 分钟（最少 5 根）：10s 周期需要 90 根、1m 需要 15 根，
+// 避免短周期下 5 根（50 秒）无成交就被误判为数据源异常；30d 等长周期仍以 5 根为下限。
 func isStaleData(klines []Kline, symbol string) bool {
-	if len(klines) < 5 {
+	stalePriceThreshold := 5
+	if len(klines) >= 2 {
+		stepMillis := klines[len(klines)-1].OpenTime - klines[len(klines)-2].OpenTime
+		if stepMillis > 0 {
+			if bars := int((15 * time.Minute).Milliseconds() / stepMillis); bars > stalePriceThreshold {
+				stalePriceThreshold = bars
+			}
+		}
+	}
+	if len(klines) < stalePriceThreshold {
 		return false // Insufficient data to determine
 	}
 
-	// Detection threshold: 5 consecutive 3-minute periods with unchanged price (15 minutes without fluctuation)
-	const stalePriceThreshold = 5
 	const priceTolerancePct = 0.0001 // 0.01% fluctuation tolerance (avoid false positives)
 
 	// Take the last stalePriceThreshold K-lines

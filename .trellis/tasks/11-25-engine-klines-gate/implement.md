@@ -7,8 +7,9 @@
 - [x] 2. 删除无调用方代码：`market/timeframe.go`（+测试）、`coinank_api/kline_ws.go`、`depth_ws.go`
   （+测试）、`kernel.FetchMarketData`；`api/strategy.go` 的 `"3m"` 兜底改 `"5m"`。
 - [x] 3. 提示词：周期顺序 `{10s..30d}`、成交量列/文案标 USDT（中英）。
-- [x] 4. 单测：Gate mock 下 GetWithTimeframes（含 10s/7d/30d）、GetBoxData、GetWithExchange；
-  提示词周期与成交量；删除后无残留引用（`go build ./...`）。
+- [x] 4. 单测：Gate mock 下 GetWithTimeframes（含 10s/7d/30d）、GetBoxData（1h/500 请求形状）、
+  GetWithExchange、主/副周期失败语义；提示词周期与成交量；stale 判定 15 分钟窗口；
+  删除后无残留引用（`go build ./...`）。
 - [x] 5. 真实探针：12 个保留周期经 GetWithTimeframes、箱体、无 AI 提示词渲染。
 - [x] 6. 门禁：`git diff --check`、`make test`、`make build`。
 - [ ] 7. 独立检查子智能体检查；修复并补验。

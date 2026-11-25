@@ -26,8 +26,9 @@ CoinAnk K 线代码与无调用方的 CoinAnk 实时/深度代码；修正提示
 6. **提示词**：时间周期输出顺序改为 D25 保留集合（`10s..30d`），新周期策略的 K 线必须出现在
    提示词里；K 线表的成交量列标明 USDT 成交额；数据字典/文档中的成交量口径同步。
 7. **回退兜底**：`api/strategy.go` 在未配置周期时的 `"3m"` 兜底改为 `"5m"`（D25）。
-8. **不做**：不改 ⑭ 的 `api/handler_klines.go` 与前端；不改 ⑮ 的 agent 取数、`market.Format`
-   与 `/api/agent/*`；不删除 `provider/coinank/coinank_api/kline.go`。
+8. **不做**：不改 ⑭ 的 `api/handler_klines.go` 与前端；不改 ⑮ 的 agent 取数与 `/api/agent/*`；
+   `market.Format` 的取数结构留给 ⑮ 删除，但本子任务同步它的文案口径（3m→5m、成交量→USDT）；
+   不删除 `provider/coinank/coinank_api/kline.go`。
 
 ## Acceptance Criteria
 

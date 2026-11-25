@@ -30,7 +30,11 @@ klines4h, err := GetGateKlines(symbol, "4h", 100)
 - `calculatePriceChangeByBars` 改用 `GateIntervalDuration` 计算 barsBack（秒级口径），
   不再使用 `parseTimeframeToMinutes` 的旧周期表；`10s` 等周期也能得到合理的回看根数
   （不足时按可用窗口）。
-- 数据陈旧检测（`isStaleData`）保留：5 根收盘价几乎不变且成交额全 0 才判为陈旧。
+- 数据陈旧检测（`isStaleData`）保留，但判定窗口按 K 线间隔换算为至少 15 分钟（最少 5 根）：
+  10s 需要 90 根、1m 需要 15 根，避免短周期下 50 秒无成交就误判数据源异常；30d 等长周期仍以
+  5 根为下限（15 分钟 / 30 天 = 0）。
+- `market.Format`（旧内嵌路径的展示）文案同步为 5m / USDT 成交额，避免助手在 ⑮ 删除前误标；
+  结构本身仍由 ⑮ 删除。
 
 ### 提示词
 
@@ -78,3 +82,5 @@ assistant legacy (到 ⑮) ── Get/GetWithExchange ──▶ GetGateKlines 5m
   不会误伤；10s 周期在极低波动时可能出现 5 连无成交，按数据源异常处理（保守跳过）。
 - `GetWithExchange` 的 `exchange` 参数被忽略；其他交易所的 trader 仍用 Gate 分析行情（D26）。
 - 30d 的最后一根 CloseTime 是近似值（⑫ 已注明）；引擎只用 OpenTime 排序与展示，不做收线判断。
+- 主周期大于目标窗口时（如 30d 主周期的 1h/4h 涨跌），`calculatePriceChangeByBars` 退化为
+  “1 根前”的近似值；提示词字段名仍为 1h/4h，读数是该周期内可用的最近变化，不冒充真实 1h/4h。

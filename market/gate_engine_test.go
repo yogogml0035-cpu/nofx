@@ -97,7 +97,31 @@ func TestGetWithTimeframesRejectsUnsupportedPeriod(t *testing.T) {
 }
 
 func TestGetBoxDataUsesGate(t *testing.T) {
-	srv := gateCandleServer(t, 30, 100)
+	// 箱体固定请求 Gate 1h × LongBoxPeriod(500)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/futures/usdt/candlesticks" {
+			http.NotFound(w, r)
+			return
+		}
+		query := r.URL.Query()
+		if got := query.Get("interval"); got != "1h" {
+			t.Errorf("box interval = %q, want 1h", got)
+		}
+		if got := query.Get("limit"); got != "500" {
+			t.Errorf("box limit = %q, want 500", got)
+		}
+		rows := make([]map[string]interface{}, 0, 30)
+		for i := 0; i < 30; i++ {
+			price := 100.0 + float64(i)*0.5
+			rows = append(rows, map[string]interface{}{
+				"t": 1700000000 + int64(i)*3600, "v": "10",
+				"o": fmt.Sprintf("%.4f", price), "h": fmt.Sprintf("%.4f", price+1),
+				"l": fmt.Sprintf("%.4f", price-1), "c": fmt.Sprintf("%.4f", price+0.25),
+				"sum": "1000",
+			})
+		}
+		json.NewEncoder(w).Encode(rows)
+	}))
 	overrideGateBaseURL(t, srv)
 
 	box, err := GetBoxData("DOGEUSDT")
@@ -141,4 +165,62 @@ func TestGetBoxDataFailClosedWhenGateFails(t *testing.T) {
 	if _, err := GetBoxData("DOGEUSDT"); err == nil {
 		t.Fatal("GetBoxData must fail closed when Gate returns 500")
 	}
+}
+
+func TestGetWithTimeframesFailureClosure(t *testing.T) {
+	// 全周期失败 → 主周期为空，整次失败
+	failAll := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	overrideGateBaseURL(t, failAll)
+	if _, err := GetWithTimeframes("DOGEUSDT", []string{"5m", "1h"}, "5m", 5); err == nil {
+		t.Fatal("all-period failure must return an error")
+	}
+
+	// 主周期失败、副周期成功 → 仍然失败（没有主周期指标）
+	primaryFails := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/futures/usdt/candlesticks" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("interval") == "5m" {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		writeOneCandle(w)
+	}))
+	overrideGateBaseURL(t, primaryFails)
+	if _, err := GetWithTimeframes("DOGEUSDT", []string{"5m", "1h"}, "5m", 5); err == nil {
+		t.Fatal("primary timeframe failure must return an error")
+	}
+
+	// 副周期失败、主周期成功 → 返回主周期数据（既有语义：逐周期 log 跳过）
+	secondaryFails := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/futures/usdt/candlesticks" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("interval") == "1h" {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		writeOneCandle(w)
+	}))
+	overrideGateBaseURL(t, secondaryFails)
+	data, err := GetWithTimeframes("DOGEUSDT", []string{"5m", "1h"}, "5m", 5)
+	if err != nil {
+		t.Fatalf("secondary failure should be tolerated: %v", err)
+	}
+	if _, ok := data.TimeframeData["5m"]; !ok {
+		t.Error("primary timeframe data missing")
+	}
+	if _, ok := data.TimeframeData["1h"]; ok {
+		t.Error("failed secondary timeframe must be absent")
+	}
+}
+
+func writeOneCandle(w http.ResponseWriter) {
+	json.NewEncoder(w).Encode([]map[string]interface{}{{
+		"t": 1700000000, "v": "1", "o": "100", "h": "101", "l": "99", "c": "100.5", "sum": "500",
+	}})
 }
