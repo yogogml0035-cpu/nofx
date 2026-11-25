@@ -724,7 +724,7 @@ If you find yourself closing positions <30 minutes → Too impatient
 Only enter on strong signals; observe when uncertain.
 
 Complete data available:
-- Raw sequences: 3-min price sequence (MidPrices array) + 4-hour candle sequence
+- Raw sequences: multi-timeframe candles (Gate contract candles; volume = USDT quote volume)
 - Technical sequences: EMA20 sequence, MACD sequence, RSI7 sequence, RSI14 sequence
 - Capital sequences: Volume sequence (USDT quote volume), Open Interest (OI) sequence, funding rate
 

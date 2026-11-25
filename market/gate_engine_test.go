@@ -6,6 +6,7 @@ package market
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -223,4 +224,52 @@ func writeOneCandle(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode([]map[string]interface{}{{
 		"t": 1700000000, "v": "1", "o": "100", "h": "101", "l": "99", "c": "100.5", "sum": "500",
 	}})
+}
+
+func TestGetWithExchangeFailClosedWhenGateFails(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	overrideGateBaseURL(t, srv)
+	if _, err := GetWithExchange("DOGEUSDT", ""); err == nil {
+		t.Fatal("GetWithExchange must fail closed when Gate returns 500")
+	}
+}
+
+func TestCalculatePriceChangeByBarsWindows(t *testing.T) {
+	// 5m：1h 回看 12 根
+	build := func(step time.Duration, n int) []Kline {
+		klines := make([]Kline, n)
+		for i := range klines {
+			klines[i] = Kline{
+				OpenTime: int64(1700000000000) + int64(i)*step.Milliseconds(),
+				Close:    100 + float64(i),
+			}
+		}
+		return klines
+	}
+	fiveMinute := build(5*time.Minute, 30)
+	// 最后一根 close=129，idx = 29-12 = 17 → close=117
+	if got := calculatePriceChangeByBars(fiveMinute, "5m", 60); math.Abs(got-(129.0-117.0)/117.0*100) > 1e-9 {
+		t.Errorf("5m 1h change = %v", got)
+	}
+
+	// 10s 主周期：200 根只有约 33 分钟，回看被夹到最早一根（不是 1h）
+	tenSecond := build(10*time.Second, 200)
+	if got := calculatePriceChangeByBars(tenSecond, "10s", 60); got <= 0 {
+		t.Errorf("10s 1h change = %v, want positive over the available window", got)
+	}
+
+	// 30d 主周期：barsBack 退化为 1 根
+	monthly := build(30*24*time.Hour, 3)
+	got := calculatePriceChangeByBars(monthly, "30d", 60)
+	want := (102.0 - 101.0) / 101.0 * 100
+	if math.Abs(got-want) > 1e-9 {
+		t.Errorf("30d change = %v, want %v (one bar back)", got, want)
+	}
+
+	// 非保留周期：无法换算，返回 0
+	if got := calculatePriceChangeByBars(monthly, "3m", 60); got != 0 {
+		t.Errorf("unsupported timeframe change = %v, want 0", got)
+	}
 }

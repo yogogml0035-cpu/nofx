@@ -7,7 +7,7 @@
 - `kernel`：提示词的周期顺序与成交量口径；删除无调用方的 `FetchMarketData`。
 - `api`：仅改 test-run 的 `"3m"` 兜底（⑭ 的图表接口不动）。
 - `provider/coinank/coinank_api`：删除 `kline_ws.go`、`depth_ws.go` 与测试；`kline.go` 保留给 ⑭。
-- 不触碰 `agent` 的取数与 `market.Format`（⑮）。
+- 不触碰 `agent` 的取数；`market.Format` 只同步文案口径（结构留给 ⑮ 删除）。
 
 ## 契约与改动点
 
@@ -78,9 +78,10 @@ assistant legacy (到 ⑮) ── Get/GetWithExchange ──▶ GetGateKlines 5m
 
 ## 已知边界
 
-- `isStaleData` 以“5 根 + 成交额全 0”判定；对 30d 等长周期意味着 5 个月无成交才会触发，实际
-  不会误伤；10s 周期在极低波动时可能出现 5 连无成交，按数据源异常处理（保守跳过）。
+- `isStaleData` 的窗口是 max(5 根, 15 分钟)：10s 需要 90 根、1m 15 根、30d 仍 5 根；短周期不再
+  因为 50 秒无成交被误判。
 - `GetWithExchange` 的 `exchange` 参数被忽略；其他交易所的 trader 仍用 Gate 分析行情（D26）。
 - 30d 的最后一根 CloseTime 是近似值（⑫ 已注明）；引擎只用 OpenTime 排序与展示，不做收线判断。
-- 主周期大于目标窗口时（如 30d 主周期的 1h/4h 涨跌），`calculatePriceChangeByBars` 退化为
-  “1 根前”的近似值；提示词字段名仍为 1h/4h，读数是该周期内可用的最近变化，不冒充真实 1h/4h。
+- 主周期与 1h/4h 目标窗口不匹配时，`calculatePriceChangeByBars` 退回可用窗口：10s 主周期最多约
+  33 分钟（200 根），7d/30d 主周期退化为“1 根前”。提示词字段名沿用 1h/4h，读数是可用窗口内的
+  近似值而非真实 1h/4h；这是本子任务的已知边界（父计划 F46 留档）。

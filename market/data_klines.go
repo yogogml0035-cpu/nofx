@@ -124,7 +124,7 @@ func calculatePriceChangeByBars(klines []Kline, timeframe string, targetMinutes 
 	return 0
 }
 
-// calculateIntradaySeries calculates intraday series data
+// calculateIntradaySeries 计算 5m 日内序列（成交量是 USDT 成交额）
 func calculateIntradaySeries(klines []Kline) *IntradayData {
 	data := &IntradayData{
 		MidPrices:   make([]float64, 0, 10),
@@ -168,7 +168,7 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 		}
 	}
 
-	// Calculate 3m ATR14
+	// Calculate 5m ATR14
 	data.ATR14 = calculateATR(klines, 14)
 
 	return data

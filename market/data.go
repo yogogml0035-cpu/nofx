@@ -11,7 +11,8 @@ import (
 
 // Get retrieves market data for the specified token（旧内嵌路径，仅供助手，⑮ 删除）。
 func Get(symbol string) (*Data, error) {
-	return GetWithExchange(symbol, "binance")
+	// exchange 参数已不参与取数（只走 Gate）；空串保留调用形状，⑮ 删除该路径。
+	return GetWithExchange(symbol, "")
 }
 
 // GetWithExchange 旧内嵌行情路径：5m 日内序列 + 4h 长周期，取数已切到 Gate（D1/D6）。

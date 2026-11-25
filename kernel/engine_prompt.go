@@ -725,7 +725,7 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 			}
 
 			if indicators.EnableATR {
-				sb.WriteString(fmt.Sprintf("3m ATR (14-period): %.3f\n\n", data.IntradaySeries.ATR14))
+				sb.WriteString(fmt.Sprintf("5m ATR (14-period): %.3f\n\n", data.IntradaySeries.ATR14))
 			}
 		}
 

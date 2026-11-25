@@ -53,7 +53,7 @@ type OIData struct {
 	Average float64
 }
 
-// IntradayData intraday data (3-minute interval)
+// IntradayData intraday data (5-minute interval; volume is USDT quote volume)
 type IntradayData struct {
 	MidPrices   []float64
 	EMA20Values []float64

@@ -2,6 +2,7 @@ package market
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func generateTestKlines(count int) []Kline {
 		volume := 1000.0 + float64(i*100)
 
 		klines[i] = Kline{
-			OpenTime:  int64(i * 180000), // 3-minute interval
+			OpenTime:  int64(i * 180000), // 5-minute interval
 			Open:      open,
 			High:      high,
 			Low:       low,
@@ -617,5 +618,33 @@ func TestIsStaleData_MinuteTimeframeWindow(t *testing.T) {
 	}
 	if !isStaleData(build(15), "DOGEUSDT") {
 		t.Error("15 根 1m 冻结 + 零成交应判为陈旧")
+	}
+}
+
+func TestFormatUses5mAndUSDTVolume(t *testing.T) {
+	data := &Data{
+		Symbol:       "DOGEUSDT",
+		CurrentPrice: 0.0543,
+		IntradaySeries: &IntradayData{
+			MidPrices: []float64{0.0540, 0.0543},
+			Volume:    []float64{12000, 13000},
+			ATR14:     0.001,
+		},
+		LongerTermContext: &LongerTermData{
+			EMA20: 0.05, EMA50: 0.049, ATR3: 0.001, ATR14: 0.002,
+			CurrentVolume: 50000, AverageVolume: 45000,
+		},
+	}
+	out := Format(data)
+	for _, want := range []string{
+		"Intraday series (5‑minute intervals",
+		"Volume (USDT):",
+		"5m ATR (14‑period)",
+		"Current Volume (USDT):",
+		"Average Volume (USDT):",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Format output is missing %q", want)
+		}
 	}
 }
