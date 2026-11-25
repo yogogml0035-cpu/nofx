@@ -17,7 +17,7 @@
 | 6 | `drawdown-monitor` | `archive/2026-11/11-25-drawdown-monitor`（已归档） | 2、5 合父 | 单测；带仓的只读真实读数 |
 | 7 | `account-equity` | `archive/2026-11/11-24-account-equity`（已归档） | 1 合父，且 4 已合父 | 单测；带仓与不带仓的只读真实读数；提示词预览 |
 | 8 | `strategy-config` | `archive/2026-11/11-25-strategy-config`（已归档） | 无 | 单测；前端测试与构建 |
-| 9 | `sizing-engine` | 开工时创建 | 6、7 合父 | kernel 单测；提示词预览；`/strategies/test-run` |
+| 9 | `sizing-engine` | `archive/2026-11/11-25-sizing-engine`（已归档） | 6、7 合父 | kernel 单测；提示词预览；`/strategies/test-run` |
 | 10 | `partial-close` | 开工时创建 | 4、8 合父 | 契约解析与换算单测；真实分批平仓（W2） |
 | 11 | `protective-order-management` | 开工时创建 | 3、4、8 合父 | 单测；真实改单（W2） |
 | 12 | `market-source` | 开工时创建 | 1 合父 | 单测；7 个标的 × 全部保留周期的真实取数 |
@@ -69,4 +69,4 @@ make ci-local
 
 - 回滚单元是一个子任务的提交边界：手动恢复文件，不使用 git 回滚命令。
 - 子任务失败不外溢：未通过门禁的子分支不合入父分支，父分支始终保持上一个已验证的状态。
-- 子任务 8 已完成、合父并归档（2026-11-25，独立检查 PASS，P2/P3 修复与 F41/F42 留档见计划文档 10.5）。下一步 ⑨ `sizing-engine`：依赖 ⑥⑦⑧，均已合父；其后按 10→17 串行。
+- 子任务 9 已完成、合父并归档（2026-11-25，独立检查首轮 NEEDS FIX 修复后 PASS，详见计划文档 10.5）。下一步 ⑩ `partial-close`：依赖 ④⑧，均已合父；其后按 11→17 串行。

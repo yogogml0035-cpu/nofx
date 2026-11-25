@@ -59,7 +59,7 @@
 | 6 | `drawdown-monitor` | `archive/2026-11/11-25-drawdown-monitor`（已归档） | 2、5 |
 | 7 | `account-equity` | `archive/2026-11/11-24-account-equity`（已归档） | 1 |
 | 8 | `strategy-config` | `archive/2026-11/11-25-strategy-config`（已归档） | 无 |
-| 9 | `sizing-engine` | 开工时创建 | 6、7 |
+| 9 | `sizing-engine` | `archive/2026-11/11-25-sizing-engine`（已归档） | 6、7 |
 | 10 | `partial-close` | 开工时创建 | 4、8 |
 | 11 | `protective-order-management` | 开工时创建 | 3、4、8 |
 | 12 | `market-source` | 开工时创建 | 1 |
