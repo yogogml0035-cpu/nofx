@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
+- **Total Sessions**: 7
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~213 | Active |
+| `journal-1.md` | ~235 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-11-25 | 子任务 9 sizing-engine 收口：金额由代码计算、亏损上限校验与提示词去金额契约 | `9eeaa72a` | `feat/2026_1123_gate-trading-foundation` |
 | 6 | 2026-11-25 | ⑧ strategy-config 收口：百分比开仓配置与周期收敛合父归档 | `1404b8eb` | `feat/2026_1123_gate-trading-foundation` |
 | 5 | 2026-11-25 | 子任务 6 drawdown-monitor 收口：合父、归档、计划文档同步 | `c0eadc1f` | `feat/2026_1123_gate-trading-foundation` |
 | 4 | 2026-11-25 | 记录 U1 的确认结论（D40）与 W5 补测授权（D41） | `59defea8` | `feat/2026_1123_gate-trading-foundation` |

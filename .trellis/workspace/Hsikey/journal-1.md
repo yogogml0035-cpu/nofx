@@ -211,3 +211,25 @@
 ### Next Steps
 
 - ⑨ sizing-engine（本金×百分比金额计算与强制、D34 亏损上限、删 12/60 硬编码与盈亏比校验、提示词契约去金额字段）；随后 10→17 串行
+
+
+## Session 7: 子任务 9 sizing-engine 收口：金额由代码计算、亏损上限校验与提示词去金额契约
+<!-- trellis-session: v=2 fp=9265d5948250b5c1 -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 9 sizing-engine 收口：金额由代码计算、亏损上限校验与提示词去金额契约
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+开仓名义价值改由 kernel 按本金 × position_percent 精确计算（big.Rat，F33）；Decision 去 position_size_usd/risk_usd、NotionalUSD 代码填充；新增止损止盈方向与 2% 亏损上限校验（D34），删除 12/60 与盈亏比 ≥3 代码校验（D12）；提示词/API/助手/文档同步；独立检查首轮 NEEDS FIX 修复后 PASS；make test/build 全绿；合父 ab2ca8d0 并归档，下一步 ⑩ partial-close
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9eeaa72a` | test+docs(sizing): 检查复核建议收口——base 匹配与 test-run 越界用例、NaN/Inf 保护价、指南残留与探针来源标注 |
+
+### Status
+
+[OK] **Completed**
