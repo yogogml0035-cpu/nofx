@@ -39,7 +39,7 @@ func TestGateIntervalDuration(t *testing.T) {
 		}
 	}
 
-	for _, interval := range []string{"3m", "2h", "6h", "12h", "3d", "1M", "", "60m"} {
+	for _, interval := range []string{"3m", "10m", "2h", "6h", "12h", "3d", "1M", "", "60m"} {
 		if _, err := GateIntervalDuration(interval); err == nil {
 			t.Errorf("GateIntervalDuration(%q) must reject non-retained intervals", interval)
 		}
