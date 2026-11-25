@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/11-25-assistant-market/design.md", "reason": "市场层扩展、agent 汇聚层、工具/接口与删除清单"}
+{"file": ".trellis/tasks/archive/2026-11/11-25-market-source/design.md", "reason": "GetGateKlines/GateTicker 契约与成交量口径"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误包装与 fail-closed 约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试与质量基线"}

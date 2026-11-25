@@ -387,3 +387,113 @@ func TestGateNumberRejectsNonFinite(t *testing.T) {
 		}
 	}
 }
+
+func TestGetGateTickerExtendedFields(t *testing.T) {
+	srv := serveGateTickers(t, "BTC_USDT", `[
+		{"contract":"BTC_USDT","last":"97000","change_percentage":"2","change_price":"1900","high_24h":"98000","low_24h":"94000","volume_24h_quote":"123456"}
+	]`)
+	overrideGateBaseURL(t, srv)
+
+	ticker, err := GetGateTicker("BTCUSDT")
+	if err != nil {
+		t.Fatalf("GetGateTicker: %v", err)
+	}
+	if ticker.Change24h != 1900 || ticker.High24h != 98000 || ticker.Low24h != 94000 {
+		t.Errorf("extended ticker fields = %+v", ticker)
+	}
+}
+
+func TestGetGateTickerOptional24hFields(t *testing.T) {
+	// 新合约可能没有 24h 高低/涨跌金额：缺省为 0，不让整条 ticker 失败
+	srv := serveGateTickers(t, "NEW_USDT", `[{"contract":"NEW_USDT","last":"1.5","change_percentage":"0","volume_24h_quote":"0"}]`)
+	overrideGateBaseURL(t, srv)
+	ticker, err := GetGateTicker("NEWUSDT")
+	if err != nil {
+		t.Fatalf("GetGateTicker: %v", err)
+	}
+	if ticker.Change24h != 0 || ticker.High24h != 0 || ticker.Low24h != 0 {
+		t.Errorf("optional fields should default to 0: %+v", ticker)
+	}
+}
+
+func serveGateContract(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/futures/usdt/contracts/BTC_USDT":
+			fmt.Fprint(w, `{"name":"BTC_USDT","mark_price":"96950.5","index_price":"97000.2","funding_rate":"0.0001","funding_next_apply":1767225600}`)
+		case r.URL.Path == "/futures/usdt/contract_stats":
+			fmt.Fprint(w, `[{"time":100,"open_interest":"1000","open_interest_usd":"3000000000","last_funding_rate":"0.0001"}]`)
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+}
+
+func TestGetGateContractMetrics(t *testing.T) {
+	srv := serveGateContract(t)
+	overrideGateBaseURL(t, srv)
+
+	metrics, err := GetGateContractMetrics("BTCUSDT")
+	if err != nil {
+		t.Fatalf("GetGateContractMetrics: %v", err)
+	}
+	if metrics.MarkPrice != 96950.5 || metrics.IndexPrice != 97000.2 || metrics.FundingRate != 0.0001 {
+		t.Errorf("metrics = %+v", metrics)
+	}
+	if metrics.NextFundingTime != 1767225600000 {
+		t.Errorf("next funding ms = %d", metrics.NextFundingTime)
+	}
+	if metrics.OpenInterestUSD != 3000000000 {
+		t.Errorf("open interest USD = %v", metrics.OpenInterestUSD)
+	}
+}
+
+func TestGetGateContractMetricsFailClosed(t *testing.T) {
+	cases := []struct {
+		name    string
+		handler http.HandlerFunc
+		wantErr string
+	}{
+		{
+			name: "合约接口 500",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "boom", http.StatusInternalServerError)
+			},
+			wantErr: "status 500",
+		},
+		{
+			name: "标记价缺失",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/futures/usdt/contract_stats" {
+					fmt.Fprint(w, `[{"time":100,"open_interest":"1","open_interest_usd":"2","last_funding_rate":"0"}]`)
+					return
+				}
+				fmt.Fprint(w, `{"index_price":"97000","funding_rate":"0"}`)
+			},
+			wantErr: "missing mark_price",
+		},
+		{
+			name: "OI 不可用",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/futures/usdt/contract_stats" {
+					http.Error(w, "boom", http.StatusInternalServerError)
+					return
+				}
+				fmt.Fprint(w, `{"mark_price":"1","index_price":"1","funding_rate":"0"}`)
+			},
+			wantErr: "open interest",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv := httptest.NewServer(c.handler)
+			overrideGateBaseURL(t, srv)
+			_, err := GetGateContractMetrics("BTCUSDT")
+			if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+				t.Fatalf("error = %v, want containing %q", err, c.wantErr)
+			}
+		})
+	}
+}

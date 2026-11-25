@@ -17,24 +17,24 @@ import (
 
 // GridLevelInfo represents a single grid level's current state
 type GridLevelInfo struct {
-	Index          int     `json:"index"`            // Level index (0 = lowest)
-	Price          float64 `json:"price"`            // Target price for this level
-	State          string  `json:"state"`            // "empty", "pending", "filled"
-	Side           string  `json:"side"`             // "buy" or "sell"
-	OrderID        string  `json:"order_id"`         // Current order ID (if pending)
-	OrderQuantity  float64 `json:"order_quantity"`   // Order quantity
-	PositionSize   float64 `json:"position_size"`    // Position size (if filled)
-	PositionEntry  float64 `json:"position_entry"`   // Entry price (if filled)
-	AllocatedUSD   float64 `json:"allocated_usd"`    // USD allocated to this level
-	UnrealizedPnL  float64 `json:"unrealized_pnl"`   // Unrealized P&L (if filled)
+	Index         int     `json:"index"`          // Level index (0 = lowest)
+	Price         float64 `json:"price"`          // Target price for this level
+	State         string  `json:"state"`          // "empty", "pending", "filled"
+	Side          string  `json:"side"`           // "buy" or "sell"
+	OrderID       string  `json:"order_id"`       // Current order ID (if pending)
+	OrderQuantity float64 `json:"order_quantity"` // Order quantity
+	PositionSize  float64 `json:"position_size"`  // Position size (if filled)
+	PositionEntry float64 `json:"position_entry"` // Entry price (if filled)
+	AllocatedUSD  float64 `json:"allocated_usd"`  // USD allocated to this level
+	UnrealizedPnL float64 `json:"unrealized_pnl"` // Unrealized P&L (if filled)
 }
 
 // GridContext contains all information needed for AI grid decision making
 type GridContext struct {
 	// Basic info
-	Symbol       string    `json:"symbol"`
-	CurrentTime  string    `json:"current_time"`
-	CurrentPrice float64   `json:"current_price"`
+	Symbol       string  `json:"symbol"`
+	CurrentTime  string  `json:"current_time"`
+	CurrentPrice float64 `json:"current_price"`
 
 	// Grid configuration
 	GridCount       int     `json:"grid_count"`
@@ -549,9 +549,9 @@ func isValidGridAction(action string) bool {
 		"adjust_grid":       true,
 		"hold":              true,
 		// Also support standard actions for compatibility
-		"open_long":  true,
-		"open_short": true,
-		"close_long": true,
+		"open_long":   true,
+		"open_short":  true,
+		"close_long":  true,
 		"close_short": true,
 	}
 	return validActions[action]
@@ -595,15 +595,10 @@ func BuildGridContextFromMarketData(mktData *market.Data, config *store.GridStra
 			if len(tf5m.RSI14Values) > 0 {
 				ctx.RSI14 = tf5m.RSI14Values[len(tf5m.RSI14Values)-1]
 			}
+			if len(tf5m.EMA50Values) > 0 {
+				ctx.EMA50 = tf5m.EMA50Values[len(tf5m.EMA50Values)-1]
+			}
 		}
-	}
-
-	// Extract longer term context
-	if mktData.LongerTermContext != nil {
-		if ctx.ATR14 == 0 {
-			ctx.ATR14 = mktData.LongerTermContext.ATR14
-		}
-		ctx.EMA50 = mktData.LongerTermContext.EMA50
 	}
 
 	ctx.EMA20 = mktData.CurrentEMA20

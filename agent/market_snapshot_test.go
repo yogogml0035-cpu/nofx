@@ -2,48 +2,43 @@ package agent
 
 import (
 	"encoding/json"
-	"io"
-	"net/http"
 	"strings"
 	"testing"
+
+	"nofx/market"
 )
 
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
-}
-
+// 助手快照工具的单元测试：取数经 Gate 汇聚层的测试缝注入，组装走纯函数。
 func TestToolGetMarketSnapshotReturnsRealtimeAnalysisContext(t *testing.T) {
-	prevBaseURL := binanceFuturesAPIBaseURL
-	prevClient := marketDataHTTPClient
-	binanceFuturesAPIBaseURL = "https://example.test"
-	marketDataHTTPClient = &http.Client{
-		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-			body := ""
-			switch {
-			case strings.HasPrefix(req.URL.Path, "/fapi/v1/ticker/24hr"):
-				body = `{"symbol":"BTCUSDT","lastPrice":"65000","priceChange":"1200","priceChangePercent":"1.88","highPrice":"66000","lowPrice":"63800","volume":"12345","quoteVolume":"800000000","count":98765}`
-			case strings.HasPrefix(req.URL.Path, "/fapi/v1/premiumIndex"):
-				body = `{"symbol":"BTCUSDT","markPrice":"65010","indexPrice":"64990","lastFundingRate":"0.00010000","nextFundingTime":1710000000000}`
-			case strings.HasPrefix(req.URL.Path, "/fapi/v1/openInterest"):
-				body = `{"symbol":"BTCUSDT","openInterest":"45678.9","time":1710000000000}`
-			case strings.HasPrefix(req.URL.Path, "/fapi/v1/klines"):
-				body = `[[1710000000000,"64000","65100","63900","64500","100",1710000899999],[1710000900000,"64500","65500","64400","65000","120",1710001799999]]`
-			default:
-				body = `{"error":"not found"}`
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(body)),
-			}, nil
-		}),
+	prevTicker, prevMetrics, prevKlines := assistantGetTicker, assistantGetMetrics, assistantGetKlines
+	t.Cleanup(func() {
+		assistantGetTicker, assistantGetMetrics, assistantGetKlines = prevTicker, prevMetrics, prevKlines
+	})
+	assistantGetTicker = func(symbol string) (market.GateTicker, error) {
+		if symbol != "BTCUSDT" {
+			t.Errorf("ticker symbol = %q, want BTCUSDT", symbol)
+		}
+		return market.GateTicker{
+			Contract: "BTC_USDT", Symbol: "BTCUSDT", Last: 65000,
+			ChangePercent24h: 1.88, Change24h: 1200, High24h: 66000, Low24h: 63800,
+			QuoteVolume24h: 800000000,
+		}, nil
 	}
-	defer func() {
-		binanceFuturesAPIBaseURL = prevBaseURL
-		marketDataHTTPClient = prevClient
-	}()
+	assistantGetMetrics = func(symbol string) (market.GateContractMetrics, error) {
+		return market.GateContractMetrics{
+			MarkPrice: 65010, IndexPrice: 64990, FundingRate: 0.0001,
+			NextFundingTime: 1710000000000, OpenInterestUSD: 45678.9,
+		}, nil
+	}
+	assistantGetKlines = func(symbol, interval string, limit int) ([]market.Kline, error) {
+		if symbol != "BTCUSDT" || interval != "15m" || limit != 2 {
+			t.Errorf("klines request = %s %s %d", symbol, interval, limit)
+		}
+		return []market.Kline{
+			{OpenTime: 1710000000000, Open: 64000, High: 65100, Low: 63900, Close: 64500, Volume: 100, CloseTime: 1710000899999},
+			{OpenTime: 1710000900000, Open: 64500, High: 65500, Low: 64400, Close: 65000, Volume: 120, CloseTime: 1710001799999},
+		}, nil
+	}
 
 	a := New(nil, nil, DefaultConfig(), nil)
 	raw := a.toolGetMarketSnapshot(`{"symbol":"BTC","interval":"15m","limit":2}`)
@@ -53,15 +48,21 @@ func TestToolGetMarketSnapshotReturnsRealtimeAnalysisContext(t *testing.T) {
 		Price     float64 `json:"price"`
 		Ticker24h struct {
 			PriceChangePercent float64 `json:"price_change_percent"`
+			HighPrice          float64 `json:"high_price"`
+			LowPrice           float64 `json:"low_price"`
+			VolumeUnit         string  `json:"volume_unit"`
 		} `json:"ticker_24h"`
 		PerpMetrics struct {
-			FundingRate  float64 `json:"funding_rate"`
-			OpenInterest float64 `json:"open_interest"`
+			FundingRate      float64 `json:"funding_rate"`
+			OpenInterest     float64 `json:"open_interest"`
+			OpenInterestUnit string  `json:"open_interest_unit"`
+			NextFundingTime  int64   `json:"next_funding_time"`
 		} `json:"perp_metrics"`
 		KlineSnapshot struct {
 			Interval            string           `json:"interval"`
 			Limit               int              `json:"limit"`
 			PeriodChangePercent float64          `json:"period_change_percent"`
+			VolumeUnit          string           `json:"volume_unit"`
 			RecentKlines        []map[string]any `json:"recent_klines"`
 		} `json:"kline_snapshot"`
 		Error string `json:"error"`
@@ -72,29 +73,26 @@ func TestToolGetMarketSnapshotReturnsRealtimeAnalysisContext(t *testing.T) {
 	if resp.Error != "" {
 		t.Fatalf("unexpected tool error: %s", resp.Error)
 	}
-	if resp.Symbol != "BTCUSDT" {
-		t.Fatalf("expected normalized symbol BTCUSDT, got %s", resp.Symbol)
+	if resp.Symbol != "BTCUSDT" || resp.Price != 65000 {
+		t.Fatalf("unexpected symbol/price: %+v", resp)
 	}
-	if resp.Price != 65000 {
-		t.Fatalf("expected price 65000, got %v", resp.Price)
+	if resp.Ticker24h.PriceChangePercent != 1.88 || resp.Ticker24h.HighPrice != 66000 || resp.Ticker24h.LowPrice != 63800 {
+		t.Fatalf("unexpected ticker_24h: %+v", resp.Ticker24h)
 	}
-	if resp.Ticker24h.PriceChangePercent != 1.88 {
-		t.Fatalf("expected 24h change 1.88, got %v", resp.Ticker24h.PriceChangePercent)
+	if resp.Ticker24h.VolumeUnit != "USDT" {
+		t.Fatalf("volume unit = %q", resp.Ticker24h.VolumeUnit)
 	}
-	if resp.PerpMetrics.FundingRate != 0.0001 {
-		t.Fatalf("expected funding rate 0.0001, got %v", resp.PerpMetrics.FundingRate)
+	if resp.PerpMetrics.FundingRate != 0.0001 || resp.PerpMetrics.OpenInterest != 45678.9 {
+		t.Fatalf("unexpected perp_metrics: %+v", resp.PerpMetrics)
 	}
-	if resp.PerpMetrics.OpenInterest != 45678.9 {
-		t.Fatalf("expected open interest 45678.9, got %v", resp.PerpMetrics.OpenInterest)
+	if resp.PerpMetrics.OpenInterestUnit != "USD" || resp.PerpMetrics.NextFundingTime != 1710000000000 {
+		t.Fatalf("unexpected perp_metrics units/time: %+v", resp.PerpMetrics)
 	}
-	if resp.KlineSnapshot.Interval != "15m" || resp.KlineSnapshot.Limit != 2 {
-		t.Fatalf("unexpected kline snapshot metadata: %+v", resp.KlineSnapshot)
+	if resp.KlineSnapshot.Interval != "15m" || resp.KlineSnapshot.Limit != 2 || len(resp.KlineSnapshot.RecentKlines) != 2 {
+		t.Fatalf("unexpected kline_snapshot: %+v", resp.KlineSnapshot)
 	}
-	if len(resp.KlineSnapshot.RecentKlines) != 2 {
-		t.Fatalf("expected 2 klines, got %d", len(resp.KlineSnapshot.RecentKlines))
-	}
-	if resp.KlineSnapshot.PeriodChangePercent <= 0 {
-		t.Fatalf("expected positive period change, got %v", resp.KlineSnapshot.PeriodChangePercent)
+	if resp.KlineSnapshot.VolumeUnit != "USDT" || resp.KlineSnapshot.PeriodChangePercent <= 0 {
+		t.Fatalf("unexpected kline units/change: %+v", resp.KlineSnapshot)
 	}
 }
 

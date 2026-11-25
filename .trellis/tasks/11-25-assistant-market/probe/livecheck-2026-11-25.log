@@ -1,0 +1,14 @@
+BTCUSDT ticker: last=58871.80000000 chg24h=-2.0600% chg=-1236.800000 high=60659.70000000 low=58419.30000000 quoteVol24h=4249470786.00
+BTCUSDT metrics: mark=58876.13000000 index=58901.30000000 funding=0.00004440 nextFunding=2026-11-25T16:00:00Z oiUSD=3626037570.17
+ETHUSDT ticker: last=1653.21000000 chg24h=-2.3300% chg=-39.400000 high=1705.49000000 low=1632.20000000 quoteVol24h=3430987698.00
+ETHUSDT metrics: mark=1653.32000000 index=1654.13000000 funding=-0.00001030 nextFunding=2026-11-25T16:00:00Z oiUSD=1288989985.22
+DOGEUSDT ticker: last=0.05375000 chg24h=-2.2900% chg=-0.001260 high=0.05568000 low=0.05340000 quoteVol24h=87460660.00
+DOGEUSDT metrics: mark=0.05375000 index=0.05377700 funding=0.00005340 nextFunding=2026-11-25T16:00:00Z oiUSD=135875331.07
+kline DOGEUSDT 10s: bars=50 lastClose=0.05375000 lastVolumeUSDT=0.00 lastOpen=2026-11-25T13:29:40Z
+kline DOGEUSDT 15m: bars=50 lastClose=0.05374000 lastVolumeUSDT=969757.06 lastOpen=2026-11-25T13:15:00Z
+kline DOGEUSDT 1d: bars=50 lastClose=0.05374000 lastVolumeUSDT=49642009.18 lastOpen=2026-11-25T00:00:00Z
+kline DOGEUSDT 7d: bars=50 lastClose=0.05374000 lastVolumeUSDT=681623979.86 lastOpen=2026-11-19T00:00:00Z
+kline DOGEUSDT 30d: bars=50 lastClose=0.12680000 lastVolumeUSDT=0.00 lastOpen=2026-11-23T00:00:00Z
+3m rejected: unsupported gate kline interval "3m" (supported: [10s 1m 5m 15m 30m 1h 4h 8h 1d 7d 1w 30d])
+list tickers: 1042 contracts; BTC=58870.6
+PROBE_PASS

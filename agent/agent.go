@@ -687,7 +687,7 @@ func (a *Agent) gatherContext(storeUserID, text string) string {
 		if count >= 5 {
 			break
 		}
-		md, err := market.Get(sym + "USDT")
+		md, err := market.GetWithTimeframes(sym+"USDT", []string{"5m", "4h"}, "5m", 20)
 		if err == nil && md.CurrentPrice > 0 {
 			fundingStr := "n/a"
 			if md.FundingRate != nil {
@@ -821,9 +821,9 @@ func (a *Agent) noAIFallback(storeUserID, lang, text string) (string, error) {
 	// Try to provide market data directly
 	for _, sym := range []string{"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"} {
 		if strings.Contains(upper, sym) {
-			md, err := market.Get(sym + "USDT")
+			md, err := market.GetWithTimeframes(sym+"USDT", []string{"5m", "4h"}, "5m", 20)
 			if err == nil {
-				return fmt.Sprintf("📊 *%s/USDT*\n\n%s\n\n💡 配置 AI 模型后我能给你更深度的分析。发送 *开始配置* 开始。", sym, market.Format(md)), nil
+				return fmt.Sprintf("📊 *%s/USDT*\n\n%s\n\n💡 配置 AI 模型后我能给你更深度的分析。发送 *开始配置* 开始。", sym, assistantMarketSummary(md)), nil
 			}
 		}
 	}

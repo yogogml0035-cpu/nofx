@@ -1,13 +1,11 @@
 package agent
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
 	"net/http"
 	"nofx/safe"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -144,27 +142,13 @@ func (s *Sentinel) scan() {
 }
 
 func (s *Sentinel) check(symbol string) {
-	resp, err := s.http.Get(fmt.Sprintf("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=%s", symbol))
+	// 行情只走 Gate（D1）：最新价、24h 成交额（USDT）与 24h 涨跌幅
+	ticker, err := assistantGetTicker(symbol)
 	if err != nil {
+		s.logger.Debug("sentinel ticker failed", "symbol", symbol, "err", err)
 		return
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		s.logger.Debug("sentinel ticker non-200", "symbol", symbol, "status", resp.StatusCode)
-		return
-	}
-	body, err := safe.ReadAllLimited(resp.Body, 256*1024) // 256KB limit
-	if err != nil {
-		return
-	}
-	var t map[string]interface{}
-	if err := json.Unmarshal(body, &t); err != nil {
-		return
-	}
-
-	price, _ := strconv.ParseFloat(fmt.Sprint(t["lastPrice"]), 64)
-	vol, _ := strconv.ParseFloat(fmt.Sprint(t["quoteVolume"]), 64)
-	chg, _ := strconv.ParseFloat(fmt.Sprint(t["priceChangePercent"]), 64)
+	price, vol, chg := ticker.Last, ticker.QuoteVolume24h, ticker.ChangePercent24h
 
 	pt := pricePt{Price: price, Volume: vol, Time: time.Now()}
 	s.mu.Lock()

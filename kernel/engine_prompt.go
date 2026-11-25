@@ -693,68 +693,6 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 				e.formatTimeframeSeriesData(&sb, tfData, indicators)
 			}
 		}
-	} else {
-		// Compatible with old data format
-		if data.IntradaySeries != nil {
-			klineConfig := indicators.Klines
-			sb.WriteString(fmt.Sprintf("Intraday series (%s intervals, oldest → latest):\n\n", klineConfig.PrimaryTimeframe))
-
-			if len(data.IntradaySeries.MidPrices) > 0 {
-				sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.IntradaySeries.MidPrices)))
-			}
-
-			if indicators.EnableEMA && len(data.IntradaySeries.EMA20Values) > 0 {
-				sb.WriteString(fmt.Sprintf("EMA indicators (20-period): %s\n\n", formatFloatSlice(data.IntradaySeries.EMA20Values)))
-			}
-
-			if indicators.EnableMACD && len(data.IntradaySeries.MACDValues) > 0 {
-				sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.IntradaySeries.MACDValues)))
-			}
-
-			if indicators.EnableRSI {
-				if len(data.IntradaySeries.RSI7Values) > 0 {
-					sb.WriteString(fmt.Sprintf("RSI indicators (7-Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI7Values)))
-				}
-				if len(data.IntradaySeries.RSI14Values) > 0 {
-					sb.WriteString(fmt.Sprintf("RSI indicators (14-Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
-				}
-			}
-
-			if indicators.EnableVolume && len(data.IntradaySeries.Volume) > 0 {
-				sb.WriteString(fmt.Sprintf("Volume (USDT): %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
-			}
-
-			if indicators.EnableATR {
-				sb.WriteString(fmt.Sprintf("5m ATR (14-period): %.3f\n\n", data.IntradaySeries.ATR14))
-			}
-		}
-
-		if data.LongerTermContext != nil && indicators.Klines.EnableMultiTimeframe {
-			sb.WriteString(fmt.Sprintf("Longer-term context (%s timeframe):\n\n", indicators.Klines.LongerTimeframe))
-
-			if indicators.EnableEMA {
-				sb.WriteString(fmt.Sprintf("20-Period EMA: %.3f vs. 50-Period EMA: %.3f\n\n",
-					data.LongerTermContext.EMA20, data.LongerTermContext.EMA50))
-			}
-
-			if indicators.EnableATR {
-				sb.WriteString(fmt.Sprintf("3-Period ATR: %.3f vs. 14-Period ATR: %.3f\n\n",
-					data.LongerTermContext.ATR3, data.LongerTermContext.ATR14))
-			}
-
-			if indicators.EnableVolume {
-				sb.WriteString(fmt.Sprintf("Current Volume (USDT): %.3f vs. Average Volume (USDT): %.3f\n\n",
-					data.LongerTermContext.CurrentVolume, data.LongerTermContext.AverageVolume))
-			}
-
-			if indicators.EnableMACD && len(data.LongerTermContext.MACDValues) > 0 {
-				sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.LongerTermContext.MACDValues)))
-			}
-
-			if indicators.EnableRSI && len(data.LongerTermContext.RSI14Values) > 0 {
-				sb.WriteString(fmt.Sprintf("RSI indicators (14-Period): %s\n\n", formatFloatSlice(data.LongerTermContext.RSI14Values)))
-			}
-		}
 	}
 
 	return sb.String()

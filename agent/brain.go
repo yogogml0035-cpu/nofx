@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"nofx/safe"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -203,30 +204,20 @@ func (b *Brain) sendBrief(hour int) {
 		title = "🌙 *晚间市场简报*"
 	}
 
-	// Fetch BTC/ETH prices for the brief
+	// Fetch BTC/ETH prices for the brief（Gate 公开行情，D1）
 	var btcPrice, ethPrice, btcChg, ethChg string
 	for _, sym := range []string{"BTCUSDT", "ETHUSDT"} {
-		resp, err := b.http.Get(fmt.Sprintf("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=%s", sym))
+		ticker, err := assistantGetTicker(sym)
 		if err != nil {
 			continue
 		}
-		body, readErr := safe.ReadAllLimited(resp.Body, 64*1024) // 64KB limit
-		statusOK := resp.StatusCode == http.StatusOK
-		resp.Body.Close()
-		if readErr != nil || !statusOK {
-			continue
-		}
-		var t map[string]string
-		if err := json.Unmarshal(body, &t); err != nil {
-			continue
-		}
+		last := strconv.FormatFloat(ticker.Last, 'f', -1, 64)
+		chg := strconv.FormatFloat(ticker.ChangePercent24h, 'f', 2, 64)
 		if sym == "BTCUSDT" {
-			btcPrice = t["lastPrice"]
-			btcChg = t["priceChangePercent"]
+			btcPrice, btcChg = last, chg
 		}
 		if sym == "ETHUSDT" {
-			ethPrice = t["lastPrice"]
-			ethChg = t["priceChangePercent"]
+			ethPrice, ethChg = last, chg
 		}
 	}
 
