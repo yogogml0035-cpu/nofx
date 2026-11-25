@@ -229,21 +229,22 @@ main-stack:
 	test -f "$$DB" || { echo "❌ 缺少主栈数据库: $$DB"; exit 1; }; \
 	git -C "$$MAIN_DIR" cat-file -e "$$SHA^{commit}" || { echo "❌ 提交不存在: $$SHA"; exit 1; }; \
 	check_running() { \
-		local cnt names; \
+		local phase cnt names; \
+		phase="$1"; \
 		cnt=$$(sqlite3 -readonly -cmd ".timeout 5000" "$$DB" "SELECT COUNT(*) FROM traders WHERE is_running=1"); \
 		test "$$cnt" = "0" || { \
 			names=$$(sqlite3 -readonly -cmd ".timeout 5000" "$$DB" "SELECT group_concat(id || ':' || name, ', ') FROM traders WHERE is_running=1"); \
-			echo "❌ 运行中的 trader 数量 $${cnt} ≠ 0（$${names}），拒绝重建（D20）"; \
+			echo "❌ [$${phase}] 运行中的 trader 数量 $${cnt} ≠ 0（$${names}），拒绝继续（D20）"; \
 			return 1; \
 		}; \
 	}; \
-	check_running; \
+	check_running 重建前; \
 	echo "🔨 从干净检出构建主栈 $$SHA ..."; \
 	TMP=$$(mktemp -d); trap 'rm -rf "$$TMP"' EXIT INT TERM; \
 	git -C "$$MAIN_DIR" archive "$$SHA" | tar -x -C "$$TMP"; \
 	docker build -f "$$TMP/docker/Dockerfile.backend" -t "nofx-local/backend:$$SHA" --build-arg GOPROXY=https://goproxy.cn,direct "$$TMP"; \
 	docker build -f "$$TMP/docker/Dockerfile.frontend" -t "nofx-local/frontend:$$SHA" "$$TMP"; \
-	check_running; \
+	check_running 构建后; \
 	sed -i.bak -E "s#(image: nofx-local/backend:).*#\1$$SHA#; s#(image: nofx-local/frontend:).*#\1$$SHA#" "$$COMPOSE"; \
 	grep -q "image: nofx-local/backend:$$SHA" "$$COMPOSE" || { echo "❌ backend 镜像 tag 未写入 $$COMPOSE"; exit 1; }; \
 	grep -q "image: nofx-local/frontend:$$SHA" "$$COMPOSE" || { echo "❌ frontend 镜像 tag 未写入 $$COMPOSE"; exit 1; }; \
@@ -258,7 +259,7 @@ main-stack:
 		sleep 2; \
 	done; \
 	test -n "$$OK" || { echo "❌ 主栈 HTTP 健康检查超时（$${PORT}）"; docker compose -f "$$COMPOSE" ps; exit 1; }; \
-	for svc in nofx nofx-frontend; do \
+	for svc in $$(docker compose -f "$$COMPOSE" config --services); do \
 		HEALTHY=""; STATUS=""; \
 		for i in $$(seq 1 45); do \
 			CID=$$(docker compose -f "$$COMPOSE" ps -q "$$svc"); \
@@ -268,8 +269,8 @@ main-stack:
 		done; \
 		test -n "$$HEALTHY" || { echo "❌ 容器 $$svc 未达到 healthy（当前: $${STATUS:-unknown}）"; docker compose -f "$$COMPOSE" ps; exit 1; }; \
 	done; \
-	check_running; \
-	LOGS=$$(docker compose -f "$$COMPOSE" logs --no-color --since "$$SINCE" nofx 2>&1); \
+	check_running 重建后; \
+	LOGS=$$(docker compose -f "$$COMPOSE" logs --no-color --since "$$SINCE" nofx 2>&1) || { echo "❌ 读取主栈启动日志失败"; exit 1; }; \
 	if printf '%s\n' "$$LOGS" | grep -qE "Auto-starting trader|Trader auto-started successfully|Auto-restoring trader runtime"; then \
 		echo "❌ 启动日志出现 trader 自动拉起"; \
 		printf '%s\n' "$$LOGS" | grep -E "Auto-starting trader|Trader auto-started successfully|Auto-restoring trader runtime"; \
@@ -293,14 +294,18 @@ infra-check:
 	if sed -n '/^  nofx-frontend:/,/^[a-zA-Z]/p' docker-compose.yml | grep -q 'healthcheck:'; then \
 		echo "❌ docker-compose.yml 仍重复声明前端健康检查"; exit 1; \
 	fi; \
-	grep -q 'HEALTHCHECK' docker/Dockerfile.frontend || { echo "❌ Dockerfile.frontend 缺少 HEALTHCHECK"; exit 1; }; \
-	grep -q 'http://127.0.0.1/health' docker/Dockerfile.frontend || { echo "❌ 前端健康检查必须探测 127.0.0.1（musl 将 localhost 解析为 ::1）"; exit 1; }; \
+	awk '/^HEALTHCHECK/{f=1} f&&/CMD/{print; exit}' docker/Dockerfile.frontend | grep -q 'http://127.0.0.1/health' || { echo "❌ Dockerfile.frontend 的 HEALTHCHECK 必须存在并探测 127.0.0.1（musl 将 localhost 解析为 ::1）"; exit 1; }; \
+	if test -f .nofx-local/compose.yml; then \
+		for svc in nofx frontend; do \
+			docker compose -f .nofx-local/compose.yml config --services | grep -qx "$$svc" || { echo "❌ 主栈 compose 缺少服务 $$svc（main-stack 依赖）"; exit 1; }; \
+		done; \
+	fi; \
 	echo "🔎 [4/5] 构建上下文不含本地文件（标记目录实测）..."; \
 	TMP=$$(mktemp -d); trap 'rm -rf "$$TMP"' EXIT INT TERM; \
 	cp .dockerignore "$$TMP/.dockerignore"; \
 	mkdir -p "$$TMP/.nofx-local" "$$TMP/scratch" "$$TMP/data" "$$TMP/.trellis"; \
-	touch "$$TMP/.env" "$$TMP/.nofx-local/marker" "$$TMP/scratch/marker" "$$TMP/data/marker" "$$TMP/.trellis/marker"; \
-	printf 'FROM alpine:latest\nCOPY . /ctx\nRUN test ! -e /ctx/.nofx-local && test ! -e /ctx/scratch && test ! -e /ctx/.env && test ! -e /ctx/data && test ! -e /ctx/.trellis\n' > "$$TMP/Dockerfile"; \
+	touch "$$TMP/.env" "$$TMP/.nofx-local/marker" "$$TMP/scratch/marker" "$$TMP/data/marker" "$$TMP/.trellis/marker" "$$TMP/keep.txt"; \
+	printf 'FROM alpine:latest\nCOPY . /ctx\nRUN test -e /ctx/keep.txt && test ! -e /ctx/.nofx-local && test ! -e /ctx/scratch && test ! -e /ctx/.env && test ! -e /ctx/data && test ! -e /ctx/.trellis\n' > "$$TMP/Dockerfile"; \
 	docker build -q -f "$$TMP/Dockerfile" -t nofx-context-check:tmp "$$TMP" >/dev/null; \
 	docker rmi -f nofx-context-check:tmp >/dev/null; \
 	echo "🔎 [5/5] Makefile 目标可解析..."; \

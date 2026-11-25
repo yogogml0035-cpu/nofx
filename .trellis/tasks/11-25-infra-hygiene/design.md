@@ -18,7 +18,10 @@ MAIN_STACK_DIR ?= /Users/hsikey/Trading/nofx
 MAIN_STACK_COMPOSE ?= $(MAIN_STACK_DIR)/.nofx-local/compose.yml
 MAIN_STACK_DATA ?= $(MAIN_STACK_DIR)/.nofx-local/candidate-data/data.db
 MAIN_STACK_FRONTEND_PORT ?= 8888
+MAIN_STACK_SHA ?=
 ```
+
+`MAIN_STACK_SHA` 为空时取 `MAIN_STACK_DIR` 的 `HEAD` 短 SHA；可作环境变量或 make 变量覆盖。
 
 流程（`set -e` 单 shell，失败即停）：
 
@@ -29,10 +32,11 @@ MAIN_STACK_FRONTEND_PORT ?= 8888
    镜像构建完成后、改写 compose 之前再执行一次同样的检查（构建期间旧栈仍在服务）。
 3. `TMP=$(mktemp -d)` + `trap` 清理；`git -C "$$MAIN_STACK_DIR" archive "$$SHA" | tar -x -C "$$TMP"`。
 4. `docker build` 后端（`--build-arg GOPROXY=https://goproxy.cn,direct`）与前端，tag 带 SHA。
-5. 用锚定正则改写 compose 的 `image: nofx-local/backend:...` / `frontend:...` 两行；
+5. 用正则改写 compose 的 `image: nofx-local/backend:...` / `frontend:...` 两行；
    写回后分别 `grep` 断言新 tag 已写入，`docker compose -f "$$COMPOSE" config -q` 通过后再删除 `.bak`。
 6. `docker compose -f "$$COMPOSE" up -d`；轮询 `http://127.0.0.1:$$PORT/api/health` 与 `/`
-   （最长 120s，curl 带 `--max-time 5`）；再等待 `nofx` 与 `nofx-frontend` 两个容器都达到 `healthy`。
+   （最长 120s，curl 带 `--max-time 5`）；再等待 compose 内全部服务（主栈为 `nofx`、`frontend`）的容器都达到 `healthy`，
+   服务名由 `docker compose config --services` 动态取得，避免与送测栈的 `nofx-frontend` 混淆。
 7. 后置 D20：DB 计数仍为 0；从 `up -d` 前的时间戳起取日志，出现
    `Auto-starting trader` / `Trader auto-started successfully` / `Auto-restoring trader runtime` 即失败。
 
@@ -52,6 +56,7 @@ MAIN_STACK_FRONTEND_PORT ?= 8888
 
 - 默认路径指向本机主仓，与既有 `NOFX_DEV_OVERRIDE` 风格一致；从其他 worktree 调用时用变量覆盖。
 - 不改 `.nofx-local/compose.yml` 的其它内容（数据卷、env_file、depends_on 条件保持）。
+- `infra-check` 在主栈 compose 存在时断言 `main-stack` 依赖的服务名（`nofx`、`frontend`）都在 `config --services` 中。
 - `main-stack` 会更新镜像 tag 并重建容器，属高风险动作；本轮只做 `make -n` 静态验收，
   实际执行留到父任务收口，由用户确认后运行。
 - bash 3.2 在 `$var` 后紧跟全角标点时会吞掉首字节，提示文案统一用 `${var}` 显式边界。
