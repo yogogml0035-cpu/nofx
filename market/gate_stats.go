@@ -32,10 +32,8 @@ func toGateContractSymbol(symbol string) string {
 	return s + "_USDT"
 }
 
-// getGateOpenInterestAndFunding 从 Gate USDT 永续合约统计接口获取持仓量与资金费率。
-// Latest 取时间戳最大的一期；Average 为返回各期持仓价值的 USD 均值（5 分钟粒度，最多 12 期）。
-// 任一环节失败即返回 error，调用方据此把 OI 与资金费率置为不可用（nil）。
-func getGateOpenInterestAndFunding(symbol string) (*OIData, *float64, error) {
+// fetchGateContractStats 拉取 Gate USDT 永续合约统计的原始列表（5m 粒度，最多 12 期）。
+func fetchGateContractStats(symbol string) ([]gateContractStat, string, error) {
 	contract := toGateContractSymbol(symbol)
 	url := fmt.Sprintf("%s/futures/usdt/contract_stats?contract=%s&interval=5m&limit=12",
 		gateFuturesBaseURL, contract)
@@ -43,27 +41,32 @@ func getGateOpenInterestAndFunding(symbol string) (*OIData, *float64, error) {
 	apiClient := NewAPIClient()
 	resp, err := apiClient.client.Get(url)
 	if err != nil {
-		return nil, nil, fmt.Errorf("gate contract_stats request failed: %w", err)
+		return nil, contract, fmt.Errorf("gate contract_stats request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("gate contract_stats read body failed: %w", err)
+		return nil, contract, fmt.Errorf("gate contract_stats read body failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("gate contract_stats returned status %d: %s",
+		return nil, contract, fmt.Errorf("gate contract_stats returned status %d: %s",
 			resp.StatusCode, errorBodySnippet(body))
 	}
 
 	var stats []gateContractStat
 	if err := json.Unmarshal(body, &stats); err != nil {
-		return nil, nil, fmt.Errorf("gate contract_stats decode failed: %w", err)
+		return nil, contract, fmt.Errorf("gate contract_stats decode failed: %w", err)
 	}
 	if len(stats) == 0 {
-		return nil, nil, fmt.Errorf("gate contract_stats empty for %s", contract)
+		return nil, contract, fmt.Errorf("gate contract_stats empty for %s", contract)
 	}
+	return stats, contract, nil
+}
 
+// statsOpenInterest 从统计列表取持仓量：Latest 取时间戳最大的一期，
+// Average 为各期持仓价值的 USD 均值（跳过无效值）。
+func statsOpenInterest(stats []gateContractStat, contract string) (*OIData, error) {
 	latest := stats[0]
 	sum := 0.0
 	count := 0
@@ -78,20 +81,38 @@ func getGateOpenInterestAndFunding(symbol string) (*OIData, *float64, error) {
 		sum += v
 		count++
 	}
-
+	if count == 0 {
+		return nil, fmt.Errorf("gate contract_stats has no valid open_interest_usd for %s", contract)
+	}
 	latestOI, err := latest.OpenInterestUSD.Float64()
 	if err != nil || latestOI <= 0 {
-		return nil, nil, fmt.Errorf("gate contract_stats latest open_interest_usd invalid for %s", contract)
+		return nil, fmt.Errorf("gate contract_stats latest open_interest_usd invalid for %s", contract)
+	}
+	return &OIData{Latest: latestOI, Average: sum / float64(count)}, nil
+}
+
+// getGateOpenInterestAndFunding 从 Gate USDT 永续合约统计接口获取持仓量与资金费率。
+// 任一环节失败即返回 error，调用方据此把 OI 与资金费率置为不可用（nil）。
+func getGateOpenInterestAndFunding(symbol string) (*OIData, *float64, error) {
+	stats, contract, err := fetchGateContractStats(symbol)
+	if err != nil {
+		return nil, nil, err
+	}
+	oi, err := statsOpenInterest(stats, contract)
+	if err != nil {
+		return nil, nil, err
+	}
+	latest := stats[0]
+	for _, s := range stats {
+		if s.Time > latest.Time {
+			latest = s
+		}
 	}
 	rate, err := latest.LastFundingRate.Float64()
 	if err != nil {
 		return nil, nil, fmt.Errorf("gate contract_stats last_funding_rate invalid for %s: %w", contract, err)
 	}
-
-	return &OIData{
-		Latest:  latestOI,
-		Average: sum / float64(count),
-	}, &rate, nil
+	return oi, &rate, nil
 }
 
 // errorBodySnippet 截取响应体片段用于错误信息，避免把整页 5xx HTML 写进日志。

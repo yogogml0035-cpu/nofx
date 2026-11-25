@@ -4,17 +4,15 @@ import "time"
 
 // Data market data structure
 type Data struct {
-	Symbol            string
-	CurrentPrice      float64
-	PriceChange1h     float64 // 1-hour price change percentage
-	PriceChange4h     float64 // 4-hour price change percentage
-	CurrentEMA20      float64
-	CurrentMACD       float64
-	CurrentRSI7       float64
-	OpenInterest      *OIData  // USD 计价持仓量；nil = 不可用
-	FundingRate       *float64 // 最近已结算资金费率；nil = 不可用
-	IntradaySeries    *IntradayData
-	LongerTermContext *LongerTermData
+	Symbol        string
+	CurrentPrice  float64
+	PriceChange1h float64 // 1-hour price change percentage
+	PriceChange4h float64 // 4-hour price change percentage
+	CurrentEMA20  float64
+	CurrentMACD   float64
+	CurrentRSI7   float64
+	OpenInterest  *OIData  // USD 计价持仓量；nil = 不可用
+	FundingRate   *float64 // 最近已结算资金费率；nil = 不可用
 	// Multi-timeframe data (new)
 	TimeframeData map[string]*TimeframeSeriesData `json:"timeframe_data,omitempty"`
 }
@@ -51,29 +49,6 @@ type TimeframeSeriesData struct {
 type OIData struct {
 	Latest  float64
 	Average float64
-}
-
-// IntradayData intraday data (5-minute interval; volume is USDT quote volume)
-type IntradayData struct {
-	MidPrices   []float64
-	EMA20Values []float64
-	MACDValues  []float64
-	RSI7Values  []float64
-	RSI14Values []float64
-	Volume      []float64
-	ATR14       float64
-}
-
-// LongerTermData longer-term data (4-hour timeframe)
-type LongerTermData struct {
-	EMA20         float64
-	EMA50         float64
-	ATR3          float64
-	ATR14         float64
-	CurrentVolume float64
-	AverageVolume float64
-	MACDValues    []float64
-	RSI14Values   []float64
 }
 
 type Kline struct {

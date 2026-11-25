@@ -31,7 +31,8 @@
     "11-25-protective-order-management",
     "11-25-market-source",
     "11-25-engine-klines-gate",
-    "11-25-chart-klines-gate"
+    "11-25-chart-klines-gate",
+    "11-25-assistant-market"
   ],
   "parent": null,
   "relatedFiles": [],

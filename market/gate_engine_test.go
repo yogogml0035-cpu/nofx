@@ -1,7 +1,7 @@
 package market
 
-// 引擎行情路径切 Gate 的单元测试（子任务 13）：GetWithTimeframes（含 10s/7d/30d）、
-// GetBoxData、旧内嵌 GetWithExchange 都只请求 Gate candlesticks，成交量是 sum 成交额。
+// 引擎行情路径切 Gate 的单元测试（子任务 13）：GetWithTimeframes（含 10s/7d/30d）与
+// GetBoxData 都只请求 Gate candlesticks，成交量是 sum 成交额。
 
 import (
 	"encoding/json"
@@ -134,30 +134,6 @@ func TestGetBoxDataUsesGate(t *testing.T) {
 	}
 }
 
-func TestGetWithExchangeUsesGateAndIgnoresExchange(t *testing.T) {
-	srv := gateCandleServer(t, 30, 100)
-	overrideGateBaseURL(t, srv)
-
-	for _, exchange := range []string{"binance", "okx", "unknown"} {
-		data, err := GetWithExchange("DOGEUSDT", exchange)
-		if err != nil {
-			t.Fatalf("GetWithExchange(%q): %v", exchange, err)
-		}
-		if data.IntradaySeries == nil || data.LongerTermContext == nil {
-			t.Errorf("%q: legacy series missing: %+v", exchange, data)
-		}
-		if data.CurrentPrice <= 0 || data.CurrentEMA20 <= 0 {
-			t.Errorf("%q: indicators missing: %+v", exchange, data)
-		}
-		if data.PriceChange1h == 0 {
-			t.Errorf("%q: 1h price change = 0, want computed from 5m bars", exchange)
-		}
-		if len(data.IntradaySeries.Volume) == 0 || data.IntradaySeries.Volume[0] <= 0 {
-			t.Errorf("%q: intraday volume missing (want quote volume)", exchange)
-		}
-	}
-}
-
 func TestGetBoxDataFailClosedWhenGateFails(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
@@ -224,16 +200,6 @@ func writeOneCandle(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode([]map[string]interface{}{{
 		"t": 1700000000, "v": "1", "o": "100", "h": "101", "l": "99", "c": "100.5", "sum": "500",
 	}})
-}
-
-func TestGetWithExchangeFailClosedWhenGateFails(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "boom", http.StatusInternalServerError)
-	}))
-	overrideGateBaseURL(t, srv)
-	if _, err := GetWithExchange("DOGEUSDT", ""); err == nil {
-		t.Fatal("GetWithExchange must fail closed when Gate returns 500")
-	}
 }
 
 func TestCalculatePriceChangeByBarsWindows(t *testing.T) {

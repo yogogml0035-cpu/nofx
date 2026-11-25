@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"nofx/logger"
 )
 
 // gateKlineMaxLimit 文档限制：candlesticks 单次最多 2000 点。
@@ -120,8 +122,14 @@ func GetGateKlines(symbol, interval string, limit int) ([]Kline, error) {
 		return nil, fmt.Errorf("gate kline limit must be in [1, %d], got %d", gateKlineMaxLimit, limit)
 	}
 	contract := toGateContractSymbol(symbol)
+	// Gate 的 30d 小 limit 返回非月初窗口，并夹杂无成交的占位根（2026-11-25 实测：0.1268 / v=0 /
+	// sum=0）；用全历史上限拉取后再截取最后 limit 根，保证月初对齐与真实读数。1w/7d 小 limit 正常。
+	requestLimit := limit
+	if interval == "30d" && limit < gateKlineMaxLimit {
+		requestLimit = gateKlineMaxLimit
+	}
 	url := fmt.Sprintf("%s/futures/usdt/candlesticks?contract=%s&interval=%s&limit=%d",
-		gateFuturesBaseURL, contract, interval, limit)
+		gateFuturesBaseURL, contract, interval, requestLimit)
 
 	var rows []gateCandleGate
 	if err := getGateJSON(url, &rows); err != nil {
@@ -192,6 +200,10 @@ func GetGateKlines(symbol, interval string, limit int) ([]Kline, error) {
 			klines[i].CloseTime = klines[i].OpenTime + intervalMillis
 		}
 	}
+	// 截取最后 limit 根（30d 的小 limit 走了全历史拉取）
+	if len(klines) > limit {
+		klines = klines[len(klines)-limit:]
+	}
 	return klines, nil
 }
 
@@ -201,7 +213,13 @@ type GateTicker struct {
 	Symbol           string  // 内部符号（Normalize 后），如 BTCUSDT
 	Last             float64 // 最新价
 	ChangePercent24h float64 // 24h 涨跌幅（百分比数值：3.2 表示 +3.2%）
-	QuoteVolume24h   float64 // 24h 成交额（USDT）
+	// Change24h 24h 绝对涨跌（计价币）；Gate 的 change_price，缺省为 0
+	Change24h float64
+	// High24h / Low24h 24h 最高/最低价；新合约可能缺省，缺省为 0
+	High24h float64
+	Low24h  float64
+	// QuoteVolume24h 24h 成交额（USDT）
+	QuoteVolume24h float64
 }
 
 // gateTickerGate tickers 的线上格式；数值字段可能是字符串或数字。
@@ -209,7 +227,18 @@ type gateTickerGate struct {
 	Contract         string      `json:"contract"`
 	Last             json.Number `json:"last"`
 	ChangePercentage json.Number `json:"change_percentage"`
+	ChangePrice      json.Number `json:"change_price"`
+	High24h          json.Number `json:"high_24h"`
+	Low24h           json.Number `json:"low_24h"`
 	Volume24hQuote   json.Number `json:"volume_24h_quote"`
+}
+
+// gateOptionalNumber 解析可选数值字段：缺省或为空返回 0，非数字仍报错。
+func gateOptionalNumber(field string, raw json.Number) (float64, error) {
+	if string(raw) == "" {
+		return 0, nil
+	}
+	return gateNumber(field, raw)
 }
 
 // parseGateTicker 校验并解析一行 ticker；字段缺失或不可解析即失败。
@@ -229,12 +258,91 @@ func parseGateTicker(row gateTickerGate) (GateTicker, error) {
 	if err != nil {
 		return GateTicker{}, fmt.Errorf("gate ticker %s: %w", row.Contract, err)
 	}
+	changePrice, err := gateOptionalNumber("change_price", row.ChangePrice)
+	if err != nil {
+		return GateTicker{}, fmt.Errorf("gate ticker %s: %w", row.Contract, err)
+	}
+	high24h, err := gateOptionalNumber("high_24h", row.High24h)
+	if err != nil {
+		return GateTicker{}, fmt.Errorf("gate ticker %s: %w", row.Contract, err)
+	}
+	low24h, err := gateOptionalNumber("low_24h", row.Low24h)
+	if err != nil {
+		return GateTicker{}, fmt.Errorf("gate ticker %s: %w", row.Contract, err)
+	}
 	return GateTicker{
 		Contract:         row.Contract,
 		Symbol:           Normalize(row.Contract),
 		Last:             last,
 		ChangePercent24h: change,
+		Change24h:        changePrice,
+		High24h:          high24h,
+		Low24h:           low24h,
 		QuoteVolume24h:   quoteVolume,
+	}, nil
+}
+
+// GateContractMetrics 合约级指标：标记价/指数价/资金费率/下次结算时间（毫秒）与持仓量（USD）。
+type GateContractMetrics struct {
+	MarkPrice       float64
+	IndexPrice      float64
+	FundingRate     float64
+	NextFundingTime int64
+	OpenInterestUSD float64
+}
+
+type gateContractGate struct {
+	MarkPrice        json.Number `json:"mark_price"`
+	IndexPrice       json.Number `json:"index_price"`
+	FundingRate      json.Number `json:"funding_rate"`
+	FundingNextApply json.Number `json:"funding_next_apply"`
+}
+
+// GetGateContractMetrics 取合约级指标（公开接口，无需认证）。
+// 标记价/指数价必须为正；资金费率可为负；下次结算时间 Gate 给 Unix 秒，这里转毫秒。
+// 持仓量取 contract_stats 的最新 open_interest_usd；任一取数失败即错误（快照 fail-closed）。
+func GetGateContractMetrics(symbol string) (GateContractMetrics, error) {
+	if strings.TrimSpace(symbol) == "" {
+		return GateContractMetrics{}, fmt.Errorf("gate contract metrics symbol is empty")
+	}
+	contract := toGateContractSymbol(symbol)
+	var row gateContractGate
+	url := fmt.Sprintf("%s/futures/usdt/contracts/%s", gateFuturesBaseURL, contract)
+	if err := getGateJSON(url, &row); err != nil {
+		return GateContractMetrics{}, fmt.Errorf("gate contract %s: %w", contract, err)
+	}
+	mark, err := gatePositive("mark_price", row.MarkPrice)
+	if err != nil {
+		return GateContractMetrics{}, fmt.Errorf("gate contract %s: %w", contract, err)
+	}
+	index, err := gatePositive("index_price", row.IndexPrice)
+	if err != nil {
+		return GateContractMetrics{}, fmt.Errorf("gate contract %s: %w", contract, err)
+	}
+	funding, err := gateNumber("funding_rate", row.FundingRate)
+	if err != nil {
+		return GateContractMetrics{}, fmt.Errorf("gate contract %s: %w", contract, err)
+	}
+	nextFunding, err := gateOptionalNumber("funding_next_apply", row.FundingNextApply)
+	if err != nil {
+		return GateContractMetrics{}, fmt.Errorf("gate contract %s: %w", contract, err)
+	}
+
+	// 只解析持仓量（资金费率取自已单独读取的合约接口，不因 stats 里该字段异常而失败）
+	stats, statsContract, err := fetchGateContractStats(symbol)
+	if err != nil {
+		return GateContractMetrics{}, fmt.Errorf("gate open interest for %s: %w", contract, err)
+	}
+	oi, err := statsOpenInterest(stats, statsContract)
+	if err != nil {
+		return GateContractMetrics{}, fmt.Errorf("gate open interest for %s: %w", contract, err)
+	}
+	return GateContractMetrics{
+		MarkPrice:       mark,
+		IndexPrice:      index,
+		FundingRate:     funding,
+		NextFundingTime: int64(nextFunding) * 1000,
+		OpenInterestUSD: oi.Latest,
 	}, nil
 }
 
@@ -260,9 +368,8 @@ func GetGateTicker(symbol string) (GateTicker, error) {
 }
 
 // ListGateTickers 取全部 USDT 永续合约的 24h 行情（供 ⑮ 的 24h 行情接口）。
-// 任一条目字段缺失或不可解析即整体失败（fail-closed，不静默丢弃合约）；新上架且未成交的
-// 合约若 last 为 0/空，会让整个列表失败，这是 ⑮ 需要评估的边界（2026-11-25 实测 1042 个
-// 合约全部 last>0、字段齐全，未触发）。
+// 单条合约字段缺失/不可解析（如新上架未成交的 last=0）时跳过该条并记录数量，避免一个异常
+// 合约让整个列表不可用；全部条目都不可解析时才返回错误（fail-closed）。
 func ListGateTickers() ([]GateTicker, error) {
 	url := fmt.Sprintf("%s/futures/usdt/tickers", gateFuturesBaseURL)
 
@@ -274,12 +381,21 @@ func ListGateTickers() ([]GateTicker, error) {
 		return nil, fmt.Errorf("gate tickers returned no contracts")
 	}
 	tickers := make([]GateTicker, 0, len(rows))
+	skipped := 0
 	for _, row := range rows {
 		ticker, err := parseGateTicker(row)
 		if err != nil {
-			return nil, err
+			skipped++
+			continue
 		}
 		tickers = append(tickers, ticker)
+	}
+	if len(tickers) == 0 {
+		return nil, fmt.Errorf("gate tickers: no parseable contracts (skipped %d)", skipped)
+	}
+	if skipped > 0 {
+		// 前端每 15s 轮询，脏合约长期存在时避免刷屏
+		logger.Debugf("  [Gate] tickers: skipped %d unparseable contracts", skipped)
 	}
 	return tickers, nil
 }
