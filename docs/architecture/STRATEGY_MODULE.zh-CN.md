@@ -444,7 +444,8 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. 验证action类型
         validActions := []string{"open_long", "open_short", "close_long", "close_short",
-            "close_long_partial", "close_short_partial", "hold", "wait"}
+            "close_long_partial", "close_short_partial", "update_stop_loss", "update_take_profit",
+            "hold", "wait"}
 
         // 2. 开仓验证
         if isOpenAction(d.Action) {
@@ -459,6 +460,14 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
             // Symbol必须存在
             // 分批平仓：close_percent 取 (0,100)，100% 是全平，必须用 close_long / close_short
         }
+
+        // 4. 修改止损止盈验证
+        if isProtectionUpdate(d.Action) {
+            // 持仓必须存在，且当前止损止盈可读
+            // update_stop_loss 只读 stop_loss，update_take_profit 只读 take_profit（另一字段忽略）
+            // 新价格位于现价正确一侧（多：SL < 现价 < TP；空相反）
+            // 移动止损：到新止损价的亏损 ≤ 本金 2%（持仓数量 × |入场价 − 止损价|）
+        }
     }
 }
 ```
@@ -469,11 +478,11 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
 // decision/engine.go:128-143
 type Decision struct {
     Symbol      string   // 交易对: "BTCUSDT"
-    Action      string   // "open_long", "open_short", "close_long", "close_short", "close_long_partial", "close_short_partial", "hold", "wait"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "close_long_partial", "close_short_partial", "update_stop_loss", "update_take_profit", "hold", "wait"
     ClosePercent float64 // 分批平仓比例 (0 < pct < 100)，仅 close_*_partial 动作
     Leverage    int      // 杠杆倍数
-    StopLoss    float64  // 止损价格
-    TakeProfit  float64  // 止盈价格
+    StopLoss    float64  // 止损价格（update_stop_loss 时是新止损价）
+    TakeProfit  float64  // 止盈价格（update_take_profit 时是新止盈价）
     Confidence  int      // 置信度 0-100
     Reasoning   string   // 决策理由
 
@@ -496,8 +505,9 @@ sort.SliceStable(decisions, func(i, j int) bool {
     priority := map[string]int{
         "close_long": 1, "close_short": 1,  // 最高优先级
         "close_long_partial": 1, "close_short_partial": 1,
-        "open_long": 2, "open_short": 2,    // 次优先级
-        "hold": 3, "wait": 3,               // 最低优先级
+        "update_stop_loss": 2, "update_take_profit": 2, // 先调整已有仓位的保护
+        "open_long": 3, "open_short": 3,    // 最后开新仓
+        "hold": 4, "wait": 4,               // 最低优先级
     }
     return priority[decisions[i].Action] < priority[decisions[j].Action]
 })
@@ -536,6 +546,17 @@ func (at *AutoTrader) recordAndConfirmOrder(orderID, symbol, side, action string
     at.store.Position().SaveOrder(...)
 }
 ```
+
+### 7.3.1 止损止盈修改（撤旧建新）
+
+交易所的条件单改单接口不可用（新路径线上未部署：404；旧路径对 API 创建的触价单返回 code 1077），
+修改止损止盈只能撤旧建新：挂新的仓位级条件单并核对它出现在未触发列表 → 撤销同类型的旧单 →
+核对旧单不存在。任一步失败都撤销新单、保留原保护；保护已无法确认时调用方立即平仓
+（`types.ErrPositionUnprotected`）。
+
+触发价必须是合约 `order_price_round` 的整数倍。不对齐的价格会被交易所接受在委托的 `tpsl_*` 字段里，
+但不创建条件单（2026-11-25 实测），仓位会在没有保护的情况下开出；适配器对所有触发价做对齐
+（止损只会更紧、止盈不会更近），并以未触发条件单列表作为保护核对的依据，而不是开仓委托的字段。
 
 ### 7.4 决策日志保存
 

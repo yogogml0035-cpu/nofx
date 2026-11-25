@@ -1,0 +1,22 @@
+# 随单保护单触发语义探针（2026-11-25 17:10，宿主机直连 Gate）
+# 目的：分批平仓后，委托级随单保护单（close-*-order）按原订单张数触发，还是按剩余仓位收口？
+# 证据来源：`trigger.go` 运行输出（该次运行未写文件，以下为同一运行的完整 stdout；run 结束态已还原）
+17:10:55 price=0.054250 tick=0.00001 sl=0.054190 tp=0.054300
+11-25 17:10:55 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 10x
+11-25 17:10:55 [INFO] gate/protected_open.go:120   [Gate] OpenProtected: side=LONG, contract=DOGE_USDT, size=3, sl=0.05419, tp=0.0543, slip=0.050000
+11-25 17:10:56 [INFO] gate/protected_open.go:162   [Gate] Opened LONG position with attached TP/SL: orderId=56013526826515962, contracts=3, fillPrice=0.054250
+17:10:56 opened contracts=3 fill=0.054250 orderId=56013526826515962
+17:10:56 after open: position={"entry":"0.05425","mode":"single","size":"3"} triggers=[{"initial":{"contract":"DOGE_USDT","size":-3,"amount":"-3","price":"0","tif":"ioc","text":"t-n","is_reduce_only":true},"trigger":{"price":"0.05419","rule":2},"id":2125517580666933248,"id_string":"2125517580666933248","user":58000903,"create_time":1795597856,"finish_time":1795597856,"status":"open","order_type":"close-long-order","me_order_id":56013526826515962,"pos_margin_mode":"cross"},{"initial":{"contract":"DOGE_USDT","size":-3,"amount":"-3","price":"0","tif":"ioc","text":"t-n","is_reduce_only":true},"trigger":{"price":"0.0543","rule":1},"id":2125517580662738944,"id_string":"2125517580662738944","user":58000903,"create_time":1795597856,"finish_time":1795597856,"status":"open","order_type":"close-long-order","me_order_id":56013526826515962,"pos_margin_mode":"cross"}]
+11-25 17:10:56 [INFO] gate/partial_close.go:118   [Gate] PartialCloseLONG: symbol=DOGE_USDT, size=-1, percent=50, remaining=2
+11-25 17:10:56 [INFO] gate/partial_close.go:142   [Gate] Partially closed LONG: orderId=56013526826515979, contracts=1, remaining=2, fillPrice=0.05424
+17:10:56 partial: contracts=1 remaining=2
+17:10:56 after partial: position={"entry":"0.05425","mode":"single","size":"2"} triggers=[{"initial":{"contract":"DOGE_USDT","size":-3,"amount":"-3","price":"0","tif":"ioc","text":"t-n","is_reduce_only":true},"trigger":{"price":"0.05419","rule":2},"id":2125517580666933248,"id_string":"2125517580666933248","user":58000903,"create_time":1795597856,"finish_time":1795597856,"status":"open","order_type":"close-long-order","me_order_id":56013526826515962,"pos_margin_mode":"cross"},{"initial":{"contract":"DOGE_USDT","size":-3,"amount":"-3","price":"0","tif":"ioc","text":"t-n","is_reduce_only":true},"trigger":{"price":"0.0543","rule":1},"id":2125517580662738944,"id_string":"2125517580662738944","user":58000903,"create_time":1795597856,"finish_time":1795597856,"status":"open","order_type":"close-long-order","me_order_id":56013526826515962,"pos_margin_mode":"cross"}]
+17:12:14 triggered: position after=""
+17:12:14 after wait: position=none triggers=[]
+17:12:15 TRIGGER_PROBE_DONE
+
+## 结论
+
+- 随单保护单 `initial.is_reduce_only=true`：分批后保护单仍是开仓张数（3），但触发时按剩余
+  2 张收口，仓位归零、**没有反向持仓**（终态 position=none、triggers=[]）。
+- 分批平仓不修改随单保护单的张数与触发价（⑩ 的“不撤不改”可保留）。

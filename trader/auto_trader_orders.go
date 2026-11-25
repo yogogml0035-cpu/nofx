@@ -6,6 +6,7 @@ package trader
 // 开仓路径不再使用 market.GetWithExchange（CoinAnk 通道）。
 
 import (
+	"errors"
 	"fmt"
 	"nofx/kernel"
 	"nofx/logger"
@@ -70,6 +71,127 @@ func (at *AutoTrader) partialCloser() (types.PartialCloser, error) {
 	return closer, nil
 }
 
+// protectiveOrderManager 返回止损止盈管理能力；适配器未实现时拒绝（fail-closed：
+// 不能让修改决策落到没有保护单管理能力、无法核对旧单的适配器上）
+func (at *AutoTrader) protectiveOrderManager() (types.ProtectiveOrderManager, error) {
+	manager, ok := at.trader.(types.ProtectiveOrderManager)
+	if !ok {
+		return nil, fmt.Errorf(
+			"exchange adapter %s does not support protective order management; refusing to modify stop loss or take profit",
+			at.exchange)
+	}
+	return manager, nil
+}
+
+// positionSymbolKey 把交易对归一成比较键：大写、去掉 "_"、"-"、"/" 分隔符。
+// 交易所原生格式（Gate "DOGE_USDT"）与模型写法（"DOGEUSDT"、"DOGE/USDT"）得到同一个键。
+func positionSymbolKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	s = strings.ReplaceAll(s, "_", "")
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "/", "")
+	return s
+}
+
+// positionSymbolBaseKey 去掉比较键末尾的计价币后缀（USDT/USDC/USD）
+func positionSymbolBaseKey(symbol string) string {
+	key := positionSymbolKey(symbol)
+	for _, suffix := range []string{"USDT", "USDC", "USD"} {
+		if strings.HasSuffix(key, suffix) && len(key) > len(suffix) {
+			return strings.TrimSuffix(key, suffix)
+		}
+	}
+	return key
+}
+
+// findOpenPosition 按决策标的找到交易所持仓，返回仓位条目、方向与规范符号。
+// 符号变体（大小写、分隔符、只写基础币种）都归一到比较键后再匹配，返回交易所的符号。
+func (at *AutoTrader) findOpenPosition(symbol string) (map[string]interface{}, string, string, error) {
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to get positions: %w", err)
+	}
+	key := positionSymbolKey(symbol)
+	base := positionSymbolBaseKey(symbol)
+	for _, pos := range positions {
+		posSymbol, _ := pos["symbol"].(string)
+		if posSymbol != symbol && (key == "" || positionSymbolKey(posSymbol) != key) && (base == "" || positionSymbolBaseKey(posSymbol) != base) {
+			continue
+		}
+		side, _ := pos["side"].(string)
+		if side != "long" && side != "short" {
+			continue
+		}
+		return pos, side, posSymbol, nil
+	}
+	return nil, "", "", fmt.Errorf("%s has no open position; refusing to modify protection", symbol)
+}
+
+// executeProtectionUpdateWithRecord 修改止损或止盈：适配器先挂新单并核对，再撤旧单并核对，
+// 失败时恢复原保护。保护已无法确认时立即市价全平并报错（保护不变量：不允许无保护持仓）。
+func (at *AutoTrader) executeProtectionUpdateWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction, kind types.ProtectionKind) error {
+	logger.Infof("  🛡️ Update protection %v: %s", kind, decision.Symbol)
+
+	manager, err := at.protectiveOrderManager()
+	if err != nil {
+		return err
+	}
+	_, side, posSymbol, err := at.findOpenPosition(decision.Symbol)
+	if err != nil {
+		return err
+	}
+
+	newPrice := decision.TakeProfit
+	if kind == types.ProtectionStopLoss {
+		newPrice = decision.StopLoss
+	}
+	if newPrice <= 0 {
+		return fmt.Errorf("new %v price must be positive, got %v", kind, newPrice)
+	}
+
+	account, err := types.ReadAccountBalance(at.trader)
+	if err != nil {
+		return err
+	}
+
+	result, err := manager.UpdateProtection(types.ProtectionUpdateRequest{
+		Symbol:         posSymbol,
+		Side:           side,
+		Kind:           kind,
+		Price:          newPrice,
+		Principal:      account.Principal,
+		MaxLossPercent: kernel.MaxLossPercentOfPrincipal,
+	})
+	if err != nil {
+		if errors.Is(err, types.ErrPositionUnprotected) {
+			logger.Infof("  🚨 %v", err)
+			var closeErr error
+			if side == "short" {
+				_, closeErr = at.trader.CloseShort(posSymbol, 0)
+			} else {
+				_, closeErr = at.trader.CloseLong(posSymbol, 0)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("protection update lost protection (%v) and emergency close FAILED: %w", err, closeErr)
+			}
+			return fmt.Errorf("protection update lost protection, closed immediately: %w", err)
+		}
+		return err
+	}
+
+	recordOrderID(actionRecord, map[string]interface{}{"orderId": result.OrderID})
+	actionRecord.Price = result.NewPrice
+	if kind == types.ProtectionStopLoss {
+		actionRecord.StopLoss = result.NewPrice
+	} else {
+		actionRecord.TakeProfit = result.NewPrice
+	}
+
+	logger.Infof("  ✓ Protection updated: %v %v -> %v, new order %s, replaced %v",
+		kind, result.OldPrice, result.NewPrice, result.OrderID, result.ReplacedOrderIDs)
+	return nil
+}
+
 // executeDecisionWithRecord executes AI decision and records detailed information
 func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	switch decision.Action {
@@ -85,6 +207,10 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 		return at.executePartialCloseWithRecord(decision, actionRecord, "LONG")
 	case "close_short_partial":
 		return at.executePartialCloseWithRecord(decision, actionRecord, "SHORT")
+	case "update_stop_loss":
+		return at.executeProtectionUpdateWithRecord(decision, actionRecord, types.ProtectionStopLoss)
+	case "update_take_profit":
+		return at.executeProtectionUpdateWithRecord(decision, actionRecord, types.ProtectionTakeProfit)
 	case "hold", "wait":
 		// No execution needed, just record
 		return nil
@@ -197,6 +323,13 @@ func (at *AutoTrader) executeProtectedOpen(decision *kernel.Decision, actionReco
 	}
 	actionRecord.Quantity = result.Quantity
 	actionRecord.Price = result.FillPrice
+	// 记录实际生效的（对齐后的）保护价，而不是模型原始值：它们可能差一个价格步长
+	if result.StopLoss > 0 {
+		actionRecord.StopLoss = result.StopLoss
+	}
+	if result.TakeProfit > 0 {
+		actionRecord.TakeProfit = result.TakeProfit
+	}
 
 	logger.Infof("  ✓ Position opened with attached TP/SL, order ID: %s, contracts: %s, notional: %.4f",
 		result.OrderID, result.Contracts, result.Notional)

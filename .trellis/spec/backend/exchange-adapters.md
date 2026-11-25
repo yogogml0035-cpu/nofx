@@ -365,9 +365,10 @@ var _ types.PartialCloser = (*GateTrader)(nil)
   list, so the quantity being reduced is current.
 - The trading path asserts `types.PartialCloser` before doing anything. An adapter without the
   capability refuses the decision; it never falls back to a full close or an unprotected partial close.
-- Gate's attached take-profit/stop-loss is order-level protection. Partial close does not cancel or
-  amend it; the W2 probe verifies that the opening order still carries its `tpsl_*` prices afterwards.
-  Reading and amending protection is a separate task (⑪ protective-order-management).
+- Gate's attached take-profit/stop-loss is order-level protection and it is reduce-only. Partial close
+  does not cancel or amend it; the attached order keeps its original contract size but `is_reduce_only`
+  caps the exit at the remaining position (probe 2026-11-25: 3 → 2 contracts, trigger closed the
+  remainder without flipping). Reading and updating protection is the next scenario.
 
 ### 4. Validation & Error Matrix
 
@@ -402,3 +403,131 @@ var _ types.PartialCloser = (*GateTrader)(nil)
 - Real checks live in the owning task's `probe/` directory: 2026-11-25 W2 opened 17 DOGE with
   attached TP/SL, closed 8 partially (9 left), verified protection read-back, rejected 100%/1% with
   no side effects, then fully closed with zero residue (`LIVECHECK_PASS`).
+
+---
+
+## Scenario: Reading and updating protective orders (Gate)
+
+### 1. Scope / Trigger
+
+The model may move a position's stop loss or take profit (`update_stop_loss` / `update_take_profit`).
+Every trading cycle also has to show the model the current protection. The exchange's trigger-order
+amend endpoint is unusable (new path returns 404, old path rejects API-created trigger orders with
+code 1077), so an update is a cancel-and-replace.
+
+### 2. Signatures
+
+```go
+// trader/types/interface.go
+type ProtectionKind string // "stop_loss" | "take_profit"
+type PositionProtection struct {
+    StopLoss, TakeProfit float64 // effective trigger prices, 0 = unknown
+    StopLossOrders, TakeProfitOrders int
+    Known bool
+    Reason string
+}
+type ProtectionUpdateRequest struct {
+    Symbol, Side string
+    Kind ProtectionKind
+    Price, Principal, MaxLossPercent float64
+}
+type ProtectionUpdateResult struct {
+    OrderID string; Kind ProtectionKind
+    OldPrice, NewPrice float64
+    ReplacedOrderIDs []string
+}
+type ProtectiveOrderManager interface {
+    PositionProtection(symbol, side string) (PositionProtection, error)
+    UpdateProtection(req ProtectionUpdateRequest) (ProtectionUpdateResult, error)
+}
+var ErrPositionUnprotected = errors.New("position is not protected")
+
+// trader/gate
+func (t *GateTrader) PositionProtection(symbol, side string) (types.PositionProtection, error)
+func (t *GateTrader) UpdateProtection(req types.ProtectionUpdateRequest) (types.ProtectionUpdateResult, error)
+func (s ContractSpec) AlignTriggerPrice(price float64, direction PriceAlignDirection) (string, *big.Rat, error)
+```
+
+### 3. Contracts
+
+- The current protection is read from `GET /futures/{settle}/price_orders?status=open` and classified by
+  `order_type` (`close-long/short-order`, `close-long/short-position`, `plan-close-*`) plus
+  `trigger.rule` (1 = price ≥ trigger, 2 = price ≤ trigger). Both SL and TP present → `Known`;
+  multiple same-kind orders → the one closest to the market is the effective price, the count is reported.
+- All trigger prices are aligned to the contract's `order_price_round` (`ContractSpec.AlignTriggerPrice`):
+  long protection rounds up, short protection rounds down. For a stop this only tightens the stop
+  (never increases the loss); for a take profit it never moves the target closer. If the aligned price
+  crosses the current price the update is refused.
+- Stop-loss updates are checked against the execution-time position read:
+  `quantity × |entry − stop| ≤ principal × maxLossPercent / 100` (`quantity = |contracts| × quanto_multiplier`).
+  A stop on the profit side counts as zero loss.
+- Update order: place the new position-level order → verify it in the open list → cancel every old order
+  of that kind → verify only the new one remains. On failure cancel the new order and confirm old
+  protection remains; if no same-kind protection can be confirmed, restore the old price or return an
+  error wrapping `ErrPositionUnprotected` (the trading path closes the position immediately).
+- Protection is unreadable when either SL or TP is missing: modifications are refused. The trading path
+  marks such positions `Protection: unknown (reason)` in the prompt and the model must not modify them.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+|---|---|
+| Adapter does not implement `ProtectiveOrderManager` | decision refused before any exchange call |
+| No position in that direction | error, no request |
+| Current SL or TP missing | error `not readable`, no request |
+| Invalid kind / side / non-positive price | error, no request |
+| Aligned price on the wrong side of the market | error, no request |
+| Loss at the new stop above the cap | error, no request |
+| Place-new rejected | error; old protection untouched |
+| New order not visible after placement | cancel new, old protection remains, error |
+| Cancel-old rejected | cancel new, old protection remains, error |
+| Old order still listed after a successful cancel | cancel new, error |
+| No same-kind protection can be confirmed and restore fails | error wrapping `ErrPositionUnprotected`; caller closes |
+
+### 5. Good/Base/Bad Cases
+
+- Good: DOGE long 17 contracts, stop 0.48 → 0.55 (entry 0.56, loss 1.7 USDT, principal 100): new stop
+  placed, old stop cancelled, take profit untouched.
+- Base: take profit 0.65 → 0.62 (toward the market, allowed by D32).
+- Bad: stop 0.58 while the market is 0.56 → refused (wrong side); stop 0.50 with principal 10 → refused
+  (loss above 2%); update while only a stop-loss order exists → refused (protection unreadable).
+
+### 6. Tests Required
+
+- `trader/gate/contract_test.go`: alignment matrix (up/down, already aligned, tick precision, invalid
+  direction, zero/negative, below one tick).
+- `trader/gate/protection_management_test.go`: protection read matrix (pair, duplicates, missing kinds,
+  short side), update payload (`close-long-position`, market price, `close=true`, rule), and every
+  failure path (place rejected, new not visible, cancel rejected, cancel ineffective) with the
+  expected restore behaviour and no unintended requests.
+- `trader/gate/protected_open_test.go`: open aligns the attached prices; verification requires the
+  trigger-order list (order `tpsl_*` fields alone do not pass); a closed position needs no protection.
+- `kernel/update_protection_test.go`: validation matrix (position missing, unreadable protection, side,
+  2% boundary, field mismatch, symbol variants), prompt action list/example/marker in both languages.
+- `trader/auto_trader_protection_test.go`: routing, capability refusal, no-position refusal,
+  `ErrPositionUnprotected` → emergency close, context markers for known/unknown/unsupported, sort priority.
+- Real checks live in the owning task's `probe/`: 2026-11-25 W2 opened 17 DOGE, partially closed, moved
+  the stop and the take profit (each: new order + old cancelled), then fully closed with zero residue;
+  ETH 0.1 verified the attached pair is listed and a stop update works.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```go
+// Place the new stop first and cancel the old one without checking.
+order, _ := BuildPositionProtectiveOrder(symbol, side, kind, price)
+_, _ = t.PlaceProtectiveOrder(order)
+_, _ = t.CancelProtectiveOrdersByKind(symbol, kind)
+```
+
+#### Correct
+
+```go
+// Align, place, verify, then cancel the old orders, then verify only the new one remains.
+text, value, err := spec.AlignTriggerPrice(price, align)
+newID, err := t.PlaceProtectiveOrder(order)
+err = t.verifyProtectiveOrder(symbol, side, kind, newID, ratFloat(value))
+for _, old := range oldOrders { err = t.CancelProtectiveOrder(old.OrderID()) }
+// on any failure: restoreReplacement(...) keeps the position protected
+```

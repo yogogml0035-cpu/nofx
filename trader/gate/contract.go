@@ -37,16 +37,22 @@ type ContractSpec struct {
 	SizeStep           string
 	SizeMax            string // 单笔订单的最大张数（order_size_max）
 	MarketOrderSizeMax string // 市价单的最大张数（market_order_size_max）；交易所未设置为 "0"，此时按 SizeMax 计
+	// PriceTick 触发价的最小价格步长（order_price_round）。条件单的触发价必须是它的整数倍：
+	// 不对齐时交易所会接受随单 tpsl 字段却不创建条件单（子任务 11 真实探针，F44）
+	PriceTick string
 
 	multiplier *big.Rat
 	step       *big.Rat
 	stepScale  int      // SizeStep 的小数位数，决定张数的输出精度
+	tick       *big.Rat // 价格步长
+	tickScale  int      // PriceTick 的小数位数，决定触发价的输出精度
 	sizeMax    *big.Rat // 市价单可用的最大张数：SizeMax 与 MarketOrderSizeMax 中较小者
 }
 
 // NewContractSpec 校验合约元数据并构造 ContractSpec。
-// enableDecimal 为 false 的合约只接受整数步长；marketOrderSizeMax 留空表示交易所未设置市价单上限。
-func NewContractSpec(name, quantoMultiplier, orderSizeMin, orderSizeMax, marketOrderSizeMax string, enableDecimal bool) (ContractSpec, error) {
+// enableDecimal 为 false 的合约只接受整数步长；marketOrderSizeMax 留空表示交易所未设置市价单上限；
+// orderPriceRound 是触发价的最小价格步长（order_price_round），缺失或非正时构造失败（fail-closed）。
+func NewContractSpec(name, quantoMultiplier, orderSizeMin, orderSizeMax, marketOrderSizeMax, orderPriceRound string, enableDecimal bool) (ContractSpec, error) {
 	if name == "" {
 		return ContractSpec{}, errors.New("contract name is empty")
 	}
@@ -102,15 +108,27 @@ func NewContractSpec(name, quantoMultiplier, orderSizeMin, orderSizeMax, marketO
 		sizeMax = marketMax
 	}
 
+	tick, err := parseDecimal("order_price_round", orderPriceRound)
+	if err != nil {
+		return ContractSpec{}, fmt.Errorf("contract %s: %w", name, err)
+	}
+	if tick.Sign() <= 0 {
+		return ContractSpec{}, fmt.Errorf(
+			"contract %s: order_price_round %q is not positive; trigger prices cannot be aligned", name, orderPriceRound)
+	}
+
 	return ContractSpec{
 		Name:               name,
 		QuantoMultiplier:   quantoMultiplier,
 		SizeStep:           orderSizeMin,
 		SizeMax:            orderSizeMax,
 		MarketOrderSizeMax: marketOrderSizeMax,
+		PriceTick:          orderPriceRound,
 		multiplier:         multiplier,
 		step:               step,
 		stepScale:          decimalScale(orderSizeMin),
+		tick:               tick,
+		tickScale:          decimalScale(orderPriceRound),
 		sizeMax:            sizeMax,
 	}, nil
 }
@@ -119,12 +137,12 @@ func NewContractSpec(name, quantoMultiplier, orderSizeMin, orderSizeMax, marketO
 func contractSpecFromGate(contract *gateapi.Contract) (ContractSpec, error) {
 	return NewContractSpec(
 		contract.Name, contract.QuantoMultiplier, contract.OrderSizeMin, contract.OrderSizeMax,
-		contract.MarketOrderSizeMax, contract.EnableDecimal)
+		contract.MarketOrderSizeMax, contract.OrderPriceRound, contract.EnableDecimal)
 }
 
 // check 确认元数据经过构造函数；零值的 ContractSpec 不能参与换算
 func (s ContractSpec) check() error {
-	if s.multiplier == nil || s.step == nil || s.sizeMax == nil {
+	if s.multiplier == nil || s.step == nil || s.sizeMax == nil || s.tick == nil {
 		return fmt.Errorf("contract spec for %q is not initialized", s.Name)
 	}
 	return nil
@@ -140,6 +158,51 @@ func (s ContractSpec) unitValue(price float64) (*big.Rat, error) {
 		return nil, fmt.Errorf("price must be positive, got %v", price)
 	}
 	return new(big.Rat).Mul(priceValue, s.multiplier), nil
+}
+
+// PriceAlignDirection 触发价对齐到价格步长的方向
+type PriceAlignDirection int
+
+const (
+	// PriceAlignDown 向下取整到价格步长（空头保护单使用：止损向现价收紧、止盈远离现价）
+	PriceAlignDown PriceAlignDirection = -1
+	// PriceAlignUp 向上取整到价格步长（多头保护单使用：止损向现价收紧、止盈远离现价）
+	PriceAlignUp PriceAlignDirection = 1
+)
+
+// AlignTriggerPrice 把触发价对齐到合约的最小价格步长，返回与步长同精度的十进制字符串与精确值。
+// 交易所要求触发价是 order_price_round 的整数倍：不对齐时随单 tpsl 会被接受但不创建条件单
+// （子任务 11 真实探针，计划文档 F44），仓位级条件单则直接拒绝。对齐方向由调用方按保护语义
+// 选择（止损向现价收紧、止盈远离现价），对齐后是否仍在现价正确一侧由调用方复核。
+func (s ContractSpec) AlignTriggerPrice(price float64, direction PriceAlignDirection) (string, *big.Rat, error) {
+	if err := s.check(); err != nil {
+		return "", nil, err
+	}
+	if direction != PriceAlignDown && direction != PriceAlignUp {
+		return "", nil, fmt.Errorf("invalid price align direction %d", int(direction))
+	}
+	value, err := decimalFromFloat("trigger price", price)
+	if err != nil {
+		return "", nil, err
+	}
+	if value.Sign() <= 0 {
+		return "", nil, fmt.Errorf("trigger price must be positive, got %v", price)
+	}
+	var steps *big.Int
+	if direction == PriceAlignUp {
+		steps = ceilDiv(value, s.tick)
+	} else {
+		steps = floorDiv(value, s.tick)
+	}
+	aligned := new(big.Rat).Mul(new(big.Rat).SetInt(steps), s.tick)
+	if aligned.Sign() <= 0 {
+		return "", nil, fmt.Errorf("trigger price %v is below one price step %s", price, s.PriceTick)
+	}
+	text, err := formatDecimal(aligned, s.tickScale)
+	if err != nil {
+		return "", nil, fmt.Errorf("contract %s: aligned trigger price %s: %w", s.Name, aligned.RatString(), err)
+	}
+	return text, aligned, nil
 }
 
 // contracts 把整数个最小步长格式化为张数字符串

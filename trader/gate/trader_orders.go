@@ -88,12 +88,12 @@ func (t *GateTrader) OpenShort(symbol string, quantity float64, leverage int) (m
 	return t.openMarket(symbol, quantity, leverage, "SHORT")
 }
 
-// findPositionSize 读取该合约指定方向的当前持仓张数（字符串，带方向符号）。
-// 直接查交易所不经 GetPositions 缓存：全平前的持仓状态必须是当前值。
-func (t *GateTrader) findPositionSize(symbol, side string) (string, error) {
+// findPosition 读取该合约指定方向的持仓条目（含张数、入场价与方向设置）。
+// 直接查交易所不经 GetPositions 缓存：改单与全平前的持仓状态必须是当前值。
+func (t *GateTrader) findPosition(symbol, side string) (gateapi.Position, error) {
 	positions, _, err := t.client.FuturesApi.ListPositions(t.ctx, "usdt", nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to get positions: %w", err)
+		return gateapi.Position{}, fmt.Errorf("failed to get positions: %w", err)
 	}
 	for _, pos := range positions {
 		if pos.Contract != symbol {
@@ -101,17 +101,26 @@ func (t *GateTrader) findPositionSize(symbol, side string) (string, error) {
 		}
 		size, err := parseDecimal("position size", pos.Size)
 		if err != nil {
-			return "", fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
+			return gateapi.Position{}, fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
 		}
 		if size.Sign() == 0 {
 			continue
 		}
-		// 多头持仓为正、空头为负（单向持仓模式）
+		// 多头持仓为正、空头持仓为负（单向持仓模式）
 		if (side == "SHORT") == (size.Sign() < 0) {
-			return pos.Size, nil
+			return pos, nil
 		}
 	}
-	return "", fmt.Errorf("%s position not found for %s", strings.ToLower(side), symbol)
+	return gateapi.Position{}, fmt.Errorf("%s position not found for %s", strings.ToLower(side), symbol)
+}
+
+// findPositionSize 读取该合约指定方向的当前持仓张数（字符串，带方向符号）。
+func (t *GateTrader) findPositionSize(symbol, side string) (string, error) {
+	pos, err := t.findPosition(symbol, side)
+	if err != nil {
+		return "", err
+	}
+	return pos.Size, nil
 }
 
 // closePosition 多空共用的平仓原语。quantity=0 为全平：按文档语义提交 close=true + size=0

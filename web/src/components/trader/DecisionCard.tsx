@@ -16,6 +16,8 @@ const ACTION_CONFIG: Record<string, { color: string; bg: string; icon: string; l
   close_short: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '💰', label: 'CLOSE' },
   close_long_partial: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '✂️', label: 'PARTIAL' },
   close_short_partial: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '✂️', label: 'PARTIAL' },
+  update_stop_loss: { color: '#F6465D', bg: 'rgba(246, 70, 93, 0.15)', icon: '🛡️', label: 'UPDATE SL' },
+  update_take_profit: { color: '#0ECB81', bg: 'rgba(14, 203, 129, 0.15)', icon: '🎯', label: 'UPDATE TP' },
   hold: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏸️', label: 'HOLD' },
   wait: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏳', label: 'WAIT' },
 }
@@ -49,6 +51,9 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
   const isLong = action.action.includes('long')
   const isOpen = action.action.includes('open')
+  // 修改止损/止盈只展示新价格；开仓才展示入场价与风险回报比
+  const isProtectionUpdate = action.action === 'update_stop_loss' || action.action === 'update_take_profit'
+  const protectionPrice = action.action === 'update_stop_loss' ? action.stop_loss : action.take_profit
 
   return (
     <div
@@ -106,6 +111,18 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           />
         </div>
       </div>
+
+      {/* Protection update: the new trigger price */}
+      {isProtectionUpdate && (
+        <div className="mt-2 pt-2 flex items-center gap-2 text-sm" style={{ borderTop: '1px solid #2B3139' }}>
+          <span style={{ color: '#848E9C' }}>
+            {action.action === 'update_stop_loss' ? t('stopLoss', language) : t('takeProfit', language)}
+          </span>
+          <span className="font-mono font-semibold" style={{ color: config.color }}>
+            {formatPrice(protectionPrice)}
+          </span>
+        </div>
+      )}
 
       {/* Trading Details Grid */}
       {isOpen && (

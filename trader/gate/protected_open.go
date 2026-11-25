@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"time"
 
 	"nofx/logger"
 	"nofx/trader/types"
@@ -106,8 +107,25 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 		MarketOrderSlipRatio: slip,
 	}
 	// 保护不变量：随开仓单一并提交止损止盈；两价合法且分居两侧，触发方向由交易所按委托方向推导。
+	// 触发价先对齐到合约价格步长——不对齐时交易所接受 tpsl 字段却不创建条件单（F44），
+	// 仓位会在没有保护的情况下开出。多单向上对齐（止损收紧、止盈远离），空单向下对齐。
+	align := PriceAlignUp
+	if side == "SHORT" {
+		align = PriceAlignDown
+	}
+	slText, slValue, err := spec.AlignTriggerPrice(req.StopLoss, align)
+	if err != nil {
+		return types.ProtectedOpenResult{}, fmt.Errorf("invalid stop loss for %s: %w", symbol, err)
+	}
+	tpText, tpValue, err := spec.AlignTriggerPrice(req.TakeProfit, align)
+	if err != nil {
+		return types.ProtectedOpenResult{}, fmt.Errorf("invalid take profit for %s: %w", symbol, err)
+	}
+	if err := validateProtectionSides(side, price, slValue, tpValue); err != nil {
+		return types.ProtectedOpenResult{}, fmt.Errorf("invalid protection for %s: %w", symbol, err)
+	}
 	// 校验放在任何有副作用的调用之前：无效保护直接拒绝开仓。
-	if err := ApplyAttachedTPSL(&order, side, req.StopLoss, req.TakeProfit); err != nil {
+	if err := ApplyAttachedTPSL(&order, side, slText, tpText); err != nil {
 		return types.ProtectedOpenResult{}, fmt.Errorf("invalid protection for %s: %w", symbol, err)
 	}
 
@@ -117,8 +135,8 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 		return types.ProtectedOpenResult{}, fmt.Errorf("refusing to open %s: %w", symbol, err)
 	}
 
-	logger.Infof("  [Gate] OpenProtected: side=%s, contract=%s, size=%s, sl=%v, tp=%v, slip=%s",
-		side, symbol, order.Size, req.StopLoss, req.TakeProfit, slipDisplay(slip))
+	logger.Infof("  [Gate] OpenProtected: side=%s, contract=%s, size=%s, sl=%s, tp=%s, slip=%s",
+		side, symbol, order.Size, slText, tpText, slipDisplay(slip))
 
 	result, _, err := t.client.FuturesApi.CreateFuturesOrder(t.ctx, "usdt", order, nil)
 	if err != nil {
@@ -153,14 +171,16 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 	notional := new(big.Rat).Mul(unitValue, contractsValue)
 
 	res := types.ProtectedOpenResult{
-		OrderID:   strconv.FormatInt(result.Id, 10),
-		Contracts: quote.Contracts,
-		Notional:  ratFloat(notional),
-		FillPrice: fillPrice,
-		Quantity:  quantity,
+		OrderID:    strconv.FormatInt(result.Id, 10),
+		Contracts:  quote.Contracts,
+		Notional:   ratFloat(notional),
+		FillPrice:  fillPrice,
+		Quantity:   quantity,
+		StopLoss:   ratFloat(slValue),
+		TakeProfit: ratFloat(tpValue),
 	}
-	logger.Infof("  [Gate] Opened %s position with attached TP/SL: orderId=%s, contracts=%s, fillPrice=%.6f",
-		side, res.OrderID, res.Contracts, res.FillPrice)
+	logger.Infof("  [Gate] Opened %s position with attached TP/SL: orderId=%s, contracts=%s, fillPrice=%.6f, sl=%s, tp=%s",
+		side, res.OrderID, res.Contracts, res.FillPrice, slText, tpText)
 	return res, nil
 }
 
@@ -174,13 +194,12 @@ func (t *GateTrader) OpenShortProtected(req types.ProtectedOpenRequest) (types.P
 	return t.openProtected(req, "SHORT")
 }
 
-// VerifyOrderProtection 核对开仓委托的保护单存在（保护不变量，计划文档第 5 节）：
-// 1) 委托回读的随单止损止盈触发价都在（随单 tpsl 已被交易所接受）；
-// 2) 否则该合约的未触发条件单同时包含本次开仓方向的止损与止盈（随单 tpsl 在委托
-//    完结后转为委托级条件单的形态，W2 实测确认实际行为）。
-// 方向从委托张数符号推导（多正空负），列表里只统计同侧的条件单：
-// 遗留的反向止损止盈对不能让新仓位被误判为受保护。
-// 两条路径都不满足时报错，错误里带上实际观察到的条件单情况。
+// VerifyOrderProtection 核对开仓委托的保护单存在（保护不变量，计划文档第 5 节）。
+// 结论以该合约未触发条件单列表为准：同方向（由开仓委托张数符号推导，多正空负）的止损与止盈
+// 各至少 1 条才算通过。开仓委托的 tpsl_* 字段只记日志——真实探针（2026-11-25，F44）确认
+// 交易所接受 tpsl 字段但触发价未对齐价格步长时不会创建条件单，只读委托字段会误判为受保护。
+// 列表查询最多重试 3 次（间隔 300ms）吸收条件单创建的延迟；该方向持仓已不存在（已被保护单
+// 触发平掉）时视为无需保护。遗留的反向止损止盈对不能让新仓位被误判为受保护。
 func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 	if orderID == "" {
 		return errors.New("cannot verify protection without order id")
@@ -192,9 +211,8 @@ func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 	order, _, err := t.client.FuturesApi.GetFuturesOrder(t.ctx, "usdt", orderID)
 	if err == nil {
 		if order.TpslSlTriggerPrice != "" && order.TpslTpTriggerPrice != "" {
-			logger.Infof("  [Gate] Protection verified via order tpsl: %s sl=%s tp=%s",
+			logger.Infof("  [Gate] Order %s carries tpsl fields sl=%s tp=%s (corroboration only)",
 				orderID, order.TpslSlTriggerPrice, order.TpslTpTriggerPrice)
-			return nil
 		}
 		if size, parseErr := parseDecimal("order size", order.Size); parseErr == nil && size.Sign() != 0 {
 			side = "SHORT"
@@ -208,37 +226,79 @@ func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 		logger.Infof("  [Gate] Order %s lookup failed (%v), falling back to trigger order list", orderID, err)
 	}
 
-	views, err := t.ListTriggerOrders(symbol)
-	if err != nil {
-		return fmt.Errorf("protection verification for %s failed: %w", symbol, err)
-	}
-	slSides := map[string]bool{}
-	tpSides := map[string]bool{}
-	for _, view := range views {
-		if view.Contract != symbol || !view.KindKnown || view.Side == "" {
-			continue
-		}
-		if side != "" && view.Side != side {
-			continue
-		}
-		switch view.Kind {
-		case ProtectiveStopLoss:
-			slSides[view.Side] = true
-		case ProtectiveTakeProfit:
-			tpSides[view.Side] = true
-		}
-	}
-	hasSL, hasTP := false, false
-	for viewSide := range slSides {
-		if tpSides[viewSide] {
-			hasSL, hasTP = true, true
-		}
-	}
-	if hasSL && hasTP {
-		logger.Infof("  [Gate] Protection verified via trigger orders: %s side=%s has %d open trigger orders (SL+TP)", symbol, side, len(views))
+	positionSide, positionExists := t.livePositionSide(symbol)
+	if !positionExists {
+		logger.Infof("  [Gate] %s position is already closed, nothing to protect (order %s)", symbol, orderID)
 		return nil
 	}
-	return fmt.Errorf(
-		"protection missing for %s (order %s, side %q): stop loss present=%v, take profit present=%v, open trigger orders=%d; caller must close immediately",
-		symbol, orderID, side, hasSL, hasTP, len(views))
+	if side == "" {
+		// 委托查询失败（如完结超过 10 分钟）时用交易所持仓方向判定，避免反向遗留保护对误判
+		side = positionSide
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		views, err := t.ListTriggerOrders(symbol)
+		if err != nil {
+			lastErr = fmt.Errorf("protection verification for %s failed: %w", symbol, err)
+		} else {
+			slSides := map[string]bool{}
+			tpSides := map[string]bool{}
+			for _, view := range views {
+				if view.Contract != symbol || !view.KindKnown || view.Side == "" {
+					continue
+				}
+				if side != "" && view.Side != side {
+					continue
+				}
+				switch view.Kind {
+				case ProtectiveStopLoss:
+					slSides[view.Side] = true
+				case ProtectiveTakeProfit:
+					tpSides[view.Side] = true
+				}
+			}
+			hasSL, hasTP := false, false
+			for viewSide := range slSides {
+				if tpSides[viewSide] {
+					hasSL, hasTP = true, true
+				}
+			}
+			if hasSL && hasTP {
+				logger.Infof("  [Gate] Protection verified via trigger orders: %s side=%s has %d open trigger orders (SL+TP)",
+					symbol, side, len(views))
+				return nil
+			}
+			lastErr = fmt.Errorf(
+				"protection missing for %s (order %s, side %q): stop loss present=%v, take profit present=%v, open trigger orders=%d; caller must close immediately",
+				symbol, orderID, side, hasSL, hasTP, len(views))
+		}
+		if attempt < 3 {
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
+	return lastErr
+}
+
+// livePositionSide 返回该合约当前持仓的方向（"LONG"/"SHORT"）与是否存在持仓。
+// 读取失败按“存在但方向未知”（"", true）处理，让调用方走列表核对而不是跳过保护检查。
+func (t *GateTrader) livePositionSide(symbol string) (string, bool) {
+	positions, _, err := t.client.FuturesApi.ListPositions(t.ctx, "usdt", nil)
+	if err != nil {
+		return "", true
+	}
+	for _, pos := range positions {
+		if pos.Contract != symbol {
+			continue
+		}
+		size, err := parseDecimal("position size", pos.Size)
+		if err != nil || size.Sign() == 0 {
+			continue
+		}
+		if size.Sign() < 0 {
+			return "SHORT", true
+		}
+		return "LONG", true
+	}
+	return "", false
 }

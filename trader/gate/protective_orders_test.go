@@ -108,49 +108,49 @@ func TestBuildPositionProtectiveOrder(t *testing.T) {
 func TestApplyAttachedTPSL(t *testing.T) {
 	t.Run("多头止损低于止盈", func(t *testing.T) {
 		order := &gateapi.FuturesOrder{Contract: "DOGE_USDT", Size: "17"}
-		require.NoError(t, ApplyAttachedTPSL(order, "LONG", 0.14, 0.18))
+		require.NoError(t, ApplyAttachedTPSL(order, "LONG", "0.14", "0.18"))
 		assert.Equal(t, "0.14", order.TpslSlTriggerPrice)
 		assert.Equal(t, "0.18", order.TpslTpTriggerPrice)
 	})
 
 	t.Run("空头止盈低于止损", func(t *testing.T) {
 		order := &gateapi.FuturesOrder{Contract: "DOGE_USDT", Size: "-17"}
-		require.NoError(t, ApplyAttachedTPSL(order, "SHORT", 0.18, 0.14))
+		require.NoError(t, ApplyAttachedTPSL(order, "SHORT", "0.18", "0.14"))
 		assert.Equal(t, "0.18", order.TpslSlTriggerPrice)
 		assert.Equal(t, "0.14", order.TpslTpTriggerPrice)
 	})
 
 	t.Run("方向大小写与空白", func(t *testing.T) {
 		order := &gateapi.FuturesOrder{Contract: "DOGE_USDT"}
-		require.NoError(t, ApplyAttachedTPSL(order, " long ", 0.14, 0.18))
+		require.NoError(t, ApplyAttachedTPSL(order, " long ", "0.14", "0.18"))
 		assert.Equal(t, "0.14", order.TpslSlTriggerPrice)
 	})
 
 	t.Run("拒绝矩阵", func(t *testing.T) {
-		err := ApplyAttachedTPSL(nil, "LONG", 1, 2)
+		err := ApplyAttachedTPSL(nil, "LONG", "1", "2")
 		assert.Error(t, err, "nil order")
 
-		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{}, "LONG", 1, 2)
+		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{}, "LONG", "1", "2")
 		assert.Error(t, err, "empty contract")
 
-		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "BOTH", 1, 2)
+		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "BOTH", "1", "2")
 		assert.Error(t, err, "bad side")
 
-		for _, price := range []float64{0, -1, math.NaN()} {
-			err := ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "LONG", price, 2)
-			assert.Error(t, err, "stop loss %v", price)
-			err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "LONG", 1, price)
-			assert.Error(t, err, "take profit %v", price)
+		for _, price := range []string{"", "0", "-1", "abc", "1e-1", "NaN"} {
+			err := ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "LONG", price, "2")
+			assert.Error(t, err, "stop loss %q", price)
+			err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "LONG", "1", price)
+			assert.Error(t, err, "take profit %q", price)
 		}
 
 		// 多头止损不低于止盈、空头止盈不低于止损都拒绝：两价必须分居入场价两侧
-		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "LONG", 0.18, 0.18)
+		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "LONG", "0.18", "0.18")
 		assert.Error(t, err, "long sl == tp")
-		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "LONG", 0.20, 0.18)
+		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "LONG", "0.20", "0.18")
 		assert.Error(t, err, "long sl > tp")
-		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "SHORT", 0.14, 0.14)
+		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "SHORT", "0.14", "0.14")
 		assert.Error(t, err, "short tp == sl")
-		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "SHORT", 0.12, 0.14)
+		err = ApplyAttachedTPSL(&gateapi.FuturesOrder{Contract: "DOGE_USDT"}, "SHORT", "0.12", "0.14")
 		assert.Error(t, err, "short tp > sl")
 	})
 }

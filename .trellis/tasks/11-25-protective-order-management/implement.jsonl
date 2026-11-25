@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/11-25-protective-order-management/design.md", "reason": "本子任务的契约、数据流、执行顺序与已知边界"}
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "适配器能力接口的既有约定：值对象、读回校验、fail-closed、真实探针留档位置"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误包装与错误链的层间约定"}
+{"file": ".trellis/tasks/archive/2026-11/11-24-protective-order-adapter/research/gate-price-order-docs.md", "reason": "条件单字段、触发规则、order_type、改单不可用（H.2）的文档与实测留档"}
+{"file": ".trellis/tasks/archive/2026-11/11-25-partial-close/probe/README.md", "reason": "分批平仓实测与 F43 观察来源"}

@@ -145,7 +145,7 @@ func TestFormatQuantityFloor(t *testing.T) {
 }
 
 func TestContractsFromQuantityFloor(t *testing.T) {
-	spec, err := NewContractSpec("DOGE_USDT", "10", "1", "1000000", "0", false)
+	spec, err := NewContractSpec("DOGE_USDT", "10", "1", "1000000", "0", "0.00001", false)
 	require.NoError(t, err)
 
 	contracts, err := spec.ContractsFromQuantityFloor(170)
@@ -182,7 +182,7 @@ func TestContractsFromQuantityFloor(t *testing.T) {
 	require.Error(t, err)
 
 	// 小数步长合约（ETH：0.1 张步长）：0.0017 币 = 0.17 张 → 0.1 张
-	ethSpec, err := NewContractSpec("ETH_USDT", "0.01", "0.1", "10000000", "8000000", true)
+	ethSpec, err := NewContractSpec("ETH_USDT", "0.01", "0.1", "10000000", "8000000", "0.01", true)
 	require.NoError(t, err)
 	contracts, err = ethSpec.ContractsFromQuantityFloor(0.0017)
 	require.NoError(t, err)

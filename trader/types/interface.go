@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"nofx/logger"
 	"time"
@@ -125,6 +126,9 @@ type ProtectedOpenResult struct {
 	Notional  float64 // 张数 × 价格的实际名义价值（USDT）
 	FillPrice float64
 	Quantity  float64 // 币数量（张数 × 每张币数量，展示与记账用）
+	// StopLoss / TakeProfit 对齐到合约价格步长后的实际触发价（交易所接受的值）
+	StopLoss   float64
+	TakeProfit float64
 }
 
 // MarginSettingsApplier 按 trader 的设置一次性生效仓位的保证金模式与杠杆。
@@ -189,6 +193,61 @@ type PartialCloser interface {
 	// ClosePartial 按比例平掉部分持仓；比例换算后不足一个最小步长时报错。
 	ClosePartial(req PartialCloseRequest) (PartialCloseResult, error)
 }
+
+// ProtectionKind 保护单类型：止损或止盈
+type ProtectionKind string
+
+const (
+	ProtectionStopLoss   ProtectionKind = "stop_loss"
+	ProtectionTakeProfit ProtectionKind = "take_profit"
+)
+
+// PositionProtection 当前持仓的止损止盈读取结果。来源是交易所上该合约未触发的条件单：
+// 同类多条并存时取距现价最近（最先触发）的一条作为有效值，计数给出实际条数。
+// 止损与止盈都可读时 Known 为 true；否则模型不得修改该持仓的保护（旧保护无法保证被替换）。
+type PositionProtection struct {
+	StopLoss         float64 // 有效止损触发价；0 = 无
+	TakeProfit       float64 // 有效止盈触发价；0 = 无
+	StopLossOrders   int     // 同侧止损条件单条数
+	TakeProfitOrders int     // 同侧止盈条件单条数
+	Known            bool    // 止损与止盈都可读
+	Reason           string  // Known=false 的原因（英文，给日志与提示词）
+}
+
+// ProtectionUpdateRequest 修改止损或止盈的请求。新价格由模型给出，适配器负责对齐价格步长、
+// 挂新单、核对、撤销旧单；Principal 与 MaxLossPercent 用于执行时的亏损上限复核（止损）。
+type ProtectionUpdateRequest struct {
+	Symbol         string
+	Side           string         // "long" / "short"
+	Kind           ProtectionKind // 止损或止盈
+	Price          float64        // 新的触发价（未对齐）
+	Principal      float64        // 本金（D4 口径）
+	MaxLossPercent float64        // 止损时的亏损上限（百分点）；止盈忽略
+}
+
+// ProtectionUpdateResult 改单结果：新保护单与它替换掉的旧保护单。
+type ProtectionUpdateResult struct {
+	OrderID          string // 新保护单 ID
+	Kind             ProtectionKind
+	OldPrice         float64  // 替换前生效的触发价；0 = 原先没有该类型的保护单
+	NewPrice         float64  // 对齐后的实际触发价
+	ReplacedOrderIDs []string // 被撤销的旧保护单 ID
+}
+
+// ProtectiveOrderManager 止损止盈管理能力：每轮读取持仓当前的止损止盈，按需撤旧建新。
+// 自动交易的修改动作要求适配器实现它，未实现的适配器在发请求前被拒绝（fail-closed）。
+type ProtectiveOrderManager interface {
+	// PositionProtection 读取该持仓当前的止损止盈；读取失败返回错误。
+	PositionProtection(symbol, side string) (PositionProtection, error)
+
+	// UpdateProtection 把止盈或止损改到新价格：先挂新单并核对，再撤销旧单并核对；
+	// 失败时恢复原保护，不留下无保护的持仓。
+	UpdateProtection(req ProtectionUpdateRequest) (ProtectionUpdateResult, error)
+}
+
+// ErrPositionUnprotected 改单或恢复过程中保护单已无法确认存在：调用方必须立即平仓
+// （保护不变量：持仓从存在那一刻起必须带有止损与止盈）。
+var ErrPositionUnprotected = errors.New("position is not protected")
 
 // OpenOrder represents a pending order on the exchange
 type OpenOrder struct {

@@ -22,7 +22,7 @@ func mustSpec(t *testing.T, name, multiplier, sizeMin, sizeMax string, enableDec
 
 func mustSpecCapped(t *testing.T, name, multiplier, sizeMin, sizeMax, marketMax string, enableDecimal bool) ContractSpec {
 	t.Helper()
-	spec, err := NewContractSpec(name, multiplier, sizeMin, sizeMax, marketMax, enableDecimal)
+	spec, err := NewContractSpec(name, multiplier, sizeMin, sizeMax, marketMax, "0.01", enableDecimal)
 	require.NoError(t, err)
 	return spec
 }
@@ -34,6 +34,7 @@ func TestNewContractSpec(t *testing.T) {
 		sizeMin       string
 		sizeMax       string
 		marketMax     string
+		tick          string
 		enableDecimal bool
 		wantMarketMax string // 构造成功时 MarketOrderSizeMax 的取值
 		wantErr       string // 为空表示应构造成功
@@ -59,10 +60,17 @@ func TestNewContractSpec(t *testing.T) {
 		{name: "市价单上限为负", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "-1", wantErr: "is negative"},
 		{name: "市价单上限小于最小步长", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "0.5", wantErr: `market_order_size_max "0.5" is below order_size_min`},
 		{name: "市价单上限不是数字", multiplier: "0.1", sizeMin: "1", sizeMax: "3", marketMax: "abc", wantErr: "invalid market_order_size_max"},
+		{name: "价格步长为空", multiplier: "0.1", sizeMin: "1", sizeMax: "3", tick: " ", wantErr: "invalid order_price_round"},
+		{name: "价格步长为零", multiplier: "0.1", sizeMin: "1", sizeMax: "3", tick: "0", wantErr: "is not positive"},
+		{name: "价格步长为负", multiplier: "0.1", sizeMin: "1", sizeMax: "3", tick: "-0.01", wantErr: "is not positive"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			spec, err := NewContractSpec("TEST_USDT", c.multiplier, c.sizeMin, c.sizeMax, c.marketMax, c.enableDecimal)
+			tick := c.tick
+			if tick == "" {
+				tick = "0.01"
+			}
+			spec, err := NewContractSpec("TEST_USDT", c.multiplier, c.sizeMin, c.sizeMax, c.marketMax, tick, c.enableDecimal)
 			if c.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), c.wantErr)
@@ -77,7 +85,7 @@ func TestNewContractSpec(t *testing.T) {
 		})
 	}
 
-	_, err := NewContractSpec("", "0.01", "1", "1000", "", false)
+	_, err := NewContractSpec("", "0.01", "1", "1000", "", "0.01", false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "contract name is empty")
 }
@@ -408,6 +416,7 @@ func TestGateTrader_GetContractSpec(t *testing.T) {
 		writeJSON(w, map[string]interface{}{
 			"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
 			"order_size_max": "10000000", "market_order_size_max": "8000000", "enable_decimal": true,
+			"order_price_round": "0.01",
 		})
 	})
 
@@ -450,6 +459,7 @@ func TestGateTrader_GetContractSpecDoesNotCacheFailures(t *testing.T) {
 		writeJSON(w, map[string]interface{}{
 			"name": "BTC_USDT", "quanto_multiplier": "0.0001", "order_size_min": "1",
 			"order_size_max": "12000000", "enable_decimal": false,
+			"order_price_round": "0.1",
 		})
 	})
 
@@ -478,6 +488,7 @@ func TestGateTrader_GetContractSpecRejectsInconsistentMetadata(t *testing.T) {
 		writeJSON(w, map[string]interface{}{
 			"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": sizeMin,
 			"order_size_max": "10000000", "enable_decimal": fractional.Load(),
+			"order_price_round": "0.01",
 		})
 	})
 
@@ -501,6 +512,7 @@ func TestGateTrader_GetContractSpecConcurrent(t *testing.T) {
 		writeJSON(w, map[string]interface{}{
 			"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
 			"order_size_max": "10000000", "market_order_size_max": "8000000", "enable_decimal": true,
+			"order_price_round": "0.01",
 		})
 	})
 
@@ -543,4 +555,47 @@ func TestGateTrader_GetContractSpecConcurrent(t *testing.T) {
 	_, err := gt.GetContractSpec("ETHUSDT")
 	require.NoError(t, err)
 	assert.Equal(t, served, atomic.LoadInt32(&requests), "缓存填好后不再请求")
+}
+
+func TestContractSpec_AlignTriggerPrice(t *testing.T) {
+	// DOGE：tick 0.00001（真实读数）；ETH：tick 0.01
+	doge, err := NewContractSpec("DOGE_USDT", "10", "1", "1000000", "0", "0.00001", false)
+	require.NoError(t, err)
+	ethSpec, err := NewContractSpec("ETH_USDT", "0.01", "0.1", "10000000", "8000000", "0.01", true)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name    string
+		spec    ContractSpec
+		price   float64
+		dir     PriceAlignDirection
+		want    string
+		wantErr string
+	}{
+		{name: "DOGE 向上对齐到 tick", spec: doge, price: 0.048915, dir: PriceAlignUp, want: "0.04892"},
+		{name: "DOGE 向下对齐到 tick", spec: doge, price: 0.048915, dir: PriceAlignDown, want: "0.04891"},
+		{name: "已经是 tick 整数倍时不变（向上）", spec: doge, price: 0.48, dir: PriceAlignUp, want: "0.48000"},
+		{name: "已经是 tick 整数倍时不变（向下）", spec: doge, price: 0.48, dir: PriceAlignDown, want: "0.48000"},
+		{name: "ETH 向上对齐两位小数", spec: ethSpec, price: 1700.005, dir: PriceAlignUp, want: "1700.01"},
+		{name: "ETH 向下对齐两位小数", spec: ethSpec, price: 1700.005, dir: PriceAlignDown, want: "1700.00"},
+		{name: "对齐方向非法", spec: doge, price: 0.48, dir: 0, wantErr: "invalid price align direction"},
+		{name: "价格为零", spec: doge, price: 0, dir: PriceAlignDown, wantErr: "must be positive"},
+		{name: "价格为负", spec: doge, price: -1, dir: PriceAlignDown, wantErr: "must be positive"},
+		{name: "价格向下越过一个 tick", spec: doge, price: 0.000005, dir: PriceAlignDown, wantErr: "below one price step"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			text, value, err := c.spec.AlignTriggerPrice(c.price, c.dir)
+			if c.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), c.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, c.want, text)
+			parsed, err := parseDecimal("aligned", text)
+			require.NoError(t, err)
+			assert.Zero(t, parsed.Cmp(value), "字符串与精确值一致")
+		})
+	}
 }

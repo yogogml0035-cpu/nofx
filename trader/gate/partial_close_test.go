@@ -200,6 +200,7 @@ func TestClosePartialRespectsMarketOrderMax(t *testing.T) {
 		"ETH_USDT": {
 			"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
 			"order_size_max": "10000000", "market_order_size_max": "0.2", "enable_decimal": true,
+			"order_price_round": "0.01",
 		},
 	}
 	gt := newLocalGateTrader(t, mock.handler)

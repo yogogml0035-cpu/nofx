@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/11-25-protective-order-management/prd.md", "reason": "验收标准与范围"}
+{"file": ".trellis/tasks/11-25-protective-order-management/design.md", "reason": "应实现的契约、执行顺序与失败恢复"}
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "适配器约定的检查基线（读回校验、fail-closed）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试与命名质量基线"}
+{"file": ".trellis/tasks/archive/2026-11/11-24-protective-order-adapter/research/gate-price-order-docs.md", "reason": "核对实现与文档/实测事实是否一致"}
