@@ -440,3 +440,46 @@
 ### Next Steps
 
 - ⑮ assistant-market：24h 行情/K 线工具/简报/价格告警改 Gate，删除 /api/agent/klines|ticker 与 Binance 取数；然后 ⑯→⑰
+
+
+## Session 13: 子任务 15 assistant-market：助手行情全切 Gate，删除旧 market 内嵌路径与 Binance 取数
+<!-- trellis-session: v=2 fp=86d3563605da9cde -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 15 assistant-market：助手行情全切 Gate，删除旧 market 内嵌路径与 Binance 取数
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+助手 24h 行情/快照/K 线工具/简报/告警全部改 Gate；删除两个旧接口与全部 Binance 取数，删除 market.Get/Format/旧内嵌结构；修复 30d 小 limit 与 HYPE 误判；独立检查 PASS，探针通过，已合父归档
+
+### Main Changes
+
+- market：GateTicker 扩展 24h 高低/涨跌；GetGateContractMetrics（标记/指数/资金/下次结算/OI USD）；30d 小 limit 全历史拉取；ticker 列表跳过脏合约；stats 拆分 OI/资金解析
+- agent：market_source 汇聚层与测试缝；/api/agent/tickers 改 Gate；snapshot/kline 工具改 Gate（D25 枚举、USDT 成交量、OI USD）；Brain/Sentinel/agent.go 改 Gate；无 AI 兜底动态精度
+- 删除 /api/agent/klines|ticker、proxyBinance/binanceClient、Binance 取数、market.Get/GetWithExchange/Format/Intraday/LongerTerm/BuildDataFromKlines、kernel 旧格式分支；grid ATR/EMA50 改时间周期数据
+- F47：Gate 30d 小 limit 占位根，已修复
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `30b8cc26` | feat(assistant): 助手行情全切 Gate，删除 agent klines/ticker 接口与 Binance 取数及旧 market 内嵌路径（子任务 15） |
+| `1b52234e` | fix(market): 30d 小 limit 先拉全历史再截取（Gate 占位根）、工具周期枚举与 F47 留档（子任务 15） |
+| `4e79c5dc` | fix(assistant): 检查修复——Gate 币种不被误判股票、ticker 列表跳过异常合约、摘要动态精度与 4h EMA50（子任务 15） |
+| `eeac13fc` | fix(market): 合约指标只解析持仓量，不因 stats 资金费率缺失失败（子任务 15 P3 收口） |
+| `2f7f25b0` | fix(market): 跳过脏合约日志降为 Debug、补全脏列表用例（子任务 15 复核收口） |
+| `f9644929` | merge: 助手行情切 Gate 并入父分支（子任务 15：30b8cc26 实施 + 1b52234e/4e79c5dc/eeac13fc/2f7f25b0 检查修复；独立检查复核 PASS，探针 PROBE_PASS，make test（Go 625 + 前端 162）/build 全过） |
+
+### Testing
+
+- [OK] git diff --check；make test（Go 625 用例 + 前端 162 用例）；make build；tsc --noEmit；vite build；独立检查复核 PASS
+- [OK] 真实探针 PROBE_PASS：ticker/metrics/K 线 10s/15m/1d/7d/30d，末根与 ticker 偏离 ≤5%
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ⑯ scan-alignment（主周期收线对齐 + 固定延迟），然后 ⑰ infra-hygiene

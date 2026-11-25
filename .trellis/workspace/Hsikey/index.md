@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 12
+- **Total Sessions**: 13
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~442 | Active |
+| `journal-1.md` | ~485 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 13 | 2026-11-25 | 子任务 15 assistant-market：助手行情全切 Gate，删除旧 market 内嵌路径与 Binance 取数 | `30b8cc26`, `1b52234e`, `4e79c5dc`, `eeac13fc`, `2f7f25b0`, `f9644929` | `feat/2026_1123_gate-trading-foundation` |
 | 12 | 2026-11-25 | 子任务 14 chart-klines-gate：/api/klines 加密货币切 Gate，清理 CoinAnk K 线与前端 exchange | `374bd603`, `30e6a4c3`, `35e9f508`, `d6236560` | `feat/2026_1123_gate-trading-foundation` |
 | 11 | 2026-11-25 | 子任务 13 engine-klines-gate：决策 K 线与网格箱体切 Gate | `13246f0f`, `ad5fef58`, `bdc844ea`, `89a3a97e`, `0e498514` | `feat/2026_1123_gate-trading-foundation` |
 | 10 | 2026-11-25 | 子任务 12 market-source：Gate 合约 K 线与 ticker 取数 | `7c4e0267`, `3be668b6`, `0c1323e1` | `feat/2026_1123_gate-trading-foundation` |
