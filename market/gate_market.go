@@ -120,8 +120,14 @@ func GetGateKlines(symbol, interval string, limit int) ([]Kline, error) {
 		return nil, fmt.Errorf("gate kline limit must be in [1, %d], got %d", gateKlineMaxLimit, limit)
 	}
 	contract := toGateContractSymbol(symbol)
+	// Gate 的 30d 小 limit 返回非月初窗口，并夹杂无成交的占位根（2026-11-25 实测：0.1268 / v=0 /
+	// sum=0）；用全历史上限拉取后再截取最后 limit 根，保证月初对齐与真实读数。1w/7d 小 limit 正常。
+	requestLimit := limit
+	if interval == "30d" && limit < gateKlineMaxLimit {
+		requestLimit = gateKlineMaxLimit
+	}
 	url := fmt.Sprintf("%s/futures/usdt/candlesticks?contract=%s&interval=%s&limit=%d",
-		gateFuturesBaseURL, contract, interval, limit)
+		gateFuturesBaseURL, contract, interval, requestLimit)
 
 	var rows []gateCandleGate
 	if err := getGateJSON(url, &rows); err != nil {
@@ -191,6 +197,10 @@ func GetGateKlines(symbol, interval string, limit int) ([]Kline, error) {
 		} else {
 			klines[i].CloseTime = klines[i].OpenTime + intervalMillis
 		}
+	}
+	// 截取最后 limit 根（30d 的小 limit 走了全历史拉取）
+	if len(klines) > limit {
+		klines = klines[len(klines)-limit:]
 	}
 	return klines, nil
 }

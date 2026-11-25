@@ -755,7 +755,8 @@ func buildAgentTools() []mcp.Tool {
 						},
 						"interval": map[string]any{
 							"type":        "string",
-							"description": "Kline interval for the structure snapshot, for example 5m, 15m, 1h, or 4h. Defaults to 15m.",
+							"enum":        []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"},
+							"description": "Kline interval for the structure snapshot (Gate contract candles). Defaults to 15m. Volume is USDT turnover and open interest is USD.",
 						},
 						"limit": map[string]any{
 							"type":        "number",
@@ -780,7 +781,8 @@ func buildAgentTools() []mcp.Tool {
 						},
 						"interval": map[string]any{
 							"type":        "string",
-							"description": "Kline interval, for example 1m, 5m, 15m, 1h, 4h, or 1d. Defaults to 15m.",
+							"enum":        []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"},
+							"description": "Kline interval (Gate contract candles). Defaults to 15m; volume is USDT turnover.",
 						},
 						"limit": map[string]any{
 							"type":        "number",

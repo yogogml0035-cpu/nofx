@@ -497,3 +497,39 @@ func TestGetGateContractMetricsFailClosed(t *testing.T) {
 		})
 	}
 }
+
+func TestGetGateKlinesMonthlySmallLimitFetchesAllHistory(t *testing.T) {
+	// 30d 小 limit：向 Gate 请求全历史上限，再截取最后 limit 根（避免非月初/占位根）
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if got := query.Get("interval"); got != "30d" {
+			t.Errorf("interval = %q", got)
+		}
+		if got := query.Get("limit"); got != "2000" {
+			t.Errorf("30d small limit must request 2000, got %q", got)
+		}
+		fmt.Fprint(w, `[
+		 {"t":1767225600,"v":"1","c":"90","h":"91","l":"89","o":"90","sum":"10"},
+		 {"t":1769904000,"v":"1","c":"91","h":"92","l":"90","o":"91","sum":"11"},
+		 {"t":1772323200,"v":"1","c":"92","h":"93","l":"91","o":"92","sum":"12"},
+		 {"t":1775001600,"v":"1","c":"93","h":"94","l":"92","o":"93","sum":"13"},
+		 {"t":1777593600,"v":"1","c":"94","h":"95","l":"93","o":"94","sum":"14"}
+		]`)
+	}))
+	overrideGateBaseURL(t, srv)
+
+	klines, err := GetGateKlines("BTC_USDT", "30d", 3)
+	if err != nil {
+		t.Fatalf("GetGateKlines: %v", err)
+	}
+	if len(klines) != 3 {
+		t.Fatalf("len = %d, want last 3 bars", len(klines))
+	}
+	// 截取后的第一根（原第 3 根）CloseTime 仍是全序列里下一根的开盘（1775001600）
+	if klines[0].CloseTime != 1775001600000 {
+		t.Errorf("sliced close time = %d, want 1775001600000", klines[0].CloseTime)
+	}
+	if klines[2].Close != 94 || klines[2].Volume != 14 {
+		t.Errorf("last sliced bar = %+v", klines[2])
+	}
+}

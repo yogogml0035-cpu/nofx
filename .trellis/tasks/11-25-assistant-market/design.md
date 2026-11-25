@@ -29,6 +29,10 @@ func GetGateContractMetrics(symbol string) (GateContractMetrics, error)
 
 - ticker 的 `high_24h/low_24h/change_price` 为可选字段（新合约可能缺省 → 0，不让整个列表失败）；
   `last`、`change_percentage`、`volume_24h_quote` 仍严格必填。
+- **30d 小 limit 的 Gate 行为（2026-11-25 实测）**：`interval=30d` 且 limit 较小（如 50）时，
+  Gate 返回非月初窗口并夹杂无成交占位根（价格 0.1268、v=0、sum=0）；limit=200/2000 时是
+  月初对齐的真实月线。`GetGateKlines` 对 30d 小 limit 先按上限 2000 拉全历史，再截取最后
+  limit 根（1w/7d 小 limit 实测正常，不做特殊处理）。
 - `GetGateContractMetrics`：`GET /futures/usdt/contracts/{contract}` 取标记/指数/资金费率/
   下次结算；`contract_stats` 取最新 `open_interest_usd`；任一失败即错误（快照 fail-closed）。
 
