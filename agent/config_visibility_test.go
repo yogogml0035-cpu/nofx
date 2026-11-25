@@ -527,8 +527,8 @@ func TestToolCreateTraderResponseHidesLegacyTraderTuningFields(t *testing.T) {
 	}
 
 	originalFetcher := traderInitialBalanceFetcher
-	traderInitialBalanceFetcher = func(exchangeCfg *store.Exchange, userID string) (float64, bool, error) {
-		return 88.5, true, nil
+	traderInitialBalanceFetcher = func(exchangeCfg *store.Exchange, userID string) (float64, error) {
+		return 88.5, nil
 	}
 	defer func() {
 		traderInitialBalanceFetcher = originalFetcher
@@ -576,14 +576,14 @@ func TestToolCreateTraderAutoReadsInitialBalanceFromExchange(t *testing.T) {
 	}
 
 	originalFetcher := traderInitialBalanceFetcher
-	traderInitialBalanceFetcher = func(exchangeCfg *store.Exchange, userID string) (float64, bool, error) {
+	traderInitialBalanceFetcher = func(exchangeCfg *store.Exchange, userID string) (float64, error) {
 		if exchangeCfg == nil || exchangeCfg.ID != exchangeID {
 			t.Fatalf("unexpected exchange config passed to balance fetcher: %#v", exchangeCfg)
 		}
 		if userID != "default" {
 			t.Fatalf("unexpected user id %q", userID)
 		}
-		return 4321.25, true, nil
+		return 4321.25, nil
 	}
 	defer func() {
 		traderInitialBalanceFetcher = originalFetcher

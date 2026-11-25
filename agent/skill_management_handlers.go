@@ -1424,7 +1424,7 @@ func formatTraderCreateDraftSummary(lang string, session skillSession) string {
 			fmt.Sprintf("- 模型：%s", traderCreateModelNameOrID(session)),
 			fmt.Sprintf("- 策略：%s", traderCreateStrategyNameOrID(session)),
 			fmt.Sprintf("- 扫描间隔：%d 分钟（未指定时默认 3）", scanInterval),
-			"- 初始余额：创建时由系统自动读取绑定交易所账户净值",
+			"- 初始余额：创建时由系统自动读取绑定交易所账户的本金（不含浮动盈亏）",
 			fmt.Sprintf("- 全仓模式：%t（未指定时默认 true）", isCrossMargin),
 			fmt.Sprintf("- 竞技场显示：%t（未指定时默认 true）", showInCompetition),
 		}
@@ -1455,7 +1455,7 @@ func formatTraderCreateDraftSummary(lang string, session skillSession) string {
 		fmt.Sprintf("- Model: %s", traderCreateModelNameOrID(session)),
 		fmt.Sprintf("- Strategy: %s", traderCreateStrategyNameOrID(session)),
 		fmt.Sprintf("- Scan interval: %d minutes (defaults to 3)", scanInterval),
-		"- Initial balance: auto-read from the bound exchange account equity at creation time",
+		"- Initial balance: recorded at creation from the bound exchange account's principal (balance excluding unrealized P&L)",
 		fmt.Sprintf("- Cross margin: %t (defaults to true)", isCrossMargin),
 		fmt.Sprintf("- Show in competition: %t (defaults to true)", showInCompetition),
 	}

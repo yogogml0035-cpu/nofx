@@ -26,9 +26,10 @@ func (s *openRefusalStub) GetPositions() ([]map[string]interface{}, error) {
 
 func (s *openRefusalStub) GetBalance() (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"availableBalance":   100.0,
-		"totalWalletBalance": 100.0,
-		"totalEquity":        100.0,
+		"availableBalance":      100.0,
+		"totalWalletBalance":    100.0,
+		"totalUnrealizedProfit": 0.0,
+		"totalEquity":           100.0,
 	}, nil
 }
 
@@ -91,9 +92,10 @@ func (s *protectedCaptureStub) GetPositions() ([]map[string]interface{}, error) 
 
 func (s *protectedCaptureStub) GetBalance() (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"availableBalance":   100.0,
-		"totalWalletBalance": 100.0,
-		"totalEquity":        100.0,
+		"availableBalance":      100.0,
+		"totalWalletBalance":    100.0,
+		"totalUnrealizedProfit": 0.0,
+		"totalEquity":           100.0,
 	}, nil
 }
 

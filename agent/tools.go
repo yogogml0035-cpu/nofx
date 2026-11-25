@@ -28,6 +28,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/trader/types"
 )
 
 // cachedTools holds the static tool definitions (built once, reused per message).
@@ -1033,22 +1034,21 @@ func safeExchangeForTool(ex *store.Exchange) safeExchangeToolConfig {
 	}
 }
 
-func defaultTraderInitialBalanceFetcher(exchangeCfg *store.Exchange, userID string) (float64, bool, error) {
+// defaultTraderInitialBalanceFetcher 读交易所账户的当前本金，作为新建 trader 的初始资金（计划文档第 5 节）。
+// 读不到账户读数，或账户本金不为正，都返回错误（本金是盈亏统计的基准，必须大于 0）
+func defaultTraderInitialBalanceFetcher(exchangeCfg *store.Exchange, userID string) (float64, error) {
 	if exchangeCfg == nil {
-		return 0, false, fmt.Errorf("exchange config not found")
+		return 0, fmt.Errorf("exchange config not found")
 	}
 	probe, err := buildTraderExchangeProbe(exchangeCfg, userID)
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
-	balanceInfo, err := probe.GetBalance()
-	if err != nil {
-		return 0, false, err
-	}
-	return extractTraderInitialBalance(balanceInfo)
+	return types.ReadInitialBalance(probe)
 }
 
-func buildTraderExchangeProbe(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
+// buildTraderExchangeProbe 按交易所配置构造探测用的适配器。是变量：单元测试里换成不连交易所的桩。
+var buildTraderExchangeProbe = func(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
 	switch exchangeCfg.ExchangeType {
 	case "binance":
 		return binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID), nil
@@ -1080,33 +1080,6 @@ func buildTraderExchangeProbe(exchangeCfg *store.Exchange, userID string) (trade
 	default:
 		return nil, fmt.Errorf("unsupported exchange type: %s", exchangeCfg.ExchangeType)
 	}
-}
-
-func extractTraderInitialBalance(balanceInfo map[string]interface{}) (float64, bool, error) {
-	for _, key := range []string{"total_equity", "totalEquity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"} {
-		raw, ok := balanceInfo[key]
-		if !ok {
-			continue
-		}
-		switch v := raw.(type) {
-		case float64:
-			return v, true, nil
-		case float32:
-			return float64(v), true, nil
-		case int:
-			return float64(v), true, nil
-		case int64:
-			return float64(v), true, nil
-		case int32:
-			return float64(v), true, nil
-		case string:
-			parsed, err := strconv.ParseFloat(v, 64)
-			if err == nil {
-				return parsed, true, nil
-			}
-		}
-	}
-	return 0, false, fmt.Errorf("initial balance not set and unable to fetch balance from exchange")
 }
 
 func safeModelForTool(model *store.AIModel) safeModelToolConfig {
@@ -2265,12 +2238,9 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 			scanInterval = 3
 		}
 	}
-	initialBalance, found, err := traderInitialBalanceFetcher(exchangeCfg, storeUserID)
+	initialBalance, err := traderInitialBalanceFetcher(exchangeCfg, storeUserID)
 	if err != nil {
 		return fmt.Sprintf(`{"error":"failed to auto-read trader initial balance from exchange: %s"}`, err)
-	}
-	if !found {
-		return `{"error":"failed to auto-read trader initial balance from exchange"}`
 	}
 	isCrossMargin := true
 	if args.IsCrossMargin != nil {
@@ -2393,6 +2363,14 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 	if err := a.store.Trader().Update(record); err != nil {
 		return fmt.Sprintf(`{"error":"failed to update trader: %s"}`, err)
 	}
+	exchangeRebound := exchangeID != existing.ExchangeID
+	if exchangeRebound {
+		// 换绑交易所：旧初始余额属于原来那个账户。与页面编辑一致，重置后在加载时以新账户的本金重建
+		record.InitialBalance = 0
+		if err := a.store.Trader().UpdateInitialBalance(storeUserID, record.ID, 0); err != nil {
+			return fmt.Sprintf(`{"error":"failed to reset the trader initial balance after rebinding the exchange: %s"}`, err)
+		}
+	}
 	if a.traderManager != nil {
 		a.traderManager.RemoveTrader(record.ID)
 		_ = a.traderManager.LoadUserTradersFromStore(a.store, storeUserID)
@@ -2401,6 +2379,8 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 		"status": "ok",
 		"action": "update",
 		"trader": safeTraderForTool(record, record.IsRunning),
+		// 换绑交易所时初始余额被重置：技能层据此告诉用户
+		"initial_balance_reset": exchangeRebound,
 	})
 	return string(result)
 }

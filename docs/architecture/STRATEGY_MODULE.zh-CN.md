@@ -101,18 +101,27 @@ for _, symbol := range e.config.CoinSource.StaticCoins {
 
 ### 2.1 账户数据
 
+账户读数（本金、未实现盈亏、可用于合约的额度、权益）只有一处定义，在 `trader/types/balance.go`。
+调用方不直接读 `GetBalance()` 返回映射里的键：
+
 ```go
-// trader/auto_trader.go:565-583
-balance, err := at.trader.GetBalance()
-equity := balance["total_equity"].(float64)
-available := balance["available_balance"].(float64)
-unrealizedPnL := balance["total_pnl"].(float64)
+// trader/auto_trader_loop.go, buildTradingContext()
+account, err := types.ReadAccountBalance(at.trader)
+if err != nil {
+    return nil, err // 本轮终止；不回落到别的余额字段
+}
+totalEquity := account.Equity
+availableBalance := account.Available
+totalUnrealizedProfit := account.UnrealizedPnL
 ```
 
-**提取字段:**
-- `total_equity` - 账户总权益
-- `available_balance` - 可用余额
-- `total_pnl` - 未实现盈亏
+**字段：**
+- `Principal` - 不含未实现盈亏、含已实现盈亏的余额；也是初始资金
+- `UnrealizedPnL` - 未实现盈亏
+- `Available` - 可用于合约的保证金
+- `Equity` - 适配器直接报告时用它，否则 `Principal + UnrealizedPnL`
+
+各读数的含义见 `docs/pnl.md`，契约见 `.trellis/spec/backend/exchange-adapters.md`。
 
 ### 2.2 持仓数据
 

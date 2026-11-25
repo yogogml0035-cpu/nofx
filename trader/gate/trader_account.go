@@ -11,7 +11,17 @@ import (
 	"github.com/gate/gateapi-go/v7"
 )
 
-// GetBalance retrieves account balance
+// balanceCurrency 本金与可用于合约额度的计价币种（钱包总额接口的换算目标、合约的结算币种）
+const balanceCurrency = "USDT"
+
+// GetBalance 按统一账户的口径取数（计划文档第 5 节）：
+//
+//	本金           = 钱包总额 total.amount − total.borrowed（不含未实现盈亏，已实现盈亏计入）
+//	未实现盈亏     = 钱包总额 total.unrealised_pnl
+//	可用于合约的额度 = 合约账户 available
+//
+// 合约账户的 total 只适用于经典合约账户，统一账户下恒为 0，不能作钱包余额。
+// 权益（本金 + 未实现盈亏）由 types.ParseAccountBalance 得出，这里不单独报告。
 func (t *GateTrader) GetBalance() (map[string]interface{}, error) {
 	// Check cache
 	t.balanceCacheMutex.RLock()
@@ -22,29 +32,34 @@ func (t *GateTrader) GetBalance() (map[string]interface{}, error) {
 	}
 	t.balanceCacheMutex.RUnlock()
 
-	// Fetch from API
+	wallet, _, err := t.client.WalletApi.GetTotalBalance(t.ctx, &gateapi.GetTotalBalanceOpts{
+		Currency: optional.NewString(balanceCurrency),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get wallet total balance: %w", err)
+	}
 	accounts, _, err := t.client.FuturesApi.ListFuturesAccounts(t.ctx, "usdt")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get balance: %w", err)
+		return nil, fmt.Errorf("failed to get futures account: %w", err)
 	}
 
-	total, err := types.ParseFloatField("total", accounts.Total)
+	principal, err := walletPrincipal(&wallet.Total)
 	if err != nil {
 		return nil, err
 	}
-	available, err := types.ParseFloatField("available", accounts.Available)
+	unrealizedPnl, err := parseOptionalRat("total.unrealised_pnl", wallet.Total.UnrealisedPnl)
 	if err != nil {
 		return nil, err
 	}
-	unrealizedPnl, err := types.ParseFloatField("unrealisedPnl", accounts.UnrealisedPnl)
+	available, err := parseOptionalRat("available", accounts.Available)
 	if err != nil {
 		return nil, err
 	}
 
 	result := map[string]interface{}{
-		"totalWalletBalance":    total,
-		"availableBalance":      available,
-		"totalUnrealizedProfit": unrealizedPnl,
+		types.BalanceKeyPrincipal:     principal,
+		types.BalanceKeyAvailable:     ratFloat(available),
+		types.BalanceKeyUnrealizedPnL: ratFloat(unrealizedPnl),
 	}
 
 	// Update cache
@@ -54,6 +69,26 @@ func (t *GateTrader) GetBalance() (map[string]interface{}, error) {
 	t.balanceCacheMutex.Unlock()
 
 	return result, nil
+}
+
+// walletPrincipal 本金 = total.amount − total.borrowed，按精确十进制相减后再转为 float64。
+// total.amount 必然存在：缺失或解析失败都报错，不按 0 计——统一账户下它是本金的唯一来源。
+// total.borrowed 缺省按 0 计：SDK 文档把这几个字段都标为可选（实测为 0 时仍然返回 "0"，这里是防御性处理）；
+// 有值但解析失败即报错。
+// 响应的币种带值时必须是请求的币种，否则读数的单位不对。
+func walletPrincipal(total *gateapi.AccountBalance) (float64, error) {
+	if total.Currency != "" && total.Currency != balanceCurrency {
+		return 0, fmt.Errorf("wallet total balance currency is %q, want %q", total.Currency, balanceCurrency)
+	}
+	amount, err := parseDecimal("total.amount", total.Amount)
+	if err != nil {
+		return 0, err
+	}
+	borrowed, err := parseOptionalRat("total.borrowed", total.Borrowed)
+	if err != nil {
+		return 0, err
+	}
+	return ratFloat(new(big.Rat).Sub(amount, borrowed)), nil
 }
 
 // GetPositions retrieves all open positions

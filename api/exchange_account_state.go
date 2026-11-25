@@ -20,6 +20,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/trader/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -174,6 +175,8 @@ func probeExchangeAccountState(exchangeCfg *store.Exchange, userID string) Excha
 		return state
 	}
 
+	// 两步取数而不是 ReadAccountBalance：请求失败要按错误内容归类（凭据、权限等），
+	// 与「连上了但读数不符合规范口径」是两种状态
 	balanceInfo, err := tempTrader.GetBalance()
 	if err != nil {
 		status, code, message := classifyExchangeProbeError(err)
@@ -184,44 +187,26 @@ func probeExchangeAccountState(exchangeCfg *store.Exchange, userID string) Excha
 		return state
 	}
 
-	totalEquity, totalFound := extractFirstNumeric(balanceInfo,
-		"total_equity", "totalEquity", "totalWalletBalance", "wallet_balance", "totalEq", "balance")
-	availableBalance, availableFound := extractFirstNumeric(balanceInfo,
-		"available_balance", "availableBalance", "available")
-
-	if !totalFound && availableFound {
-		totalEquity = availableBalance
-		totalFound = true
-	}
-
-	if !availableFound && totalFound {
-		availableBalance = totalEquity
-		availableFound = true
-	}
-
-	if !totalFound && !availableFound {
+	balance, err := types.ParseAccountBalance(balanceInfo)
+	if err != nil {
 		state.Status = exchangeAccountStatusUnavailable
 		state.ErrorCode = "BALANCE_NOT_FOUND"
-		state.ErrorMessage = "Connected but no balance fields were returned"
+		state.ErrorMessage = "Connected but the balance is unreadable: " + limitErrorMessage(err.Error())
+		logger.Infof("⚠️ Exchange account %s (%s) returned an unreadable balance: %v", exchangeCfg.ID, exchangeCfg.ExchangeType, err)
 		return state
 	}
 
 	state.Status = exchangeAccountStatusOK
-	if totalFound {
-		state.TotalEquity = totalEquity
-		state.DisplayBalance = formatDisplayBalance(totalEquity, state.Asset)
-	}
-	if availableFound {
-		state.AvailableBalance = availableBalance
-		if state.DisplayBalance == "" {
-			state.DisplayBalance = formatDisplayBalance(availableBalance, state.Asset)
-		}
-	}
+	state.TotalEquity = balance.Equity
+	state.AvailableBalance = balance.Available
+	state.DisplayBalance = formatDisplayBalance(balance.Equity, state.Asset)
 
 	return state
 }
 
-func buildExchangeProbeTrader(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
+// buildExchangeProbeTrader 按交易所配置构造探测用的适配器（创建 trader、同步余额、账户状态共用）。
+// 是变量：单元测试里换成不连交易所的桩。
+var buildExchangeProbeTrader = func(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
 	switch exchangeCfg.ExchangeType {
 	case "binance":
 		return binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID), nil
@@ -253,40 +238,6 @@ func buildExchangeProbeTrader(exchangeCfg *store.Exchange, userID string) (trade
 	default:
 		return nil, fmt.Errorf("unsupported exchange type: %s", exchangeCfg.ExchangeType)
 	}
-}
-
-func extractExchangeTotalEquity(balanceInfo map[string]interface{}) (float64, bool) {
-	return extractFirstNumeric(balanceInfo,
-		"total_equity", "totalEquity", "totalWalletBalance", "wallet_balance", "totalEq", "balance")
-}
-
-func extractFirstNumeric(values map[string]interface{}, keys ...string) (float64, bool) {
-	for _, key := range keys {
-		raw, ok := values[key]
-		if !ok {
-			continue
-		}
-
-		switch v := raw.(type) {
-		case float64:
-			return v, true
-		case float32:
-			return float64(v), true
-		case int:
-			return float64(v), true
-		case int64:
-			return float64(v), true
-		case int32:
-			return float64(v), true
-		case string:
-			parsed, err := strconv.ParseFloat(v, 64)
-			if err == nil {
-				return parsed, true
-			}
-		}
-	}
-
-	return 0, false
 }
 
 func formatDisplayBalance(value float64, asset string) string {

@@ -223,12 +223,13 @@ NOTE: The id field is "trader_id" (NOT "id"). Always read trader_id from this en
 				s.handleGetTraderConfig)
 			s.routeWithSchema(protected, "POST", "/traders", "Create a new AI trader",
 				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3>}
-IMPORTANT: ai_model_id and exchange_id must be the full "id" value from the Account State, not the provider/type name.`,
+IMPORTANT: ai_model_id and exchange_id must be the full "id" value from the Account State, not the provider/type name.
+The initial balance is not part of the body: it is recorded from the exchange account's current principal. Change it afterwards with PUT /traders/:id.`,
 				s.handleCreateTrader)
 			s.routeWithSchema(protected, "PUT", "/traders/:id", "Update trader configuration",
 				`:id = trader_id from GET /api/my-traders
-Body: {"name":"<string>","ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<EXACT id from GET /api/strategies>","scan_interval_minutes":<int, min 3>,"is_cross_margin":<bool>}
-Only include fields you want to change.`,
+Body: {"name":"<string>","ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<EXACT id from GET /api/strategies>","scan_interval_minutes":<int, min 3>,"is_cross_margin":<bool>,"initial_balance":<number, must be above 0; omit or send 0 to keep the current value. When exchange_id changes to another account, the initial balance is reset and rebuilt from the new account's principal when the trader loads, unless a new value is sent in the same request>}
+name, ai_model_id and exchange_id are required: send their current values when you only change other fields.`,
 				s.handleUpdateTrader)
 			s.routeWithSchema(protected, "DELETE", "/traders/:id", "Delete trader",
 				`:id = trader_id from GET /api/my-traders. Stops and permanently removes the trader and all its data.`,
@@ -243,7 +244,7 @@ Only include fields you want to change.`,
 				`Body: {"prompt":"<string — the full custom prompt text>"}`,
 				s.handleUpdateTraderPrompt)
 			s.routeWithSchema(protected, "POST", "/traders/:id/sync-balance", "Sync account balance from exchange",
-				`:id = trader_id from GET /api/my-traders. No request body needed. Refreshes initial_balance from the exchange.`,
+				`:id = trader_id from GET /api/my-traders. No request body needed. Sets initial_balance to the exchange account's current principal (the balance excluding unrealized P&L).`,
 				s.handleSyncBalance)
 			s.routeWithSchema(protected, "POST", "/traders/:id/close-position", "Force-close an open position",
 				`:id = trader_id from GET /api/my-traders.

@@ -40,6 +40,15 @@ and `trader/types/interface.go`) and the two-call path for adapters without `Mar
 `trader/auto_trader_grid.go`. Both still log and continue, because other exchanges' adapters are not being
 changed; new code must not add to them.
 
+### Reading account balance fields outside `trader/types`
+
+Do not read `totalWalletBalance`, `totalUnrealizedProfit`, `availableBalance`, `totalEquity` or `total_equity` from
+the map returned by `GetBalance()` outside `trader/types/balance.go`, and do not restate "equity = wallet balance +
+unrealized PnL" or what the initial balance is anywhere else. A key list or formula copied per call site drifts: the
+Gate unified account ended up with 0 as its wallet balance and 0 as every new trader's initial balance that way.
+Call `types.ReadAccountBalance` or `types.ReadInitialBalance`. Contract and reference implementation:
+[Exchange Adapter Contracts](./exchange-adapters.md).
+
 ---
 
 ## Required Patterns

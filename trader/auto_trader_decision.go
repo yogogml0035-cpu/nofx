@@ -8,6 +8,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/trader/types"
 	"time"
 )
 
@@ -95,34 +96,13 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 
 // GetAccountInfo gets account information (for API)
 func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
-	balance, err := at.trader.GetBalance()
+	account, err := types.ReadAccountBalance(at.trader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get balance: %w", err)
+		return nil, err
 	}
-
-	// Get account fields
-	totalWalletBalance := 0.0
-	totalUnrealizedProfit := 0.0
-	availableBalance := 0.0
-	totalEquity := 0.0
-
-	if wallet, ok := balance["totalWalletBalance"].(float64); ok {
-		totalWalletBalance = wallet
-	}
-	if unrealized, ok := balance["totalUnrealizedProfit"].(float64); ok {
-		totalUnrealizedProfit = unrealized
-	}
-	if avail, ok := balance["availableBalance"].(float64); ok {
-		availableBalance = avail
-	}
-
-	// Use totalEquity directly if provided by trader (more accurate)
-	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
-		totalEquity = eq
-	} else {
-		// Fallback: Total Equity = Wallet balance + Unrealized profit
-		totalEquity = totalWalletBalance + totalUnrealizedProfit
-	}
+	totalEquity := account.Equity
+	totalUnrealizedProfit := account.UnrealizedPnL
+	availableBalance := account.Available
 
 	// Get positions to calculate total margin
 	positions, err := at.trader.GetPositions()
@@ -172,8 +152,8 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 
 	return map[string]interface{}{
 		// Core fields
-		"total_equity":      totalEquity,           // Account equity = wallet + unrealized
-		"wallet_balance":    totalWalletBalance,    // Wallet balance (excluding unrealized P&L)
+		"total_equity":      totalEquity,           // Account equity
+		"wallet_balance":    account.Principal,     // Principal: excludes unrealized P&L, includes realized P&L
 		"unrealized_profit": totalUnrealizedProfit, // Unrealized P&L (official value from exchange API)
 		"available_balance": availableBalance,      // Available balance
 

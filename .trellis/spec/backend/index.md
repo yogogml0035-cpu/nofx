@@ -18,7 +18,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | Partially filled (float truncation, fail-closed parsing, fail-closed exchange settings, decimal quantity fields, testing) |
-| [Exchange Adapter Contracts](./exchange-adapters.md) | Trading path ↔ adapter contracts where an order's risk depends on an exchange-side setting | Filled (margin mode + leverage applied and read back before an order, Gate) |
+| [Exchange Adapter Contracts](./exchange-adapters.md) | Trading path ↔ adapter contracts: settings an order's risk depends on, and the account balance readings | Filled (margin mode + leverage applied and read back before an order; principal / unrealized PnL / available / equity read through one definition, Gate) |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
 
 ---

@@ -1,0 +1,9 @@
+{"file": ".trellis/tasks/11-24-gate-trading-foundation/prd.md", "reason": "父任务约束与跨子任务验收标准（五项口径各只有一处定义）"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "核对实现与计划文档 3.1/5/8.2/10.2/10.3 是否一致"}
+{"file": ".trellis/tasks/11-24-gate-trading-foundation/design.md", "reason": "检查是否遵守跨子任务设计约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查 fail-closed 解析与测试约定"}
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "检查账户读数契约与实现是否一致"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端层规范入口"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "检查是否还有重复的键名列表与公式、是否遗漏复用"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "检查前后端与各层的边界契约（键名、字段、错误）"}
+{"file": ".trellis/tasks/11-24-account-equity/research/gate-account-balance-docs.md", "reason": "核对实现取的字段与文档原文是否一致：接口路径、currency 参数、字段语义、缓存说明；本金口径的依据是实测而非文档"}

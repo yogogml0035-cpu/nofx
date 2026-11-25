@@ -32,7 +32,19 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 		var respBody interface{}
 
 		switch {
-		// Mock GetBalance - /api/v4/futures/usdt/accounts
+		// Mock GetBalance - /api/v4/wallet/total_balance（本金与未实现盈亏取自钱包总额）
+		case strings.Contains(path, "/wallet/total_balance"):
+			respBody = map[string]interface{}{
+				"total": map[string]interface{}{
+					"amount":         "10000.00",
+					"borrowed":       "0",
+					"currency":       "USDT",
+					"unrealised_pnl": "100.50",
+				},
+			}
+
+		// Mock GetBalance - /api/v4/futures/usdt/accounts（可用于合约的额度取自合约账户；
+		// 统一账户下 total ≈ 0，不作钱包余额）
 		case strings.Contains(path, "/futures/usdt/accounts"):
 			respBody = map[string]interface{}{
 				"total":          "10000.00",

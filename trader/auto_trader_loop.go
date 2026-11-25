@@ -8,6 +8,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/trader/types"
 	"strings"
 	"time"
 )
@@ -398,34 +399,13 @@ func canonicalUniverseSymbolForBase(ctx *kernel.Context, base string) string {
 // buildTradingContext builds trading context
 func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	// 1. Get account information
-	balance, err := at.trader.GetBalance()
+	account, err := types.ReadAccountBalance(at.trader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get account balance: %w", err)
+		return nil, err
 	}
-
-	// Get account fields
-	totalWalletBalance := 0.0
-	totalUnrealizedProfit := 0.0
-	availableBalance := 0.0
-	totalEquity := 0.0
-
-	if wallet, ok := balance["totalWalletBalance"].(float64); ok {
-		totalWalletBalance = wallet
-	}
-	if unrealized, ok := balance["totalUnrealizedProfit"].(float64); ok {
-		totalUnrealizedProfit = unrealized
-	}
-	if avail, ok := balance["availableBalance"].(float64); ok {
-		availableBalance = avail
-	}
-
-	// Use totalEquity directly if provided by trader (more accurate)
-	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
-		totalEquity = eq
-	} else {
-		// Fallback: Total Equity = Wallet balance + Unrealized profit
-		totalEquity = totalWalletBalance + totalUnrealizedProfit
-	}
+	totalEquity := account.Equity
+	totalUnrealizedProfit := account.UnrealizedPnL
+	availableBalance := account.Available
 
 	// 2. Get position information
 	positions, err := at.trader.GetPositions()
