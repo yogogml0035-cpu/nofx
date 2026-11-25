@@ -5,7 +5,13 @@ NOFX_DEV_OVERRIDE ?= /Users/hsikey/Trading/nofx/.nofx-local/dev-offline/compose.
 COMPOSE_DEV = docker compose -f docker-compose.yml -f $(NOFX_DEV_OVERRIDE)
 NOFX_FRONTEND_PORT ?= 1188
 
-.PHONY: help test test-backend test-frontend test-coverage clean ci-local up
+# 主栈（生产候选）变量：重建在 main 仓执行；默认路径面向本机主仓，可命令行覆盖
+MAIN_STACK_DIR ?= /Users/hsikey/Trading/nofx
+MAIN_STACK_COMPOSE ?= $(MAIN_STACK_DIR)/.nofx-local/compose.yml
+MAIN_STACK_DATA ?= $(MAIN_STACK_DIR)/.nofx-local/candidate-data/data.db
+MAIN_STACK_FRONTEND_PORT ?= 8888
+
+.PHONY: help test test-backend test-frontend test-coverage clean ci-local up main-stack infra-check
 
 # Default target
 help:
@@ -188,3 +194,66 @@ up:
 	@echo "❤️ Frontend entry (http://127.0.0.1:$(NOFX_FRONTEND_PORT))..."
 	curl -sf "http://127.0.0.1:$(NOFX_FRONTEND_PORT)/" > /dev/null && echo "frontend OK"
 	@echo "✅ up completed"
+
+# =============================================================================
+# 主栈重建（合入 main 并推送后执行；D16/D20）
+# - 构建上下文来自 git archive 的干净检出，不读取工作区（主仓 .nofx-local/scratch 不进入镜像）
+# - 镜像 tag 同步候选 SHA；重建前后 traders.is_running 必须为 0，查询失败即中止
+# =============================================================================
+main-stack:
+	@set -e; \
+	MAIN_DIR="$${MAIN_STACK_DIR:-$(MAIN_STACK_DIR)}"; \
+	COMPOSE="$${MAIN_STACK_COMPOSE:-$(MAIN_STACK_COMPOSE)}"; \
+	DB="$${MAIN_STACK_DATA:-$(MAIN_STACK_DATA)}"; \
+	PORT="$${MAIN_STACK_FRONTEND_PORT:-$(MAIN_STACK_FRONTEND_PORT)}"; \
+	SHA="$${MAIN_STACK_SHA:-$$(git -C "$$MAIN_DIR" rev-parse --short HEAD)}"; \
+	test -f "$$COMPOSE" || { echo "❌ 缺少主栈 compose: $$COMPOSE"; exit 1; }; \
+	test -f "$$DB" || { echo "❌ 缺少主栈数据库: $$DB"; exit 1; }; \
+	git -C "$$MAIN_DIR" cat-file -e "$$SHA^{commit}" || { echo "❌ 提交不存在: $$SHA"; exit 1; }; \
+	RUNNING=$$(sqlite3 -readonly -cmd ".timeout 5000" "$$DB" "SELECT COUNT(*) FROM traders WHERE is_running=1"); \
+	test "$$RUNNING" = "0" || { echo "❌ 运行中的 trader 数量 $$RUNNING ≠ 0，拒绝重建（D20）"; exit 1; }; \
+	echo "🔨 从干净检出构建主栈 $$SHA ..."; \
+	TMP=$$(mktemp -d); trap 'rm -rf "$$TMP"' EXIT INT TERM; \
+	git -C "$$MAIN_DIR" archive "$$SHA" | tar -x -C "$$TMP"; \
+	docker build -f "$$TMP/docker/Dockerfile.backend" -t "nofx-local/backend:$$SHA" --build-arg GOPROXY=https://goproxy.cn,direct "$$TMP"; \
+	docker build -f "$$TMP/docker/Dockerfile.frontend" -t "nofx-local/frontend:$$SHA" "$$TMP"; \
+	sed -i.bak -E "s#(image: nofx-local/backend:).*#\1$$SHA#; s#(image: nofx-local/frontend:).*#\1$$SHA#" "$$COMPOSE"; \
+	rm -f "$$COMPOSE.bak"; \
+	docker compose -f "$$COMPOSE" config -q; \
+	docker compose -f "$$COMPOSE" up -d; \
+	echo "⏳ 等待主栈健康检查..."; \
+	OK=""; \
+	for i in $$(seq 1 60); do \
+		if curl -sf "http://127.0.0.1:$$PORT/api/health" >/dev/null && curl -sf "http://127.0.0.1:$$PORT/" >/dev/null; then OK=1; break; fi; \
+		sleep 2; \
+	done; \
+	test -n "$$OK" || { echo "❌ 主栈健康检查超时（$$PORT）"; docker compose -f "$$COMPOSE" ps; exit 1; }; \
+	AFTER=$$(sqlite3 -readonly -cmd ".timeout 5000" "$$DB" "SELECT COUNT(*) FROM traders WHERE is_running=1"); \
+	test "$$AFTER" = "0" || { echo "❌ 重建后出现运行中的 trader（$$AFTER）"; exit 1; }; \
+	if docker compose -f "$$COMPOSE" logs --since 2m nofx 2>/dev/null | grep -q "✅ Running"; then \
+		echo "❌ 启动日志出现运行中的 trader"; exit 1; \
+	fi; \
+	echo "✅ 主栈已重建到 $$SHA（http://127.0.0.1:$$PORT），无 trader 被自动拉起"
+
+# =============================================================================
+# 基础设施卫生检查（不启动/停止容器、不写业务数据）
+# =============================================================================
+infra-check:
+	@set -e; \
+	echo "🔎 [1/4] .dockerignore 必需条目..."; \
+	grep -qx '.nofx-local/' .dockerignore; \
+	grep -qx 'scratch/' .dockerignore; \
+	grep -qx 'web/node_modules/' .dockerignore; \
+	echo "🔎 [2/4] compose 配置解析..."; \
+	docker compose -f docker-compose.yml config --no-env-resolution -q; \
+	if test -f .nofx-local/compose.yml; then docker compose -f .nofx-local/compose.yml config --no-env-resolution -q; fi; \
+	echo "🔎 [3/4] 前端健康检查单份..."; \
+	if sed -n '/^  nofx-frontend:/,/^[a-zA-Z]/p' docker-compose.yml | grep -q 'healthcheck:'; then \
+		echo "❌ docker-compose.yml 仍重复声明前端健康检查"; exit 1; \
+	fi; \
+	echo "🔎 [4/4] 构建上下文不含本地文件..."; \
+	TMP=$$(mktemp -d); trap 'rm -rf "$$TMP"' EXIT INT TERM; \
+	printf 'FROM alpine:3.20\nCOPY . /ctx\nRUN test ! -e /ctx/.nofx-local && test ! -e /ctx/scratch\n' > "$$TMP/Dockerfile"; \
+	docker build -q -f "$$TMP/Dockerfile" -t nofx-context-check:tmp . >/dev/null; \
+	docker rmi -f nofx-context-check:tmp >/dev/null; \
+	echo "✅ infra-check passed"
