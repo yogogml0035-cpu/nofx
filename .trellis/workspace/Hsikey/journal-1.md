@@ -483,3 +483,38 @@
 ### Next Steps
 
 - ⑯ scan-alignment（主周期收线对齐 + 固定延迟），然后 ⑰ infra-hygiene
+
+## Session 14: 子任务 16 scan-alignment：扫描按主周期 K 线收线对齐
+
+**Date**: 2026-11-25
+**Task**: 子任务 16 scan-alignment
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+交易循环的扫描节奏从「启动后固定间隔」改为按策略主周期 K 线收线对齐（收线 + 5 秒），启动立即执行一轮、错过边界不补跑；独立检查 PASS 后合父归档
+
+### Main Changes
+
+- 新增 trader/scan_schedule.go：scanTimeframe 复用市场保留周期；nextScanTime 按 UTC 墙钟（1w 周一、30d 月初、其余含 7d 按 Unix 纪元网格，恰在触发时刻排下一次）；scanFallbackInterval 在 ScanInterval<=0 时用 1 分钟兜底
+- trader/auto_trader.go 的 Run 循环由固定 ticker 改为每轮计算下一收线边界并等待；每轮重取主周期（引擎首轮归一化别名后调度自愈）；safe 模式日志改中性口径
+- 单测矩阵覆盖 10s..1d、7d、1w、30d 的边界前后与恰在触发时刻、非法输入与回退
+
+### Git Commits
+
+- 61cf7913 feat(trader): 扫描按主周期 K 线收线对齐，收线后固定延迟（子任务 16）
+- 4ddf671f fix(trader): 扫描对齐收口——日志口径、每轮重取周期与边界用例补强（⑯）
+- ade6d9ea merge: 扫描按主周期 K 线收线对齐（⑯）
+
+### Testing
+
+- [OK] git diff --check；make test（Go 全部包 + 前端 14 文件 / 162 用例）；make build
+- [OK] 独立检查 PASS（无 P0/P1/P2；6 项 P3，修复 4 项，留档 2 项）
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ⑰ infra-hygiene（.dockerignore、前端健康检查去重、Makefile 主栈重建），然后父任务收口
