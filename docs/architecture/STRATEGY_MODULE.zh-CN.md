@@ -168,7 +168,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 | **MACD** | `EnableMACD` | `calculateMACD(klines)` - 12/26/9 |
 | **RSI** | `EnableRSI`, `RSIPeriods` | `calculateRSI(klines, period)` |
 | **ATR** | `EnableATR`, `ATRPeriods` | `calculateATR(klines, period)` |
-| **Volume** | `EnableVolume` | 原始成交量数据 |
+| **Volume** | `EnableVolume` | 成交量数据（USDT 成交额，Gate `sum`） |
 | **OI** | `EnableOI` | 持仓量数据 |
 | **Funding Rate** | `EnableFundingRate` | 资金费率 |
 

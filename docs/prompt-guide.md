@@ -317,11 +317,11 @@ BTC as market indicator:
 ### Complete Market Data
 
 Each coin includes complete technical data:
-- Price sequence (3-minute candles)
+- Price sequence (the strategy-selected K-line timeframes, Gate contract candles)
 - EMA20 sequence
 - MACD sequence
 - RSI7/RSI14 sequences
-- Volume sequence
+- Volume sequence (USDT quote volume, Gate `sum`)
 - Open Interest (OI) sequence
 - Funding rate
 
@@ -726,7 +726,7 @@ Only enter on strong signals; observe when uncertain.
 Complete data available:
 - Raw sequences: 3-min price sequence (MidPrices array) + 4-hour candle sequence
 - Technical sequences: EMA20 sequence, MACD sequence, RSI7 sequence, RSI14 sequence
-- Capital sequences: Volume sequence, Open Interest (OI) sequence, funding rate
+- Capital sequences: Volume sequence (USDT quote volume), Open Interest (OI) sequence, funding rate
 
 Analysis methods (fully autonomous):
 - Freely use sequence data, you can but not limited to trend analysis, pattern recognition, support/resistance, Fibonacci, volatility bands

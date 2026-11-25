@@ -9,59 +9,52 @@ import (
 	"time"
 )
 
-// Get retrieves market data for the specified token
+// Get retrieves market data for the specified token（旧内嵌路径，仅供助手，⑮ 删除）。
 func Get(symbol string) (*Data, error) {
 	return GetWithExchange(symbol, "binance")
 }
 
-// GetWithExchange retrieves market data for the specified token using exchange-specific data
+// GetWithExchange 旧内嵌行情路径：5m 日内序列 + 4h 长周期，取数已切到 Gate（D1/D6）。
+// exchange 参数保留但不使用（行情只走 Gate，D26）；该路径仅供助手在 ⑮ 切换前继续使用，
+// ⑮ 删除本函数与只为它服务的结构（IntradaySeries、LongerTermContext、BuildDataFromKlines、Format）。
 func GetWithExchange(symbol, exchange string) (*Data, error) {
-	var klines3m, klines4h []Kline
+	_ = exchange // 旧参数：行情只走 Gate
+	var klines5m, klines4h []Kline
 	var err error
 	// Normalize symbol
 	symbol = Normalize(symbol)
 
-	// Use CoinAnk for crypto assets with exchange-specific data
-	klines3m, err = getKlinesFromCoinAnk(symbol, "3m", exchange, 100)
+	klines5m, err = GetGateKlines(symbol, "5m", 100)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get 3-minute K-line from CoinAnk (%s): %v", exchange, err)
+		return nil, fmt.Errorf("Failed to get 5-minute K-line from Gate: %v", err)
 	}
 
 	// Data staleness detection: Prevent DOGEUSDT-style price freeze issues
-	if isStaleData(klines3m, symbol) {
+	if isStaleData(klines5m, symbol) {
 		logger.Infof("⚠️  WARNING: %s detected stale data (consecutive price freeze), skipping symbol", symbol)
 		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
 	}
 
-	// Get 4-hour K-line data
-	klines4h, err = getKlinesFromCoinAnk(symbol, "4h", exchange, 100)
+	klines4h, err = GetGateKlines(symbol, "4h", 100)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get 4-hour K-line from CoinAnk (%s): %v", exchange, err)
+		return nil, fmt.Errorf("Failed to get 4-hour K-line from Gate: %v", err)
 	}
 
-	// Check if data is empty
-	if len(klines3m) == 0 {
-		return nil, fmt.Errorf("3-minute K-line data is empty")
+	if len(klines5m) == 0 {
+		return nil, fmt.Errorf("5-minute K-line data is empty")
 	}
 	if len(klines4h) == 0 {
 		return nil, fmt.Errorf("4-hour K-line data is empty")
 	}
 
-	// Calculate current indicators (based on 3-minute latest data)
-	currentPrice := klines3m[len(klines3m)-1].Close
-	currentEMA20 := calculateEMA(klines3m, 20)
-	currentMACD := calculateMACD(klines3m)
-	currentRSI7 := calculateRSI(klines3m, 7)
+	// Calculate current indicators (based on 5-minute latest data)
+	currentPrice := klines5m[len(klines5m)-1].Close
+	currentEMA20 := calculateEMA(klines5m, 20)
+	currentMACD := calculateMACD(klines5m)
+	currentRSI7 := calculateRSI(klines5m, 7)
 
-	// Calculate price change percentage
-	// 1-hour price change = price from 20 3-minute K-lines ago
-	priceChange1h := 0.0
-	if len(klines3m) >= 21 { // Need at least 21 K-lines (current + 20 previous)
-		price1hAgo := klines3m[len(klines3m)-21].Close
-		if price1hAgo > 0 {
-			priceChange1h = ((currentPrice - price1hAgo) / price1hAgo) * 100
-		}
-	}
+	// 1-hour price change（按 Gate 周期时长回看，5m → 12 根）
+	priceChange1h := calculatePriceChangeByBars(klines5m, "5m", 60)
 
 	// 4-hour price change = price from 1 4-hour K-line ago
 	priceChange4h := 0.0
@@ -79,8 +72,8 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 		oiData, fundingRate = nil, nil
 	}
 
-	// Calculate intraday series data
-	intradayData := calculateIntradaySeries(klines3m)
+	// Calculate intraday series data（5m，成交量是 USDT 成交额）
+	intradayData := calculateIntradaySeries(klines5m)
 
 	// Calculate longer-term data
 	longerTermData := calculateLongerTermData(klines4h)
@@ -137,10 +130,10 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		var klines []Kline
 		var err error
 
-		// Use CoinAnk for crypto assets (default to Binance)
-		klines, err = getKlinesFromCoinAnk(symbol, tf, "binance", 200)
+		// 决策 K 线只走 Gate（D1/D6）：成交量是 USDT 成交额，周期为 D25 保留集合
+		klines, err = GetGateKlines(symbol, tf, 200)
 		if err != nil {
-			logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
+			logger.Infof("⚠️ Failed to get %s %s K-line from Gate: %v", symbol, tf, err)
 			continue
 		}
 
