@@ -25,7 +25,7 @@
 | 14 | `chart-klines-gate` | `archive/2026-11/11-25-chart-klines-gate`（已归档） | 12 合父 | 单测；前端测试与构建 |
 | 15 | `assistant-market` | `archive/2026-11/11-25-assistant-market`（已归档） | 12 合父 | 单测；工具真实调用 |
 | 16 | `scan-alignment` | `archive/2026-11/11-25-scan-alignment`（已归档） | 无 | 单测 |
-| 17 | `infra-hygiene` | 开工时创建 | 无 | 配置解析检查；构建上下文不含本地文件 |
+| 17 | `infra-hygiene` | `archive/2026-11/11-25-infra-hygiene`（已归档） | 无 | 配置解析检查；构建上下文不含本地文件 |
 
 ## 每个子任务的闭环
 
@@ -69,4 +69,4 @@ make ci-local
 
 - 回滚单元是一个子任务的提交边界：手动恢复文件，不使用 git 回滚命令。
 - 子任务失败不外溢：未通过门禁的子分支不合入父分支，父分支始终保持上一个已验证的状态。
-- 子任务 16 已完成、合父并归档（2026-11-25，独立检查 PASS（6 项 P3，修复 4 项、留档 2 项），合父 `ade6d9ea`，详见计划文档 10.5）。下一步 ⑰ `infra-hygiene`：无依赖；`.dockerignore` 补 `.nofx-local`/`scratch`、前端健康检查去重、Makefile 主栈重建命令（干净检出作构建上下文 + 运行中 trader 拦截）。
+- 子任务 17 已完成、合父并归档（2026-11-26，独立检查首轮 NEEDS FIX 后最终 PASS，合父 `c6ace816`，详见计划文档 10.5）。全部子任务完成，进入父任务收口：多智能体对抗审查与修正 → `make ci-local` → 串联全部子任务的 E2E 与无 AI 冒烟 → 核对最新 `main` 后集成 dev-offline 并 `make up`。

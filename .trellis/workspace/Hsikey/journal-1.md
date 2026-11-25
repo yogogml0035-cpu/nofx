@@ -518,3 +518,42 @@
 ### Next Steps
 
 - ⑰ infra-hygiene（.dockerignore、前端健康检查去重、Makefile 主栈重建），然后父任务收口
+
+## Session 15: 子任务 17 infra-hygiene：构建上下文卫生、健康检查单份与主栈重建命令
+
+**Date**: 2026-11-26
+**Task**: 子任务 17 infra-hygiene
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+把部署与构建面的三个隐患固化为可重复命令：构建上下文不携带本地状态与密钥、前端健康检查只保留镜像内一份且真实可用、主栈重建由干净检出构建并在重建前后拦截运行中的 trader
+
+### Main Changes
+
+- .dockerignore 排除 .nofx-local/、scratch/、.env、data/ 与本地工具目录
+- Dockerfile.frontend HEALTHCHECK 探测改 127.0.0.1（musl 下 localhost 解析为 ::1，nginx 仅监听 IPv4）；compose 删除重复的前端 healthcheck
+- Makefile 新增 main-stack（git archive 干净检出、镜像 tag 同步候选 SHA、三次 D20 拦截、容器 healthy、真实自动拉起日志标记）与 infra-check（compose 解析、dockerignore 条目、健康检查单份、主栈服务名、标记目录实测上下文排除）；up 增加容器 healthy 等待
+- 修复 bash 3.2 在 $var 后紧跟全角标点吞首字节的问题，提示文案统一 ${var}
+
+### Git Commits
+
+- fa67a9c1 feat(infra): 构建上下文卫生、健康检查单份与主栈重建命令（子任务 17）
+- 319df460 fix(infra): 健康检查探测改 127.0.0.1，主栈重建补容器健康/二次拦截/tag 断言
+- 3f300cfc fix(infra): 主栈容器健康断言改用 compose 动态服务名
+- f91e2d0d fix(infra): 收口 P3——D20 阶段标签、服务列表空值与提示文案
+- c6ace816 merge: 构建上下文卫生、健康检查单份与主栈重建命令（⑰）
+
+### Testing
+
+- [OK] git diff --check；make infra-check；make test（Go 全部包 + 前端 14 文件 / 162 用例）；make build
+- [OK] 独立检查首轮 NEEDS FIX（1 P1 + 5 P2 + 11 P3）→ 复核 1 P1（服务名）→ 最终 PASS（3 项 P3 已修）
+- [OK] D20 拦截、无表 fail-closed、tag 断言、上下文排除与正向对照实测
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 父任务收口：多智能体对抗审查、make ci-local、串联 E2E 与无 AI 冒烟、dev-offline 集成

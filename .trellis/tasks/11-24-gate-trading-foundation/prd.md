@@ -67,7 +67,7 @@
 | 14 | `chart-klines-gate` | `archive/2026-11/11-25-chart-klines-gate`（已归档） | 12 |
 | 15 | `assistant-market` | `archive/2026-11/11-25-assistant-market`（已归档） | 12 |
 | 16 | `scan-alignment` | `archive/2026-11/11-25-scan-alignment`（已归档） | 无 |
-| 17 | `infra-hygiene` | 开工时创建 | 无 |
+| 17 | `infra-hygiene` | `archive/2026-11/11-25-infra-hygiene`（已归档） | 无 |
 
 ## Constraints
 
