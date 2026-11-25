@@ -276,3 +276,46 @@
 
 - ⑪ protective-order-management：先读归档 probe/README.md 与 F43（分批后条件单列表形态），再设计改单/撤旧建新
 - 其后按 12→17 串行；父任务收口前做组合审查、E2E 与 make ci-local
+
+
+## Session 9: 子任务 11 protective-order-management：止损止盈管理与触发价对齐
+<!-- trellis-session: v=2 fp=495b9dfe8f4efb47 -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 11 protective-order-management：止损止盈管理与触发价对齐
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+交付每轮读取当前止损止盈、update_stop_loss/update_take_profit 决策动作与校验、撤旧建新改单（先挂新核对→撤旧→核对、失败恢复）、触发价对齐与保护核对收紧；检查修复后独立复核 PASS，W2/W3 实测通过，已合父归档
+
+### Main Changes
+
+- Gate：ContractSpec 价格步长与 AlignTriggerPrice；开仓对齐随单 tpsl；VerifyOrderProtection 以未触发条件单列表为准（3×300ms 重试、持仓已平视为无需保护、方向由持仓推导）
+- trader/gate/protection_management.go：保护读取（同类取最近/计数）、改单执行与失败恢复、2% 上限 1e-12 容差、恢复有效价核对
+- types：ProtectiveOrderManager/PositionProtection/ProtectionUpdate*/ErrPositionUnprotected；ProtectedOpenResult 回报实际保护价
+- kernel：update_stop_loss/update_take_profit 校验（持仓/可读/方向/2%/符号变体）、PositionInfo 当前 SL/TP、提示词中英；交易路径每轮读取、执行与紧急平仓、符号变体路由、排序 2/3/4
+- 前端 DecisionCard UPDATE SL/TP；架构中英与适配器规范新场景；计划文档 F43 辨明、F44/F45 留档、10.5 进度
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9af310c1` | feat(protection): 止损止盈管理——每轮读取当前保护、修改动作与撤旧建新、触发价对齐（子任务 11） |
+| `e5e1e706` | fix(protection): 检查修复——无保护哨兵进错误链、符号变体匹配、执行侧 2% 容差与恢复有效价核对 |
+| `8dfbb326` | docs(protection): 修正符号比较键注释的适用范围（不涉及行为） |
+| `d0072836` | merge: 止损止盈管理并入父分支（子任务 11：9af310c1 实施 + e5e1e706 检查修复 + 8dfbb326 注释订正；独立检查 PASS，W2/W3 LIVECHECK_PASS，make test/build 全过） |
+
+### Testing
+
+- [OK] git diff --check；make test（Go 全部包 598 PASS + 前端 14 文件/162 用例）；make build；tsc --noEmit
+- [OK] 独立检查首轮 NEEDS FIX（P1×2/P2/P3）修复后定向复核 PASS
+- [OK] W2/W3 LIVECHECK_PASS：DOGE 17 张开仓→分批→改止损/止盈→全平；ETH 0.1 张→改止损→全平；终态零残留，余额差手续费量级
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ⑫ market-source（依赖 ① 已合父），其后 13→17 串行；父任务收口前组合审查、E2E 与 make ci-local
