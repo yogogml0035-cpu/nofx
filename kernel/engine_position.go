@@ -242,8 +242,8 @@ func finitePositive(v float64) bool {
 }
 
 // positionMatchKey 把交易对归一成比较键：大写、去掉 "_"、"-"、"/" 分隔符。
-// 交易所原生格式（Gate "DOGE_USDT"、OKX "BTC-USDT-SWAP"）与模型写法（"DOGEUSDT"、
-// "DOGE/USDT"）得到同一个键。
+// 交易所原生格式（Gate "DOGE_USDT"）与模型写法（"DOGEUSDT"、"DOGE/USDT"）得到同一个键；
+// "-SWAP" 后缀不在处理范围内（保护管理当前只有 Gate 交易路径使用）。
 func positionMatchKey(symbol string) string {
 	s := strings.ToUpper(strings.TrimSpace(symbol))
 	s = strings.ReplaceAll(s, "_", "")
