@@ -133,3 +133,29 @@
 ### Next Steps
 
 - 子任务 8 strategy-config；U1（手动持仓是否归机器人管）仍待用户确认
+
+
+## Session 4: 记录 U1 的确认结论（D40）与 W5 补测授权（D41）
+<!-- trellis-session: v=2 fp=0709ccd96e1791eb -->
+
+**Date**: 2026-11-25
+**Task**: 记录 U1 的确认结论（D40）与 W5 补测授权（D41）
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+用户 2026-11-25 确认 U1：不是本 trader 开出的持仓不归机器人管，出现时直接无视，也不因此拒绝 trader 启动（交易子账户后续不再手动开仓）；授权 W5：在从没有设置过仓位设置的合约上调用 set_leverage 并读回（会留下一条无法还原的条目）。计划文档新增 D40、D41 与 W5 行，第 7 节改为结论，子任务 6 的行与父任务 prd.md、implement.md 同步。助手的对话内直接下单保持现状（不跟随 trader 的全仓/逐仓开关）。本轮只做记录，没有开工子任务 6，也没有执行补测。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `59defea8` | docs(plans): 记录 U1 的确认结论（D40）与 W5 补测授权（D41）——不是本 trader 开出的持仓直接无视、不因此拒绝启动 |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 子任务 6 drawdown-monitor（U1 已决，可开工）；做真实接口探测时执行 W5 并把结果记进计划文档 F37

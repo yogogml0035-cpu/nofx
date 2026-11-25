@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
+- **Total Sessions**: 4
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~135 | Active |
+| `journal-1.md` | ~161 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-11-25 | 记录 U1 的确认结论（D40）与 W5 补测授权（D41） | `59defea8` | `feat/2026_1123_gate-trading-foundation` |
 | 3 | 2026-11-25 | 子任务 7 account-equity 收口：复审 PASS、合入父分支并归档 | `831dfb5e`, `09f2015b`, `f5399125`, `b343cace` | `feat/2026_1123_gate-trading-foundation` |
 | 2 | 2026-11-24 | 子任务 5 unified-trading-params：杠杆与保证金模式一次性生效（W4） | `b8252754`, `d92328b9`, `4eedd743`, `d758d3ec`, `eb84f2e4`, `e1b6fdc3`, `aa06dc75`, `ccd2f51c` | `feat/2026_1123_gate-trading-foundation` |
 | 1 | 2026-11-24 | 子任务 2 contract-math：Gate 合约张数换算底座 | `daa8369a`, `2ae06cca`, `f33d78e3`, `62ab50a5`, `5d41dde5`, `590ba577`, `c5edd1ae`, `75dfbedd` | `feat/2026_1123_gate-trading-foundation` |
