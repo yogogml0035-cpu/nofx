@@ -378,7 +378,12 @@ func (at *AutoTrader) Run() error {
 
 	logger.Info("🚀 AI-driven automatic trading system started")
 	at.logInfof("💰 Initial balance: %.2f USDT", at.initialBalance)
-	at.logInfof("⚙️  Scan interval: %v", at.config.ScanInterval)
+	cadence := scanTimeframe(at.config.StrategyConfig)
+	if cadence == "" {
+		at.logWarnf("⚙️  Primary timeframe missing/invalid; scan interval fallback: %v", at.config.ScanInterval)
+	} else {
+		at.logInfof("⚙️  Scan aligned to %s close + %v (UTC)", cadence, scanCloseDelay)
+	}
 	logger.Info("🤖 AI will make full decisions on leverage, position size, stop loss/take profit, etc.")
 
 	at.monitorWg.Add(1)
@@ -451,9 +456,6 @@ func (at *AutoTrader) Run() error {
 		}
 	}
 
-	ticker := time.NewTicker(at.config.ScanInterval)
-	defer ticker.Stop()
-
 	// Check if this is a grid trading strategy
 	isGridStrategy := at.IsGridStrategy()
 	if isGridStrategy {
@@ -484,8 +486,26 @@ func (at *AutoTrader) Run() error {
 			break
 		}
 
+		// 等待下一个 K 线收线边界（+ 固定延迟）；主周期缺失时回退到旧 ScanInterval
+		wait := at.config.ScanInterval
+		if wait <= 0 {
+			wait = time.Minute
+		}
+		if cadence != "" {
+			next, err := nextScanTime(time.Now(), cadence, scanCloseDelay)
+			if err != nil {
+				at.logWarnf("⚠️ Scan schedule unavailable (%v); fallback to %v", err, wait)
+			} else {
+				wait = time.Until(next)
+				if wait < 0 {
+					wait = 0
+				}
+				at.logInfof("⏰ Next scan at %s (UTC)", next.Format(time.RFC3339))
+			}
+		}
+		timer := time.NewTimer(wait)
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			if isGridStrategy {
 				if err := at.RunGridCycle(); err != nil {
 					at.logErrorf("❌ Grid execution failed: %v", err)
@@ -496,6 +516,7 @@ func (at *AutoTrader) Run() error {
 				}
 			}
 		case <-at.stopMonitorCh:
+			timer.Stop()
 			at.logInfof("⏹ Stop signal received, exiting automatic trading main loop")
 			return nil
 		}
