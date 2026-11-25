@@ -56,7 +56,7 @@
 | 3 | `protective-order-adapter` | `archive/2026-11/11-24-protective-order-adapter`（已归档） | 1 |
 | 4 | `open-position-safety` | `archive/2026-11/11-24-open-position-safety`（已归档） | 2、3 |
 | 5 | `unified-trading-params` | `archive/2026-11/11-24-unified-trading-params`（已归档） | 1、4 |
-| 6 | `drawdown-monitor` | 开工时创建 | 2、5 |
+| 6 | `drawdown-monitor` | `archive/2026-11/11-25-drawdown-monitor`（已归档） | 2、5 |
 | 7 | `account-equity` | `archive/2026-11/11-24-account-equity`（已归档） | 1 |
 | 8 | `strategy-config` | 开工时创建 | 无 |
 | 9 | `sizing-engine` | 开工时创建 | 6、7 |

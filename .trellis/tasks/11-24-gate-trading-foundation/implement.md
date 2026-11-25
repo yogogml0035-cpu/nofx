@@ -14,7 +14,7 @@
 | 3 | `protective-order-adapter` | `archive/2026-11/11-24-protective-order-adapter`（已归档） | 1 合父 | 单测构造矩阵；真实挂、查、改、撤 |
 | 4 | `open-position-safety` | `archive/2026-11/11-24-open-position-safety`（已归档） | 2、3 合父 | 单测；真实最小开仓全流程（W2 开仓与全平、W3） |
 | 5 | `unified-trading-params` | `archive/2026-11/11-24-unified-trading-params`（已归档） | 1、4 合父 | 单测；闲置合约上真实设置并读回（W4） |
-| 6 | `drawdown-monitor` | 开工时创建 | 2、5 合父 | 单测；带仓的只读真实读数 |
+| 6 | `drawdown-monitor` | `archive/2026-11/11-25-drawdown-monitor`（已归档） | 2、5 合父 | 单测；带仓的只读真实读数 |
 | 7 | `account-equity` | `archive/2026-11/11-24-account-equity`（已归档） | 1 合父，且 4 已合父 | 单测；带仓与不带仓的只读真实读数；提示词预览 |
 | 8 | `strategy-config` | 开工时创建 | 无 | 单测；前端测试与构建 |
 | 9 | `sizing-engine` | 开工时创建 | 6、7 合父 | kernel 单测；提示词预览；`/strategies/test-run` |
@@ -69,4 +69,4 @@ make ci-local
 
 - 回滚单元是一个子任务的提交边界：手动恢复文件，不使用 git 回滚命令。
 - 子任务失败不外溢：未通过门禁的子分支不合入父分支，父分支始终保持上一个已验证的状态。
-- U1 已确认（2026-11-25，计划文档 D40）：子任务 6 可以开工。第 7 步已先于第 6 步完成，接下来按 6 → 8 的顺序继续。
+- 子任务 6 已完成、合父并归档（2026-11-25，独立检查复核 PASS + LIVECHECK_PASS）。接下来按 8 → 9 的顺序继续：⑧ `strategy-config` 无依赖；⑨ `sizing-engine` 依赖 ⑥⑦，均已合父。

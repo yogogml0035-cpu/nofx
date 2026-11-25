@@ -85,7 +85,7 @@ NOFX 的账户读写、下单保护与行情获取建立在三套与现状不符
 | 委托查询 | 已完结的委托在完结 10 分钟后不能按 ID 查询 | 开仓路径依赖按 ID 查询 |
 | 条件单改单 | `UpdatePriceTriggeredOrder`（`PUT /futures/{settle}/price_orders/amend/{order_id}`） | 无；撤单函数撤掉该品种全部条件单 |
 | 全仓 / 逐仓 | `UpdateContractPositionLeverage`（杠杆与 `marginMode`：`cross` / `isolated`）；`leverage` 为 0 并给 `cross_leverage_limit` 是全仓；`leverage` 非 0 是逐仓 | `SetLeverage` 传非零杠杆（逐仓）；`SetMarginMode` 是空操作。界面设置的全仓不生效（子任务 5 已重写） |
-| 杠杆读回 | `GetLeverage` 在单向持仓模式下不能用：必须同时带 `pos_margin_mode` 与 `dual_side` 才返回 200，返回值不反映该合约的设置（三个合约都返回 10）；持仓条目带 `leverage`、`cross_leverage_limit`、`lever`、`pos_margin_mode`，从未设置过的合约没有条目（`GET positions/{contract}` 返回 HTTP 400 + `POSITION_NOT_FOUND`）；逐仓时 `cross_leverage_limit` 残留上一次全仓的值 | 未读取（子任务 5 起由 `PositionMarginSettings` 读回；回撤监控取实际杠杆在子任务 6） |
+| 杠杆读回 | `GetLeverage` 在单向持仓模式下不能用：必须同时带 `pos_margin_mode` 与 `dual_side` 才返回 200，返回值不反映该合约的设置（三个合约都返回 10）；持仓条目带 `leverage`、`cross_leverage_limit`、`lever`、`pos_margin_mode`，从未设置过的合约没有条目（`GET positions/{contract}` 返回 HTTP 400 + `POSITION_NOT_FOUND`）；逐仓时 `cross_leverage_limit` 残留上一次全仓的值 | 子任务 5 起由 `PositionMarginSettings` 读回；子任务 6 起持仓列表的杠杆读 `lever`（同模式旧字段兜底，读不出按 0，监控回落 10 倍） |
 | 市价单最大张数 | `market_order_size_max`：市价下单支持的最大张数，默认 0；为 0 时取 `order_size_max`（文档 changelog v4.106.7、v4.106.8） | 未校验；子任务 2 起在张数换算中按两者较小值校验 |
 | 最小步长的依据 | 官方资料没有写明张数必须是 `order_size_min` 的整数倍。《永续合约市场张数精度调整公告》（2026-03-20）把张数精度调整表述为"最小下单张数"由 1 调为 0.1 | 步长取 `order_size_min` 是 D30 的推论，由 W3 真实下单验证 |
 | 请求头的后续 | 公告 48788：默认将改为返回字符串，`X-Gate-Size-Decimal` 随后废弃，生效日期另行公告 | 已按字符串解析，两种情况都兼容 |
@@ -116,13 +116,13 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 
 ### 3.6 回撤监控
 
-`trader/auto_trader_risk.go` 每 1 分钟对交易所账户里的每个持仓执行一次：
+`trader/auto_trader_risk.go` 每 1 分钟对本 trader 开出的每个持仓执行一次（子任务 6 已按此交付）：
 
-1. 收益率 = 价格变动百分比 × 杠杆 × 100；杠杆取自适配层返回的值，取不到时按 10 倍计。Gate 适配层返回的是整数类型，监控按浮点数读取会失败，因此恒按 10 倍计。
+1. 收益率 = 价格变动百分比 × 杠杆 × 100；杠杆取自适配层返回的实际值——Gate 持仓列表读条目的 `lever`（同模式旧字段兜底），读不出按 0（不可用）计，监控侧此时按 10 倍计（F12 已修复：不再恒按 10 倍）。
 2. 记录该持仓收益率的峰值。
-3. 当前收益率 > 5% 且（峰值 − 当前）÷ 峰值 ≥ 40% 时，市价全平该持仓。
+3. 当前收益率 > 5% 且（峰值 − 当前）÷ 峰值 ≥ 40% 时，市价全平该持仓（走适配器 `close=true + size=0` 的全平原语）。
 
-例：峰值收益率 10%（10 倍杠杆下价格朝有利方向走了 1%），回落到 6%（回撤 0.4%）时全平。由于恒按 10 倍计，对实际杠杆低于 10 倍的仓位，价格朝有利方向走出 0.83% 就满足峰值条件。该监控作用于账户内全部持仓，不区分是否由 NOFX 开出。
+例：峰值收益率 10%（10 倍杠杆下价格朝有利方向走了 1%），回落到 6%（回撤 0.4%）时全平。不是本 trader 开出的持仓直接无视：不进入计算、不记峰值、不平仓，也不因此拒绝 trader 启动（D40）。
 
 ## 4. 已确认的决策
 
@@ -199,7 +199,7 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 | F9 | 止损止盈价不落库，提示词里没有当前止损止盈 | `store/position.go` 无相关字段；持仓信息不含止损止盈 | 模型无法决定是否移动止损 |
 | F10 | 撤条件单不区分止损与止盈 | `cancelTriggerOrders` 撤掉该品种全部条件单 | 修改止损时会把止盈一起撤掉 |
 | F11 | 百分比范围、最小下单金额与本金互相制约 | 第 6.1 节 | 本金较小时多数百分比组合不会下单 |
-| F12 | 回撤监控的杠杆恒按 10 倍计，且对账户内全部持仓生效 | 第 3.6 节：Gate 适配层把杠杆以整数类型返回，监控按浮点数读取失败后回落到 10 倍 | 实际杠杆低于 10 倍时，价格朝有利方向走出 0.83% 就满足触发条件，远早于阈值字面上的收益率；高于 10 倍时触发偏晚；手动持仓也会被处理 |
+| F12 | 回撤监控的杠杆恒按 10 倍计，且对账户内全部持仓生效 | 第 3.6 节：Gate 适配层把杠杆以整数类型返回，监控按浮点数读取失败后回落到 10 倍 | 已由子任务 6 解决：杠杆读 `lever` 实际值（读不出才回落 10 倍），只处理本 trader 开出的仓位（D40） |
 | F13 | 保证金模式尚未切回 | 接口仍返回 `multi_currency` | 不影响设计；带仓时可能无法切换 |
 | F14 | "开仓后补挂"这个结构本身不可靠 | 第 3.4 节：Gate 下单接口支持随单附带止盈止损 | 已由保护不变量取代：保护单随开仓单一并提交 |
 | F15 | v6.104.3 与 v7.1.8 都没有实现保护不变量所需的下单字段与改单接口 | 第 3.5 节 | 已在子任务 1 解决：升级到 v7.2.184 |
@@ -273,7 +273,7 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 | `trader/gate/trader_orders.go` `OpenLong`、`OpenShort`、`CloseLong`、`CloseShort` | 张数截断与强制 1 张 | 按 D24、D30 重写 |
 | `trader/gate/trader_orders.go` 市价开仓 | 无滑点上限；无随单止盈止损 | 按 D8 与保护不变量 |
 | `trader/auto_trader_orders.go` | 开仓后补挂保护单且失败只记日志；四处 `market.GetWithExchange` 取价 | 删除补挂；改用 `GetMarketPrice`；成交后核对保护单 |
-| `trader/gate/trader_account.go` `GetPositions`、`trader/auto_trader_risk.go` 回撤监控 | 杠杆以整数类型返回；监控取不到杠杆时恒按 10 倍计；处理账户内全部持仓 | 按 D37：杠杆取实际值，只处理本 trader 开出的仓位（按 D40） |
+| `trader/gate/trader_account.go` `GetPositions`、`trader/auto_trader_risk.go` 回撤监控 | 杠杆以整数类型返回；监控取不到杠杆时恒按 10 倍计；处理账户内全部持仓 | 按 D37：杠杆取实际值，只处理本 trader 开出的仓位（按 D40）——子任务 6 已交付 |
 
 ### 8.2 账户权益
 
@@ -394,7 +394,7 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 - [x] 3 `protective-order-adapter`：`12c2a249`（381d7f02 + 5f5160a4），单测矩阵通过，真实挂、查、撤与随单止盈止损全部成功（`LIVECHECK_PASS steps=10`，终态零残留）；改单被交易所拒绝（新路径 404 未部署、旧路径 code 1077 拒绝 API 触价单，research H.2），撤旧建新替代路径验证通过；仓位级条件单无持仓被拒（H.1），其真实验证并入 W2；独立检查 PASS（1 P2 + 6 P3 已修复），`make test` 与 `make build` 通过
 - [x] 4 `open-position-safety`：`60db88da`（0df83b9a + 9156ec34 + 7850ab5d + 7e45d47f），门禁 `git diff --check`、`make test`、`make build` 全过；W2（DOGE_USDT 17 张随单保护开仓→核对→全平→零残留）与 W3（ETH_USDT 0.1 张最小步长开平）实测 `LIVECHECK_PASS`；独立检查 1 P1 + 1 P2 + 4 P3 全部修复并复核 PASS。实测发现：随单 tpsl 是委托级保护，小数张合约（ETH）以 `close-long-order` 出现在未触发条件单列表（可按 ID 撤销、分类正确），整数张合约（DOGE）不出现在列表——`VerifyOrderProtection` 以委托回读 + 列表双路径覆盖两种形态；子任务 10、11 的管理路径设计须先复核此行为（证据见归档任务的 `probe/README.md`）
 - [x] 5 `unified-trading-params`（W4）：`ccd2f51c`（b8252754 + d92328b9 + 4eedd743 + d758d3ec + eb84f2e4 + e1b6fdc3 + aa06dc75），最终候选 `e1b6fdc3` 上 `git diff --check`、`make test`、`make build` 全过；W4（DOGE_USDT 全仓 / 逐仓 × 10x / 5x / 3x 设置并读回、重复设置、超上限被拒、两个旧方法）在 `d758d3ec` 上实测 `LIVECHECK_PASS`（23 步 + 1 条观察），DOGE_USDT 还原为全仓 75x，BTC_USDT、ETH_USDT 条目不变，可用余额前后一致。交付：`trader/gate/margin_settings.go`（`ApplyMarginSettings` 走新接口 `positions/{contract}/set_leverage`，以返回值或持仓条目读回一致为成功；`PositionMarginSettings`；重写的 `SetLeverage`、`SetMarginMode`）、能力接口 `types.MarginSettingsApplier`、`ProtectedOpenRequest.IsCrossMargin`；随单保护开仓在下单前生效设置、失败不开仓；网格初始化在设置生效后才标记已初始化。独立检查首轮 NEEDS FIX（无 P0/P1），修复后复核 PASS；变异实验的 53 个可编译变体最终全部被测试杀死（其中 3 个由主会话修复后复验）。实测发现：(a) `set_leverage` 线上已部署，单向持仓模式下不带 `dual_side`；(b) 逐仓条目的 `cross_leverage_limit` 残留旧值，读回用 `lever` 与同模式旧字段互相印证；(c) 重复设置返回 200；(d) 超上限的 label 为 `LEVERAGE_EXCEEDED`，不在文档 label 表（F37）；(e) `get_leverage` 在单向持仓模式下不能用；(f) 不显式设置时首次建仓的合约在本账户落到全仓 + 最大杠杆（F36）；(g) 账户仍是跨币种模式（`margin_mode=1`），逐仓在该模式下可用，单币种下的读回待账户切换后复验。未实测（归档任务 design.md 已知边界）：从没有设置过的合约上的 `set_leverage`（要留一条无法还原的条目；2026-11-25 已授权为 W5，待执行）、带仓或有挂单时能否修改设置。对后续子任务的提示：⑥ 回撤监控取实际杠杆读条目的 `lever`（`GetPositions` 现在仍返回整数 `leverage`，全仓为 0），`PositionMarginSettings` 可直接读回合约的设置；设置是合约级的，同一合约上已有反向持仓时，开仓前生效设置会同时改动那个仓位
-- [ ] 6 `drawdown-monitor`（U1 已确认，见 D40；下一个开工）
+- [x] 6 `drawdown-monitor`（带仓只读真实读数一次）：`c0eadc1f`，最终候选上 `git diff --check`、`make test`、`make build` 全过（Go 全量 + 前端 158 用例）；带仓只读真实读数 `LIVECHECK_PASS`（0 失败：17 张 DOGE_USDT @0.05472、名义 9.3024 USDT 随单保护开仓 → 原始 `lever="75"` 与适配层 float64 `75` 一致 → 归属判定（网格品种 true、非网格 false）→ 监控一轮峰值缓存与按实际杠杆 75 手算收益率差 3.5e-17 → 全平还原，终态零持仓零委托零条件单、设置条目与基线一致、余额差 −0.011 即双边 taker 手续费）。交付：`trader/gate/trader_account.go`（`positionLeverage`：`lever` → 同模式旧字段 → 0 不可用；`GetPositions` 返回 float64 杠杆）、`trader/auto_trader_risk.go`（`isOwnPosition` 归属过滤：网格品种子句 + DB OPEN 记录子句，其余一律无视；杠杆 ≤0 才回落 10 倍；全平维持 `close=true + size=0` 原语）、`trader/drawdown_monitor_probe.go`（livecheck tag 探针桥，正常构建与测试不编译）。单测 13 个监控用例 + 适配层 7 子用例解析矩阵；独立检查首轮 NEEDS FIX（1 P1 + 2 P2 + 2 P3，均为测试缺口），修复后复核 PASS（变异 M1/M3/M4 转杀，新增 M9/M10 边界变异被杀）。实测确认：gate 的持仓记录由 OrderSync → PositionBuilder 落库（`recordAndConfirmOrder` 对 gate 提前返回），归属查询与落库同源。下一步提示：⑧ `strategy-config` 无依赖可开工；⑨ 依赖 ⑥⑦ 均已合父
 - [x] 7 `account-equity`：`831dfb5e`（13 个子提交，代码候选 `20a1c61c`），最终候选上 `git diff --check`、`make test`、`make build` 全过
       （Go 22 个包通过、前端 158 个用例）；第 4 轮真实读数 `LIVECHECK_PASS`（不带仓与带仓读数、加载路径的初始资金重建、
       提示词预览，W3 级开平仓一次、终态零残留）；第二轮界面实测核对换绑重置、改过才发送、创建失败原因与中英印尼文案；
