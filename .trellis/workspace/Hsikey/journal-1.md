@@ -401,3 +401,42 @@
 ### Next Steps
 
 - ⑭ chart-klines-gate：/api/klines crypto 改 Gate、删交易所映射与秒级周期、前端去 exchange；其后 ⑮→⑰
+
+
+## Session 12: 子任务 14 chart-klines-gate：/api/klines 加密货币切 Gate，清理 CoinAnk K 线与前端 exchange
+<!-- trellis-session: v=2 fp=626c0c52d114a34c -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 14 chart-klines-gate：/api/klines 加密货币切 Gate，清理 CoinAnk K 线与前端 exchange
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+图表 K 线 API 改 Gate 直连、删除 CoinAnk K 线 provider 与前端 exchange/旧成交量口径；独立检查 PASS，门禁与前端构建全过，已合父归档
+
+### Main Changes
+
+- api/handler_klines.go：crypto 只走 GetGateKlines（exchange 不再影响）、limit 1..2000、非保留周期 400、QuoteVolume=Volume=USDT sum；Alpaca/TwelveData 保留
+- 删除 provider/coinank/coinank_api 全套与顶层 kline.go；其他 CoinAnk 数据能力与 enum 保留（D10）
+- 前端：AdvancedChart/ChartTabs/TraderDashboardPage 去 exchange；成交量统一 V(USDT)；删除无调用方 TradingViewChart/ChartWithOrders/ChartWithOrdersSimple；i18n 孤儿键清理
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `374bd603` | feat(chart): /api/klines 加密货币切 Gate，删除 CoinAnk K 线 provider 与前端 exchange 参数（子任务 14） |
+| `30e6a4c3` | fix(chart): 检查 P3 收口——非保留周期 400、limit 边界与前端冗余成交量字段（子任务 14） |
+| `35e9f508` | fix(chart): 检查 P3 收口——10m 拒绝用例、孤儿 i18n 清理、设计文档订正（子任务 14） |
+| `d6236560` | merge: 图表 K 线切 Gate 并入父分支（子任务 14：374bd603 实施 + 30e6a4c3/35e9f508 检查修复；独立检查 PASS，make test/build 全过） |
+
+### Testing
+
+- [OK] git diff --check；make test（Go 619 用例 + 前端 162 用例）；make build；tsc --noEmit；vite build；独立检查 PASS
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ⑮ assistant-market：24h 行情/K 线工具/简报/价格告警改 Gate，删除 /api/agent/klines|ticker 与 Binance 取数；然后 ⑯→⑰
