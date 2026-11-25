@@ -164,7 +164,7 @@ func (at *AutoTrader) runCycle() error {
 
 		// In safe mode, don't return error — keep the loop running to retry next cycle
 		if at.safeMode {
-			at.logWarnf("🛡️ Safe mode: skipping this cycle, will retry in %v", at.config.ScanInterval)
+			at.logWarnf("🛡️ Safe mode: skipping this cycle, will retry at the next scheduled scan")
 			return nil
 		}
 

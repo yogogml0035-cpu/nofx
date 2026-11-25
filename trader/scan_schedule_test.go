@@ -29,9 +29,11 @@ func TestNextScanTimeEpochGrid(t *testing.T) {
 		{name: "1m 边界后 30s", now: utc(2026, 11, 25, 12, 0, 30), tf: "1m", want: utc(2026, 11, 25, 12, 1, 5)},
 		{name: "1m 恰在触发时刻", now: utc(2026, 11, 25, 12, 0, 5), tf: "1m", want: utc(2026, 11, 25, 12, 1, 5)},
 		{name: "5m", now: utc(2026, 11, 25, 12, 2, 0), tf: "5m", want: utc(2026, 11, 25, 12, 5, 5)},
+		{name: "30m", now: utc(2026, 11, 25, 12, 10, 0), tf: "30m", want: utc(2026, 11, 25, 12, 30, 5)},
 		{name: "15m 边界后 1s（触发时刻未到）", now: utc(2026, 11, 25, 12, 15, 1), tf: "15m", want: utc(2026, 11, 25, 12, 15, 5)},
 		{name: "15m 触发时刻已过", now: utc(2026, 11, 25, 12, 15, 6), tf: "15m", want: utc(2026, 11, 25, 12, 30, 5)},
 		{name: "4h", now: utc(2026, 11, 25, 13, 0, 0), tf: "4h", want: utc(2026, 11, 25, 16, 0, 5)},
+		{name: "8h", now: utc(2026, 11, 25, 9, 0, 0), tf: "8h", want: utc(2026, 11, 25, 16, 0, 5)},
 		{name: "1d UTC 午夜", now: utc(2026, 11, 25, 12, 0, 0), tf: "1d", want: utc(2026, 11, 26, 0, 0, 5)},
 		{name: "1d 午夜后 2s", now: utc(2026, 11, 26, 0, 0, 2), tf: "1d", want: utc(2026, 11, 26, 0, 0, 5)},
 		{name: "10s 边界后 3s（触发时刻未到）", now: utc(2026, 11, 25, 12, 0, 3), tf: "10s", want: utc(2026, 11, 25, 12, 0, 5)},
@@ -67,6 +69,11 @@ func TestNextScanTimeWeekAndMonth(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, utc(2026, 12, 7, 0, 0, 5), got)
 
+	mondayExact := utc(2026, 11, 30, 0, 0, 5)
+	got, err = nextScanTime(mondayExact, "1w", delay)
+	require.NoError(t, err)
+	assert.Equal(t, utc(2026, 12, 7, 0, 0, 5), got, "恰在周一触发时刻 → 下一周")
+
 	// 30d：11 月 15 日 → 12 月 1 日 00:00:05；12 月 1 日 00:00:02 → 当日；12 月 1 日 00:00:10 → 1 月 1 日
 	got, err = nextScanTime(utc(2026, 11, 15, 12, 0, 0), "30d", delay)
 	require.NoError(t, err)
@@ -79,17 +86,21 @@ func TestNextScanTimeWeekAndMonth(t *testing.T) {
 	got, err = nextScanTime(utc(2026, 12, 1, 0, 0, 10), "30d", delay)
 	require.NoError(t, err)
 	assert.Equal(t, utc(2027, 1, 1, 0, 0, 5), got)
+
+	got, err = nextScanTime(utc(2026, 12, 1, 0, 0, 5), "30d", delay)
+	require.NoError(t, err)
+	assert.Equal(t, utc(2027, 1, 1, 0, 0, 5), got, "恰在月初触发时刻 → 下一月")
 }
 
 func TestNextScanTimeSevenDayGrid(t *testing.T) {
 	// 7d 与 Gate 一致：Unix 纪元的 7 天网格（起点为周四）
 	now := utc(2026, 11, 25, 12, 0, 0)
+	require.Equal(t, time.Wednesday, now.Weekday())
 	got, err := nextScanTime(now, "7d", 5*time.Second)
 	require.NoError(t, err)
+	// 2026-11-26 是周四（Unix 纪元 7 天网格），触发为 00:00:05
+	assert.Equal(t, utc(2026, 11, 26, 0, 0, 5), got)
 	assert.Equal(t, time.Thursday, got.Weekday())
-	assert.True(t, got.After(now))
-	assert.LessOrEqual(t, got.Sub(now), 7*24*time.Hour)
-	assert.Equal(t, 5*time.Second, got.Sub(got.Truncate(24*time.Hour)))
 }
 
 func TestNextScanTimeRejectsBadInput(t *testing.T) {

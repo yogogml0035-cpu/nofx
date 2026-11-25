@@ -15,6 +15,14 @@ import (
 // scanCloseDelay 收线后的固定延迟：给 Gate 收线与本地时钟留出稳定窗口。
 const scanCloseDelay = 5 * time.Second
 
+// scanFallbackInterval 返回回退扫描间隔：ScanInterval 非正时用 1 分钟保底（防御旧配置）。
+func (at *AutoTrader) scanFallbackInterval() time.Duration {
+	if at.config.ScanInterval <= 0 {
+		return time.Minute
+	}
+	return at.config.ScanInterval
+}
+
 // scanTimeframe 返回策略配置里的主周期；缺失或不在 D25 保留集合时返回空串（调用方回退到 ScanInterval）。
 func scanTimeframe(config *store.StrategyConfig) string {
 	if config == nil {

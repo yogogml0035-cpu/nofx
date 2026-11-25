@@ -378,9 +378,8 @@ func (at *AutoTrader) Run() error {
 
 	logger.Info("🚀 AI-driven automatic trading system started")
 	at.logInfof("💰 Initial balance: %.2f USDT", at.initialBalance)
-	cadence := scanTimeframe(at.config.StrategyConfig)
-	if cadence == "" {
-		at.logWarnf("⚙️  Primary timeframe missing/invalid; scan interval fallback: %v", at.config.ScanInterval)
+	if cadence := scanTimeframe(at.config.StrategyConfig); cadence == "" {
+		at.logWarnf("⚙️  Primary timeframe missing/invalid; scan interval fallback: %v", at.scanFallbackInterval())
 	} else {
 		at.logInfof("⚙️  Scan aligned to %s close + %v (UTC)", cadence, scanCloseDelay)
 	}
@@ -486,11 +485,10 @@ func (at *AutoTrader) Run() error {
 			break
 		}
 
-		// 等待下一个 K 线收线边界（+ 固定延迟）；主周期缺失时回退到旧 ScanInterval
-		wait := at.config.ScanInterval
-		if wait <= 0 {
-			wait = time.Minute
-		}
+		// 等待下一个 K 线收线边界（+ 固定延迟）；主周期缺失时回退到旧 ScanInterval。
+		// 每轮重新读取：引擎可能在首轮原地归一化周期别名（1小时→1h），下一轮起即可对齐。
+		cadence := scanTimeframe(at.config.StrategyConfig)
+		wait := at.scanFallbackInterval()
 		if cadence != "" {
 			next, err := nextScanTime(time.Now(), cadence, scanCloseDelay)
 			if err != nil {
@@ -502,6 +500,9 @@ func (at *AutoTrader) Run() error {
 				}
 				at.logInfof("⏰ Next scan at %s (UTC)", next.Format(time.RFC3339))
 			}
+		}
+		if cadence == "" {
+			at.logInfof("⏰ Next scan in %v (ScanInterval fallback)", wait)
 		}
 		timer := time.NewTimer(wait)
 		select {
