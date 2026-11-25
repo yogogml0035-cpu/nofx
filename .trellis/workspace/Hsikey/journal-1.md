@@ -233,3 +233,46 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: 子任务 10 partial-close 收口：决策契约、持仓可分批标记与 W2 真实分批平仓
+<!-- trellis-session: v=2 fp=8924e4ad168f3caa -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 10 partial-close 收口：决策契约、持仓可分批标记与 W2 真实分批平仓
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+新增 close_long_partial/close_short_partial 与 close_percent（(0,100)，100 指向全平）；Gate 适配器 PartialCloser 精确按 SizeForCloseRatio 换算并提交 reduce-only 市价单；持仓信息逐仓标记可分批；执行 fail-closed、提示词中英、前端卡片与架构/规范同步；W2 实测通过并经独立检查复审 PASS；合父、归档、清理子分支树
+
+### Main Changes
+
+- trader/types：PartialCloser/PartialCloseStatus/PartialCloseRequest/PartialCloseResult
+- trader/gate：partial_close.go（状态、精确换算、市价单最大张数、reduce-only）；编译期能力断言；单测矩阵
+- kernel：Decision.ClosePercent 与两动作校验；PositionInfo 可分批字段；提示词动作清单/示例/持仓标记
+- trader：executePartialCloseWithRecord、能力断言、排序优先级、DecisionAction.close_percent；前端 DecisionCard 映射
+- 文档与规范：STRATEGY_MODULE 中英、exchange-adapters 新增 Partial close by ratio 场景
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3985f016` | merge: 分批平仓并入父分支（feat/2026_1123_gate-trading-foundation--partial-close 7cd7788f，独立检查 PASS，make test 全部包 + 前端 160 用例、make build、W2 LIVECHECK_PASS） |
+
+### Testing
+
+- [OK] git diff --check（含 f902f7db..7cd7788f）
+- [OK] make test：后端全部包 + 前端 14 文件 / 160 用例
+- [OK] make build
+- [OK] W2 LIVECHECK_PASS：DOGE 17 张 → 50% 平 8 留 9 → 保护回读 → 100%/1% 拒绝 → 全平零残留
+- [OK] 独立检查首轮 NEEDS FIX 修复后复审 PASS
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ⑪ protective-order-management：先读归档 probe/README.md 与 F43（分批后条件单列表形态），再设计改单/撤旧建新
+- 其后按 12→17 串行；父任务收口前做组合审查、E2E 与 make ci-local

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~235 | Active |
+| `journal-1.md` | ~278 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-11-25 | 子任务 10 partial-close 收口：决策契约、持仓可分批标记与 W2 真实分批平仓 | `3985f016` | `feat/2026_1123_gate-trading-foundation` |
 | 7 | 2026-11-25 | 子任务 9 sizing-engine 收口：金额由代码计算、亏损上限校验与提示词去金额契约 | `9eeaa72a` | `feat/2026_1123_gate-trading-foundation` |
 | 6 | 2026-11-25 | ⑧ strategy-config 收口：百分比开仓配置与周期收敛合父归档 | `1404b8eb` | `feat/2026_1123_gate-trading-foundation` |
 | 5 | 2026-11-25 | 子任务 6 drawdown-monitor 收口：合父、归档、计划文档同步 | `c0eadc1f` | `feat/2026_1123_gate-trading-foundation` |
