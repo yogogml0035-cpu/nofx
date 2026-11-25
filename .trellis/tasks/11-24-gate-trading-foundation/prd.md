@@ -65,7 +65,7 @@
 | 12 | `market-source` | `archive/2026-11/11-25-market-source`（已归档） | 1 |
 | 13 | `engine-klines-gate` | `archive/2026-11/11-25-engine-klines-gate`（已归档） | 12 |
 | 14 | `chart-klines-gate` | `archive/2026-11/11-25-chart-klines-gate`（已归档） | 12 |
-| 15 | `assistant-market` | 开工时创建 | 12 |
+| 15 | `assistant-market` | `archive/2026-11/11-25-assistant-market`（已归档） | 12 |
 | 16 | `scan-alignment` | 开工时创建 | 无 |
 | 17 | `infra-hygiene` | 开工时创建 | 无 |
 
