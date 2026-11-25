@@ -257,17 +257,18 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		actionRecord := store.DecisionAction{
-			Action:     d.Action,
-			Symbol:     d.Symbol,
-			Quantity:   0,
-			Leverage:   d.Leverage,
-			Price:      0,
-			StopLoss:   d.StopLoss,
-			TakeProfit: d.TakeProfit,
-			Confidence: d.Confidence,
-			Reasoning:  d.Reasoning,
-			Timestamp:  time.Now().UTC(),
-			Success:    false,
+			Action:       d.Action,
+			Symbol:       d.Symbol,
+			Quantity:     0,
+			Leverage:     d.Leverage,
+			Price:        0,
+			StopLoss:     d.StopLoss,
+			TakeProfit:   d.TakeProfit,
+			ClosePercent: d.ClosePercent,
+			Confidence:   d.Confidence,
+			Reasoning:    d.Reasoning,
+			Timestamp:    time.Now().UTC(),
+			Success:      false,
 		}
 
 		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
@@ -483,19 +484,34 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
+		canPartialClose := false
+		partialCloseReason := "adapter does not support partial close"
+		if closer, ok := at.trader.(types.PartialCloser); ok {
+			status, err := closer.PartialCloseStatus(symbol, side)
+			if err != nil {
+				at.logWarnf("⚠️ Partial-close status unavailable for %s %s: %v", symbol, side, err)
+				partialCloseReason = "status unavailable: " + err.Error()
+			} else {
+				canPartialClose = status.Supported
+				partialCloseReason = status.Reason
+			}
+		}
+
 		positionInfos = append(positionInfos, kernel.PositionInfo{
-			Symbol:           symbol,
-			Side:             side,
-			EntryPrice:       entryPrice,
-			MarkPrice:        markPrice,
-			Quantity:         quantity,
-			Leverage:         leverage,
-			UnrealizedPnL:    unrealizedPnl,
-			UnrealizedPnLPct: pnlPct,
-			PeakPnLPct:       peakPnlPct,
-			LiquidationPrice: liquidationPrice,
-			MarginUsed:       marginUsed,
-			UpdateTime:       updateTime,
+			Symbol:                        symbol,
+			Side:                          side,
+			EntryPrice:                    entryPrice,
+			MarkPrice:                     markPrice,
+			Quantity:                      quantity,
+			Leverage:                      leverage,
+			UnrealizedPnL:                 unrealizedPnl,
+			UnrealizedPnLPct:              pnlPct,
+			PeakPnLPct:                    peakPnlPct,
+			LiquidationPrice:              liquidationPrice,
+			MarginUsed:                    marginUsed,
+			UpdateTime:                    updateTime,
+			CanPartialClose:               canPartialClose,
+			PartialCloseUnavailableReason: partialCloseReason,
 		})
 	}
 
@@ -641,7 +657,7 @@ func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 	// Define priority
 	getActionPriority := func(action string) int {
 		switch action {
-		case "close_long", "close_short":
+		case "close_long", "close_short", "close_long_partial", "close_short_partial":
 			return 1 // Highest priority: close positions first
 		case "open_long", "open_short":
 			return 2 // Second priority: open positions later

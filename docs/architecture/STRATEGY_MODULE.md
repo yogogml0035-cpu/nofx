@@ -444,7 +444,8 @@ func fixMissingQuotes(s string) string {
 func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. Validate action type
-        validActions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait"}
+        validActions := []string{"open_long", "open_short", "close_long", "close_short",
+            "close_long_partial", "close_short_partial", "hold", "wait"}
 
         // 2. Open position validation
         if isOpenAction(d.Action) {
@@ -457,6 +458,8 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
         // 3. Close position validation
         if isCloseAction(d.Action) {
             // Symbol must exist
+            // Partial close: close_percent is in (0, 100); 100% is a full close
+            // and must use close_long / close_short
         }
     }
 }
@@ -468,7 +471,8 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
 // decision/engine.go:128-143
 type Decision struct {
     Symbol      string   // Trading pair: "BTCUSDT"
-    Action      string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "close_long_partial", "close_short_partial", "hold", "wait"
+    ClosePercent float64 // Partial-close ratio (0 < pct < 100), only for close_*_partial
     Leverage    int      // Leverage multiplier
     StopLoss    float64  // Stop loss price
     TakeProfit  float64  // Take profit price
@@ -493,6 +497,7 @@ type Decision struct {
 sort.SliceStable(decisions, func(i, j int) bool {
     priority := map[string]int{
         "close_long": 1, "close_short": 1,  // Highest priority
+        "close_long_partial": 1, "close_short_partial": 1,
         "open_long": 2, "open_short": 2,    // Second priority
         "hold": 3, "wait": 3,               // Lowest priority
     }

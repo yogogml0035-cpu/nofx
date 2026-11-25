@@ -31,6 +31,12 @@ type PositionInfo struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
 	UpdateTime       int64   `json:"update_time"` // Position update timestamp (milliseconds)
+
+	// CanPartialClose 该持仓能否分批平仓：交易所可精确读取张数与最小步长，且持仓
+	// 张数严格大于一个最小步长。false 时模型不得发起 close_*_partial。
+	CanPartialClose bool `json:"can_partial_close"`
+	// PartialCloseUnavailableReason 不可分批的原因（仅 CanPartialClose=false 时非空）
+	PartialCloseUnavailableReason string `json:"partial_close_unavailable_reason,omitempty"`
 }
 
 // AccountInfo account information
@@ -82,28 +88,35 @@ type RecentOrder struct {
 
 // Context trading context (complete information passed to AI)
 type Context struct {
-	CurrentTime        string                             `json:"current_time"`
-	RuntimeMinutes     int                                `json:"runtime_minutes"`
-	CallCount          int                                `json:"call_count"`
-	Account            AccountInfo                        `json:"account"`
-	Positions          []PositionInfo                     `json:"positions"`
-	CandidateCoins     []CandidateCoin                    `json:"candidate_coins"`
-	PromptVariant      string                             `json:"prompt_variant,omitempty"`
-	TradingStats       *TradingStats                      `json:"trading_stats,omitempty"`
-	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
-	MarketDataMap      map[string]*market.Data            `json:"-"`
-	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
-	MarketEnv          *MarketEnvSnapshot                 `json:"-"`
-	BTCETHLeverage     int                                `json:"-"`
-	AltcoinLeverage    int                                `json:"-"`
-	Timeframes         []string                           `json:"-"`
+	CurrentTime     string                             `json:"current_time"`
+	RuntimeMinutes  int                                `json:"runtime_minutes"`
+	CallCount       int                                `json:"call_count"`
+	Account         AccountInfo                        `json:"account"`
+	Positions       []PositionInfo                     `json:"positions"`
+	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
+	PromptVariant   string                             `json:"prompt_variant,omitempty"`
+	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`
+	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`
+	MarketDataMap   map[string]*market.Data            `json:"-"`
+	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
+	MarketEnv       *MarketEnvSnapshot                 `json:"-"`
+	BTCETHLeverage  int                                `json:"-"`
+	AltcoinLeverage int                                `json:"-"`
+	Timeframes      []string                           `json:"-"`
 }
 
 // Decision AI trading decision
 type Decision struct {
 	Symbol string `json:"symbol"`
-	Action string `json:"action"` // Standard: "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+	// Standard: "open_long", "open_short", "close_long", "close_short",
+	// "close_long_partial", "close_short_partial", "hold", "wait"
+	Action string `json:"action"`
 	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
+
+	// ClosePercent is the partial-close ratio (0 < pct < 100), read only for
+	// close_long_partial / close_short_partial. 100% is a full close and must use
+	// close_long / close_short.
+	ClosePercent float64 `json:"close_percent,omitempty"`
 
 	// Opening position parameters. The notional is computed by the engine from
 	// principal × position_percent (D22/D24); the model supplies only direction,

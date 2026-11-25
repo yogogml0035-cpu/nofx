@@ -5,32 +5,53 @@
 
 ## 清单
 
-- [ ] 1. 子分支与 worktree：从父分支最新提交 `bd9562d5` 建
+- [x] 1. 子分支与 worktree：从父分支最新提交 `f902f7db`（父分支 `bd9562d5` + 规划提交）建
       `feat/2026_1123_gate-trading-foundation--partial-close`，worktree 位于
       `nofx-wt/feat-2026-1123-gate-trading-foundation--partial-close`；在子 worktree 激活任务。
-- [ ] 2. `trader/types`：新增 `PartialCloseStatus`、`PartialCloseRequest`、`PartialCloseResult`、
+- [x] 2. `trader/types`：新增 `PartialCloseStatus`、`PartialCloseRequest`、`PartialCloseResult`、
       `PartialCloser`；注释写明比例范围、剩余张数与不可分批语义。
-- [ ] 3. `trader/gate`：新增 `partial_close.go`（状态与执行）、`ContractSpec` 市价单最大张数校验；
+- [x] 3. `trader/gate`：新增 `partial_close.go`（状态与执行）、`ContractSpec` 市价单最大张数校验；
       执行用 `findPositionSize` + `SizeForCloseRatio` + reduce-only 市价单；单测覆盖状态/换算/下单矩阵。
-- [ ] 4. `kernel` 契约：`Decision.ClosePercent`、两个新动作、`validateDecision` 比例校验
+- [x] 4. `kernel` 契约：`Decision.ClosePercent`、两个新动作、`validateDecision` 比例校验
       （(0,100)，100 指向全平）；单测。
-- [ ] 5. `kernel` 提示词：动作清单、`close_percent` 说明、可用条件、中英示例；`PositionInfo`
+- [x] 5. `kernel` 提示词：动作清单、`close_percent` 说明、可用条件、中英示例；`PositionInfo`
       两个字段与持仓行标记；提示词单测。
-- [ ] 6. `trader` 执行：`partialCloser()`、`executePartialCloseWithRecord`、动作分发、排序优先级；
+- [x] 6. `trader` 执行：`partialCloser()`、`executePartialCloseWithRecord`、动作分发、排序优先级；
       单测（路由、能力缺失、参数与记录）。
-- [ ] 7. `trader` 持仓上下文：`buildTradingContext` 调用 `PartialCloseStatus`，错误/未实现
+- [x] 7. `trader` 持仓上下文：`buildTradingContext` 调用 `PartialCloseStatus`，错误/未实现
       标记不可分批；单测。
-- [ ] 8. 前端：`DecisionCard` 动作映射与 `close_percent` 展示；类型；前端测试/构建。
-- [ ] 9. 文档：`STRATEGY_MODULE.md`/`.zh-CN.md` 动作清单与优先级同步。
-- [ ] 10. 定向测试：`go test ./kernel/ ./trader/ ./trader/gate/ ./trader/types/`，前端相关测试。
-- [ ] 11. W2 真实验证：`probe/livecheck.go`（Docker 交叉编译 darwin/arm64，宿主机运行）：
+- [x] 8. 前端：`DecisionCard` 动作映射与 `close_percent` 展示；类型；新增 2 个前端用例、
+      vitest 全量 160 用例与 `tsc --noEmit` 通过。
+- [x] 9. 文档：`STRATEGY_MODULE.md`/`.zh-CN.md` 动作清单与优先级同步。
+- [x] 10. 定向测试：`go test ./kernel/ ./trader/ ./trader/gate/` 全绿；前端相关测试全绿。
+- [x] 11. W2 真实验证：`probe/livecheck.go`（Docker 交叉编译 darwin/arm64，宿主机运行）：
       预检 → 随单保护开 DOGE 17 张 → 保护核对 → 50% 分批（8 张，剩 9）→ 仓位/保护核对 →
-      1% 与 100% 被拒（无副作用）→ 全平 → 零残留；保存日志与 README。
-- [ ] 12. 完整门禁：`git diff --check`、`make test`、`make build`。
+      1% 与 100% 被拒（无副作用）→ 全平 → 零残留；`LIVECHECK_PASS`，日志/JSONL/README 已留档。
+      官方文档站本次不可达（连接重置/备用域名超时），字段语义以官方 SDK v7.2.184 与仓库留档摘录为准。
+- [x] 12. 完整门禁：`git diff --check`、`make test`（后端全部包 + 前端 14 文件 / 160 用例）、
+      `make build` 全过。
 - [ ] 13. 独立检查子智能体：范围/PRD/设计/规范/候选/验收规则；主会话修复 P0–P3 并补验。
 - [ ] 14. 合父（`--no-ff`）、父 worktree 归档、计划文档 10.5 勾选、父任务 prd/implement 地图同步、
       journal、push 父分支。
 - [ ] 15. 确认父分支包含子提交、子 worktree 干净、证据已保存后删除子分支与 worktree。
+
+## 独立检查修复（2026-11-25）
+
+独立检查首轮结论 NEEDS FIX：实现与契约各点正确，唯一门禁问题是证据日志行尾空格；另有
+5 项 P3。全部处理：
+
+- [x] P2-1 `git diff --check` 失败：探针 `step()` 对空 detail 去掉行尾空格；重跑 W2 重新生成
+      `livecheck-2026-11-25.log` / `.jsonl`；现在 `git diff --check` 通过。
+- [x] P3-1 补 PRD 精确换算用例：`17 张 6% → 1/16`、`0.2 ETH 50% → 0.1/0.1`（含下单
+      size 断言）。
+- [x] P3-2 拒绝用例的无副作用核对改用 `PartialCloseStatus` 的未缓存持仓读取（探针重跑，
+      日志记录 `未缓存读数 contracts=9`）。
+- [x] P3-3 Gate 适配器增加编译期断言 `var _ types.PartialCloser = (*GateTrader)(nil)`。
+- [x] P3-4 删除 `TestBuildTradingContextMarksUnsupportedAdapter` 中不产生断言的桩分支。
+- [x] P3-5 提示词示例：分批平仓从决策数组移到单独格式示例，避免“同一轮先开仓再分批”的
+      语义矛盾；中英同步，测试断言示例存在。
+- [x] 规范：`.trellis/spec/backend/exchange-adapters.md` 新增 Partial close by ratio 场景
+      （签名、契约、错误矩阵、测试要求、W2 证据）。
 
 ## 验证命令
 

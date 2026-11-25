@@ -58,6 +58,18 @@ func (at *AutoTrader) protectedOpener() (types.ProtectedOpener, error) {
 	return opener, nil
 }
 
+// partialCloser 返回精确分批平仓能力；适配器未实现时拒绝（fail-closed：不回落全平，
+// 也不允许没有精确张数换算的部分平仓）
+func (at *AutoTrader) partialCloser() (types.PartialCloser, error) {
+	closer, ok := at.trader.(types.PartialCloser)
+	if !ok {
+		return nil, fmt.Errorf(
+			"exchange adapter %s does not support partial close; refusing to reduce the position partially",
+			at.exchange)
+	}
+	return closer, nil
+}
+
 // executeDecisionWithRecord executes AI decision and records detailed information
 func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	switch decision.Action {
@@ -69,6 +81,10 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 		return at.executeCloseLongWithRecord(decision, actionRecord)
 	case "close_short":
 		return at.executeCloseShortWithRecord(decision, actionRecord)
+	case "close_long_partial":
+		return at.executePartialCloseWithRecord(decision, actionRecord, "LONG")
+	case "close_short_partial":
+		return at.executePartialCloseWithRecord(decision, actionRecord, "SHORT")
 	case "hold", "wait":
 		// No execution needed, just record
 		return nil
@@ -360,5 +376,38 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, price, 0, entryPrice)
 
 	logger.Infof("  ✓ Position closed successfully")
+	return nil
+}
+
+// executePartialCloseWithRecord 按模型给出的比例平掉部分持仓。张数换算与
+// reduce-only 市价单由适配器完成；适配器未实现精确分批能力时在发单前拒绝。
+func (at *AutoTrader) executePartialCloseWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction, side string) error {
+	logger.Infof("  ✂️ Partial close %s: %s %.1f%%", strings.ToLower(side), decision.Symbol, decision.ClosePercent)
+
+	closer, err := at.partialCloser()
+	if err != nil {
+		return err
+	}
+
+	result, err := closer.ClosePartial(types.PartialCloseRequest{
+		Symbol:  decision.Symbol,
+		Side:    side,
+		Percent: decision.ClosePercent,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to partially close %s position for %s: %w", strings.ToLower(side), decision.Symbol, err)
+	}
+
+	recordOrderID(actionRecord, map[string]interface{}{"orderId": result.OrderID})
+	actionRecord.Quantity = result.Quantity
+	actionRecord.Price = result.FillPrice
+
+	// Gate 的成交由 OrderSync → PositionBuilder 按实际成交数量缩减仓位；其余实现
+	// PartialCloser 的适配器按 close_<side> 记账，数量为本次平掉的部分。
+	at.recordAndConfirmOrder(map[string]interface{}{"orderId": result.OrderID}, decision.Symbol,
+		"close_"+strings.ToLower(side), result.Quantity, result.FillPrice, 0, 0)
+
+	logger.Infof("  ✓ Partially closed %s %s: contracts=%s remaining=%s fillPrice=%.6g",
+		strings.ToLower(side), decision.Symbol, result.Contracts, result.Remaining, result.FillPrice)
 	return nil
 }
