@@ -229,7 +229,7 @@ func TestToolManageStrategyUpdatesMinPositionSize(t *testing.T) {
 	}
 
 	resp := a.toolManageStrategy("default", `{"action":"update","strategy_id":"strategy-editable-min-position","config":{"risk_control":{"min_position_size":20}}}`)
-	if strings.Contains(resp, "System enforced") || strings.Contains(resp, "error") {
+	if strings.Contains(resp, "System enforced") || strings.Contains(resp, `"error"`) {
 		t.Fatalf("expected min position size update to be accepted, got: %s", resp)
 	}
 

@@ -211,11 +211,6 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 // Risk Control Helpers
 // ============================================================================
 
-// isBTCETH checks if a symbol is BTC or ETH
-func isBTCETH(symbol string) bool {
-	symbol = strings.ToUpper(symbol)
-	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
-}
 
 // enforceMinPositionSize checks minimum position size (CODE ENFORCED)
 func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {

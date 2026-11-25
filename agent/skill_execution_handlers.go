@@ -626,7 +626,7 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 		if lang == "zh" {
 			return "开仓金额百分比"
 		}
-		return "position percent"
+		return "position size percent"
 	case "max_margin_usage":
 		if lang == "zh" {
 			return "最大保证金使用率"
