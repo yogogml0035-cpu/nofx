@@ -159,3 +159,29 @@
 ### Next Steps
 
 - 子任务 6 drawdown-monitor（U1 已决，可开工）；做真实接口探测时执行 W5 并把结果记进计划文档 F37
+
+
+## Session 5: 子任务 6 drawdown-monitor 收口：合父、归档、计划文档同步
+<!-- trellis-session: v=2 fp=8ed857ae07a4e902 -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 6 drawdown-monitor 收口：合父、归档、计划文档同步
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+回撤监控按实际杠杆（lever）与仓位归属（D40）收敛，独立检查两轮复核 PASS，带仓只读真实读数 LIVECHECK_PASS；门禁 diff-check/make test/make build 全过；计划文档 3.6/F12/文件表/10.5 与父任务 prd/implement 已同步
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c0eadc1f` | feat(trader): 回撤监控按实际杠杆与仓位归属收敛——Gate 杠杆读 lever 修复恒 10 倍（F12）、非本 trader 持仓直接无视不拒启动（D40）、全平维持 close 原语；13 组监控单测 + 适配层杠杆解析矩阵；探针桥（livecheck tag）与带仓只读真实读数 LIVECHECK_PASS（子任务 6 drawdown-monitor） |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 子任务 8 strategy-config 开工（无依赖）；随后 9 sizing-engine（依赖 6、7，均已合父）
