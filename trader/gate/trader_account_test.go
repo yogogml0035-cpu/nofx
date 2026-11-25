@@ -324,3 +324,66 @@ func TestGetBalanceCachesWithinTTL(t *testing.T) {
 		t.Errorf("requests after clearCache = %d, want 4", got)
 	}
 }
+
+// TestGetPositionsLeverageReadsActualValue 子任务 6：持仓列表返回杠杆的实际值（F12 修复）。
+// lever 是文档钦定的权威字段（逐仓和全仓都适用）；缺失时按同模式旧字段兜底；都读不出按 0
+// （不可用）计，不让整条查询失败。map 里的类型是 float64（trader 包的消费方都按 float64 断言）。
+func TestGetPositionsLeverageReadsActualValue(t *testing.T) {
+	cases := []struct {
+		name        string
+		lever       string
+		legacyCross string
+		legacyIso   string
+		posMode     string
+		want        float64
+	}{
+		{name: "lever 优先（全仓，与 cross_leverage_limit 一致）", lever: "25", legacyCross: "25", legacyIso: "0", posMode: "cross", want: 25},
+		{name: "lever 与旧字段不一致时取 lever", lever: "30", legacyCross: "75", legacyIso: "0", posMode: "cross", want: 30},
+		{name: "全仓旧字段兜底（无 lever）", legacyCross: "75", legacyIso: "0", posMode: "cross", want: 75},
+		{name: "逐仓旧字段兜底（无 lever）", legacyCross: "0", legacyIso: "10", posMode: "isolated", want: 10},
+		{name: "lever 异常值回落同模式旧字段", lever: "abc", legacyCross: "0", legacyIso: "10", posMode: "isolated", want: 10},
+		{name: "字段全为 0 按 0（不可用）计", lever: "", legacyCross: "0", legacyIso: "0", posMode: "cross", want: 0},
+		{name: "模式与杠杆字段全缺按 0（不可用）计", lever: "", legacyCross: "", legacyIso: "", posMode: "", want: 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			entry := map[string]interface{}{
+				"contract":        "DOGE_USDT",
+				"size":            "17",
+				"mode":            "single",
+				"entry_price":     "0.1",
+				"mark_price":      "0.2",
+				"liq_price":       "0.01",
+				"unrealised_pnl":  "0.5",
+				"pos_margin_mode": c.posMode,
+			}
+			if c.lever != "" {
+				entry["lever"] = c.lever
+			}
+			if c.legacyCross != "" {
+				entry["cross_leverage_limit"] = c.legacyCross
+			}
+			if c.legacyIso != "" {
+				entry["leverage"] = c.legacyIso
+			}
+			mock := newGateMock()
+			mock.positions = []map[string]interface{}{entry}
+			gt := newLocalGateTrader(t, mock.handler)
+
+			positions, err := gt.GetPositions()
+			if err != nil {
+				t.Fatalf("GetPositions unexpected error: %v", err)
+			}
+			if len(positions) != 1 {
+				t.Fatalf("positions = %d, want 1", len(positions))
+			}
+			got, ok := positions[0]["leverage"].(float64)
+			if !ok {
+				t.Fatalf("leverage is %T, want float64", positions[0]["leverage"])
+			}
+			if got != c.want {
+				t.Errorf("leverage = %v, want %v", got, c.want)
+			}
+		})
+	}
+}

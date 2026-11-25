@@ -3,6 +3,7 @@ package trader
 import (
 	"fmt"
 	"nofx/logger"
+	"nofx/market"
 	"strings"
 	"time"
 )
@@ -42,6 +43,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
 		side := pos["side"].(string)
+
+		// 只处理本 trader 开出的仓位（计划文档 D40）：不是本 trader 开出的持仓直接无视——
+		// 不管理、不平仓、不更新峰值缓存，也不因此拒绝 trader 启动
+		if !at.isOwnPosition(symbol, side) {
+			continue
+		}
+
 		entryPrice := pos["entryPrice"].(float64)
 		markPrice := pos["markPrice"].(float64)
 		quantity := pos["positionAmt"].(float64)
@@ -56,9 +64,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		// Calculate current P&L percentage
-		leverage := 10 // Default value
-		if lev, ok := pos["leverage"].(float64); ok {
-			leverage = int(lev)
+		// 杠杆取持仓的实际值（计划文档 F12）：适配层读不到（缺失或 0）时才回落 10 倍
+		leverage := 10.0
+		if lev, ok := pos["leverage"].(float64); ok && lev > 0 {
+			leverage = lev
 		}
 
 		var currentPnLPct float64
@@ -110,6 +119,31 @@ func (at *AutoTrader) checkPositionDrawdown() {
 				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
 		}
 	}
+}
+
+// isOwnPosition 判断持仓是否由本 trader 开出（计划文档 D40）：
+//   - 网格 trader：网格品种上的持仓是自己的——网格由本 trader 的限价单成交建仓，不写 trader_positions；
+//   - AI trader：本地 DB 有 OPEN 持仓记录，跨重启稳定。gate 的持仓记录由 OrderSync 写入
+//     （GateTrader.StartOrderSync → store.PositionBuilder.ProcessTrade：market.Normalize 归一化
+//     符号、大写 LONG/SHORT、Status OPEN），与下面的查询同源；决策路径的 recordAndConfirmOrder
+//     对 gate 提前返回，不落持仓；
+//   - 其余（无 store、DB 查询失败、无 OPEN 记录、非网格品种）一律视为不是本 trader 的：全平是
+//     高风险动作，归属不了就不处理，宁可漏处理也不误平不可归属的仓位。
+func (at *AutoTrader) isOwnPosition(symbol, side string) bool {
+	normalized := market.Normalize(symbol)
+	if at.IsGridStrategy() &&
+		normalized == market.Normalize(at.config.StrategyConfig.GridConfig.Symbol) {
+		return true
+	}
+	if at.store == nil {
+		return false
+	}
+	pos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalized, strings.ToUpper(side))
+	if err != nil {
+		logger.Warnf("⚠️ Drawdown monitoring: ownership check failed for %s %s: %v", symbol, side, err)
+		return false
+	}
+	return pos != nil
 }
 
 // emergencyClosePosition emergency close position function

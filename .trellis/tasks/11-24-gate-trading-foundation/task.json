@@ -23,7 +23,8 @@
     "11-24-protective-order-adapter",
     "11-24-open-position-safety",
     "11-24-unified-trading-params",
-    "11-24-account-equity"
+    "11-24-account-equity",
+    "11-25-drawdown-monitor"
   ],
   "parent": null,
   "relatedFiles": [],

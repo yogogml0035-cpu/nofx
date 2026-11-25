@@ -91,6 +91,26 @@ func walletPrincipal(total *gateapi.AccountBalance) (float64, error) {
 	return ratFloat(new(big.Rat).Sub(amount, borrowed)), nil
 }
 
+// positionLeverage 从持仓条目读当前杠杆的实际值（计划文档 F12、子任务 6 回撤监控）。
+// 优先 lever——官方文档写明它「表示仓位当前杠杆，逐仓和全仓都可以该字段表示，逐步替换
+// leverage 与 cross_leverage_limit」（字段原文留档于归档子任务 5 的 research）；读不到再按
+// 同模式旧字段兜底（逐仓 leverage、全仓 cross_leverage_limit）；都读不到按 0（不可用）计。
+// 持仓列表是展示与监控读数路径，不是下单风险路径：杠杆读不出不让整条查询失败
+// （设置路径的严格互证语义见 marginSettingsFromPosition），监控侧对不可用值按 F12 回落 10 倍。
+func positionLeverage(position *gateapi.Position) float64 {
+	if lev, err := positiveIntField("lever", position.Lever); err == nil {
+		return float64(lev)
+	}
+	field, raw := "leverage", position.Leverage
+	if position.PosMarginMode == marginModeCross {
+		field, raw = "cross_leverage_limit", position.CrossLeverageLimit
+	}
+	if lev, err := positiveIntField(field, raw); err == nil {
+		return float64(lev)
+	}
+	return 0
+}
+
 // GetPositions retrieves all open positions
 func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 	// Check cache
@@ -122,7 +142,7 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 		markPrice, _ := strconv.ParseFloat(pos.MarkPrice, 64)
 		liqPrice, _ := strconv.ParseFloat(pos.LiqPrice, 64)
 		unrealizedPnl, _ := strconv.ParseFloat(pos.UnrealisedPnl, 64)
-		leverage, _ := strconv.ParseFloat(pos.Leverage, 64)
+		leverage := positionLeverage(&pos)
 
 		// Gate 返回的持仓张数换算为标的币数量：元数据经 GetContractSpec 精确解析，
 		// 失败即报错，不再回落 multiplier=1（猜测值）
@@ -144,7 +164,7 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 			"entryPrice":       entryPrice,
 			"markPrice":        markPrice,
 			"unRealizedProfit": unrealizedPnl,
-			"leverage":         int(leverage),
+			"leverage":         leverage,
 			"liquidationPrice": liqPrice,
 			"side":             side,
 		})
