@@ -150,7 +150,6 @@ BTC broke support, MACD death cross, volume increased...
     "symbol": "BTCUSDT",
     "action": "open_short",
     "leverage": 10,
-    "position_size_usd": 5000,
     "stop_loss": 97000,
     "take_profit": 91000,
     "confidence": 85
@@ -422,11 +421,9 @@ The following constraints are enforced by the system. **Methods 1 & 2** automati
 **Meaning**: Reserve 10% for liquidation protection and fees
 
 #### 6. Minimum Opening Amount
-**Requirement**:
-- General coins: ≥ 12 USDT
-- BTC/ETH: ≥ 60 USDT
+**Requirement**: ≥ 10 USDT after rounding (configurable in the strategy, default 10)
 
-**Reason**: Exchange minimum notional value + safety margin
+**Reason**: The notional is rounded down to the contract's size step; below this amount or below one size step the order is not placed. The open notional itself is computed and enforced by the system from principal × position percent (1%-20%, default 10%); the AI does not output an amount.
 
 ---
 
@@ -457,11 +454,9 @@ Your analysis...
     "symbol": "BTCUSDT",
     "action": "open_short",
     "leverage": 10,
-    "position_size_usd": 5000,
     "stop_loss": 97000,
     "take_profit": 91000,
-    "confidence": 85,
-    "risk_usd": 300
+    "confidence": 85
   }
 ]
 ```
@@ -475,21 +470,21 @@ Your analysis...
 **1. Range symbols `~`**
 ```json
 // Wrong
-{"position_size_usd": "2000~3000"}  // Must be exact value
-{"stop_loss": "95000~96000"}        // Must be single price
+{"stop_loss": "95000~96000"}   // Must be a single price
+{"confidence": "80~90"}        // Must be an exact value
 
 // Correct
-{"position_size_usd": 2500}
 {"stop_loss": 95500}
+{"confidence": 85}
 ```
 
 **2. Thousands separators `,`**
 ```json
 // Wrong
-{"position_size_usd": 98,000}  // JSON numbers don't allow commas
+{"stop_loss": 98,000}  // JSON numbers don't allow commas
 
 // Correct
-{"position_size_usd": 98000}
+{"stop_loss": 98000}
 ```
 
 **3. Chinese descriptions or comments**
@@ -777,20 +772,17 @@ Key: Sharpe Ratio is the only metric, naturally punishes frequent trading and ex
 3. Find new opportunities: Any strong signals? Long/short opportunities?
 4. Output decision: Chain of thought + JSON
 
-# Position Size Calculation
+# Position Size
 
-**Important**: `position_size_usd` is **notional value** (includes leverage), not margin requirement.
+**Important**: the open notional is computed and enforced by the system from principal × the strategy's position percent (1%-20%, step 0.1, default 10%). The AI decision JSON **has no amount field**: do not output any amount field, and do not compute, scale up or scale down the amount yourself.
 
-**Calculation Steps**:
-1. **Available Margin** = Available Cash × 0.88 (reserve 12% for fees, slippage, liquidation buffer)
-2. **Notional Value** = Available Margin × Leverage
-3. **position_size_usd** = Notional Value (fill this in JSON)
-4. **Actual Coin Amount** = position_size_usd / Current Price
+The system:
+1. Computes the notional (USDT) from principal × percent
+2. Rounds it down to the contract's size step to get the order size
+3. Skips the order when the rounded amount is below the minimum order size (default 10 USDT) or below one size step
+4. Refuses the decision when the loss at the stop loss exceeds 2% of the principal
 
-**Example**: Available cash $500, leverage 5x
-- Available Margin = $500 × 0.88 = $440
-- position_size_usd = $440 × 5 = **$2,200** ← Fill this in JSON
-- Actually occupies margin = $440, remaining $60 for fees, slippage, liquidation protection
+The AI only supplies: direction, leverage, stop loss, take profit and confidence.
 
 ---
 
@@ -1420,19 +1412,19 @@ Chain of thought analysis
 2. Check if hard constraints violated
 
 **Common Causes**:
-- Risk-reward ratio < 1:3
+- The loss at the stop loss exceeds 2% of the principal
 - Leverage exceeds limits (Altcoin >5x, BTC/ETH >20x)
-- Position size out of range
-- Opening amount too small (<12 USDT or BTC/ETH <60 USDT)
+- Stop loss / take profit on the wrong side of the current price (a long stop must sit below the market and its take profit above it; short reversed)
+- The open amount computed from principal × percent, after rounding, is below the minimum order size (default 10 USDT)
 
 **Solution**:
 - Emphasize hard constraint requirements in Prompt
 - Add self-check logic:
   ```
   Before outputting decision, self-check:
-  - Is risk-reward ratio ≥ 1:3?
+  - Is the loss from the stop loss to the current price ≤ 2% of the principal?
   - Is leverage within limits?
-  - Does position size meet requirements?
+  - Are stop loss and take profit on opposite sides of the current price?
   ```
 
 ---

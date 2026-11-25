@@ -2754,7 +2754,7 @@ Your job:
 - Do not expose evidence-package wording, tool names, raw logs, HTTP status codes, backend internals, or engineering troubleshooting unless the user explicitly asked for technical logs.
 - Do not invent subscriptions, data services, websites, missing product fields, or unsupported actions.
 - Never say "subscription expired" unless the evidence explicitly contains a confirmed subscription state.
-- If an order is blocked because the amount is too small, explain it as account size/order minimum/system limit. Suggest real levers (adding funds, smaller-suitable symbols, the strategy's position_percent 1%-20%, or the editable min_position_size default 10 USDT). Do not suggest editing position_size_usd (an AI decision output) or System enforced fields such as max_positions and max_margin_usage.
+- If an order is blocked because the amount is too small, explain it as account size/order minimum/system limit. Suggest real levers (adding funds, smaller-suitable symbols, the strategy's position_percent 1%-20%, or the editable min_position_size default 10 USDT). Do not suggest editing the open amount (the system computes it as principal × position_percent) or System enforced fields such as max_positions and max_margin_usage.
 - If the latest decision is wait/hold, explain that the trader is running and the AI chose to wait because the entry standard was not met.
 - If evidence is insufficient, say what is missing and the next concrete check.
 
@@ -2802,18 +2802,23 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 	rawDecisions, _ := json.Marshal(ev.Decisions)
 	allEvidence := strings.ToLower(string(rawDecisions))
 	latestEvidence := strings.ToLower(strings.Join(append(append([]string{}, latest.ExecutionLog...), latest.ErrorMessage, latest.DecisionJSON), "\n"))
-	hasAmountTooSmall := containsAny(allEvidence, []string{"opening amount too small", "below minimum", "must be ≥", "must be >=", "position value below minimum"})
+	hasAmountTooSmall := containsAny(allEvidence, []string{"below minimum", "position value below minimum", "open skipped", "低于最小下单金额", "最小下单门槛"})
 	latestWait := containsAny(latestEvidence, []string{"wait succeeded", `"action":"wait"`, `"action":"hold"`})
 	primarySymbol := primaryDiagnosisSymbol(latest.CandidateCoins, latest.DecisionJSON)
 	amount, minimum := openingAmountAndMinimum(string(rawDecisions))
 	totalEquity := toFloat(ev.Account["total_equity"])
+	// Open notional is sized from the account principal (本金, D22), not equity.
+	principal := toFloat(ev.Account["wallet_balance"])
+	if principal == 0 {
+		principal = totalEquity
+	}
 	available := toFloat(ev.Account["available_balance"])
 	if available == 0 {
 		available = toFloat(ev.Account["available"])
 	}
-	// Expected open notional under the percent-based sizing: equity × position_percent%.
+	// Expected open notional under the percent-based sizing: principal × position_percent%.
 	var expectedOpenNotional float64
-	if ev.Strategy != nil && ev.Strategy.Config != nil && totalEquity > 0 {
+	if ev.Strategy != nil && ev.Strategy.Config != nil && principal > 0 {
 		percent := 0.0
 		if risk, ok := nestedMap(ev.Strategy.Config, "ai_config", "risk_control"); ok {
 			percent = firstPositiveFloat(risk["position_percent"])
@@ -2824,7 +2829,7 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 			}
 		}
 		if percent > 0 {
-			expectedOpenNotional = totalEquity * percent / 100
+			expectedOpenNotional = principal * percent / 100
 		}
 	}
 
@@ -2858,7 +2863,7 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 			summary += "，所以这笔单被拦下了。"
 			lines = append(lines, summary)
 			if expectedOpenNotional > 0 {
-				lines = append(lines, fmt.Sprintf("当前账户权益约 %.2f USDT，按策略的开仓金额百分比算出来的单笔名义价值约 %.2f USDT，容易达不到最小下单金额。", totalEquity, expectedOpenNotional))
+				lines = append(lines, fmt.Sprintf("当前账户本金约 %.2f USDT，按策略的开仓金额百分比算出来的单笔名义价值约 %.2f USDT，容易达不到最小下单金额。", principal, expectedOpenNotional))
 			}
 			if latestWait {
 				lines = append(lines, "另外，最近也有一些周期是 AI 主动选择等待，说明并不是系统完全没跑。")
@@ -2900,7 +2905,7 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 	default:
 		lines = append(lines, fmt.Sprintf("%s has no clear rejection reason in the latest records yet.", traderName))
 	}
-	lines = append(lines, "What to do: use the real editable product settings or account actions, such as adding funds, changing to a small-account-friendly symbol/strategy, raising the position percent (1%-20%), adjusting the minimum order size (default 10 USDT), or tuning confidence/risk-reward preferences. Do not change system-enforced fields.")
+	lines = append(lines, "What to do: use the real editable product settings or account actions, such as adding funds, changing to a small-account-friendly symbol/strategy, raising the position percent (1%-20%), adjusting the minimum order size (default 10 USDT), or tuning confidence/risk-reward preferences. Do not change system-enforced fields or the system-computed open amount (principal × position_percent).")
 	return strings.Join(lines, "\n")
 }
 
@@ -2920,15 +2925,19 @@ func primaryDiagnosisSymbol(candidates []string, decisionJSON string) string {
 func openingAmountAndMinimum(evidence string) (float64, float64) {
 	amount := 0.0
 	minimum := 0.0
-	if match := regexp.MustCompile(`(?i)opening amount too small \((\d+(?:\.\d+)?)\s*USDT\)`).FindStringSubmatch(evidence); len(match) >= 2 {
+	// 适配器跳过下单时给出换算用的名义价值：open skipped for X: 取整后低于最小下单金额
+	// (notional 10.7500 USDT, price ..., size step ...)
+	if match := regexp.MustCompile(`(?i)notional\s+(\d+(?:\.\d+)?)\s*USDT`).FindStringSubmatch(evidence); len(match) >= 2 {
 		amount, _ = strconv.ParseFloat(match[1], 64)
 	}
+	// 交易路径的最小下单早退检查同样带出被拦下的金额：Position 10.75 USDT below minimum (20.00 USDT)
 	if amount == 0 {
-		if match := regexp.MustCompile(`(?i)"position_size_usd"\s*:\s*(\d+(?:\.\d+)?)`).FindStringSubmatch(evidence); len(match) >= 2 {
+		if match := regexp.MustCompile(`(?i)position\s+(\d+(?:\.\d+)?)\s*USDT\s+below minimum`).FindStringSubmatch(evidence); len(match) >= 2 {
 			amount, _ = strconv.ParseFloat(match[1], 64)
 		}
 	}
-	if match := regexp.MustCompile(`(?:must be|must be ≥|>=|≥)\s*(\d+(?:\.\d+)?)\s*USDT`).FindStringSubmatch(evidence); len(match) >= 2 {
+	// 交易路径的最小下单早退检查：Position 10.00 USDT below minimum (20.00 USDT)
+	if match := regexp.MustCompile(`(?i)below minimum\s*\((\d+(?:\.\d+)?)\s*USDT\)`).FindStringSubmatch(evidence); len(match) >= 2 {
 		minimum, _ = strconv.ParseFloat(match[1], 64)
 	}
 	return amount, minimum

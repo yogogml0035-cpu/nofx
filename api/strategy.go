@@ -415,9 +415,11 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 	}
 
 	var req struct {
-		Config        store.StrategyConfig `json:"config" binding:"required"`
-		AccountEquity float64              `json:"account_equity"`
-		PromptVariant string               `json:"prompt_variant"`
+		Config store.StrategyConfig `json:"config" binding:"required"`
+		// AccountPrincipal is the simulated account principal that open
+		// positions are sized from (principal × position_percent).
+		AccountPrincipal float64 `json:"account_principal"`
+		PromptVariant    string  `json:"prompt_variant"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -426,8 +428,8 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 	}
 
 	// Use default values
-	if req.AccountEquity <= 0 {
-		req.AccountEquity = 1000.0 // Default simulated account equity
+	if req.AccountPrincipal <= 0 {
+		req.AccountPrincipal = 1000.0 // Default simulated account principal
 	}
 	if req.PromptVariant == "" {
 		req.PromptVariant = "balanced"
@@ -438,7 +440,7 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 
 	// Build system prompt (using built-in method from strategy engine)
 	systemPrompt := engine.BuildSystemPrompt(
-		req.AccountEquity,
+		req.AccountPrincipal,
 		req.PromptVariant,
 	)
 
@@ -531,12 +533,14 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		marketDataMap[coin.Symbol] = data
 	}
 
-	// Build real context (for generating User Prompt)
+	// Build real context (for generating User Prompt). The simulated account is
+	// flat, so principal = equity = 1000 USDT.
 	testContext := &kernel.Context{
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes: 0,
 		CallCount:      1,
 		Account: kernel.AccountInfo{
+			Principal:        1000.0,
 			TotalEquity:      1000.0,
 			AvailableBalance: 1000.0,
 			UnrealizedPnL:    0,
@@ -552,7 +556,7 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		MarketDataMap:  marketDataMap,
 	}
 
-	// Build System Prompt
+	// Build System Prompt（模拟账户本金 1000 USDT）
 	systemPrompt := engine.BuildSystemPrompt(1000.0, req.PromptVariant)
 
 	// Build User Prompt (using real market data)

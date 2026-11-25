@@ -12,8 +12,10 @@ import (
 // Prompt Building - System Prompt
 // ============================================================================
 
-// BuildSystemPrompt builds System Prompt according to strategy configuration
-func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string) string {
+// BuildSystemPrompt builds the System Prompt according to the strategy
+// configuration. principal is the account principal that positions are sized
+// from (D22: open notional = principal × position_percent), not the equity.
+func (e *StrategyEngine) BuildSystemPrompt(principal float64, variant string) string {
 	var sb strings.Builder
 	riskControl := e.config.RiskControl
 	promptSections := e.config.PromptSections
@@ -44,16 +46,15 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 
 	// 3. Hard constraints (risk control).
 	//
-	// Open-position notional is principal × position_percent (D22/D23); the
-	// engine-enforced amount computation lands with plan step 9. ClampLimits
-	// guarantees a sane percent, the guard below only covers hand-built
-	// configs that skipped normalization.
+	// Open-position notional is principal × position_percent, computed and
+	// enforced by the engine (D22/D23). ClampLimits guarantees a sane percent;
+	// the guard below only covers hand-built configs that skipped normalization.
 	positionPercent := riskControl.PositionPercent
 	if positionPercent <= 0 {
 		positionPercent = store.DefaultPositionPercent
 	}
 
-	writeHardConstraints(&sb, accountEquity, riskControl, positionPercent, singleSymbol, primarySymbol, zh)
+	writeHardConstraints(&sb, principal, riskControl, positionPercent, singleSymbol, primarySymbol, zh)
 
 	// 4. Trading frequency (editable)
 	if promptSections.TradingFrequency != "" {
@@ -117,7 +118,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 
 	// 7. Output format — schema spec stays in English (this is a parser
 	//    contract; reasoning copy is localized below).
-	writeOutputFormat(&sb, accountEquity, positionPercent, riskControl, singleSymbol, primarySymbol, zh)
+	writeOutputFormat(&sb, riskControl, singleSymbol, primarySymbol, zh)
 
 	// 8. Custom Prompt.
 	customPrompt := e.config.CustomPrompt
@@ -175,7 +176,7 @@ func writeModeVariant(sb *strings.Builder, variant string, zh bool) {
 	}
 }
 
-func writeHardConstraints(sb *strings.Builder, accountEquity float64, riskControl store.RiskControlConfig, positionPercent float64, singleSymbol bool, primarySymbol string, zh bool) {
+func writeHardConstraints(sb *strings.Builder, principal float64, riskControl store.RiskControlConfig, positionPercent float64, singleSymbol bool, primarySymbol string, zh bool) {
 	if zh {
 		sb.WriteString("# 风控硬约束\n\n")
 		sb.WriteString("## 代码强制 (后端校验, 无法绕过):\n")
@@ -186,22 +187,36 @@ func writeHardConstraints(sb *strings.Builder, accountEquity float64, riskContro
 		sb.WriteString(fmt.Sprintf("- Max Positions: %d instruments simultaneously\n", riskControl.MaxPositions))
 	}
 
-	// Open-position notional is fixed by the strategy percent (D22/D23); the
-	// principal-based amount computation lands with plan step 9.
-	notional := accountEquity * positionPercent / 100
+	// Open-position notional is computed and enforced by the engine from the
+	// account principal (D22/D24). The prompt mirrors the number so the model
+	// can reason about risk; it never outputs an amount.
+	notional, err := openNotional(principal, positionPercent)
+	if err != nil {
+		notional = 0
+	}
+	// The USDT form of the 2% loss cap helps the model pick a protection distance;
+	// the decision is refused when the loss at the stop exceeds it.
+	lossLimit := 0.0
+	if finitePositive(principal) {
+		lossLimit = principal * MaxLossPercentOfPrincipal / 100
+	}
 	if zh {
-		sb.WriteString(fmt.Sprintf("- 开仓名义价值: %.0f USDT (= 权益 %.0f × %.1f%%)\n", notional, accountEquity, positionPercent))
+		sb.WriteString(fmt.Sprintf("- 开仓名义价值: %.2f USDT (= 本金 %.2f × %.1f%%, 由代码计算并强制)\n", notional, principal, positionPercent))
+		sb.WriteString(fmt.Sprintf("- 价格到止损价的亏损: ≤ 本金的 %.0f%% (≈%.2f USDT, 代码强制, 超过即拒绝开仓)\n",
+			MaxLossPercentOfPrincipal, lossLimit))
 	} else {
-		sb.WriteString(fmt.Sprintf("- Open Position Notional: %.0f USDT (= equity %.0f × %.1f%%)\n", notional, accountEquity, positionPercent))
+		sb.WriteString(fmt.Sprintf("- Open Position Notional: %.2f USDT (= principal %.2f × %.1f%%, computed and enforced by code)\n", notional, principal, positionPercent))
+		sb.WriteString(fmt.Sprintf("- Loss at Stop Loss: ≤ %.0f%% of principal (≈%.2f USDT, code enforced, the decision is refused otherwise)\n",
+			MaxLossPercentOfPrincipal, lossLimit))
 	}
 
 	if zh {
 		sb.WriteString(fmt.Sprintf("- 最大保证金占用: ≤%.0f%%\n", riskControl.MaxMarginUsage*100))
-		sb.WriteString(fmt.Sprintf("- 最小下单金额: ≥%.0f USDT\n\n", riskControl.MinPositionSize))
+		sb.WriteString(fmt.Sprintf("- 最小下单金额: ≥%.0f USDT (按合约最小步长取整后校验)\n\n", riskControl.MinPositionSize))
 		sb.WriteString("## AI 建议 (推荐遵循):\n")
 	} else {
 		sb.WriteString(fmt.Sprintf("- Max Margin Usage: ≤%.0f%%\n", riskControl.MaxMarginUsage*100))
-		sb.WriteString(fmt.Sprintf("- Min Position Size: ≥%.0f USDT\n\n", riskControl.MinPositionSize))
+		sb.WriteString(fmt.Sprintf("- Min Position Size: ≥%.0f USDT (checked after rounding to the contract size step)\n\n", riskControl.MinPositionSize))
 		sb.WriteString("## AI GUIDED (recommended):\n")
 	}
 
@@ -230,24 +245,27 @@ func writeHardConstraints(sb *strings.Builder, accountEquity float64, riskContro
 		sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
 	}
 
-	// Position sizing guidance — the amount is fixed by the strategy percent;
-	// confidence decides whether to act at all (contract cleanup in plan step 9).
+	// Position sizing guidance — the amount comes from the account principal
+	// and the strategy percent, not from the model; confidence decides whether
+	// to act at all.
 	if zh {
 		sb.WriteString("## 仓位大小指引\n")
-		sb.WriteString("开仓名义价值由策略的仓位百分比固定（见上方硬约束）:\n")
-		sb.WriteString(fmt.Sprintf("- 名义价值 = 权益 %.0f × %.1f%% ≈ %.0f USDT\n", accountEquity, positionPercent, notional))
-		sb.WriteString("- 达到入场标准时 `position_size_usd` 填该名义价值; 置信不足或行情不利时选择等待, 不要自行放大或缩小金额\n")
-		sb.WriteString("- **不要**直接拿 available_balance 当 position_size_usd\n\n")
+		sb.WriteString("开仓名义价值由代码计算并强制, 不来自你的输出:\n")
+		sb.WriteString(fmt.Sprintf("- 名义价值 = 本金 %.2f × 策略百分比 %.1f%% = %.2f USDT\n", principal, positionPercent, notional))
+		sb.WriteString("- 开仓决策只给出方向、杠杆、止损价、止盈价与置信度; 不要输出任何金额字段\n")
+		sb.WriteString(fmt.Sprintf("- 价格到止损价的亏损不得超过本金的 %.0f%%, 否则该决策会被系统拒绝\n", MaxLossPercentOfPrincipal))
+		sb.WriteString("- 置信不足或行情不利时选择等待, 不要试图放大或缩小金额\n\n")
 	} else {
 		sb.WriteString("## Position Sizing Guidance\n")
-		sb.WriteString("Open position notional is fixed by the strategy percent (see Hard Constraints):\n")
-		sb.WriteString(fmt.Sprintf("- Notional = equity %.0f × %.1f%% ≈ %.0f USDT\n", accountEquity, positionPercent, notional))
-		sb.WriteString("- When entry standards are met, set `position_size_usd` to that notional; otherwise wait — do not resize on your own\n")
-		sb.WriteString("- **DO NOT** just use available_balance as position_size_usd\n\n")
+		sb.WriteString("The open notional is computed and enforced by code — it does not come from your output:\n")
+		sb.WriteString(fmt.Sprintf("- Notional = principal %.2f × strategy percent %.1f%% = %.2f USDT\n", principal, positionPercent, notional))
+		sb.WriteString("- An opening decision supplies only direction, leverage, stop loss, take profit and confidence; never output an amount field\n")
+		sb.WriteString(fmt.Sprintf("- The loss at the stop loss must not exceed %.0f%% of the principal, otherwise the decision is refused\n", MaxLossPercentOfPrincipal))
+		sb.WriteString("- When confidence is low or the setup is unfavourable, wait — do not resize the amount on your own\n\n")
 	}
 }
 
-func writeOutputFormat(sb *strings.Builder, accountEquity, positionPercent float64, riskControl store.RiskControlConfig, singleSymbol bool, primarySymbol string, zh bool) {
+func writeOutputFormat(sb *strings.Builder, riskControl store.RiskControlConfig, singleSymbol bool, primarySymbol string, zh bool) {
 	// Output format schema MUST stay English/structural; parser depends on it.
 	sb.WriteString("# Output Format (Strictly Follow)\n\n")
 	if zh {
@@ -279,13 +297,11 @@ func writeOutputFormat(sb *strings.Builder, accountEquity, positionPercent float
 		if riskControl.BTCETHMaxLeverage > lev {
 			lev = riskControl.BTCETHMaxLeverage
 		}
-		size := accountEquity * positionPercent / 100
-		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"%s\", \"action\": \"open_long\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 0, \"take_profit\": 0, \"confidence\": 85, \"risk_usd\": 0},\n", primarySymbol, lev, size))
+		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"%s\", \"action\": \"open_long\", \"leverage\": %d, \"stop_loss\": 0, \"take_profit\": 0, \"confidence\": 85},\n", primarySymbol, lev))
 		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"%s\", \"action\": \"wait\"}\n", primarySymbol))
 	} else {
-		examplePositionSize := accountEquity * positionPercent / 100
-		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n",
-			riskControl.BTCETHMaxLeverage, examplePositionSize))
+		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85},\n",
+			riskControl.BTCETHMaxLeverage))
 		sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")
 	}
 	sb.WriteString("]\n```\n")
@@ -295,7 +311,8 @@ func writeOutputFormat(sb *strings.Builder, accountEquity, positionPercent float
 		sb.WriteString("## 字段说明\n\n")
 		sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
 		sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (开仓建议 ≥ %d)\n", riskControl.MinConfidence))
-		sb.WriteString("- 开仓时必填: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+		sb.WriteString("- 开仓时必填: leverage, stop_loss, take_profit, confidence\n")
+		sb.WriteString("- 开仓金额由系统按本金 × 百分比计算, 决策 JSON 不需要也无法指定金额字段\n")
 		sb.WriteString("- **重要**: 所有数值必须是算好的数字, 不能是公式/表达式 (例如写 `27.76`, 不要写 `3000 * 0.01`)\n")
 		if singleSymbol {
 			sb.WriteString(fmt.Sprintf("- **本策略只交易 %s**, JSON 中的 `symbol` 必须**完全等于** `%s`, 不要写成 `%s` 去掉后缀或加 USDT 的变体。\n", primarySymbol, primarySymbol, primarySymbol))
@@ -305,7 +322,8 @@ func writeOutputFormat(sb *strings.Builder, accountEquity, positionPercent float
 		sb.WriteString("## Field Description\n\n")
 		sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
 		sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
-		sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+		sb.WriteString("- Required when opening: leverage, stop_loss, take_profit, confidence\n")
+		sb.WriteString("- The open notional is computed by the system from principal × percent; the decision JSON neither needs nor accepts an amount field\n")
 		sb.WriteString("- **IMPORTANT**: all numeric values must be calculated numbers, NOT formulas/expressions (e.g. use `27.76`, not `3000 * 0.01`)\n")
 		if singleSymbol {
 			sb.WriteString(fmt.Sprintf("- **This strategy trades only %s.** The JSON `symbol` MUST match `%s` exactly — do not add USDT/USDC suffix variants.\n", primarySymbol, primarySymbol))

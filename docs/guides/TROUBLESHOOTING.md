@@ -91,7 +91,7 @@ Before reporting a bug, please check:
    cat decision_logs/your_trader_id/latest_file.json
    ```
    - Look for AI decision: was it "wait", "hold", or actual trade?
-   - Check if position_size_usd is within limits
+   - Check the open notional the system computed (principal × position percent) against the minimum order size
 
 ---
 

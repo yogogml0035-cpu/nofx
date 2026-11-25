@@ -297,10 +297,10 @@ func TestGetAccountInfoRejectsUnreadableBalance(t *testing.T) {
 	assert.Contains(t, err.Error(), "unreadable")
 }
 
-func TestOpenNotionalIsNoLongerCappedByEquityRatio(t *testing.T) {
-	// 权益×倍数的单仓上限随倍数字段整体删除（⑧ strategy-config）：决策金额不再被
-	// 权益封顶，只剩可用保证金自动缩减与最小下单门槛。本金 100 + 浮盈 50（权益 150）
-	// 时 500 USDT 的决策金额原样进入下单请求。
+func TestOpenUsesCodeComputedNotionalWithoutTraderCapping(t *testing.T) {
+	// 开仓名义价值由 kernel 按本金 × position_percent 计算（⑨ sizing-engine）；交易路径不再
+	// 按权益封顶，只剩可用保证金自动缩减与最小下单门槛。本金 100 + 浮盈 50（权益 150）时
+	// 代码计算出的 500 USDT 原样进入下单请求。
 	stub := &accountProtectedStub{
 		protectedCaptureStub: &protectedCaptureStub{},
 		balance:              canonicalBalance(100, 50, 1000),
@@ -315,13 +315,39 @@ func TestOpenNotionalIsNoLongerCappedByEquityRatio(t *testing.T) {
 	}
 	decision := &kernel.Decision{
 		Action: "open_long", Symbol: "BTCUSDT", Leverage: 10,
-		PositionSizeUSD: 500, StopLoss: 60000, TakeProfit: 70000,
+		NotionalUSD: 500, StopLoss: 60000, TakeProfit: 70000,
 	}
 
 	require.NoError(t, at.executeOpenLongWithRecord(decision, &store.DecisionAction{}))
 
 	require.Len(t, stub.requests, 1)
 	assert.InDelta(t, 500.0, stub.requests[0].NotionalUSD, 1e-9)
+}
+
+func TestOpenRefusedWhenDecisionHasNoComputedNotional(t *testing.T) {
+	// 决策缺少代码计算的名义价值时不开仓：交易路径不接受模型自报金额，也不回落到 0。
+	stub := &accountProtectedStub{
+		protectedCaptureStub: &protectedCaptureStub{},
+		balance:              canonicalBalance(100, 0, 1000),
+	}
+	at := &AutoTrader{
+		exchange:              "gate",
+		config:                AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		trader:                stub,
+		positionFirstSeenTime: map[string]int64{},
+	}
+	decision := &kernel.Decision{
+		Action: "open_long", Symbol: "BTCUSDT", Leverage: 10,
+		StopLoss: 60000, TakeProfit: 70000,
+	}
+	actionRecord := &store.DecisionAction{}
+
+	err := at.executeOpenLongWithRecord(decision, actionRecord)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no code-computed open notional")
+	assert.Empty(t, stub.requests, "no open request may reach the adapter")
+	assert.Zero(t, actionRecord.OrderID)
 }
 
 func TestOpenRefusedWhenBalanceIsUnreadable(t *testing.T) {
@@ -338,7 +364,7 @@ func TestOpenRefusedWhenBalanceIsUnreadable(t *testing.T) {
 	}
 	decision := &kernel.Decision{
 		Action: "open_long", Symbol: "BTCUSDT", Leverage: 10,
-		PositionSizeUSD: 15, StopLoss: 60000, TakeProfit: 70000,
+		NotionalUSD: 15, StopLoss: 60000, TakeProfit: 70000,
 	}
 	actionRecord := &store.DecisionAction{}
 

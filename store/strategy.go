@@ -679,7 +679,8 @@ type RiskControlConfig struct {
 	AltcoinMaxLeverage int `json:"altcoin_max_leverage"`
 
 	// Open position notional = principal × this percent (D23: 1-20, step 0.1,
-	// default 10; the code-enforced sizing lands with plan step 9 sizing-engine)
+	// default 10). The kernel computes and enforces the amount; the AI decision
+	// contract carries no amount field.
 	PositionPercent float64 `json:"position_percent"`
 
 	// Max margin utilization (e.g. 0.9 = 90%) (CODE ENFORCED)

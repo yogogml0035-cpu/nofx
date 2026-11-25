@@ -220,7 +220,9 @@ if roleDefinition == "" {
 maxPositions := config.RiskControl.MaxPositions           // 默认: 3
 positionPercent := config.RiskControl.PositionPercent     // 默认: 10%（开仓名义价值 = 本金 × 该百分比）
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // 默认: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // 默认: 10 USDT（用户可配置）
+minPositionSize := config.RiskControl.MinPositionSize     // 默认: 10 USDT（用户可配置，按合约步长取整后校验）
+// 价格到止损价的亏损 ≤ 本金的 2%（D34）；开仓名义价值、张数换算与亏损上限都由代码计算，
+// AI 决策 JSON 不含金额字段（D12/D22/D24）
 ```
 
 **AI引导 (建议值):**
@@ -246,11 +248,9 @@ minConfidence := config.RiskControl.MinConfidence            // 默认: 75
     "symbol": "BTCUSDT",
     "action": "open_long",
     "leverage": 5,
-    "position_size_usd": 100.00,
     "stop_loss": 65000.00,
     "take_profit": 72000.00,
     "confidence": 85,
-    "risk_usd": 20.00,
     "reasoning": "..."
   }
 ]
@@ -467,15 +467,16 @@ func validateDecisions(decisions []Decision, equity, leverage, ratio float64) er
 ```go
 // decision/engine.go:128-143
 type Decision struct {
-    Symbol          string   // 交易对: "BTCUSDT"
-    Action          string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
-    Leverage        int      // 杠杆倍数
-    PositionSizeUSD float64  // 仓位价值 (USDT)
-    StopLoss        float64  // 止损价格
-    TakeProfit      float64  // 止盈价格
-    Confidence      int      // 置信度 0-100
-    RiskUSD         float64  // 最大风险 (USDT)
-    Reasoning       string   // 决策理由
+    Symbol      string   // 交易对: "BTCUSDT"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+    Leverage    int      // 杠杆倍数
+    StopLoss    float64  // 止损价格
+    TakeProfit  float64  // 止盈价格
+    Confidence  int      // 置信度 0-100
+    Reasoning   string   // 决策理由
+
+    // 由代码按本金 × position_percent 计算并写入，模型不输出（json:"-"）
+    NotionalUSD float64
 }
 ```
 

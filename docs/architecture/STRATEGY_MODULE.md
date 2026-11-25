@@ -221,7 +221,9 @@ if roleDefinition == "" {
 maxPositions := config.RiskControl.MaxPositions           // Default: 3
 positionPercent := config.RiskControl.PositionPercent     // Default: 10 (%): open notional = principal × percent
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // Default: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // Default: 10 USDT (user configurable)
+minPositionSize := config.RiskControl.MinPositionSize     // Default: 10 USDT (user configurable, checked after rounding to the size step)
+// Loss at the stop loss must stay ≤ 2% of the principal (D34). Open notional, contract
+// count and the loss cap are all computed by code; the decision JSON has no amount fields.
 ```
 
 **AI Guided (Suggested Values):**
@@ -247,11 +249,9 @@ minConfidence := config.RiskControl.MinConfidence            // Default: 75
     "symbol": "BTCUSDT",
     "action": "open_long",
     "leverage": 5,
-    "position_size_usd": 100.00,
     "stop_loss": 65000.00,
     "take_profit": 72000.00,
     "confidence": 85,
-    "risk_usd": 20.00,
     "reasoning": "..."
   }
 ]
@@ -468,15 +468,16 @@ func validateDecisions(decisions []Decision, equity, leverage, ratio float64) er
 ```go
 // decision/engine.go:128-143
 type Decision struct {
-    Symbol          string   // Trading pair: "BTCUSDT"
-    Action          string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
-    Leverage        int      // Leverage multiplier
-    PositionSizeUSD float64  // Position value (USDT)
-    StopLoss        float64  // Stop loss price
-    TakeProfit      float64  // Take profit price
-    Confidence      int      // Confidence 0-100
-    RiskUSD         float64  // Max risk (USDT)
-    Reasoning       string   // Decision reasoning
+    Symbol      string   // Trading pair: "BTCUSDT"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+    Leverage    int      // Leverage multiplier
+    StopLoss    float64  // Stop loss price
+    TakeProfit  float64  // Take profit price
+    Confidence  int      // Confidence 0-100
+    Reasoning   string   // Decision reasoning
+
+    // Computed by the engine from principal × position_percent; never read from the model (json:"-")
+    NotionalUSD float64
 }
 ```
 
