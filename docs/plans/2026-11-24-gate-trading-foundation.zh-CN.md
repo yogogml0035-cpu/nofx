@@ -35,7 +35,7 @@ NOFX 的账户读写、下单保护与行情获取建立在三套与现状不符
 | `total` | 统一账户下为 0，单币种与跨币种两种模式都如此 | 同上；文档"只适用于经典合约账户" |
 | 资金位置 | 自有 USDT、无借款；全部在现货侧作统一账户保证金，合约侧余额为 0 | `GET /wallet/total_balance`、`GET /spot/accounts` |
 | 盈亏结算 | 合约已实现盈亏、手续费、资金费结算到现货（`history.dnw` 为 0 而盈亏类流水非 0） | `history.cross_settle`、`GET /futures/usdt/account_book` |
-| 本金不含浮盈亏 | 带持仓读数中浮盈亏变动，`total.amount` 不变；可用额度 = `amount + unrealised_pnl − position_initial_margin` | `GET /wallet/total_balance`、`GET /futures/usdt/accounts` |
+| 本金不含浮盈亏 | 带持仓读数中浮盈亏变动，`total.amount` 不变。「可用额度 = `amount + unrealised_pnl − position_initial_margin`」只是量级旁证：残差 −0.0003…+0.0001 且不恒定（F40），可用额度直接取合约账户的 `available` | `GET /wallet/total_balance`、`GET /futures/usdt/accounts`；子任务 7 带仓实测 |
 | 统一账户接口 | `GET /unified/*` 返回 403：当前 API key 未勾选 unified 权限 | 实测 |
 | 钱包总额接口 | `GET /wallet/total_balance?currency=USDT` 返回 `total{amount, borrowed, unrealised_pnl}` 与按业务线的 `details{spot, futures, margin, finance, options, …}` | 文档 `AccountBalance` 模型；实测可访问 |
 | 2026-11-24 复核 | 账户无持仓、无挂单；可用 107.53 USDT；`margin_mode` 仍为 1（跨币种），`position_mode` 为 `single`；BTC_USDT 的持仓设置为全仓 10 倍。用户此前的手动 BTC 多单已于 2026-11-23 19:37 UTC 平掉 | 只读实测 |
@@ -222,6 +222,9 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 | F35 | 平仓换算与币数量换算不校验市价单最大张数；合约元数据不含合约状态 | `SizeForCloseRatio`、`ContractsFromQuantity` 只按步长换算；`ContractSpec` 不读 `in_delisting`、`status` | 子任务 4（开仓前）与子任务 10（全平仓）接入时按需补上 |
 | F36 | 不显式设置时，首次建仓的合约在本账户下落到全仓 + 该合约的最大杠杆 | 子任务 4 的 W2/W3 传杠杆 0、没有调用设置接口，之后 DOGE_USDT、ETH_USDT 的条目是全仓 75x、200x（不是 `cross_leverage_default` 的 10） | 已由子任务 5 消除：开仓前按 trader 的设置生效并读回，失败不开仓。助手的普通市价原语在 `leverage=0` 时仍会落到交易所默认设置（生产调用方都要求杠杆大于 0） |
 | F37 | 超过杠杆上限的 label 是 `LEVERAGE_EXCEEDED`，不在文档的 label 表里；从没有设置过的合约上 `set_leverage` 的行为没有实测 | W4 实测（归档子任务 5 的 research G.3、G.4） | 适配器不按 label 分支，错误原样透出；首次开新合约的路径只有单测模拟，交易所若拒绝则开不了仓（闭合） |
+| F38 | 统一账户下合约账户的 `total` 不是本金：读数 ≈ 0，与「合约侧自上次结算以来的未结算净额（手续费 + 已实现盈亏）」对得上；清零的触发条件没有验证（文档也没写它在统一账户下的含义） | 子任务 7 的三轮带仓读数（归档任务 research H.4、probe/README.md 实测结论 4） | 旧口径把它当钱包余额 → 权益 ≈ 0、开不了仓。已由子任务 7 根除：本金改取钱包总额，合约账户只读 `available` |
+| F39 | 本金（钱包总额 `total.amount − total.borrowed`）不随未实现盈亏变动，但手续费与已实现盈亏在开平仓那一刻即时结算；钱包总额的 `unrealised_pnl` 13 秒采样看不到「1 分钟缓存」滞后 | 子任务 7 第 4 轮带仓读数：7 次采样本金恒定、开仓降幅 = 开仓手续费（差 1e-8）、平仓 5 秒与 70 秒读数相同 | 「权益 = 本金 + 未实现盈亏」成立；初始资金创建时取本金，读不到或本金不为正时按类型失败闭合 |
+| F40 | 「可用额度 = `amount` + `unrealised_pnl` − `position_initial_margin`」不严格成立：残差 −0.0003…+0.0001（约 1.7U 仓位上到 −0.0016）且不恒定，交易所内部的计算方式没有文档 | 子任务 7 第 4 轮带仓读数的量级校验（阈值 0.01 内通过，残差不恒定） | 可用额度直接取合约账户的 `available`，公式只作量级旁证；§3.1 的表述已同步更正 |
 
 ### 6.1 百分比、最小下单金额与本金的制约
 
@@ -387,7 +390,11 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 - [x] 4 `open-position-safety`：`60db88da`（0df83b9a + 9156ec34 + 7850ab5d + 7e45d47f），门禁 `git diff --check`、`make test`、`make build` 全过；W2（DOGE_USDT 17 张随单保护开仓→核对→全平→零残留）与 W3（ETH_USDT 0.1 张最小步长开平）实测 `LIVECHECK_PASS`；独立检查 1 P1 + 1 P2 + 4 P3 全部修复并复核 PASS。实测发现：随单 tpsl 是委托级保护，小数张合约（ETH）以 `close-long-order` 出现在未触发条件单列表（可按 ID 撤销、分类正确），整数张合约（DOGE）不出现在列表——`VerifyOrderProtection` 以委托回读 + 列表双路径覆盖两种形态；子任务 10、11 的管理路径设计须先复核此行为（证据见归档任务的 `probe/README.md`）
 - [x] 5 `unified-trading-params`（W4）：`ccd2f51c`（b8252754 + d92328b9 + 4eedd743 + d758d3ec + eb84f2e4 + e1b6fdc3 + aa06dc75），最终候选 `e1b6fdc3` 上 `git diff --check`、`make test`、`make build` 全过；W4（DOGE_USDT 全仓 / 逐仓 × 10x / 5x / 3x 设置并读回、重复设置、超上限被拒、两个旧方法）在 `d758d3ec` 上实测 `LIVECHECK_PASS`（23 步 + 1 条观察），DOGE_USDT 还原为全仓 75x，BTC_USDT、ETH_USDT 条目不变，可用余额前后一致。交付：`trader/gate/margin_settings.go`（`ApplyMarginSettings` 走新接口 `positions/{contract}/set_leverage`，以返回值或持仓条目读回一致为成功；`PositionMarginSettings`；重写的 `SetLeverage`、`SetMarginMode`）、能力接口 `types.MarginSettingsApplier`、`ProtectedOpenRequest.IsCrossMargin`；随单保护开仓在下单前生效设置、失败不开仓；网格初始化在设置生效后才标记已初始化。独立检查首轮 NEEDS FIX（无 P0/P1），修复后复核 PASS；变异实验的 53 个可编译变体最终全部被测试杀死（其中 3 个由主会话修复后复验）。实测发现：(a) `set_leverage` 线上已部署，单向持仓模式下不带 `dual_side`；(b) 逐仓条目的 `cross_leverage_limit` 残留旧值，读回用 `lever` 与同模式旧字段互相印证；(c) 重复设置返回 200；(d) 超上限的 label 为 `LEVERAGE_EXCEEDED`，不在文档 label 表（F37）；(e) `get_leverage` 在单向持仓模式下不能用；(f) 不显式设置时首次建仓的合约在本账户落到全仓 + 最大杠杆（F36）；(g) 账户仍是跨币种模式（`margin_mode=1`），逐仓在该模式下可用，单币种下的读回待账户切换后复验。未实测（归档任务 design.md 已知边界）：从没有设置过的合约上的 `set_leverage`（要留一条无法还原的条目，需用户授权）、带仓或有挂单时能否修改设置。对后续子任务的提示：⑥ 回撤监控取实际杠杆读条目的 `lever`（`GetPositions` 现在仍返回整数 `leverage`，全仓为 0），`PositionMarginSettings` 可直接读回合约的设置；设置是合约级的，同一合约上已有反向持仓时，开仓前生效设置会同时改动那个仓位
 - [ ] 6 `drawdown-monitor`（等 U1）
-- [ ] 7 `account-equity`
+- [x] 7 `account-equity`：`831dfb5e`（13 个子提交，代码候选 `20a1c61c`），最终候选上 `git diff --check`、`make test`、`make build` 全过
+      （Go 22 个包通过、前端 158 个用例）；第 4 轮真实读数 `LIVECHECK_PASS`（不带仓与带仓读数、加载路径的初始资金重建、
+      提示词预览，W3 级开平仓一次、终态零残留）；第二轮界面实测核对换绑重置、改过才发送、创建失败原因与中英印尼文案；
+      独立检查复审 PASS（首轮 NEEDS FIX 的 1 项 P1、3 项 P2、9 项 P3 全部修复，变异 0 存活）。因 U1 未决，第 7 步先于第 6 步实施。
+      任务归档 `.trellis/tasks/archive/2026-11/11-24-account-equity/`
 - [ ] 8 `strategy-config`
 - [ ] 9 `sizing-engine`
 - [ ] 10 `partial-close`（W2 分批平仓）

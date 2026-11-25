@@ -15,7 +15,7 @@
 | 4 | `open-position-safety` | `archive/2026-11/11-24-open-position-safety`（已归档） | 2、3 合父 | 单测；真实最小开仓全流程（W2 开仓与全平、W3） |
 | 5 | `unified-trading-params` | `archive/2026-11/11-24-unified-trading-params`（已归档） | 1、4 合父 | 单测；闲置合约上真实设置并读回（W4） |
 | 6 | `drawdown-monitor` | 开工时创建（等 U1） | 2、5 合父 | 单测；带仓的只读真实读数 |
-| 7 | `account-equity` | 开工时创建 | 1 合父，且 4 已合父 | 单测；带仓与不带仓的只读真实读数；提示词预览 |
+| 7 | `account-equity` | `archive/2026-11/11-24-account-equity`（已归档） | 1 合父，且 4 已合父 | 单测；带仓与不带仓的只读真实读数；提示词预览 |
 | 8 | `strategy-config` | 开工时创建 | 无 | 单测；前端测试与构建 |
 | 9 | `sizing-engine` | 开工时创建 | 6、7 合父 | kernel 单测；提示词预览；`/strategies/test-run` |
 | 10 | `partial-close` | 开工时创建 | 4、8 合父 | 契约解析与换算单测；真实分批平仓（W2） |
