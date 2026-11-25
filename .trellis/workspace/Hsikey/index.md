@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
+- **Total Sessions**: 10
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~321 | Active |
+| `journal-1.md` | ~361 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-11-25 | 子任务 12 market-source：Gate 合约 K 线与 ticker 取数 | `7c4e0267`, `3be668b6`, `0c1323e1` | `feat/2026_1123_gate-trading-foundation` |
 | 9 | 2026-11-25 | 子任务 11 protective-order-management：止损止盈管理与触发价对齐 | `9af310c1`, `e5e1e706`, `8dfbb326`, `d0072836` | `feat/2026_1123_gate-trading-foundation` |
 | 8 | 2026-11-25 | 子任务 10 partial-close 收口：决策契约、持仓可分批标记与 W2 真实分批平仓 | `3985f016` | `feat/2026_1123_gate-trading-foundation` |
 | 7 | 2026-11-25 | 子任务 9 sizing-engine 收口：金额由代码计算、亏损上限校验与提示词去金额契约 | `9eeaa72a` | `feat/2026_1123_gate-trading-foundation` |

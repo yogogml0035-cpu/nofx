@@ -319,3 +319,43 @@
 ### Next Steps
 
 - ⑫ market-source（依赖 ① 已合父），其后 13→17 串行；父任务收口前组合审查、E2E 与 make ci-local
+
+
+## Session 10: 子任务 12 market-source：Gate 合约 K 线与 ticker 取数
+<!-- trellis-session: v=2 fp=d90e3c2652b44869 -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 12 market-source：Gate 合约 K 线与 ticker 取数
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+纯新增 Gate 合约 K 线与 ticker 取数（保留周期含 1w/30d、成交量取 sum、严格响应校验），独立检查 PASS，7 标的 × 12 周期真实探针通过，已合父归档
+
+### Main Changes
+
+- market/gate_market.go：GateIntervalDuration 保留集合 {10s..30d}；GetGateKlines 用 sum 成交额、毫秒时间、CloseTime 取下一根开盘、严格校验 OHLC/时间/数值；GateTicker/GetGateTicker/ListGateTickers；只走 Gate 无回退
+- 实测 30d 是自然月（limit 覆盖全历史时月初；小 limit 为月内窗口），CloseTime 最后一根 30 天近似；1w 为周一
+- 单测矩阵：字符串/数字混排、失败注入、非法参数零请求、ticker 请求形状、OHLC 四方向、limit 上界
+- 计划 §3.3 留档 30d 事实；依赖列更正 13-15 → 12
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7c4e0267` | feat(market): Gate 合约 K 线与 ticker 取数（子任务 12） |
+| `3be668b6` | docs+test(market): 检查修复——30d 月初/收线近似口径限定、ticker 请求形状与失败矩阵补强（子任务 12） |
+| `0c1323e1` | merge: 行情数据源并入父分支（子任务 12：7c4e0267 实施 + 3be668b6 检查修复；独立检查 PASS，7 标的 × 12 周期 PROBE_PASS，make test/build 全过） |
+
+### Testing
+
+- [OK] git diff --check；make test（Go 全部包 608 用例 + 前端 162 用例）；make build；独立检查 PASS
+- [OK] 真实探针 PROBE_PASS：7 标的 × 12 周期、1w 周一、30d 月历、ticker 漂移 ≤0.0207%、Volume=原始 sum、1042 合约列表、旧周期被拒
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ⑬ engine-klines-gate：决策 K 线与网格箱体切 Gate，删除 CoinAnk K 线/旧内嵌路径（保持编译），其后 14→17
