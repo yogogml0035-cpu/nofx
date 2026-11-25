@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
+- **Total Sessions**: 11
 - **Last Active**: 2026-11-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~361 | Active |
+| `journal-1.md` | ~403 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-11-25 | 子任务 13 engine-klines-gate：决策 K 线与网格箱体切 Gate | `13246f0f`, `ad5fef58`, `bdc844ea`, `89a3a97e`, `0e498514` | `feat/2026_1123_gate-trading-foundation` |
 | 10 | 2026-11-25 | 子任务 12 market-source：Gate 合约 K 线与 ticker 取数 | `7c4e0267`, `3be668b6`, `0c1323e1` | `feat/2026_1123_gate-trading-foundation` |
 | 9 | 2026-11-25 | 子任务 11 protective-order-management：止损止盈管理与触发价对齐 | `9af310c1`, `e5e1e706`, `8dfbb326`, `d0072836` | `feat/2026_1123_gate-trading-foundation` |
 | 8 | 2026-11-25 | 子任务 10 partial-close 收口：决策契约、持仓可分批标记与 W2 真实分批平仓 | `3985f016` | `feat/2026_1123_gate-trading-foundation` |

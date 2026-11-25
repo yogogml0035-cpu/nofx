@@ -359,3 +359,45 @@
 ### Next Steps
 
 - ⑬ engine-klines-gate：决策 K 线与网格箱体切 Gate，删除 CoinAnk K 线/旧内嵌路径（保持编译），其后 14→17
+
+
+## Session 11: 子任务 13 engine-klines-gate：决策 K 线与网格箱体切 Gate
+<!-- trellis-session: v=2 fp=a96b0d20ac38902f -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 13 engine-klines-gate：决策 K 线与网格箱体切 Gate
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+引擎决策 K 线、网格箱体、旧内嵌路径全部切 Gate；删除 CoinAnk K 线与无调用方实时/深度代码；提示词周期与 USDT 成交量口径同步；独立检查 PASS，12 周期真实探针通过，已合父归档
+
+### Main Changes
+
+- market：GetWithTimeframes/GetBoxData/GetWithExchange 改 GetGateKlines；calculatePriceChangeByBars 用 Gate 周期时长；isStaleData 15 分钟窗口；删除 getKlinesFromCoinAnk/parseTimeframeToMinutes/timeframe.go/coinank kline_ws+depth_ws/kernel.FetchMarketData
+- 提示词：周期顺序 {10s..30d}（F41）、K 线表与说明 Volume(USDT)（中英）、Format 5m/USDT；api test-run 兜底 3m→5m
+- 保留 ⑭⑮ 边界：coinank_api/kline.go、api/handler_klines.go、agent/* 未动
+- F46：主周期与 1h/4h 窗口不匹配时涨跌读数退回可用窗口，属已知近似
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `13246f0f` | feat(engine): 决策 K 线与网格箱体切 Gate，删除 CoinAnk K 线与旧周期表（子任务 13） |
+| `ad5fef58` | fix(market): 检查修复——Format 5m/USDT 口径、stale 15 分钟窗口、箱体请求与失败语义用例（子任务 13） |
+| `bdc844ea` | chore(probe): 在修复候选上重跑子任务 13 真实探针（PROBE_PASS） |
+| `89a3a97e` | fix(market): 检查 P3 收口——文档口径统一、Format/失败/涨跌窗口用例、F46 留档（子任务 13） |
+| `0e498514` | merge: 引擎 K 线切 Gate 并入父分支（子任务 13：13246f0f 实施 + ad5fef58/bdc844ea/89a3a97e 修复；独立检查 PASS，12 周期 PROBE_PASS，make test/build 全过） |
+
+### Testing
+
+- [OK] git diff --check；make test（Go 620 用例 + 前端 162 用例）；make build；独立检查 PASS（首轮 P2+5P3 修复）
+- [OK] 真实探针 PROBE_PASS：12 周期含 10s/7d/30d、箱体 1h×500、无 AI 提示词渲染 Volume(USDT)、3m 被拒
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ⑭ chart-klines-gate：/api/klines crypto 改 Gate、删交易所映射与秒级周期、前端去 exchange；其后 ⑮→⑰
