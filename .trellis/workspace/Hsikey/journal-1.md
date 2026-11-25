@@ -185,3 +185,29 @@
 ### Next Steps
 
 - 子任务 8 strategy-config 开工（无依赖）；随后 9 sizing-engine（依赖 6、7，均已合父）
+
+
+## Session 6: ⑧ strategy-config 收口：百分比开仓配置与周期收敛合父归档
+<!-- trellis-session: v=2 fp=30dbe71910e61488 -->
+
+**Date**: 2026-11-25
+**Task**: ⑧ strategy-config 收口：百分比开仓配置与周期收敛合父归档
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+子任务 8（strategy-config）完成：一次性删除权益×仓位价值倍数整套旧语义（store 字段/clamp/diff、kernel 校验与提示词、trader/助手封顶、锁定名单/摘要/关键词/诊断文案/skills JSON/api schema/架构文档两份）；新增 risk_control.position_percent（1–20，步长 0.1，默认 10，legacy 0 值补默认，clamp 矩阵单测）；min_position_size 默认 12→10 并解锁为前端/助手可编辑；策略周期按 D25 收敛为 Gate 文档枚举加 1w/30d（normalizeTimeframe/前端选项/schema/兜底 3m→5m）。门禁：git diff --check、make test（Go 22 包+前端 158 用例）、make build、tsc、vitest、vite build 全绿；独立检查 PASS（1 P2+4 P3：P2 断言收紧、删 isBTCETH 死代码、en 标签对齐已修复补验；P3-2/P3-3 留档 F41/F42）。合父 9fd74a2c、归档 febd8d78、文档同步 1404b8eb。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1404b8eb` | docs(task): 子任务 8 strategy-config 收口——计划文档 10.5 进度与 F41/F42 留档、父任务 prd/implement 子任务地图同步归档路径 |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ⑨ sizing-engine（本金×百分比金额计算与强制、D34 亏损上限、删 12/60 硬编码与盈亏比校验、提示词契约去金额字段）；随后 10→17 串行
