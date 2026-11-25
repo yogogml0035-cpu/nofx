@@ -230,7 +230,7 @@ main-stack:
 	git -C "$$MAIN_DIR" cat-file -e "$$SHA^{commit}" || { echo "❌ 提交不存在: $$SHA"; exit 1; }; \
 	check_running() { \
 		local phase cnt names; \
-		phase="$1"; \
+		phase="$$1"; \
 		cnt=$$(sqlite3 -readonly -cmd ".timeout 5000" "$$DB" "SELECT COUNT(*) FROM traders WHERE is_running=1"); \
 		test "$$cnt" = "0" || { \
 			names=$$(sqlite3 -readonly -cmd ".timeout 5000" "$$DB" "SELECT group_concat(id || ':' || name, ', ') FROM traders WHERE is_running=1"); \
@@ -259,7 +259,9 @@ main-stack:
 		sleep 2; \
 	done; \
 	test -n "$$OK" || { echo "❌ 主栈 HTTP 健康检查超时（$${PORT}）"; docker compose -f "$$COMPOSE" ps; exit 1; }; \
-	for svc in $$(docker compose -f "$$COMPOSE" config --services); do \
+	SERVICES=$$(docker compose -f "$$COMPOSE" config --services) || { echo "❌ 无法取得主栈服务列表"; exit 1; }; \
+	test -n "$$SERVICES" || { echo "❌ 主栈服务列表为空"; exit 1; }; \
+	for svc in $$SERVICES; do \
 		HEALTHY=""; STATUS=""; \
 		for i in $$(seq 1 45); do \
 			CID=$$(docker compose -f "$$COMPOSE" ps -q "$$svc"); \
@@ -297,7 +299,7 @@ infra-check:
 	awk '/^HEALTHCHECK/{f=1} f&&/CMD/{print; exit}' docker/Dockerfile.frontend | grep -q 'http://127.0.0.1/health' || { echo "❌ Dockerfile.frontend 的 HEALTHCHECK 必须存在并探测 127.0.0.1（musl 将 localhost 解析为 ::1）"; exit 1; }; \
 	if test -f .nofx-local/compose.yml; then \
 		for svc in nofx frontend; do \
-			docker compose -f .nofx-local/compose.yml config --services | grep -qx "$$svc" || { echo "❌ 主栈 compose 缺少服务 $$svc（main-stack 依赖）"; exit 1; }; \
+			docker compose -f .nofx-local/compose.yml config --no-env-resolution --services | grep -qx "$$svc" || { echo "❌ 主栈 compose 应包含服务 $${svc}"; exit 1; }; \
 		done; \
 	fi; \
 	echo "🔎 [4/5] 构建上下文不含本地文件（标记目录实测）..."; \
