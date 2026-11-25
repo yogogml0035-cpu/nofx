@@ -241,23 +241,43 @@ func finitePositive(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
-// positionForSymbol 在本轮持仓快照里定位决策标的的持仓；符号变体（大小写、"BTC/USDT"、
-// 去掉计价后缀）与 currentPrice 同口径，避免一个变体就让整批决策被拒。
-func positionForSymbol(positions []PositionInfo, symbol string) (PositionInfo, bool) {
-	trimmed := strings.ToUpper(strings.TrimSpace(symbol))
-	normalized := market.Normalize(trimmed)
-	for _, pos := range positions {
-		posSymbol := strings.ToUpper(strings.TrimSpace(pos.Symbol))
-		if posSymbol == trimmed || market.Normalize(posSymbol) == normalized {
-			return pos, true
+// positionMatchKey 把交易对归一成比较键：大写、去掉 "_"、"-"、"/" 分隔符。
+// 交易所原生格式（Gate "DOGE_USDT"、OKX "BTC-USDT-SWAP"）与模型写法（"DOGEUSDT"、
+// "DOGE/USDT"）得到同一个键。
+func positionMatchKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	s = strings.ReplaceAll(s, "_", "")
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "/", "")
+	return s
+}
+
+// positionBaseKey 去掉比较键末尾的计价币后缀（USDT/USDC/USD），用于模型只写基础币种的变体
+func positionBaseKey(symbol string) string {
+	key := positionMatchKey(symbol)
+	for _, suffix := range []string{"USDT", "USDC", "USD"} {
+		if strings.HasSuffix(key, suffix) && len(key) > len(suffix) {
+			return strings.TrimSuffix(key, suffix)
 		}
 	}
-	base := symbolBaseKey(symbol)
-	if base == "" {
+	return key
+}
+
+// positionForSymbol 在本轮持仓快照里定位决策标的的持仓；符号变体（大小写、"DOGE/USDT"、
+// 去掉计价后缀）都归一到比较键，避免一个变体就让整批决策被拒。
+func positionForSymbol(positions []PositionInfo, symbol string) (PositionInfo, bool) {
+	key := positionMatchKey(symbol)
+	if key == "" {
 		return PositionInfo{}, false
 	}
 	for _, pos := range positions {
-		if symbolBaseKey(pos.Symbol) == base {
+		if positionMatchKey(pos.Symbol) == key {
+			return pos, true
+		}
+	}
+	base := positionBaseKey(symbol)
+	for _, pos := range positions {
+		if positionBaseKey(pos.Symbol) == base {
 			return pos, true
 		}
 	}

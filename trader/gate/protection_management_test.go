@@ -5,6 +5,7 @@ package gate
 // 真实写操作与线上形态的证据在任务 probe/ 目录，不进单元测试。
 
 import (
+	"math/big"
 	"strings"
 	"testing"
 
@@ -45,13 +46,13 @@ func (m *gateMock) lastPriceOrderBody(t *testing.T) map[string]interface{} {
 
 func TestPositionProtectionReadsEffectiveOrders(t *testing.T) {
 	cases := []struct {
-		name          string
-		orders        func(m *gateMock)
+		name           string
+		orders         func(m *gateMock)
 		wantSL, wantTP float64
-		wantSLActions int
-		wantTPActions int
-		wantKnown     bool
-		wantReason    string
+		wantSLActions  int
+		wantTPActions  int
+		wantKnown      bool
+		wantReason     string
 	}{
 		{
 			name: "合格的一对",
@@ -79,10 +80,10 @@ func TestPositionProtectionReadsEffectiveOrders(t *testing.T) {
 			wantSL: 0.48, wantSLActions: 1, wantKnown: false, wantReason: "no open take-profit",
 		},
 		{
-			name:          "两者都缺",
-			orders:        func(m *gateMock) {},
-			wantKnown:     false,
-			wantReason:    "no open stop-loss or take-profit",
+			name:       "两者都缺",
+			orders:     func(m *gateMock) {},
+			wantKnown:  false,
+			wantReason: "no open stop-loss or take-profit",
 		},
 	}
 	for _, c := range cases {
@@ -242,8 +243,10 @@ func TestUpdateProtectionFailClosed(t *testing.T) {
 			wantErr: "must be below current price",
 		},
 		{
-			name:    "当前保护不完整",
-			arrange: func(m *gateMock) { m.priceOrders = []map[string]interface{}{positionLevelTriggerOrder(551, "DOGE_USDT", "LONG", "SL")} },
+			name: "当前保护不完整",
+			arrange: func(m *gateMock) {
+				m.priceOrders = []map[string]interface{}{positionLevelTriggerOrder(551, "DOGE_USDT", "LONG", "SL")}
+			},
 			req:     types.ProtectionUpdateRequest{Symbol: "DOGE_USDT", Side: "long", Kind: types.ProtectionStopLoss, Price: 0.55, Principal: 1000, MaxLossPercent: 2},
 			wantErr: "not readable",
 		},
@@ -353,4 +356,47 @@ func TestUpdateProtectionRestoresOnFailures(t *testing.T) {
 		orders := mock.priceOrdersSnapshot(t)
 		assert.Len(t, orders, 3, "撤销接口不生效：旧止损与新单都留在列表里，报错可见")
 	})
+}
+
+func TestWithinLossCapTolerance(t *testing.T) {
+	limit := big.NewRat(2, 1) // 本金 100 的 2%
+	cases := []struct {
+		name string
+		loss *big.Rat
+		want bool
+	}{
+		{name: "等于上限", loss: big.NewRat(2, 1), want: true},
+		{name: "上限内极小浮点噪声（0.5e-12）", loss: new(big.Rat).Mul(limit, big.NewRat(2_000_000_000_001, 2_000_000_000_000)), want: true},
+		{name: "超出容差（2e-12）", loss: new(big.Rat).Mul(limit, big.NewRat(1_000_000_000_002, 1_000_000_000_000)), want: false},
+		{name: "明显超出", loss: big.NewRat(3, 1), want: false},
+		{name: "上限非正", loss: big.NewRat(0, 1), want: false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if c.name == "上限非正" {
+				assert.False(t, withinLossCap(c.loss, new(big.Rat)))
+				return
+			}
+			assert.Equal(t, c.want, withinLossCap(c.loss, limit))
+		})
+	}
+}
+
+func TestUpdateProtectionKeepsUnprotectedSentinel(t *testing.T) {
+	// 极端场景：新单未进列表，恢复时撤销新单触发的钩子把全部条件单清空，恢复也挂不上单。
+	// 外层错误必须保留 types.ErrPositionUnprotected，交易路径才能识别并立即平仓。
+	mock, gt := protectionMock(t)
+	mock.mu.Lock()
+	mock.omitPlacedPriceOrders = true
+	mock.afterPriceOrderDelete = func(m *gateMock) {
+		m.priceOrders = nil
+	}
+	mock.mu.Unlock()
+
+	_, err := gt.UpdateProtection(types.ProtectionUpdateRequest{
+		Symbol: "DOGE_USDT", Side: "long", Kind: types.ProtectionStopLoss,
+		Price: 0.55, Principal: 100, MaxLossPercent: 2,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, types.ErrPositionUnprotected, "恢复失败且保护不存在时必须保留哨兵")
 }

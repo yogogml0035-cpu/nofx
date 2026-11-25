@@ -40,12 +40,13 @@ type gateMock struct {
 	setLeverageRespondsWith func(mode, leverage string) map[string]interface{}
 
 	// 条件单（price_orders）：创建/撤销的失败注入与“看似成功但列表不生效”的场景
-	priceOrderBodies     []map[string]interface{} // POST /price_orders 的请求体
-	priceOrderFail        *gateAPIFailure // 非 nil 时 POST /price_orders 返回这个错误
-	cancelPriceOrderFail  *gateAPIFailure // 非 nil 时 DELETE /price_orders/{id} 返回这个错误
-	omitPlacedPriceOrders bool            // 为 true 时新挂的条件单不进入列表（核对缺失）
-	cancelIneffective     bool            // 为 true 时撤销返回成功但列表里的单不消失
-	nextTriggerID         int64           // 条件单 ID 自增（从 700000 起）
+	priceOrderBodies      []map[string]interface{} // POST /price_orders 的请求体
+	priceOrderFail        *gateAPIFailure          // 非 nil 时 POST /price_orders 返回这个错误
+	cancelPriceOrderFail  *gateAPIFailure          // 非 nil 时 DELETE /price_orders/{id} 返回这个错误
+	omitPlacedPriceOrders bool                     // 为 true 时新挂的条件单不进入列表（核对缺失）
+	cancelIneffective     bool                     // 为 true 时撤销返回成功但列表里的单不消失
+	afterPriceOrderDelete func(m *gateMock)        // 撤销后钩子（构造“保护全部消失”的极端场景）
+	nextTriggerID         int64                    // 条件单 ID 自增（从 700000 起）
 
 	// requests 收到的请求（"方法 路径?查询串"），用于断言顺序
 	requests []string
@@ -140,8 +141,8 @@ func positionLevelTriggerOrder(id int64, contract, side, kind string) map[string
 	}
 	return map[string]interface{}{
 		"id": id, "order_type": orderType, "status": "open",
-		"initial":  map[string]interface{}{"contract": contract, "size": 0, "price": "0", "close": true, "tif": "ioc"},
-		"trigger":  map[string]interface{}{"strategy_type": 0, "price_type": 0, "price": price, "rule": rule},
+		"initial": map[string]interface{}{"contract": contract, "size": 0, "price": "0", "close": true, "tif": "ioc"},
+		"trigger": map[string]interface{}{"strategy_type": 0, "price_type": 0, "price": price, "rule": rule},
 	}
 }
 
@@ -308,6 +309,9 @@ func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 				kept = append(kept, order)
 			}
 			m.priceOrders = kept
+		}
+		if m.afterPriceOrderDelete != nil {
+			m.afterPriceOrderDelete(m)
 		}
 		m.mu.Unlock()
 		writeObj(map[string]interface{}{})

@@ -58,7 +58,10 @@ make build
 
 ## 证据
 
-- `probe/probe-2026-11-25.jsonl`：列表形态（对齐/未对齐）、撤销、仓位级撤旧建新。
-- `probe/probe-2026-11-25.log`：同上完整输出（`LIVECHECK_PASS`）。
-- `probe/trigger-2026-11-25.log`：随单保护 reduce-only 与触发后终态。
-- `probe/livecheck-2026-11-25.{log,jsonl}`：最终候选上的 W2/W3 验收。
+- `probe/explore.go` + `probe/probe-2026-11-25.jsonl`：探索探针的脚本与逐步证据
+  （未对齐价格不建单、对齐后列表出现 2 条、撤销、仓位级撤旧建新；运行输出为
+  `LIVECHECK_PASS`，日志未另存文件，结论见 jsonl 与 plan F43/F44）。
+- `probe/trigger.go` + `probe/trigger-2026-11-25.log`：随单保护 reduce-only、分批后按剩余
+  仓位收口、无反向持仓（触发探针的完整 stdout）。
+- `probe/livecheck.go` + `probe/livecheck-2026-11-25.{log,jsonl}`：最终候选上的 W2/W3 验收
+  （`LIVECHECK_PASS`，终态零残留）。

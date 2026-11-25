@@ -1,56 +1,56 @@
 position DOGE_USDT: none
 position ETH_USDT: none
-precheck: no positions, no trigger orders; balances={"futures_available":"107.42302","wallet_borrowed":"0","wallet_total_amount":"107.42302339"}
-account principal=107.4230 available=107.4230
-11-25 18:00:38 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 10x
-11-25 18:00:38 [INFO] gate/protected_open.go:138   [Gate] OpenProtected: side=LONG, contract=DOGE_USDT, size=17, sl=0.04864, tp=0.05945, slip=0.050000
-11-25 18:00:38 [INFO] gate/protected_open.go:182   [Gate] Opened LONG position with attached TP/SL: orderId=56013526826764115, contracts=17, fillPrice=0.054040, sl=0.04864, tp=0.05945
-DOGE opened: orderId=56013526826764115 contracts=17 notional=9.1868 fill=0.054040 effectiveSL=0.04864000 effectiveTP=0.05945000
-11-25 18:00:38 [INFO] gate/protected_open.go:214   [Gate] Order 56013526826764115 carries tpsl fields sl=0.04864 tp=0.05945 (corroboration only)
-11-25 18:00:38 [INFO] gate/protected_open.go:263   [Gate] Protection verified via trigger orders: DOGE_USDT side=LONG has 2 open trigger orders (SL+TP)
-trigger orders (DOGE_USDT, after open, 2): [{"id":2125530089356529664,"id_string":"2125530089356529664","order_type":"close-long-order","status":"open","rule":2,"trigger_price":"0.04864","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826764115},{"id":2125530089352335360,"id_string":"2125530089352335360","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"0.05945","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826764115}]
-protection after open: SL=0.04864000 (x1) TP=0.05945000 (x1)
-11-25 18:00:39 [INFO] gate/partial_close.go:118   [Gate] PartialCloseLONG: symbol=DOGE_USDT, size=-8, percent=50, remaining=9
-11-25 18:00:39 [INFO] gate/partial_close.go:142   [Gate] Partially closed LONG: orderId=56013526826764348, contracts=8, remaining=9, fillPrice=0.05402
-partial close: contracts=8 remaining=9 fill=0.054020
-trigger orders (DOGE_USDT, after partial, 2): [{"id":2125530089356529664,"id_string":"2125530089356529664","order_type":"close-long-order","status":"open","rule":2,"trigger_price":"0.04864","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826764115},{"id":2125530089352335360,"id_string":"2125530089352335360","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"0.05945","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826764115}]
-protection after partial: SL=0.04864000 TP=0.05945000
-11-25 18:00:41 [INFO] gate/protective_orders.go:347   [Gate] Protective order placed: close-long-position DOGE_USDT trigger=0.05242 id=2125530100131696640
-11-25 18:00:41 [INFO] gate/protective_orders.go:462   [Gate] Protective order cancelled: id=2125530089356529664
-11-25 18:00:41 [INFO] gate/protection_management.go:387   [Gate] Protection updated: LONG DOGE_USDT 止损 0.04864 -> 0.05242 (new id=2125530100131696640, replaced=[2125530089356529664])
-stop loss updated: old=0.04864000 new=0.05242000 orderId=2125530100131696640 replaced=[2125530089356529664]
-trigger orders (DOGE_USDT, after stop-loss update, 2): [{"id":2125530100131696640,"id_string":"2125530100131696640","order_type":"close-long-position","status":"open","rule":2,"trigger_price":"0.05242","size":0,"amount":"0","close":false,"is_reduce_only":true,"me_order_id":0},{"id":2125530089352335360,"id_string":"2125530089352335360","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"0.05945","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826764115}]
-11-25 18:00:42 [INFO] gate/protective_orders.go:347   [Gate] Protective order placed: close-long-position DOGE_USDT trigger=0.05675 id=2125530106825805824
-11-25 18:00:43 [INFO] gate/protective_orders.go:462   [Gate] Protective order cancelled: id=2125530089352335360
-11-25 18:00:43 [INFO] gate/protection_management.go:387   [Gate] Protection updated: LONG DOGE_USDT 止盈 0.05945 -> 0.05675 (new id=2125530106825805824, replaced=[2125530089352335360])
-take profit updated: old=0.05945000 new=0.05675000 orderId=2125530106825805824 replaced=[2125530089352335360]
-trigger orders (DOGE_USDT, after take-profit update, 2): [{"id":2125530106825805824,"id_string":"2125530106825805824","order_type":"close-long-position","status":"open","rule":1,"trigger_price":"0.05675","size":0,"amount":"0","close":false,"is_reduce_only":true,"me_order_id":0},{"id":2125530100131696640,"id_string":"2125530100131696640","order_type":"close-long-position","status":"open","rule":2,"trigger_price":"0.05242","size":0,"amount":"0","close":false,"is_reduce_only":true,"me_order_id":0}]
-final protection: SL=0.05242000 TP=0.05675000 (one each)
-11-25 18:00:43 [INFO] gate/trader_orders.go:147   [Gate] CloseAllLONG: symbol=DOGE_USDT (close=true, size=0)
-11-25 18:00:43 [INFO] gate/trader_orders.go:178   [Gate] Closed LONG position: orderId=56013526826764667, fillPrice=0.0540
+precheck: no positions, no trigger orders; balances={"futures_available":"107.40782","wallet_borrowed":"0","wallet_total_amount":"107.40782407"}
+account principal=107.4078 available=107.4078
+11-25 18:30:16 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 10x
+11-25 18:30:16 [INFO] gate/protected_open.go:138   [Gate] OpenProtected: side=LONG, contract=DOGE_USDT, size=17, sl=0.04857, tp=0.05936, slip=0.050000
+11-25 18:30:16 [INFO] gate/protected_open.go:182   [Gate] Opened LONG position with attached TP/SL: orderId=56013526826889374, contracts=17, fillPrice=0.053970, sl=0.04857, tp=0.05936
+DOGE opened: orderId=56013526826889374 contracts=17 notional=9.1749 fill=0.053970 effectiveSL=0.04857000 effectiveTP=0.05936000
+11-25 18:30:17 [INFO] gate/protected_open.go:214   [Gate] Order 56013526826889374 carries tpsl fields sl=0.04857 tp=0.05936 (corroboration only)
+11-25 18:30:17 [INFO] gate/protected_open.go:268   [Gate] Protection verified via trigger orders: DOGE_USDT side=LONG has 2 open trigger orders (SL+TP)
+trigger orders (DOGE_USDT, after open, 2): [{"id":2125537548871667712,"id_string":"2125537548871667712","order_type":"close-long-order","status":"open","rule":2,"trigger_price":"0.04857","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826889374},{"id":2125537548867473408,"id_string":"2125537548867473408","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"0.05936","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826889374}]
+protection after open: SL=0.04857000 (x1) TP=0.05936000 (x1)
+11-25 18:30:18 [INFO] gate/partial_close.go:118   [Gate] PartialCloseLONG: symbol=DOGE_USDT, size=-8, percent=50, remaining=9
+11-25 18:30:18 [INFO] gate/partial_close.go:142   [Gate] Partially closed LONG: orderId=56013526826889535, contracts=8, remaining=9, fillPrice=0.05395
+partial close: contracts=8 remaining=9 fill=0.053950
+trigger orders (DOGE_USDT, after partial, 2): [{"id":2125537548871667712,"id_string":"2125537548871667712","order_type":"close-long-order","status":"open","rule":2,"trigger_price":"0.04857","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826889374},{"id":2125537548867473408,"id_string":"2125537548867473408","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"0.05936","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826889374}]
+protection after partial: SL=0.04857000 TP=0.05936000
+11-25 18:30:19 [INFO] gate/protective_orders.go:347   [Gate] Protective order placed: close-long-position DOGE_USDT trigger=0.05235 id=2125537559919464448
+11-25 18:30:19 [INFO] gate/protective_orders.go:462   [Gate] Protective order cancelled: id=2125537548871667712
+11-25 18:30:20 [INFO] gate/protection_management.go:436   [Gate] Protection updated: LONG DOGE_USDT 止损 0.04857 -> 0.05235 (new id=2125537559919464448, replaced=[2125537548871667712])
+stop loss updated: old=0.04857000 new=0.05235000 orderId=2125537559919464448 replaced=[2125537548871667712]
+trigger orders (DOGE_USDT, after stop-loss update, 2): [{"id":2125537559919464448,"id_string":"2125537559919464448","order_type":"close-long-position","status":"open","rule":2,"trigger_price":"0.05235","size":0,"amount":"0","close":false,"is_reduce_only":true,"me_order_id":0},{"id":2125537548867473408,"id_string":"2125537548867473408","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"0.05936","size":-17,"amount":"-17","close":false,"is_reduce_only":true,"me_order_id":56013526826889374}]
+11-25 18:30:21 [INFO] gate/protective_orders.go:347   [Gate] Protective order placed: close-long-position DOGE_USDT trigger=0.05666 id=2125537565846016000
+11-25 18:30:21 [INFO] gate/protective_orders.go:462   [Gate] Protective order cancelled: id=2125537548867473408
+11-25 18:30:21 [INFO] gate/protection_management.go:436   [Gate] Protection updated: LONG DOGE_USDT 止盈 0.05936 -> 0.05666 (new id=2125537565846016000, replaced=[2125537548867473408])
+take profit updated: old=0.05936000 new=0.05666000 orderId=2125537565846016000 replaced=[2125537548867473408]
+trigger orders (DOGE_USDT, after take-profit update, 2): [{"id":2125537565846016000,"id_string":"2125537565846016000","order_type":"close-long-position","status":"open","rule":1,"trigger_price":"0.05666","size":0,"amount":"0","close":false,"is_reduce_only":true,"me_order_id":0},{"id":2125537559919464448,"id_string":"2125537559919464448","order_type":"close-long-position","status":"open","rule":2,"trigger_price":"0.05235","size":0,"amount":"0","close":false,"is_reduce_only":true,"me_order_id":0}]
+final protection: SL=0.05235000 TP=0.05666000 (one each)
+11-25 18:30:22 [INFO] gate/trader_orders.go:147   [Gate] CloseAllLONG: symbol=DOGE_USDT (close=true, size=0)
+11-25 18:30:22 [INFO] gate/trader_orders.go:178   [Gate] Closed LONG position: orderId=56013526826889887, fillPrice=0.0540
 position DOGE_USDT: none
 trigger orders (DOGE_USDT, after close, 0): []
-DOGE closed: zero residue; balances={"futures_available":"107.40953","wallet_borrowed":"0","wallet_total_amount":"107.40953875"}
-11-25 18:00:47 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: ETH_USDT cross 10x
-11-25 18:00:47 [INFO] gate/protected_open.go:138   [Gate] OpenProtected: side=LONG, contract=ETH_USDT, size=0.1, sl=1628.27, tp=1661.16, slip=0.010000
-11-25 18:00:47 [INFO] gate/protected_open.go:182   [Gate] Opened LONG position with attached TP/SL: orderId=63894861818886603, contracts=0.1, fillPrice=1644.710000, sl=1628.27, tp=1661.16
-ETH opened: orderId=63894861818886603 contracts=0.1 notional=1.6447 fill=1644.710000 effectiveSL=1628.27000000 effectiveTP=1661.16000000
-11-25 18:00:47 [INFO] gate/protected_open.go:214   [Gate] Order 63894861818886603 carries tpsl fields sl=1628.27 tp=1661.16 (corroboration only)
-11-25 18:00:47 [INFO] gate/protected_open.go:263   [Gate] Protection verified via trigger orders: ETH_USDT side=LONG has 2 open trigger orders (SL+TP)
-trigger orders (ETH_USDT, after open, 2): [{"id":2125530126836830208,"id_string":"2125530126836830208","order_type":"close-long-order","status":"open","rule":2,"trigger_price":"1628.27","size":0,"amount":"-0.1","close":false,"is_reduce_only":true,"me_order_id":63894861818886603},{"id":2125530126832635904,"id_string":"2125530126832635904","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"1661.16","size":0,"amount":"-0.1","close":false,"is_reduce_only":true,"me_order_id":63894861818886603}]
-ETH protection: SL=1628.27000000 TP=1661.16000000
-11-25 18:00:49 [INFO] gate/protective_orders.go:347   [Gate] Protective order placed: close-long-position ETH_USDT trigger=1636.49 id=2125530133790986240
-11-25 18:00:49 [INFO] gate/protective_orders.go:462   [Gate] Protective order cancelled: id=2125530126836830208
-11-25 18:00:49 [INFO] gate/protection_management.go:387   [Gate] Protection updated: LONG ETH_USDT 止损 1628.27 -> 1636.49 (new id=2125530133790986240, replaced=[2125530126836830208])
-ETH stop loss updated: old=1628.27000000 new=1636.49000000 replaced=[2125530126836830208]
-trigger orders (ETH_USDT, after stop-loss update, 2): [{"id":2125530133790986240,"id_string":"2125530133790986240","order_type":"close-long-position","status":"open","rule":2,"trigger_price":"1636.49","size":0,"amount":"0","close":false,"is_reduce_only":true,"me_order_id":0},{"id":2125530126832635904,"id_string":"2125530126832635904","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"1661.16","size":0,"amount":"-0.1","close":false,"is_reduce_only":true,"me_order_id":63894861818886603}]
-11-25 18:00:49 [INFO] gate/trader_orders.go:147   [Gate] CloseAllLONG: symbol=ETH_USDT (close=true, size=0)
-11-25 18:00:50 [INFO] gate/trader_orders.go:178   [Gate] Closed LONG position: orderId=63894861818888521, fillPrice=1644.6400
+DOGE closed: zero residue; balances={"futures_available":"107.39595","wallet_borrowed":"0","wallet_total_amount":"107.39595052"}
+11-25 18:30:25 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: ETH_USDT cross 10x
+11-25 18:30:25 [INFO] gate/protected_open.go:138   [Gate] OpenProtected: side=LONG, contract=ETH_USDT, size=0.1, sl=1627.29, tp=1660.16, slip=0.010000
+11-25 18:30:26 [INFO] gate/protected_open.go:182   [Gate] Opened LONG position with attached TP/SL: orderId=63894861820563010, contracts=0.1, fillPrice=1643.500000, sl=1627.29, tp=1660.16
+ETH opened: orderId=63894861820563010 contracts=0.1 notional=1.6435 fill=1643.500000 effectiveSL=1627.29000000 effectiveTP=1660.16000000
+11-25 18:30:26 [INFO] gate/protected_open.go:214   [Gate] Order 63894861820563010 carries tpsl fields sl=1627.29 tp=1660.16 (corroboration only)
+11-25 18:30:26 [INFO] gate/protected_open.go:268   [Gate] Protection verified via trigger orders: ETH_USDT side=LONG has 2 open trigger orders (SL+TP)
+trigger orders (ETH_USDT, after open, 2): [{"id":2125537587287298048,"id_string":"2125537587287298048","order_type":"close-long-order","status":"open","rule":2,"trigger_price":"1627.29","size":0,"amount":"-0.1","close":false,"is_reduce_only":true,"me_order_id":63894861820563010},{"id":2125537587283103744,"id_string":"2125537587283103744","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"1660.16","size":0,"amount":"-0.1","close":false,"is_reduce_only":true,"me_order_id":63894861820563010}]
+ETH protection: SL=1627.29000000 TP=1660.16000000
+11-25 18:30:27 [INFO] gate/protective_orders.go:347   [Gate] Protective order placed: close-long-position ETH_USDT trigger=1635.51 id=2125537594426003456
+11-25 18:30:28 [INFO] gate/protective_orders.go:462   [Gate] Protective order cancelled: id=2125537587287298048
+11-25 18:30:28 [INFO] gate/protection_management.go:436   [Gate] Protection updated: LONG ETH_USDT 止损 1627.29 -> 1635.51 (new id=2125537594426003456, replaced=[2125537587287298048])
+ETH stop loss updated: old=1627.29000000 new=1635.51000000 replaced=[2125537587287298048]
+trigger orders (ETH_USDT, after stop-loss update, 2): [{"id":2125537594426003456,"id_string":"2125537594426003456","order_type":"close-long-position","status":"open","rule":2,"trigger_price":"1635.51","size":0,"amount":"0","close":false,"is_reduce_only":true,"me_order_id":0},{"id":2125537587283103744,"id_string":"2125537587283103744","order_type":"close-long-order","status":"open","rule":1,"trigger_price":"1660.16","size":0,"amount":"-0.1","close":false,"is_reduce_only":true,"me_order_id":63894861820563010}]
+11-25 18:30:28 [INFO] gate/trader_orders.go:147   [Gate] CloseAllLONG: symbol=ETH_USDT (close=true, size=0)
+11-25 18:30:28 [INFO] gate/trader_orders.go:178   [Gate] Closed LONG position: orderId=63894861820566721, fillPrice=1643.3700
 position ETH_USDT: none
 trigger orders (ETH_USDT, after close, 0): []
 position DOGE_USDT: none
 cleanup DOGE_USDT: clear
 position ETH_USDT: none
 cleanup ETH_USDT: clear
-final balances={"futures_available":"107.40782","wallet_borrowed":"0","wallet_total_amount":"107.40782407"}
+final balances={"futures_available":"107.39417","wallet_borrowed":"0","wallet_total_amount":"107.39417709"}
 LIVECHECK_PASS

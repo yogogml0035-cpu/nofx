@@ -25,7 +25,8 @@ func protectionSizing() DecisionSizing {
 		},
 		Positions: []PositionInfo{
 			{
-				Symbol: "DOGEUSDT", Side: "long", EntryPrice: 0.05, MarkPrice: 0.056, Quantity: 170,
+				// 实盘持仓符号是 Gate 原生格式；决策里的变体（DOGEUSDT / DOGE/USDT / DOGE）都必须命中
+				Symbol: "DOGE_USDT", Side: "long", EntryPrice: 0.05, MarkPrice: 0.056, Quantity: 170,
 				StopLoss: 0.048, TakeProfit: 0.06,
 			},
 			{
@@ -171,6 +172,20 @@ func TestValidateUpdateProtectionLossCapBoundary(t *testing.T) {
 	err := validateDecision(&over, sizing)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds 2% of principal")
+}
+
+func TestValidateUpdateProtectionSymbolVariants(t *testing.T) {
+	sizing := protectionSizing()
+	for _, symbol := range []string{"DOGE_USDT", "DOGEUSDT", "DOGE/USDT", "doge_usdt", "DOGE"} {
+		t.Run(symbol, func(t *testing.T) {
+			d := Decision{Symbol: symbol, Action: "update_stop_loss", StopLoss: 0.052}
+			require.NoError(t, validateDecision(&d, sizing), "变体 %q 应命中 DOGE_USDT 持仓", symbol)
+		})
+	}
+	// 反例：不是该持仓的币种仍然拒绝
+	err := validateDecision(&Decision{Symbol: "ETHUSDT", Action: "update_stop_loss", StopLoss: 3000}, sizing)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "has no open position")
 }
 
 func TestValidateUpdateProtectionUnreadable(t *testing.T) {

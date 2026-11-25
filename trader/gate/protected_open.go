@@ -226,9 +226,14 @@ func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 		logger.Infof("  [Gate] Order %s lookup failed (%v), falling back to trigger order list", orderID, err)
 	}
 
-	if !t.positionSideExists(symbol, side) {
+	positionSide, positionExists := t.livePositionSide(symbol)
+	if !positionExists {
 		logger.Infof("  [Gate] %s position is already closed, nothing to protect (order %s)", symbol, orderID)
 		return nil
+	}
+	if side == "" {
+		// 委托查询失败（如完结超过 10 分钟）时用交易所持仓方向判定，避免反向遗留保护对误判
+		side = positionSide
 	}
 
 	var lastErr error
@@ -275,12 +280,12 @@ func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 	return lastErr
 }
 
-// positionSideExists 报告该合约上指定方向是否还有持仓；方向未知（空串）时任一方向有持仓即算。
-// 读取失败按“存在”处理，让调用方走列表核对而不是跳过保护检查。
-func (t *GateTrader) positionSideExists(symbol, side string) bool {
+// livePositionSide 返回该合约当前持仓的方向（"LONG"/"SHORT"）与是否存在持仓。
+// 读取失败按“存在但方向未知”（"", true）处理，让调用方走列表核对而不是跳过保护检查。
+func (t *GateTrader) livePositionSide(symbol string) (string, bool) {
 	positions, _, err := t.client.FuturesApi.ListPositions(t.ctx, "usdt", nil)
 	if err != nil {
-		return true
+		return "", true
 	}
 	for _, pos := range positions {
 		if pos.Contract != symbol {
@@ -290,9 +295,10 @@ func (t *GateTrader) positionSideExists(symbol, side string) bool {
 		if err != nil || size.Sign() == 0 {
 			continue
 		}
-		if side == "" || (side == "SHORT") == (size.Sign() < 0) {
-			return true
+		if size.Sign() < 0 {
+			return "SHORT", true
 		}
+		return "LONG", true
 	}
-	return false
+	return "", false
 }

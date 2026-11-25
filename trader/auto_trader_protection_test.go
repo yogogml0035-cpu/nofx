@@ -94,13 +94,13 @@ func longPosition() []map[string]interface{} {
 
 func TestExecuteUpdateProtectionRoutesToAdapter(t *testing.T) {
 	cases := []struct {
-		name      string
-		action    string
-		stopLoss  float64
+		name       string
+		action     string
+		stopLoss   float64
 		takeProfit float64
-		wantKind  types.ProtectionKind
-		wantPrice float64
-		checkSL   bool
+		wantKind   types.ProtectionKind
+		wantPrice  float64
+		checkSL    bool
 	}{
 		{
 			name: "update stop loss", action: "update_stop_loss", stopLoss: 0.052,
@@ -281,4 +281,40 @@ func TestBuildTradingContextMarksProtectionReadFailure(t *testing.T) {
 	require.Len(t, ctx.Positions, 1)
 	assert.Contains(t, ctx.Positions[0].ProtectionUnavailableReason, "status unavailable")
 	assert.Contains(t, ctx.Positions[0].ProtectionUnavailableReason, "trigger order list unavailable")
+}
+
+func TestUpdateProtectionSymbolVariantsReachAdapter(t *testing.T) {
+	// 交易所持仓是 Gate 原生 "DOGE_USDT"；模型可能输出 "DOGEUSDT"、"DOGE/USDT" 或只写 "DOGE"。
+	// 三者都必须路由到同一持仓，并把交易所符号交给适配器。
+	for _, symbol := range []string{"DOGE_USDT", "DOGEUSDT", "DOGE/USDT", "doge_usdt", "DOGE"} {
+		t.Run(symbol, func(t *testing.T) {
+			stub := &protectionStub{
+				positions:    longPosition(),
+				updateResult: types.ProtectionUpdateResult{OrderID: "700001", NewPrice: 0.052},
+			}
+			at := newProtectionAutoTrader(stub)
+			decision := &kernel.Decision{Symbol: symbol, Action: "update_stop_loss", StopLoss: 0.052}
+			require.NoError(t, at.executeDecisionWithRecord(decision, &store.DecisionAction{}))
+			require.Len(t, stub.updateRequests, 1)
+			assert.Equal(t, "DOGE_USDT", stub.updateRequests[0].Symbol, "适配器拿到交易所原生符号")
+		})
+	}
+}
+
+func TestSortDecisionsPutsProtectionUpdatesBeforeOpen(t *testing.T) {
+	decisions := []kernel.Decision{
+		{Symbol: "DOGE_USDT", Action: "wait"},
+		{Symbol: "DOGE_USDT", Action: "open_long"},
+		{Symbol: "DOGE_USDT", Action: "update_stop_loss", StopLoss: 0.052},
+		{Symbol: "DOGE_USDT", Action: "close_long"},
+		{Symbol: "DOGE_USDT", Action: "update_take_profit", TakeProfit: 0.065},
+	}
+
+	sorted := sortDecisionsByPriority(decisions)
+	require.Len(t, sorted, 5)
+	assert.Equal(t, "close_long", sorted[0].Action)
+	assert.ElementsMatch(t, []string{"update_stop_loss", "update_take_profit"},
+		[]string{sorted[1].Action, sorted[2].Action}, "保护修改先于开新仓")
+	assert.Equal(t, "open_long", sorted[3].Action)
+	assert.Equal(t, "wait", sorted[4].Action)
 }

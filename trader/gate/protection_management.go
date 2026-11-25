@@ -9,6 +9,7 @@ package gate
 // 文档依据：子任务 3 research/gate-price-order-docs.md；本子任务 probe/ 的真实探针。
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -177,6 +178,18 @@ func lossAtStopOnPosition(spec ContractSpec, position gateapi.Position, side str
 	return new(big.Rat).Mul(quantity, distance), nil
 }
 
+// lossCapTolerance 亏损上限的相对容差，与 kernel 的 1e-12 同口径：
+// 决策校验通过的浮点边界不能在执行时被拒（1 + 1e-12 = (1e12+1)/1e12）。
+var lossCapTolerance = big.NewRat(1_000_000_000_001, 1_000_000_000_000)
+
+// withinLossCap 报告亏损是否在“上限 × (1 + 1e-12)”以内（等于允许）
+func withinLossCap(loss, limit *big.Rat) bool {
+	if limit.Sign() <= 0 {
+		return false
+	}
+	return loss.Cmp(new(big.Rat).Mul(limit, lossCapTolerance)) <= 0
+}
+
 // protectiveKindViews 筛选指定类型的同侧条件单
 func protectiveKindViews(views []TriggerOrderView, kind ProtectiveKind) []TriggerOrderView {
 	matched := make([]TriggerOrderView, 0, len(views))
@@ -186,6 +199,27 @@ func protectiveKindViews(views []TriggerOrderView, kind ProtectiveKind) []Trigge
 		}
 	}
 	return matched
+}
+
+// closestKindPrice 返回同类条件单中距现价最近（最先触发）的触发价；没有时返回 0
+func closestKindPrice(views []TriggerOrderView, kind ProtectiveKind, market float64) float64 {
+	best := 0.0
+	bestDistance := 0.0
+	for _, view := range views {
+		if view.Kind != kind {
+			continue
+		}
+		distance := math.Abs(view.TriggerPrice - market)
+		if best == 0 || distance < bestDistance {
+			best, bestDistance = view.TriggerPrice, distance
+		}
+	}
+	return best
+}
+
+// samePrice 比较两个触发价（同源十进制转 float），容差只吸收浮点噪声
+func samePrice(a, b float64) bool {
+	return math.Abs(a-b) <= 1e-9*math.Max(1, math.Abs(b))
 }
 
 // verifyProtectiveOrder 核对新保护单出现在未触发列表中且触发价正确。
@@ -212,9 +246,10 @@ func (t *GateTrader) verifyProtectiveOrder(symbol, side string, kind ProtectiveK
 	return lastErr
 }
 
-// restoreReplacement 撤销新单并确认仓位仍有同类保护；没有时尝试按原价重建，
-// 重建失败返回包装了 types.ErrPositionUnprotected 的错误（调用方必须立即平仓）。
-func (t *GateTrader) restoreReplacement(symbol, side string, kind ProtectiveKind, newOrderID string, oldPrice float64) error {
+// restoreReplacement 撤销新单并确认仓位仍有同类保护；没有时尝试按原价重建。
+// 原有效价不再生效（多条旧单只剩另一价）时如实报错但不判为无保护；完全无法确认保护时
+// 返回包装了 types.ErrPositionUnprotected 的错误（调用方必须立即平仓）。
+func (t *GateTrader) restoreReplacement(symbol, side string, kind ProtectiveKind, newOrderID string, oldPrice, market float64) error {
 	if newOrderID != "" {
 		if err := t.CancelProtectiveOrder(newOrderID); err != nil {
 			logger.Warnf("  [Gate] Failed to cancel replacement %s order %s: %v", protectiveKindLabel(kind), newOrderID, err)
@@ -225,8 +260,16 @@ func (t *GateTrader) restoreReplacement(symbol, side string, kind ProtectiveKind
 		return fmt.Errorf("cannot confirm %s protection after failed replacement: %w (%w)",
 			protectiveKindLabel(kind), err, types.ErrPositionUnprotected)
 	}
-	if len(protectiveKindViews(views, kind)) > 0 {
-		return nil
+	sameKind := protectiveKindViews(views, kind)
+	if len(sameKind) > 0 {
+		// 保护仍在：但有效价必须还是原有效价，否则移动后的止损止盈并未按预期生效
+		effective := closestKindPrice(sameKind, kind, market)
+		if oldPrice <= 0 || samePrice(effective, oldPrice) {
+			return nil
+		}
+		return fmt.Errorf(
+			"%s protection remains but the effective price is %v (expected %v); verify manually",
+			protectiveKindLabel(kind), effective, oldPrice)
 	}
 	if oldPrice <= 0 {
 		return fmt.Errorf("no %s protection remains on %s after failed replacement (%w)",
@@ -313,7 +356,7 @@ func (t *GateTrader) UpdateProtection(req types.ProtectionUpdateRequest) (types.
 		}
 		limit := new(big.Rat).Mul(principalValue, percentValue)
 		limit.Quo(limit, big.NewRat(100, 1))
-		if loss.Cmp(limit) > 0 {
+		if !withinLossCap(loss, limit) {
 			return types.ProtectionUpdateResult{}, fmt.Errorf(
 				"loss at stop %s USDT exceeds %v%% of principal (%s USDT): refusing to move the stop loss",
 				loss.FloatString(4), req.MaxLossPercent, limit.FloatString(4))
@@ -349,10 +392,11 @@ func (t *GateTrader) UpdateProtection(req types.ProtectionUpdateRequest) (types.
 		return types.ProtectionUpdateResult{}, err
 	}
 	if err := t.verifyProtectiveOrder(symbol, normalized, gateKind, newOrderID, ratFloat(alignedValue)); err != nil {
-		restoreErr := t.restoreReplacement(symbol, normalized, gateKind, newOrderID, oldPrice)
-		return types.ProtectionUpdateResult{}, fmt.Errorf(
-			"new %s order %s did not appear in the trigger order list: %w (restore: %v)",
-			protectiveKindLabel(gateKind), newOrderID, err, restoreErr)
+		restoreErr := t.restoreReplacement(symbol, normalized, gateKind, newOrderID, oldPrice, market)
+		return types.ProtectionUpdateResult{}, errors.Join(
+			fmt.Errorf("new %s order %s did not appear in the trigger order list: %w",
+				protectiveKindLabel(gateKind), newOrderID, err),
+			restoreErr)
 	}
 
 	replaced := make([]string, 0, len(oldOrders))
@@ -361,9 +405,11 @@ func (t *GateTrader) UpdateProtection(req types.ProtectionUpdateRequest) (types.
 			continue
 		}
 		if err := t.CancelProtectiveOrder(old.OrderID()); err != nil {
-			restoreErr := t.restoreReplacement(symbol, normalized, gateKind, newOrderID, oldPrice)
-			return types.ProtectionUpdateResult{}, fmt.Errorf(
-				"failed to cancel old %s order %s: %w (restore: %v)", protectiveKindLabel(gateKind), old.OrderID(), err, restoreErr)
+			restoreErr := t.restoreReplacement(symbol, normalized, gateKind, newOrderID, oldPrice, market)
+			return types.ProtectionUpdateResult{}, errors.Join(
+				fmt.Errorf("failed to cancel old %s order %s: %w",
+					protectiveKindLabel(gateKind), old.OrderID(), err),
+				restoreErr)
 		}
 		replaced = append(replaced, old.OrderID())
 	}
@@ -371,17 +417,20 @@ func (t *GateTrader) UpdateProtection(req types.ProtectionUpdateRequest) (types.
 	// 核对旧单已不存在：列表里该类型只剩新单
 	after, err := t.listProtectiveViews(symbol, normalized)
 	if err != nil {
-		restoreErr := t.restoreReplacement(symbol, normalized, gateKind, newOrderID, oldPrice)
-		return types.ProtectionUpdateResult{}, fmt.Errorf(
-			"cannot verify %s replacement: %w (restore: %v)", protectiveKindLabel(gateKind), err, restoreErr)
+		restoreErr := t.restoreReplacement(symbol, normalized, gateKind, newOrderID, oldPrice, market)
+		return types.ProtectionUpdateResult{}, errors.Join(
+			fmt.Errorf("cannot verify %s replacement: %w", protectiveKindLabel(gateKind), err),
+			restoreErr)
 	}
 	for _, view := range protectiveKindViews(after, gateKind) {
 		if view.OrderID() == newOrderID {
 			continue
 		}
-		restoreErr := t.restoreReplacement(symbol, normalized, gateKind, newOrderID, oldPrice)
-		return types.ProtectionUpdateResult{}, fmt.Errorf(
-			"old %s order %s still visible after cancellation (restore: %v)", protectiveKindLabel(gateKind), view.OrderID(), restoreErr)
+		restoreErr := t.restoreReplacement(symbol, normalized, gateKind, newOrderID, oldPrice, market)
+		return types.ProtectionUpdateResult{}, errors.Join(
+			fmt.Errorf("old %s order %s still visible after cancellation",
+				protectiveKindLabel(gateKind), view.OrderID()),
+			restoreErr)
 	}
 
 	logger.Infof("  [Gate] Protection updated: %s %s %v %v -> %s (new id=%s, replaced=%v)",

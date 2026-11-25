@@ -1,9 +1,11 @@
 //go:build ignore
 
 // 子任务 11 最终验收探针（W2 改止损止盈 + W3 级 ETH）：
-//   DOGE：随单保护开 17 张 → 列表核对 → 分批 50% → 读当前保护 → 改止损（收紧）→ 改止盈（向现价）
-//        → 列表核对 → 全平 → 零残留
-//   ETH：随单保护开 0.1 张 → 列表核对（委托级 close-long-order 可见）→ 改止损 → 列表核对 → 全平
+//
+//	DOGE：随单保护开 17 张 → 列表核对 → 分批 50% → 读当前保护 → 改止损（收紧）→ 改止盈（向现价）
+//	     → 列表核对 → 全平 → 零残留
+//	ETH：随单保护开 0.1 张 → 列表核对（委托级 close-long-order 可见）→ 改止损 → 列表核对 → 全平
+//
 // 全部走子任务 11 交付的适配器接口（AlignTriggerPrice / PositionProtection / UpdateProtection）。
 // 凭据经环境变量传入，不落盘、不打印。运行前须无持仓、无条件单、无挂单。
 package main
@@ -65,17 +67,17 @@ func client() *gateapi.APIClient {
 }
 
 type triggerDump struct {
-	ID          int64  `json:"id"`
-	IDString    string `json:"id_string"`
-	OrderType   string `json:"order_type"`
-	Status      string `json:"status"`
-	Rule        int32  `json:"rule"`
-	TriggerPx   string `json:"trigger_price"`
-	Size        int64  `json:"size"`
-	Amount      string `json:"amount"`
-	Close       bool   `json:"close"`
-	ReduceOnly  bool   `json:"is_reduce_only"`
-	MeOrderID   int64  `json:"me_order_id"`
+	ID         int64  `json:"id"`
+	IDString   string `json:"id_string"`
+	OrderType  string `json:"order_type"`
+	Status     string `json:"status"`
+	Rule       int32  `json:"rule"`
+	TriggerPx  string `json:"trigger_price"`
+	Size       int64  `json:"size"`
+	Amount     string `json:"amount"`
+	Close      bool   `json:"close"`
+	ReduceOnly bool   `json:"is_reduce_only"`
+	MeOrderID  int64  `json:"me_order_id"`
 }
 
 func listTriggers(c *gateapi.APIClient, contract string) []gateapi.FuturesPriceTriggeredOrder {

@@ -83,17 +83,39 @@ func (at *AutoTrader) protectiveOrderManager() (types.ProtectiveOrderManager, er
 	return manager, nil
 }
 
+// positionSymbolKey 把交易对归一成比较键：大写、去掉 "_"、"-"、"/" 分隔符。
+// 交易所原生格式（Gate "DOGE_USDT"）与模型写法（"DOGEUSDT"、"DOGE/USDT"）得到同一个键。
+func positionSymbolKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	s = strings.ReplaceAll(s, "_", "")
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "/", "")
+	return s
+}
+
+// positionSymbolBaseKey 去掉比较键末尾的计价币后缀（USDT/USDC/USD）
+func positionSymbolBaseKey(symbol string) string {
+	key := positionSymbolKey(symbol)
+	for _, suffix := range []string{"USDT", "USDC", "USD"} {
+		if strings.HasSuffix(key, suffix) && len(key) > len(suffix) {
+			return strings.TrimSuffix(key, suffix)
+		}
+	}
+	return key
+}
+
 // findOpenPosition 按决策标的找到交易所持仓，返回仓位条目、方向与规范符号。
-// 符号变体（大小写、计价后缀、分隔符）按 base 匹配，与决策过滤同口径。
+// 符号变体（大小写、分隔符、只写基础币种）都归一到比较键后再匹配，返回交易所的符号。
 func (at *AutoTrader) findOpenPosition(symbol string) (map[string]interface{}, string, string, error) {
 	positions, err := at.trader.GetPositions()
 	if err != nil {
 		return nil, "", "", fmt.Errorf("failed to get positions: %w", err)
 	}
-	base := universeBaseKey(symbol)
+	key := positionSymbolKey(symbol)
+	base := positionSymbolBaseKey(symbol)
 	for _, pos := range positions {
 		posSymbol, _ := pos["symbol"].(string)
-		if posSymbol != symbol && (base == "" || universeBaseKey(posSymbol) != base) {
+		if posSymbol != symbol && (key == "" || positionSymbolKey(posSymbol) != key) && (base == "" || positionSymbolBaseKey(posSymbol) != base) {
 			continue
 		}
 		side, _ := pos["side"].(string)
