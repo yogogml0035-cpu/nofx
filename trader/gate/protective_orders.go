@@ -147,8 +147,10 @@ func BuildPositionProtectiveOrder(contract, side string, kind ProtectiveKind, tr
 
 // ApplyAttachedTPSL 把随单止盈止损写入开仓委托：触发方向由交易所按委托方向推导，
 // 这里校验两价合法且分居两侧（多头止损价必须低于止盈价，空头相反）。
-// 满足保护不变量「保护单随开仓单一并提交」：仓位从存在那一刻起就带有止损与止盈。
-func ApplyAttachedTPSL(order *gateapi.FuturesOrder, side string, stopLossPrice, takeProfitPrice float64) error {
+// 价格必须是十进制字符串（经 AlignTriggerPrice 对齐到合约价格步长；不对齐时交易所接受
+// 字段但不创建条件单，计划文档 F44）。满足保护不变量「保护单随开仓单一并提交」：
+// 仓位从存在那一刻起就带有止损与止盈。
+func ApplyAttachedTPSL(order *gateapi.FuturesOrder, side, stopLossPrice, takeProfitPrice string) error {
 	if order == nil {
 		return errors.New("order is nil")
 	}
@@ -159,22 +161,65 @@ func ApplyAttachedTPSL(order *gateapi.FuturesOrder, side string, stopLossPrice, 
 	if err != nil {
 		return err
 	}
-	sl, slValue, err := validatedPrice("stop loss trigger price", stopLossPrice)
+	slValue, err := parseDecimal("stop loss trigger price", stopLossPrice)
 	if err != nil {
 		return err
 	}
-	tp, tpValue, err := validatedPrice("take profit trigger price", takeProfitPrice)
+	if slValue.Sign() <= 0 {
+		return fmt.Errorf("stop loss trigger price must be positive, got %q", stopLossPrice)
+	}
+	tpValue, err := parseDecimal("take profit trigger price", takeProfitPrice)
 	if err != nil {
 		return err
+	}
+	if tpValue.Sign() <= 0 {
+		return fmt.Errorf("take profit trigger price must be positive, got %q", takeProfitPrice)
 	}
 	if normalized == "LONG" && slValue.Cmp(tpValue) >= 0 {
-		return fmt.Errorf("long stop loss %v must be below take profit %v", stopLossPrice, takeProfitPrice)
+		return fmt.Errorf("long stop loss %s must be below take profit %s", stopLossPrice, takeProfitPrice)
 	}
 	if normalized == "SHORT" && tpValue.Cmp(slValue) >= 0 {
-		return fmt.Errorf("short take profit %v must be below stop loss %v", takeProfitPrice, stopLossPrice)
+		return fmt.Errorf("short take profit %s must be below stop loss %s", takeProfitPrice, stopLossPrice)
 	}
-	order.TpslSlTriggerPrice = sl
-	order.TpslTpTriggerPrice = tp
+	order.TpslSlTriggerPrice = stopLossPrice
+	order.TpslTpTriggerPrice = takeProfitPrice
+	return nil
+}
+
+// validateProtectionSides 校验（对齐后的）止损止盈位于现价的正确一侧：
+// 多单止损必须低于现价、止盈必须高于现价；空单相反。触发规则在创建时要求这个关系
+// （rule 1 的触发价须高于最新价、rule 2 须低于最新价），越界的保护单会被交易所拒绝。
+func validateProtectionSides(side string, market float64, stopLoss, takeProfit *big.Rat) error {
+	normalized, err := normalizeSide(side)
+	if err != nil {
+		return err
+	}
+	marketValue, err := decimalFromFloat("current price", market)
+	if err != nil {
+		return err
+	}
+	if marketValue.Sign() <= 0 {
+		return fmt.Errorf("current price must be positive, got %v", market)
+	}
+	if stopLoss == nil || takeProfit == nil {
+		return errors.New("stop loss and take profit are required")
+	}
+	stopText, takeText := stopLoss.FloatString(8), takeProfit.FloatString(8)
+	if normalized == "LONG" {
+		if stopLoss.Cmp(marketValue) >= 0 {
+			return fmt.Errorf("long stop loss %s must be below current price %v", stopText, market)
+		}
+		if takeProfit.Cmp(marketValue) <= 0 {
+			return fmt.Errorf("long take profit %s must be above current price %v", takeText, market)
+		}
+		return nil
+	}
+	if stopLoss.Cmp(marketValue) <= 0 {
+		return fmt.Errorf("short stop loss %s must be above current price %v", stopText, market)
+	}
+	if takeProfit.Cmp(marketValue) >= 0 {
+		return fmt.Errorf("short take profit %s must be below current price %v", takeText, market)
+	}
 	return nil
 }
 

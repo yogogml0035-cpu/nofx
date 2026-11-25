@@ -497,6 +497,24 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			}
 		}
 
+		// 当前止损止盈：每轮从交易所的未触发条件单读取（F9：不落库）；读不到时明确标注，
+		// 模型不得修改该持仓的保护（旧单无法枚举时不能保证被替换）。
+		var stopLoss, takeProfit float64
+		protectionReason := "adapter does not support protective order management"
+		if manager, ok := at.trader.(types.ProtectiveOrderManager); ok {
+			protectionReason = ""
+			protection, err := manager.PositionProtection(symbol, side)
+			if err != nil {
+				at.logWarnf("⚠️ Protection status unavailable for %s %s: %v", symbol, side, err)
+				protectionReason = "status unavailable: " + err.Error()
+			} else {
+				stopLoss, takeProfit = protection.StopLoss, protection.TakeProfit
+				if !protection.Known {
+					protectionReason = protection.Reason
+				}
+			}
+		}
+
 		positionInfos = append(positionInfos, kernel.PositionInfo{
 			Symbol:                        symbol,
 			Side:                          side,
@@ -512,6 +530,9 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			UpdateTime:                    updateTime,
 			CanPartialClose:               canPartialClose,
 			PartialCloseUnavailableReason: partialCloseReason,
+			StopLoss:                      stopLoss,
+			TakeProfit:                    takeProfit,
+			ProtectionUnavailableReason:   protectionReason,
 		})
 	}
 
@@ -659,10 +680,12 @@ func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 		switch action {
 		case "close_long", "close_short", "close_long_partial", "close_short_partial":
 			return 1 // Highest priority: close positions first
+		case "update_stop_loss", "update_take_profit":
+			return 2 // Adjust protection on existing positions before opening new ones
 		case "open_long", "open_short":
-			return 2 // Second priority: open positions later
+			return 3 // Open positions after closes and protection updates
 		case "hold", "wait":
-			return 3 // Lowest priority: wait
+			return 4 // Lowest priority: wait
 		default:
 			return 999 // Unknown actions at the end
 		}

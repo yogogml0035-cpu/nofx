@@ -27,7 +27,8 @@
     "11-25-drawdown-monitor",
     "11-25-strategy-config",
     "11-25-sizing-engine",
-    "11-25-partial-close"
+    "11-25-partial-close",
+    "11-25-protective-order-management"
   ],
   "parent": null,
   "relatedFiles": [],

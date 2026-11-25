@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -37,6 +38,15 @@ type gateMock struct {
 	readSettingsFail *gateAPIFailure
 	// setLeverageRespondsWith 非 nil 时 set_leverage 的返回值由它给出且不写入条目（模拟被截断的读回）
 	setLeverageRespondsWith func(mode, leverage string) map[string]interface{}
+
+	// 条件单（price_orders）：创建/撤销的失败注入与“看似成功但列表不生效”的场景
+	priceOrderBodies     []map[string]interface{} // POST /price_orders 的请求体
+	priceOrderFail        *gateAPIFailure // 非 nil 时 POST /price_orders 返回这个错误
+	cancelPriceOrderFail  *gateAPIFailure // 非 nil 时 DELETE /price_orders/{id} 返回这个错误
+	omitPlacedPriceOrders bool            // 为 true 时新挂的条件单不进入列表（核对缺失）
+	cancelIneffective     bool            // 为 true 时撤销返回成功但列表里的单不消失
+	nextTriggerID         int64           // 条件单 ID 自增（从 700000 起）
+
 	// requests 收到的请求（"方法 路径?查询串"），用于断言顺序
 	requests []string
 }
@@ -49,7 +59,7 @@ type gateAPIFailure struct {
 }
 
 func newGateMock() *gateMock {
-	return &gateMock{orderByID: map[string]map[string]interface{}{}, settings: map[string]map[string]interface{}{}}
+	return &gateMock{orderByID: map[string]map[string]interface{}{}, settings: map[string]map[string]interface{}{}, nextTriggerID: 700000}
 }
 
 // positionEntry 仓位设置条目的线上格式：size=0 的合约也有条目；
@@ -84,11 +94,13 @@ func contractResponse(contract string) map[string]interface{} {
 		return map[string]interface{}{
 			"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
 			"order_size_max": "10000000", "market_order_size_max": "8000000", "enable_decimal": true,
+			"order_price_round": "0.01",
 		}
 	default: // DOGE_USDT
 		return map[string]interface{}{
 			"name": "DOGE_USDT", "quanto_multiplier": "10", "order_size_min": "1",
 			"order_size_max": "1000000", "market_order_size_max": "0", "enable_decimal": false,
+			"order_price_round": "0.00001",
 		}
 	}
 }
@@ -133,6 +145,49 @@ func positionLevelTriggerOrder(id int64, contract, side, kind string) map[string
 	}
 }
 
+// attachAttachedTriggers 模拟随单 tpsl 成交后生成的委托级条件单（close-*-order）：
+// 多头止损 rule 2、止盈 rule 1；空头相反。小数张走 amount，size 置 0（线上 int64 字段）。
+// livePosition 一笔持仓的线上格式（保护核对与改单读取使用）
+func livePosition(contract, size, entry string) map[string]interface{} {
+	return map[string]interface{}{
+		"contract": contract, "size": size, "entry_price": entry, "mode": "single",
+		"pos_margin_mode": "cross", "lever": "10",
+	}
+}
+
+func (m *gateMock) attachAttachedTriggers(contract, size, sl, tp string, orderID int64) {
+	long := !strings.HasPrefix(strings.TrimSpace(size), "-")
+	orderType := "close-short-order"
+	ruleSL, ruleTP := int32(1), int32(2)
+	if long {
+		orderType = "close-long-order"
+		ruleSL, ruleTP = 2, 1
+	}
+	initialSize := int64(0)
+	if !strings.Contains(size, ".") {
+		if parsed, err := strconv.ParseInt(size, 10, 64); err == nil {
+			initialSize = parsed
+		}
+	}
+	for _, attached := range []struct {
+		price string
+		rule  int32
+	}{{sl, ruleSL}, {tp, ruleTP}} {
+		m.nextTriggerID++
+		m.priceOrders = append(m.priceOrders, map[string]interface{}{
+			"id": m.nextTriggerID, "id_string": strconv.FormatInt(m.nextTriggerID, 10),
+			"order_type": orderType, "status": "open", "me_order_id": orderID,
+			"initial": map[string]interface{}{
+				"contract": contract, "size": initialSize, "amount": size, "price": "0", "tif": "ioc",
+				"is_reduce_only": true,
+			},
+			"trigger": map[string]interface{}{
+				"strategy_type": 0, "price_type": 0, "price": attached.price, "rule": attached.rule,
+			},
+		})
+	}
+}
+
 func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 	// BasePath 带 /api/v4 前缀（与线上一致），按接口路径路由
 	path := strings.TrimPrefix(r.URL.Path, "/api/v4")
@@ -174,8 +229,20 @@ func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&body)
 		m.mu.Lock()
 		m.orderBodies = append(m.orderBodies, body)
+		contract, _ := body["contract"].(string)
+		size, _ := body["size"].(string)
+		sl, _ := body["tpsl_sl_trigger_price"].(string)
+		tp, _ := body["tpsl_tp_trigger_price"].(string)
 		m.mu.Unlock()
-		writeObj(filledOrderResponse(99123, "17", "0.5600", "", ""))
+		resp := filledOrderResponse(99123, size, "0.5600", sl, tp)
+		resp["contract"] = contract
+		if sl != "" && tp != "" {
+			// 线上行为：随单 tpsl 在成交后生成委托级条件单（close-*-order），可撤销
+			m.mu.Lock()
+			m.attachAttachedTriggers(contract, size, sl, tp, 99123)
+			m.mu.Unlock()
+		}
+		writeObj(resp)
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/futures/usdt/orders/"):
 		id := strings.TrimPrefix(path, "/futures/usdt/orders/")
 		if order, ok := m.orderByID[id]; ok {
@@ -184,11 +251,66 @@ func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 			writeObj(filledOrderResponse(99123, "17", "0.5600", "", ""))
 		}
 	case r.Method == http.MethodGet && path == "/futures/usdt/price_orders":
-		if m.priceOrders == nil {
-			writeObj([]map[string]interface{}{})
-		} else {
-			writeObj(m.priceOrders)
+		contract := r.URL.Query().Get("contract")
+		m.mu.Lock()
+		orders := make([]map[string]interface{}, 0, len(m.priceOrders))
+		for _, order := range m.priceOrders {
+			initial, _ := order["initial"].(map[string]interface{})
+			if contract != "" && initial["contract"] != contract {
+				continue
+			}
+			orders = append(orders, order)
 		}
+		m.mu.Unlock()
+		writeObj(orders)
+	case r.Method == http.MethodPost && path == "/futures/usdt/price_orders":
+		var body map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&body)
+		m.mu.Lock()
+		m.priceOrderBodies = append(m.priceOrderBodies, body)
+		if m.priceOrderFail != nil {
+			failure := *m.priceOrderFail
+			m.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(failure.status)
+			fmt.Fprintf(w, `{"label":%q,"message":%q}`, failure.label, failure.message)
+			return
+		}
+		m.nextTriggerID++
+		id := m.nextTriggerID
+		if !m.omitPlacedPriceOrders {
+			entry := map[string]interface{}{
+				"id": id, "id_string": strconv.FormatInt(id, 10),
+				"order_type": body["order_type"], "status": "open",
+				"initial": body["initial"], "trigger": body["trigger"],
+			}
+			m.priceOrders = append(m.priceOrders, entry)
+		}
+		m.mu.Unlock()
+		writeObj(map[string]interface{}{"id": id, "id_string": strconv.FormatInt(id, 10)})
+	case r.Method == http.MethodDelete && strings.HasPrefix(path, "/futures/usdt/price_orders/"):
+		idText := strings.TrimPrefix(path, "/futures/usdt/price_orders/")
+		m.mu.Lock()
+		if m.cancelPriceOrderFail != nil {
+			failure := *m.cancelPriceOrderFail
+			m.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(failure.status)
+			fmt.Fprintf(w, `{"label":%q,"message":%q}`, failure.label, failure.message)
+			return
+		}
+		if !m.cancelIneffective {
+			kept := make([]map[string]interface{}, 0, len(m.priceOrders))
+			for _, order := range m.priceOrders {
+				if id, _ := order["id"].(int64); strconv.FormatInt(id, 10) == idText {
+					continue
+				}
+				kept = append(kept, order)
+			}
+			m.priceOrders = kept
+		}
+		m.mu.Unlock()
+		writeObj(map[string]interface{}{})
 	// 仓位设置条目：GET positions/{contract}（没有条目 → POSITION_NOT_FOUND）
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/futures/usdt/positions/"):
 		contract := strings.TrimPrefix(path, "/futures/usdt/positions/")
@@ -304,8 +426,8 @@ func TestOpenLongProtectedPayload(t *testing.T) {
 	assert.Equal(t, "0", body["price"], "市价单")
 	assert.Equal(t, "ioc", body["tif"], "市价单只支持 ioc")
 	assert.Equal(t, "0.010000", body["market_order_slip_ratio"], "滑点上限 1%（D8）")
-	assert.Equal(t, "0.48", body["tpsl_sl_trigger_price"], "随单止损触发价")
-	assert.Equal(t, "0.65", body["tpsl_tp_trigger_price"], "随单止盈触发价")
+	assert.Equal(t, "0.48000", body["tpsl_sl_trigger_price"], "随单止损触发价（对齐到 0.00001 步长）")
+	assert.Equal(t, "0.65000", body["tpsl_tp_trigger_price"], "随单止盈触发价（对齐到 0.00001 步长）")
 	assert.Equal(t, "t-nofx", body["text"])
 	_, hasClose := body["close"]
 	assert.False(t, hasClose, "开仓单不设 close")
@@ -333,8 +455,8 @@ func TestOpenShortProtectedNegativeSize(t *testing.T) {
 	body := mock.lastOrderBody(t)
 	assert.Equal(t, "-17", body["size"], "空头张数为负")
 	assert.Equal(t, "17", res.Contracts, "返回的张数不带符号")
-	assert.Equal(t, "0.65", body["tpsl_sl_trigger_price"])
-	assert.Equal(t, "0.48", body["tpsl_tp_trigger_price"])
+	assert.Equal(t, "0.65000", body["tpsl_sl_trigger_price"])
+	assert.Equal(t, "0.48000", body["tpsl_tp_trigger_price"])
 }
 
 func TestOpenProtectedRejects(t *testing.T) {
@@ -369,7 +491,7 @@ func TestOpenProtectedRejects(t *testing.T) {
 				r.StopLoss = 0
 				return r
 			}(),
-			wantErr: "stop loss trigger price must be positive",
+			wantErr: "trigger price must be positive",
 		},
 		{
 			name: "多头止损高于止盈",
@@ -379,7 +501,7 @@ func TestOpenProtectedRejects(t *testing.T) {
 				r.TakeProfit = 0.65
 				return r
 			}(),
-			wantErr: "must be below take profit",
+			wantErr: "must be below current price",
 		},
 		{
 			name: "滑点比率超上限",
@@ -530,6 +652,7 @@ func TestOpenProtectedAboveMarketMax(t *testing.T) {
 		"DOGE_USDT": {
 			"name": "DOGE_USDT", "quanto_multiplier": "10", "order_size_min": "1",
 			"order_size_max": "1000000", "market_order_size_max": "20", "enable_decimal": false,
+			"order_price_round": "0.00001",
 		},
 	}
 	mock.mu.Unlock()
@@ -559,6 +682,7 @@ func TestVerifyOrderProtectionIgnoresOtherSide(t *testing.T) {
 		positionLevelTriggerOrder(551, "DOGE_USDT", "LONG", "SL"),
 		positionLevelTriggerOrder(552, "DOGE_USDT", "LONG", "TP"),
 	}
+	mock.positions = []map[string]interface{}{livePosition("DOGE_USDT", "-17", "0.56")}
 	mock.mu.Unlock()
 
 	err := gt.VerifyOrderProtection("DOGE_USDT", "99123")
@@ -575,15 +699,30 @@ func TestVerifyOrderProtectionIgnoresOtherSide(t *testing.T) {
 	assert.NoError(t, gt.VerifyOrderProtection("DOGE_USDT", "99123"))
 }
 
-func TestVerifyOrderProtectionViaOrderTpsl(t *testing.T) {
+func TestVerifyOrderProtectionRequiresTriggerOrders(t *testing.T) {
 	mock := newGateMock()
 	gt := newLocalGateTrader(t, mock.handler)
 	mock.mu.Lock()
+	// 委托回读带 tpsl 字段，但触发价未对齐价格步长时交易所不创建条件单（F44 真实探针）：
+	// 只读委托字段会误判为受保护，必须要求列表里有同侧止损与止盈
 	mock.orderByID["99123"] = filledOrderResponse(99123, "17", "0.5600", "0.48", "0.65")
+	mock.positions = []map[string]interface{}{livePosition("DOGE_USDT", "17", "0.56")}
 	mock.mu.Unlock()
 
-	assert.NoError(t, gt.VerifyOrderProtection("DOGE_USDT", "99123"),
-		"委托回读带随单止损止盈即受保护")
+	err := gt.VerifyOrderProtection("DOGE_USDT", "99123")
+	require.Error(t, err, "委托 tpsl 字段被接受不等于条件单已创建")
+	assert.Contains(t, err.Error(), "protection missing")
+}
+
+func TestVerifyOrderProtectionPositionAlreadyClosed(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+	// 仓位已被保护单触发平掉：没有持仓就没有需要保护的对象
+	mock.mu.Lock()
+	mock.orderByID["99123"] = filledOrderResponse(99123, "17", "0.5600", "", "")
+	mock.mu.Unlock()
+
+	assert.NoError(t, gt.VerifyOrderProtection("DOGE_USDT", "99123"))
 }
 
 func TestVerifyOrderProtectionViaTriggerOrders(t *testing.T) {
@@ -595,10 +734,11 @@ func TestVerifyOrderProtectionViaTriggerOrders(t *testing.T) {
 		positionLevelTriggerOrder(551, "DOGE_USDT", "LONG", "SL"),
 		positionLevelTriggerOrder(552, "DOGE_USDT", "LONG", "TP"),
 	}
+	mock.positions = []map[string]interface{}{livePosition("DOGE_USDT", "17", "0.56")}
 	mock.mu.Unlock()
 
 	assert.NoError(t, gt.VerifyOrderProtection("DOGE_USDT", "99123"),
-		"委托无随单 tpsl 时按条件单列表核对：止损与止盈齐全")
+		"按条件单列表核对：同侧止损与止盈齐全")
 }
 
 func TestVerifyOrderProtectionMissing(t *testing.T) {
@@ -608,6 +748,7 @@ func TestVerifyOrderProtectionMissing(t *testing.T) {
 	mock.priceOrders = []map[string]interface{}{
 		positionLevelTriggerOrder(551, "DOGE_USDT", "LONG", "SL"), // 只有止损
 	}
+	mock.positions = []map[string]interface{}{livePosition("DOGE_USDT", "17", "0.56")}
 	mock.mu.Unlock()
 
 	err := gt.VerifyOrderProtection("DOGE_USDT", "99123")

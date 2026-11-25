@@ -89,11 +89,13 @@ func TestGateTrader_GetPositionsParsesDecimalSizes(t *testing.T) {
 			writeJSON(w, map[string]interface{}{
 				"name": "SOL_USDT", "quanto_multiplier": "1", "order_size_min": "0.1",
 				"order_size_max": "200000", "market_order_size_max": "300000", "enable_decimal": true,
+				"order_price_round": "0.01",
 			})
 		case "/api/v4/futures/usdt/contracts/BTC_USDT":
 			writeJSON(w, map[string]interface{}{
 				"name": "BTC_USDT", "quanto_multiplier": "0.0001", "order_size_min": "1",
 				"order_size_max": "1000000", "market_order_size_max": "0", "enable_decimal": false,
+				"order_price_round": "0.1",
 			})
 		default:
 			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
@@ -153,6 +155,7 @@ func TestGateTrader_GetOrderStatusParsesDecimalSizes(t *testing.T) {
 					writeJSON(w, map[string]interface{}{
 						"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
 						"order_size_max": "10000000", "market_order_size_max": "8000000", "enable_decimal": true,
+						"order_price_round": "0.01",
 					})
 				default:
 					http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
@@ -182,6 +185,7 @@ func TestGateTrader_GetTradesDerivesActionFromStringSizes(t *testing.T) {
 			writeJSON(w, map[string]interface{}{
 				"name": "ETH_USDT", "quanto_multiplier": "0.01", "order_size_min": "0.1",
 				"order_size_max": "10000000", "market_order_size_max": "8000000", "enable_decimal": true,
+				"order_price_round": "0.01",
 			})
 		default:
 			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
@@ -229,6 +233,7 @@ func TestGateTrader_OpenLongSendsContractCountAsString(t *testing.T) {
 			writeJSON(w, map[string]interface{}{
 				"name": "DOGE_USDT", "quanto_multiplier": "10", "order_size_min": "1",
 				"order_size_max": "1000000", "market_order_size_max": "0", "enable_decimal": false,
+				"order_price_round": "0.00001",
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v4/futures/usdt/orders":
 			raw, err := io.ReadAll(r.Body)

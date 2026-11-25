@@ -445,7 +445,8 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. Validate action type
         validActions := []string{"open_long", "open_short", "close_long", "close_short",
-            "close_long_partial", "close_short_partial", "hold", "wait"}
+            "close_long_partial", "close_short_partial", "update_stop_loss", "update_take_profit",
+            "hold", "wait"}
 
         // 2. Open position validation
         if isOpenAction(d.Action) {
@@ -461,6 +462,14 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
             // Partial close: close_percent is in (0, 100); 100% is a full close
             // and must use close_long / close_short
         }
+
+        // 4. Protection update validation
+        if isProtectionUpdate(d.Action) {
+            // The position must exist and already have a readable stop loss and take profit
+            // update_stop_loss reads stop_loss, update_take_profit reads take_profit (the other field is ignored)
+            // The new price must sit on the correct side of the current price (long: SL < price < TP; short reversed)
+            // Moving the stop loss: loss at the new stop ≤ 2% of principal (position quantity × |entry − stop|)
+        }
     }
 }
 ```
@@ -471,11 +480,11 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
 // decision/engine.go:128-143
 type Decision struct {
     Symbol      string   // Trading pair: "BTCUSDT"
-    Action      string   // "open_long", "open_short", "close_long", "close_short", "close_long_partial", "close_short_partial", "hold", "wait"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "close_long_partial", "close_short_partial", "update_stop_loss", "update_take_profit", "hold", "wait"
     ClosePercent float64 // Partial-close ratio (0 < pct < 100), only for close_*_partial
     Leverage    int      // Leverage multiplier
-    StopLoss    float64  // Stop loss price
-    TakeProfit  float64  // Take profit price
+    StopLoss    float64  // Stop loss price (also the new price for update_stop_loss)
+    TakeProfit  float64  // Take profit price (also the new price for update_take_profit)
     Confidence  int      // Confidence 0-100
     Reasoning   string   // Decision reasoning
 
@@ -498,8 +507,9 @@ sort.SliceStable(decisions, func(i, j int) bool {
     priority := map[string]int{
         "close_long": 1, "close_short": 1,  // Highest priority
         "close_long_partial": 1, "close_short_partial": 1,
-        "open_long": 2, "open_short": 2,    // Second priority
-        "hold": 3, "wait": 3,               // Lowest priority
+        "update_stop_loss": 2, "update_take_profit": 2, // Adjust protection on existing positions
+        "open_long": 3, "open_short": 3,    // Open new positions last
+        "hold": 4, "wait": 4,               // Lowest priority
     }
     return priority[decisions[i].Action] < priority[decisions[j].Action]
 })
@@ -538,6 +548,21 @@ func (at *AutoTrader) recordAndConfirmOrder(orderID, symbol, side, action string
     at.store.Position().SaveOrder(...)
 }
 ```
+
+### 7.3.1 Protective Order Update (Cancel-and-Replace)
+
+The exchange's trigger-order amend endpoint is not usable (the new path is not deployed: 404; the old
+path rejects API-created trigger orders with code 1077), so a stop loss / take profit update is a
+cancel-and-replace: place the new position-level trigger order, verify it in the open trigger-order list,
+then cancel the old order(s) of the same kind, then verify they are gone. Any failure cancels the new
+order and leaves the original protection in place; if protection cannot be confirmed at all the caller
+closes the position immediately (`types.ErrPositionUnprotected`).
+
+Trigger prices must be a multiple of the contract's `order_price_round`. A non-aligned price is accepted
+in the order's `tpsl_*` fields but the exchange does not create the trigger order (observed 2026-11-25),
+which would leave the position unprotected; the adapter aligns every trigger price (a stop only gets
+tighter, a take profit never gets closer) and verifies protection through the trigger-order list, not
+through the opening order's fields.
 
 ### 7.4 Decision Log Saving
 

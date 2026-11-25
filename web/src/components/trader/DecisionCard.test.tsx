@@ -79,3 +79,60 @@ describe('DecisionCard partial close', () => {
     expect(screen.queryByText('50%')).toBeNull()
   })
 })
+describe('DecisionCard protection updates', () => {
+  it('识别修改止损动作并显示新价格', () => {
+    render(
+      <DecisionCard
+        language="en"
+        decision={{
+          ...baseDecision,
+          decisions: [
+            {
+              action: 'update_stop_loss',
+              symbol: 'DOGEUSDT',
+              quantity: 0,
+              leverage: 0,
+              price: 0,
+              stop_loss: 0.052,
+              order_id: 700001,
+              timestamp: '2026-11-25T08:00:00Z',
+              success: true,
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText('UPDATE SL')).toBeDefined()
+    expect(screen.getByText('0.052000')).toBeDefined()
+    expect(screen.queryByText('WAIT')).toBeNull()
+  })
+
+  it('识别修改止盈动作并显示新价格', () => {
+    render(
+      <DecisionCard
+        language="en"
+        decision={{
+          ...baseDecision,
+          decisions: [
+            {
+              action: 'update_take_profit',
+              symbol: 'DOGEUSDT',
+              quantity: 0,
+              leverage: 0,
+              price: 0,
+              take_profit: 0.065,
+              order_id: 700002,
+              timestamp: '2026-11-25T08:00:00Z',
+              success: true,
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText('UPDATE TP')).toBeDefined()
+    expect(screen.getByText('0.065000')).toBeDefined()
+    expect(screen.queryByText('WAIT')).toBeNull()
+  })
+})

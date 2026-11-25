@@ -22,13 +22,15 @@ const MaxLossPercentOfPrincipal = 2.0
 
 // DecisionSizing 一次决策的金额与价格输入。
 // Principal/PositionPercent 决定开仓名义价值；Prices 用于校验止损止盈方向与亏损上限，
-// 取模型在同一轮提示词里看到的现价。
+// 取模型在同一轮提示词里看到的现价；Positions 是本轮提示词里的持仓快照，
+// 修改止损止盈时用它定位目标持仓、入场价与当前保护。
 type DecisionSizing struct {
 	Principal       float64
 	PositionPercent float64
 	BTCETHLeverage  int
 	AltcoinLeverage int
 	Prices          map[string]float64 // symbol → 当前价
+	Positions       []PositionInfo     // 本轮持仓快照
 }
 
 func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
@@ -43,7 +45,8 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
 // validateDecision 校验一条 AI 决策。开仓的名义价值由代码按本金 × 百分比计算并写入
 // Decision.NotionalUSD（D22/D24）；模型给出的任何金额字段都不参与。
 // 校验包含随单保护的两项硬约束：止损止盈分居现价两侧（否则交易所条件单方向非法）、
-// 价格到止损价的亏损不超过本金的 2%（D34）。
+// 价格到止损价的亏损不超过本金的 2%（D34）。修改止损止盈的动作只读取对应字段，
+// 目标持仓必须存在且当前保护可读。
 func validateDecision(d *Decision, sizing DecisionSizing) error {
 	validActions := map[string]bool{
 		"open_long":           true,
@@ -52,6 +55,8 @@ func validateDecision(d *Decision, sizing DecisionSizing) error {
 		"close_short":         true,
 		"close_long_partial":  true,
 		"close_short_partial": true,
+		"update_stop_loss":    true,
+		"update_take_profit":  true,
 		"hold":                true,
 		"wait":                true,
 	}
@@ -73,6 +78,10 @@ func validateDecision(d *Decision, sizing DecisionSizing) error {
 			return fmt.Errorf("close_percent must be in (0, 100), got %v", d.ClosePercent)
 		}
 		return nil
+	}
+
+	if d.Action == "update_stop_loss" || d.Action == "update_take_profit" {
+		return validateProtectionUpdate(d, sizing)
 	}
 
 	if d.Action != "open_long" && d.Action != "open_short" {
@@ -230,6 +239,118 @@ func ValidateStopLossLoss(notional, entry, stop, principal float64) error {
 
 func finitePositive(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+// positionForSymbol 在本轮持仓快照里定位决策标的的持仓；符号变体（大小写、"BTC/USDT"、
+// 去掉计价后缀）与 currentPrice 同口径，避免一个变体就让整批决策被拒。
+func positionForSymbol(positions []PositionInfo, symbol string) (PositionInfo, bool) {
+	trimmed := strings.ToUpper(strings.TrimSpace(symbol))
+	normalized := market.Normalize(trimmed)
+	for _, pos := range positions {
+		posSymbol := strings.ToUpper(strings.TrimSpace(pos.Symbol))
+		if posSymbol == trimmed || market.Normalize(posSymbol) == normalized {
+			return pos, true
+		}
+	}
+	base := symbolBaseKey(symbol)
+	if base == "" {
+		return PositionInfo{}, false
+	}
+	for _, pos := range positions {
+		if symbolBaseKey(pos.Symbol) == base {
+			return pos, true
+		}
+	}
+	return PositionInfo{}, false
+}
+
+// LossAtPositionStop 现有持仓在止损价的亏损（USDT）：持仓数量 × 入场价到止损价的距离。
+// 止损位于盈利一侧（多单止损不低于入场价、空单止损不高于入场价）时亏损为 0——
+// 移动止损锁定利润不占用本金的亏损额度。入场价不是正数时返回 +Inf，交由调用方拒绝。
+func LossAtPositionStop(pos PositionInfo, stop float64) float64 {
+	if !finitePositive(pos.EntryPrice) || !finitePositive(stop) || !finitePositive(math.Abs(pos.Quantity)) {
+		return math.Inf(1)
+	}
+	short := strings.EqualFold(pos.Side, "short")
+	var distance float64
+	if short {
+		if stop <= pos.EntryPrice {
+			return 0
+		}
+		distance = stop - pos.EntryPrice
+	} else {
+		if stop >= pos.EntryPrice {
+			return 0
+		}
+		distance = pos.EntryPrice - stop
+	}
+	return math.Abs(pos.Quantity) * distance
+}
+
+// ValidatePositionStopLossLoss 校验把现有持仓的止损移到 stop 时的亏损不超过本金的 2%（D34）。
+// 与开仓时不同，入场价与数量来自交易所的持仓读数，不再用现价估算。
+func ValidatePositionStopLossLoss(pos PositionInfo, stop, principal float64) error {
+	if !finitePositive(principal) {
+		return fmt.Errorf("account principal must be a positive number, got %v", principal)
+	}
+	loss := LossAtPositionStop(pos, stop)
+	limit := principal * MaxLossPercentOfPrincipal / 100
+	if loss > limit*(1+1e-12) {
+		return fmt.Errorf(
+			"loss at stop %.4f USDT exceeds %.0f%% of principal (%.4f USDT): position %s %s quantity %.8f, entry %.6f, stop %.6f",
+			loss, MaxLossPercentOfPrincipal, limit, pos.Symbol, pos.Side, math.Abs(pos.Quantity), pos.EntryPrice, stop)
+	}
+	return nil
+}
+
+// validateProtectionUpdate 校验修改止损/止盈的决策：
+// 目标持仓必须存在且当前保护可读；新价格必须是有限正数、位于现价正确一侧；
+// 移动止损时按持仓入场价与数量复核 2% 亏损上限（D34）。
+func validateProtectionUpdate(d *Decision, sizing DecisionSizing) error {
+	pos, ok := positionForSymbol(sizing.Positions, d.Symbol)
+	if !ok {
+		return fmt.Errorf("%s has no open position; cannot %s", d.Symbol, d.Action)
+	}
+	if !finitePositive(pos.StopLoss) || !finitePositive(pos.TakeProfit) {
+		reason := strings.TrimSpace(pos.ProtectionUnavailableReason)
+		if reason == "" {
+			reason = "stop loss or take profit is not readable"
+		}
+		return fmt.Errorf("protection for %s is not readable (%s); refusing to modify", d.Symbol, reason)
+	}
+
+	newPrice := d.TakeProfit
+	field := "take_profit"
+	if d.Action == "update_stop_loss" {
+		newPrice, field = d.StopLoss, "stop_loss"
+	}
+	if !finitePositive(newPrice) {
+		return fmt.Errorf("%s must be greater than 0 for %s", field, d.Action)
+	}
+
+	market, ok := currentPrice(sizing.Prices, d.Symbol)
+	if !ok {
+		return fmt.Errorf("%s has no valid current price to validate the new protection", d.Symbol)
+	}
+	short := strings.EqualFold(pos.Side, "short")
+	switch d.Action {
+	case "update_stop_loss":
+		if short && newPrice <= market {
+			return fmt.Errorf("%s short stop loss %v must be above current price %v", d.Symbol, newPrice, market)
+		}
+		if !short && newPrice >= market {
+			return fmt.Errorf("%s long stop loss %v must be below current price %v", d.Symbol, newPrice, market)
+		}
+		return ValidatePositionStopLossLoss(pos, newPrice, sizing.Principal)
+	case "update_take_profit":
+		if short && newPrice >= market {
+			return fmt.Errorf("%s short take profit %v must be below current price %v", d.Symbol, newPrice, market)
+		}
+		if !short && newPrice <= market {
+			return fmt.Errorf("%s long take profit %v must be above current price %v", d.Symbol, newPrice, market)
+		}
+	}
+	return nil
 }
 
 // currentPrice 在 Prices 中找到决策标的的现价。模型偶尔把候选写成 "BTC"、

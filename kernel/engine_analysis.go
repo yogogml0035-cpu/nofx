@@ -111,6 +111,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		BTCETHLeverage:  riskConfig.BTCETHMaxLeverage,
 		AltcoinLeverage: riskConfig.AltcoinMaxLeverage,
 		Prices:          marketPrices(ctx),
+		Positions:       ctx.Positions,
 	})
 
 	if decision != nil {

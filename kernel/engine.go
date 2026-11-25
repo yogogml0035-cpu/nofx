@@ -37,6 +37,12 @@ type PositionInfo struct {
 	CanPartialClose bool `json:"can_partial_close"`
 	// PartialCloseUnavailableReason 不可分批的原因（仅 CanPartialClose=false 时非空）
 	PartialCloseUnavailableReason string `json:"partial_close_unavailable_reason,omitempty"`
+	// StopLoss / TakeProfit 当前生效的止损、止盈触发价（每轮从交易所未触发条件单读取，
+	// 不落库）。0 表示不可读，此时模型不得修改该持仓的保护。
+	StopLoss   float64 `json:"stop_loss"`
+	TakeProfit float64 `json:"take_profit"`
+	// ProtectionUnavailableReason 当前保护不可读的原因（StopLoss 或 TakeProfit 为 0 时非空）
+	ProtectionUnavailableReason string `json:"protection_unavailable_reason,omitempty"`
 }
 
 // AccountInfo account information
@@ -109,7 +115,8 @@ type Context struct {
 type Decision struct {
 	Symbol string `json:"symbol"`
 	// Standard: "open_long", "open_short", "close_long", "close_short",
-	// "close_long_partial", "close_short_partial", "hold", "wait"
+	// "close_long_partial", "close_short_partial", "update_stop_loss",
+	// "update_take_profit", "hold", "wait"
 	Action string `json:"action"`
 	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
@@ -121,6 +128,8 @@ type Decision struct {
 	// Opening position parameters. The notional is computed by the engine from
 	// principal × position_percent (D22/D24); the model supplies only direction,
 	// leverage, protection prices and confidence.
+	// StopLoss / TakeProfit also carry the new trigger price for
+	// update_stop_loss / update_take_profit (only the matching field is read).
 	Leverage   int     `json:"leverage,omitempty"`
 	StopLoss   float64 `json:"stop_loss,omitempty"`
 	TakeProfit float64 `json:"take_profit,omitempty"`
