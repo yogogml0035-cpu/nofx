@@ -42,6 +42,15 @@ config.json
 # Local deployment state & scratch evidence (never in build context)
 .nofx-local/
 scratch/
+.env
+data/
+
+# Local tooling / task state
+.trellis/
+.zcode/
+.agents/
+.codex/
+.dsh/
 
 # Web build artifacts (but include source for multi-stage build)
 web/node_modules/
