@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/11-25-market-source/design.md", "reason": "契约、接口字段、解析与校验规则、权衡与边界"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误包装与 fail-closed 的层间约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试与代码质量基线"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "§3.3 K 线周期与字段实测、D6/D25、F41"}
