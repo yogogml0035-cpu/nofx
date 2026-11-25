@@ -100,3 +100,36 @@
 - 子任务 6 drawdown-monitor（等 U1）：回撤监控取实际杠杆读条目的 lever——GetPositions 现在仍返回整数 leverage（全仓为 0）；设置是合约级的，同一合约上已有反向持仓时开仓前生效设置会同时改动那个仓位
 - 待用户决定：是否授权在可弃合约上补测「从没有设置过的合约上的 set_leverage」（会留下无法还原为无条目的条目）；账户切回单币种保证金模式后做一次只读复验；DOGE_USDT、ETH_USDT 目前是全仓 75x/200x
 - U1（手动持仓是否归机器人管）仍待用户确认，只阻塞子任务 6
+
+
+## Session 3: 子任务 7 account-equity 收口：复审 PASS、合入父分支并归档
+<!-- trellis-session: v=2 fp=4cdc84be88ff4d0b -->
+
+**Date**: 2026-11-25
+**Task**: 子任务 7 account-equity 收口：复审 PASS、合入父分支并归档
+**Branch**: `feat/2026_1123_gate-trading-foundation`
+
+### Summary
+
+代码候选 20a1c61c：Gate 取钱包总额本金、口径唯一定义、初始资金可编辑与存量重建；门禁 make test/make build 全过；第 4 轮真实读数 LIVECHECK_PASS；第二轮界面实测覆盖换绑重置与改过才发送；独立检查复审 PASS（首轮 NEEDS FIX 各项全部修复、变异 0 存活）。已合入父分支（831dfb5e）并归档（archive/2026-11/11-24-account-equity），计划文档 10.5/F38–F40/3.1 同步，父分支已推送 b343cace。下一步：子任务 8 strategy-config（子任务 6 等用户决定 U1）
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `831dfb5e` | merge: 账户权益与本金子任务并入父分支（feat/2026_1123_gate-trading-foundation--account-equity c933a7c4 + e73c3c06 + 88982a24 + cd9cfd88 + ed4aed64 + b6da1239 + 9805ba50 + 83d2dd95 + 20a1c61c + abb6e79d + 4cdc05a3 + 65726249 + 3f3cba7a，代码候选 20a1c61c，独立检查复审 PASS，门禁 make test / make build 全过） |
+| `09f2015b` | chore(task): archive 11-24-account-equity |
+| `f5399125` | chore(task): 修正归档任务 jsonl 与证据说明里的自引用路径 |
+| `b343cace` | docs(plans): 子任务 7 account-equity 收口——10.5 进度、F38–F40 实测发现、3.1 可用额度公式更正、父任务子任务地图 |
+
+### Testing
+
+- [OK] make test / make build（20a1c61c，全过）；检查子智能体变异 15 杀死 1 不可编译 0 存活
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 子任务 8 strategy-config；U1（手动持仓是否归机器人管）仍待用户确认
