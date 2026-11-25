@@ -61,7 +61,12 @@ func (s *Server) handleKlines(c *gin.Context) {
 			return
 		}
 	default:
-		// 加密货币：Gate 合约 K 线（exchange 参数不再参与路由；无其他数据源回退）
+		// 加密货币：Gate 合约 K 线（exchange 参数不再参与路由；无其他数据源回退）。
+		// 非保留周期属于客户端参数错误，先在发请求前拒绝为 400。
+		if _, err := market.GateIntervalDuration(interval); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		klines, err = cryptoKlines(symbol, interval, limit)
 		if err != nil {
 			SafeInternalError(c, "Get klines from Gate", err)

@@ -90,9 +90,8 @@ export function AdvancedChart({
   const indicatorSeriesRef = useRef<Map<string, ISeriesApi<any>>>(new Map())
   const seriesMarkersRef = useRef<any>(null) // Markers primitive for v5
   const currentMarkersDataRef = useRef<any[]>([]) // Store current marker data
-  const klineDataRef = useRef<
-    Map<number, { volume: number; quoteVolume: number }>
-  >(new Map()) // Store kline extra data
+  // 每个时间点的 USDT 成交额（Gate sum）
+  const klineDataRef = useRef<Map<number, number>>(new Map())
   const priceLinesRef = useRef<any[]>([]) // Store open order price lines
 
   const [loading, setLoading] = useState(true)
@@ -110,8 +109,7 @@ export function AdvancedChart({
     priceChangePercent: number
     high: number
     low: number
-    volume: number // USDT quote volume (Gate sum)
-    quoteVolume: number // USDT quote volume (mirrors volume)
+    quoteVolume: number // USDT quote volume (Gate sum)
   } | null>(null)
 
   // Indicator configuration
@@ -180,8 +178,7 @@ export function AdvancedChart({
         high: candle.high,
         low: candle.low,
         close: candle.close,
-        volume: candle.volume, // USDT quote volume (Gate sum)
-        quoteVolume: candle.quoteVolume, // USDT quote volume (mirrors volume)
+        quoteVolume: candle.quoteVolume, // USDT quote volume (Gate sum)
       }))
 
       // Sort by time and deduplicate (lightweight-charts requires ascending, unique times)
@@ -562,11 +559,7 @@ export function AdvancedChart({
 
       const candleData = data as any
 
-      // Get volume and quoteVolume from stored data
-      const klineExtra = klineDataRef.current.get(param.time as number) || {
-        volume: 0,
-        quoteVolume: 0,
-      }
+      const quoteVolume = klineDataRef.current.get(param.time as number) || 0
 
       setTooltipData({
         time: param.time,
@@ -574,8 +567,7 @@ export function AdvancedChart({
         high: candleData.high,
         low: candleData.low,
         close: candleData.close,
-        volume: klineExtra.volume,
-        quoteVolume: klineExtra.quoteVolume,
+        quoteVolume,
         x: param.point.x,
         y: param.point.y,
       })
@@ -627,10 +619,7 @@ export function AdvancedChart({
         // Store volume/quoteVolume data for tooltip
         klineDataRef.current.clear()
         klineData.forEach((k: any) => {
-          klineDataRef.current.set(k.time, {
-            volume: k.volume || 0,
-            quoteVolume: k.quoteVolume || 0,
-          })
+          klineDataRef.current.set(k.time, k.quoteVolume || 0)
         })
 
         // 1.5 Calculate market stats
@@ -648,7 +637,6 @@ export function AdvancedChart({
             priceChangePercent,
             high: latestKline.high,
             low: latestKline.low,
-            volume: latestKline.volume || 0,
             quoteVolume: latestKline.quoteVolume || 0,
           })
         } else if (klineData.length === 1) {
@@ -659,7 +647,6 @@ export function AdvancedChart({
             priceChangePercent: 0,
             high: latestKline.high,
             low: latestKline.low,
-            volume: latestKline.volume || 0,
             quoteVolume: latestKline.quoteVolume || 0,
           })
         }

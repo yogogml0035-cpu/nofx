@@ -94,6 +94,8 @@ func TestHandleKlinesLimitBounds(t *testing.T) {
 		{name: "非法取默认", query: "?symbol=DOGEUSDT&interval=5m&limit=abc", wantLimit: 1000},
 		{name: "超上限夹到 2000", query: "?symbol=DOGEUSDT&interval=5m&limit=5000", wantLimit: 2000},
 		{name: "上限 2000 保留", query: "?symbol=DOGEUSDT&interval=5m&limit=2000", wantLimit: 2000},
+		{name: "2001 夹到 2000", query: "?symbol=DOGEUSDT&interval=5m&limit=2001", wantLimit: 2000},
+		{name: "负数取默认", query: "?symbol=DOGEUSDT&interval=5m&limit=-5", wantLimit: 1000},
 		{name: "正常值保留", query: "?symbol=DOGEUSDT&interval=5m&limit=1500", wantLimit: 1500},
 	}
 	for _, c := range cases {
@@ -127,11 +129,16 @@ func TestHandleKlinesGateFailureReturnsInternalError(t *testing.T) {
 }
 
 func TestHandleKlinesRejectsNonRetainedInterval(t *testing.T) {
-	// 用真实取数入口：非保留周期在发请求前就被拒绝（不需要网络）
-	overrideCryptoKlines(t, market.GetGateKlines)
+	// 非保留周期属于客户端参数错误：发请求前拒绝为 400（取数入口不应被调用）
+	called := false
+	overrideCryptoKlines(t, func(symbol, interval string, limit int) ([]market.Kline, error) {
+		called = true
+		return nil, nil
+	})
 	s := newKlinesTestServer(t)
 	for _, interval := range []string{"1s", "5s", "30s", "3m", "2h", "6h", "12h", "3d", "1M"} {
 		rec := doKlinesRequest(t, s, "?symbol=DOGEUSDT&interval="+interval)
-		assert.Equalf(t, http.StatusInternalServerError, rec.Code, "interval %s must be rejected", interval)
+		assert.Equalf(t, http.StatusBadRequest, rec.Code, "interval %s must be rejected", interval)
 	}
+	assert.False(t, called, "invalid intervals must not reach the data source")
 }
