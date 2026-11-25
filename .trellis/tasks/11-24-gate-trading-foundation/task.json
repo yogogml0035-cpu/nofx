@@ -24,7 +24,8 @@
     "11-24-open-position-safety",
     "11-24-unified-trading-params",
     "11-24-account-equity",
-    "11-25-drawdown-monitor"
+    "11-25-drawdown-monitor",
+    "11-25-strategy-config"
   ],
   "parent": null,
   "relatedFiles": [],
