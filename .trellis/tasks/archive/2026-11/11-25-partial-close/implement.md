@@ -32,9 +32,9 @@
       `make build` 全过。
 - [x] 13. 独立检查子智能体：首轮 NEEDS FIX（P2-1 + P3-1…P3-5），主会话修复并重跑 W2/门禁后
       复审 **PASS**（候选 `7cd7788f`，`git diff --check f902f7db..7cd7788f` 通过、定向测试全绿）。
-- [ ] 14. 合父（`--no-ff`）、父 worktree 归档、计划文档 10.5 勾选、父任务 prd/implement 地图同步、
-      journal、push 父分支。
-- [ ] 15. 确认父分支包含子提交、子 worktree 干净、证据已保存后删除子分支与 worktree。
+- [x] 14. 合父（`--no-ff` 合并提交 `3985f016`）、父 worktree 归档（`07f1ea26`）、计划文档 10.5 与
+      F43 勾选、父任务 prd/implement 地图同步（`c38dc749`）、journal（`dbb11764`）、父分支 push。
+- [x] 15. 确认父分支包含子提交 `7cd7788f`、子 worktree 干净、证据已保存后删除子分支与 worktree。
 
 ## 独立检查修复（2026-11-25）
 
