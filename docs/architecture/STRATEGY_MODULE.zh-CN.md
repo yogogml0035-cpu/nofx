@@ -443,7 +443,8 @@ func fixMissingQuotes(s string) string {
 func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. 验证action类型
-        validActions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait"}
+        validActions := []string{"open_long", "open_short", "close_long", "close_short",
+            "close_long_partial", "close_short_partial", "hold", "wait"}
 
         // 2. 开仓验证
         if isOpenAction(d.Action) {
@@ -456,6 +457,7 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
         // 3. 平仓验证
         if isCloseAction(d.Action) {
             // Symbol必须存在
+            // 分批平仓：close_percent 取 (0,100)，100% 是全平，必须用 close_long / close_short
         }
     }
 }
@@ -467,7 +469,8 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
 // decision/engine.go:128-143
 type Decision struct {
     Symbol      string   // 交易对: "BTCUSDT"
-    Action      string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "close_long_partial", "close_short_partial", "hold", "wait"
+    ClosePercent float64 // 分批平仓比例 (0 < pct < 100)，仅 close_*_partial 动作
     Leverage    int      // 杠杆倍数
     StopLoss    float64  // 止损价格
     TakeProfit  float64  // 止盈价格
@@ -492,6 +495,7 @@ type Decision struct {
 sort.SliceStable(decisions, func(i, j int) bool {
     priority := map[string]int{
         "close_long": 1, "close_short": 1,  // 最高优先级
+        "close_long_partial": 1, "close_short_partial": 1,
         "open_long": 2, "open_short": 2,    // 次优先级
         "hold": 3, "wait": 3,               // 最低优先级
     }

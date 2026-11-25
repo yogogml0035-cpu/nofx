@@ -46,16 +46,33 @@ func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
 // 价格到止损价的亏损不超过本金的 2%（D34）。
 func validateDecision(d *Decision, sizing DecisionSizing) error {
 	validActions := map[string]bool{
-		"open_long":   true,
-		"open_short":  true,
-		"close_long":  true,
-		"close_short": true,
-		"hold":        true,
-		"wait":        true,
+		"open_long":           true,
+		"open_short":          true,
+		"close_long":          true,
+		"close_short":         true,
+		"close_long_partial":  true,
+		"close_short_partial": true,
+		"hold":                true,
+		"wait":                true,
 	}
 
 	if !validActions[d.Action] {
 		return fmt.Errorf("invalid action: %s", d.Action)
+	}
+
+	if d.Action == "close_long_partial" || d.Action == "close_short_partial" {
+		if math.IsNaN(d.ClosePercent) || math.IsInf(d.ClosePercent, 0) {
+			return fmt.Errorf("close_percent must be a finite number, got %v", d.ClosePercent)
+		}
+		if d.ClosePercent == 100 {
+			return fmt.Errorf(
+				"close_percent 100 is a full close; use %s instead",
+				strings.TrimSuffix(d.Action, "_partial"))
+		}
+		if d.ClosePercent <= 0 || d.ClosePercent >= 100 {
+			return fmt.Errorf("close_percent must be in (0, 100), got %v", d.ClosePercent)
+		}
+		return nil
 	}
 
 	if d.Action != "open_long" && d.Action != "open_short" {

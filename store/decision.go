@@ -80,19 +80,21 @@ type PositionSnapshot struct {
 
 // DecisionAction decision action
 type DecisionAction struct {
-	Action     string    `json:"action"`
-	Symbol     string    `json:"symbol"`
-	Quantity   float64   `json:"quantity"`
-	Leverage   int       `json:"leverage"`
-	Price      float64   `json:"price"`
-	StopLoss   float64   `json:"stop_loss,omitempty"`   // Stop loss price
-	TakeProfit float64   `json:"take_profit,omitempty"` // Take profit price
-	Confidence int       `json:"confidence,omitempty"`  // AI confidence (0-100)
-	Reasoning  string    `json:"reasoning,omitempty"`   // Brief reasoning
-	OrderID    int64     `json:"order_id"`
-	Timestamp  time.Time `json:"timestamp"`
-	Success    bool      `json:"success"`
-	Error      string    `json:"error"`
+	Action     string  `json:"action"`
+	Symbol     string  `json:"symbol"`
+	Quantity   float64 `json:"quantity"`
+	Leverage   int     `json:"leverage"`
+	Price      float64 `json:"price"`
+	StopLoss   float64 `json:"stop_loss,omitempty"`   // Stop loss price
+	TakeProfit float64 `json:"take_profit,omitempty"` // Take profit price
+	// ClosePercent 分批平仓比例（仅 close_*_partial 动作），用于前端展示
+	ClosePercent float64   `json:"close_percent,omitempty"`
+	Confidence   int       `json:"confidence,omitempty"` // AI confidence (0-100)
+	Reasoning    string    `json:"reasoning,omitempty"`  // Brief reasoning
+	OrderID      int64     `json:"order_id"`
+	Timestamp    time.Time `json:"timestamp"`
+	Success      bool      `json:"success"`
+	Error        string    `json:"error"`
 }
 
 // Statistics statistics information

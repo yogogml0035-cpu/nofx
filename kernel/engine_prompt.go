@@ -307,12 +307,21 @@ func writeOutputFormat(sb *strings.Builder, riskControl store.RiskControlConfig,
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 
+	// 分批平仓单独给格式示例：不放进上面的决策数组，避免示例看起来像
+	// “同一轮先开仓再分批平仓”的连续动作（它只应在持仓标记 available 时使用）。
+	partialSymbol, partialAction := "BTCUSDT", "close_short_partial"
+	if singleSymbol {
+		partialSymbol, partialAction = primarySymbol, "close_long_partial"
+	}
+
 	if zh {
 		sb.WriteString("## 字段说明\n\n")
-		sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+		sb.WriteString("- `action`: open_long | open_short | close_long | close_short | close_long_partial | close_short_partial | hold | wait\n")
 		sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (开仓建议 ≥ %d)\n", riskControl.MinConfidence))
 		sb.WriteString("- 开仓时必填: leverage, stop_loss, take_profit, confidence\n")
 		sb.WriteString("- 开仓金额由系统按本金 × 百分比计算, 决策 JSON 不需要也无法指定金额字段\n")
+		sb.WriteString("- 分批平仓: `close_long_partial` / `close_short_partial` 仅用于持仓行标注 `Partial Close: available` 的仓位; `close_percent` 取 0-100 (不含 100), 系统按合约最小步长向下取整换算张数, 过小的比例会被拒绝; 100% 是全平, 请用 `close_long` / `close_short`\n")
+		sb.WriteString(fmt.Sprintf("- 分批平仓示例: {\"symbol\": \"%s\", \"action\": \"%s\", \"close_percent\": 50} (仅格式示例, 只在持仓标记 available 时使用)\n", partialSymbol, partialAction))
 		sb.WriteString("- 示例里的 stop_loss / take_profit 数值只是占位, 必须替换为本轮行情的真实价格 (0 会被系统拒绝)\n")
 		sb.WriteString("- **重要**: 所有数值必须是算好的数字, 不能是公式/表达式 (例如写 `27.76`, 不要写 `3000 * 0.01`)\n")
 		if singleSymbol {
@@ -321,10 +330,12 @@ func writeOutputFormat(sb *strings.Builder, riskControl store.RiskControlConfig,
 		sb.WriteString("\n")
 	} else {
 		sb.WriteString("## Field Description\n\n")
-		sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+		sb.WriteString("- `action`: open_long | open_short | close_long | close_short | close_long_partial | close_short_partial | hold | wait\n")
 		sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
 		sb.WriteString("- Required when opening: leverage, stop_loss, take_profit, confidence\n")
 		sb.WriteString("- The open notional is computed by the system from principal × percent; the decision JSON neither needs nor accepts an amount field\n")
+		sb.WriteString("- Partial close: use `close_long_partial` / `close_short_partial` only for positions marked `Partial Close: available`; `close_percent` is in 0-100 (excluding 100), the system floors the resulting contracts to the contract size step and refuses ratios that round below one step; 100% is a full close, use `close_long` / `close_short`\n")
+		sb.WriteString(fmt.Sprintf("- Partial-close example: {\"symbol\": \"%s\", \"action\": \"%s\", \"close_percent\": 50} (format only; use it only when the position is marked available)\n", partialSymbol, partialAction))
 		sb.WriteString("- The stop_loss / take_profit values in the example are placeholders; replace them with real prices from this cycle (0 is refused by the system)\n")
 		sb.WriteString("- **IMPORTANT**: all numeric values must be calculated numbers, NOT formulas/expressions (e.g. use `27.76`, not `3000 * 0.01`)\n")
 		if singleSymbol {
@@ -515,6 +526,7 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		for i, pos := range ctx.Positions {
 			sb.WriteString(e.formatPositionInfo(i+1, pos, ctx))
 		}
+		sb.WriteString("Partial close: only positions marked \"Partial Close: available\" may be reduced via close_long_partial / close_short_partial. close_percent is the percentage of the current position (0-100, excluding 100); the system floors it to the contract size step and refuses ratios that round below one step. 100% is a full close — use close_long / close_short.\n\n")
 	} else {
 		sb.WriteString("Current Positions: None\n\n")
 	}
@@ -580,10 +592,17 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 		positionValue = -positionValue
 	}
 
-	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n\n",
+	partialClose := " | Partial Close: unavailable"
+	if pos.CanPartialClose {
+		partialClose = " | Partial Close: available"
+	} else if reason := strings.TrimSpace(pos.PartialCloseUnavailableReason); reason != "" {
+		partialClose = fmt.Sprintf(" | Partial Close: unavailable (%s)", reason)
+	}
+
+	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s%s\n\n",
 		index, pos.Symbol, strings.ToUpper(pos.Side),
 		pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
-		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
+		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration, partialClose))
 
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))

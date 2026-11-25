@@ -298,3 +298,107 @@ case errors.Is(err, types.ErrBalanceUnreadable):
     return "trader.reason.exchange_balance_unavailable"
 }
 ```
+
+---
+
+## Scenario: Partial close by ratio (Gate)
+
+### 1. Scope / Trigger
+
+The model may reduce an existing position by a percentage instead of closing it fully. The ratio is a
+decision-contract value; the exchange adapter converts it to the venue's quantity unit and places a
+reduce-only order. The conversion must never round up, and an adapter that cannot do it precisely must
+refuse the action before sending anything.
+
+### 2. Signatures
+
+```go
+// trader/types/interface.go
+type PartialCloseStatus struct {
+    Supported bool
+    Reason    string
+    Contracts string
+    SizeStep  string
+}
+
+type PartialCloseRequest struct {
+    Symbol  string
+    Side    string  // "long" / "short"
+    Percent float64 // (0, 100)
+}
+
+type PartialCloseResult struct {
+    OrderID   string
+    Contracts string
+    Remaining string
+    FillPrice float64
+    Quantity  float64
+    Notional  float64
+}
+
+type PartialCloser interface {
+    PartialCloseStatus(symbol, side string) (PartialCloseStatus, error)
+    ClosePartial(req PartialCloseRequest) (PartialCloseResult, error)
+}
+
+// trader/gate/partial_close.go
+func (t *GateTrader) PartialCloseStatus(symbol, side string) (types.PartialCloseStatus, error)
+func (t *GateTrader) ClosePartial(req types.PartialCloseRequest) (types.PartialCloseResult, error)
+
+var _ types.PartialCloser = (*GateTrader)(nil)
+```
+
+### 3. Contracts
+
+- `PartialCloseStatus.Supported` is true only when the position's contracts are an exact positive
+  multiple of the size step and strictly greater than one step. One-step positions cannot be split:
+  any ratio below 100% floors to zero steps.
+- `Percent` is in `(0, 100)`. `100` is a full close and must use `CloseLong`/`CloseShort`; the adapter
+  rejects it even if called directly.
+- Conversion uses the same exact-decimal helpers as opens: `ContractSpec.SizeForCloseRatio` floors
+  `floor(positionSteps × percent ÷ 100)`. A result below one step is `ErrCloseBelowStep`.
+- The close quantity must not exceed the contract's market order maximum
+  (`min(order_size_max, market_order_size_max)`); `ContractSpec.validateMarketOrderSize` enforces it.
+- The order is a market `reduce_only` order: long close has negative `size`, short close positive.
+  It is not a full close: no `close=true`, no `size=0`.
+- The position is read with an uncached exchange query (`findPositionSize`), not the cached positions
+  list, so the quantity being reduced is current.
+- The trading path asserts `types.PartialCloser` before doing anything. An adapter without the
+  capability refuses the decision; it never falls back to a full close or an unprotected partial close.
+- Gate's attached take-profit/stop-loss is order-level protection. Partial close does not cancel or
+  amend it; the W2 probe verifies that the opening order still carries its `tpsl_*` prices afterwards.
+  Reading and amending protection is a separate task (⑪ protective-order-management).
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+|---|---|
+| Adapter does not implement `PartialCloser` | decision refused before any exchange call |
+| `percent <= 0`, `percent >= 100`, NaN/Inf | error, no request |
+| `percent == 100` | error naming the full-close action |
+| No position in that direction | error, no request |
+| Position size is not a step multiple | error, no request |
+| Position is one step and ratio < 100% | conversion floors to zero → `ErrCloseBelowStep`, no request |
+| Close quantity above market order maximum | error, no request |
+| Exchange rejects the close | error propagated; no retry and no full-close fallback |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 17 contracts, step 1, 50% → 8 contracts closed, 9 remain.
+- Base: 0.2 ETH contracts, step 0.1, 50% → 0.1 closed, 0.1 remains.
+- Bad: 17 contracts, 6% → 1 closed, 16 remain; 1% → zero steps, refused.
+- Bad: 100% through the partial action → refused; caller must use the full-close action.
+
+### 6. Tests Required
+
+- `trader/gate/partial_close_test.go`: httptest Gate responses for the status matrix (17/1 DOGE,
+  0.2/0.1 ETH, non-multiple, missing direction), conversion matrix, payload (`reduce_only`, signed
+  size, market price, no `close`), market-order maximum, and every rejection path with zero order
+  bodies recorded.
+- `kernel/partial_close_test.go`: action parsing, percent boundaries, 100% full-close hint, prompt
+  action list/example/marker in both languages.
+- `trader/auto_trader_partial_close_test.go`: adapter capability refusal, request routing, recorded
+  order fields, position marker for supported/unsupported/read-error, sort priority.
+- Real checks live in the owning task's `probe/` directory: 2026-11-25 W2 opened 17 DOGE with
+  attached TP/SL, closed 8 partially (9 left), verified protection read-back, rejected 100%/1% with
+  no side effects, then fully closed with zero residue (`LIVECHECK_PASS`).

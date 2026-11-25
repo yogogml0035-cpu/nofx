@@ -48,6 +48,7 @@ export interface DecisionAction {
   quantity: number
   leverage: number
   price: number
+  close_percent?: number  // Partial-close ratio (close_*_partial actions)
   stop_loss?: number      // Stop loss price
   take_profit?: number    // Take profit price
   confidence?: number     // AI confidence (0-100)

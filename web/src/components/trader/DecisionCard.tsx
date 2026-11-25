@@ -14,6 +14,8 @@ const ACTION_CONFIG: Record<string, { color: string; bg: string; icon: string; l
   open_short: { color: '#F6465D', bg: 'rgba(246, 70, 93, 0.15)', icon: '📉', label: 'SHORT' },
   close_long: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '💰', label: 'CLOSE' },
   close_short: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '💰', label: 'CLOSE' },
+  close_long_partial: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '✂️', label: 'PARTIAL' },
+  close_short_partial: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '✂️', label: 'PARTIAL' },
   hold: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏸️', label: 'HOLD' },
   wait: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏳', label: 'WAIT' },
 }
@@ -75,6 +77,14 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           >
             {config.label}
           </span>
+          {action.action.includes('partial') && action.close_percent !== undefined && (
+            <span
+              className="px-2 py-1 rounded text-xs font-semibold"
+              style={{ background: `${config.color}22`, color: config.color }}
+            >
+              {action.close_percent}%
+            </span>
+          )}
         </div>
 
         {/* Status Badge */}

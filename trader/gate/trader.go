@@ -115,3 +115,6 @@ func (t *GateTrader) clearCache() {
 
 // Ensure GateTrader implements Trader interface
 var _ types.Trader = (*GateTrader)(nil)
+
+// 能力接口漂移必须在编译期暴露，不能静默退化为“不可分批”
+var _ types.PartialCloser = (*GateTrader)(nil)

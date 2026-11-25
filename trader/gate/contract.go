@@ -298,6 +298,27 @@ func (s ContractSpec) SizeForCloseRatio(position string, percent float64) (Close
 	return CloseQuote{Contracts: contracts, Remaining: remaining}, nil
 }
 
+// validateMarketOrderSize 校验市价单张数不超过本合约的市价单最大张数：
+// order_size_max 与 market_order_size_max 中较小者（后者为 0 表示交易所未设置）。
+func (s ContractSpec) validateMarketOrderSize(contracts string) error {
+	if err := s.check(); err != nil {
+		return err
+	}
+	value, err := parseDecimal("contracts", contracts)
+	if err != nil {
+		return err
+	}
+	if value.Sign() <= 0 {
+		return fmt.Errorf("contracts must be positive, got %s", contracts)
+	}
+	if value.Cmp(s.sizeMax) > 0 {
+		return fmt.Errorf(
+			"contracts %s exceed the market order maximum (order_size_max %s, market_order_size_max %s)",
+			contracts, s.SizeMax, s.MarketOrderSizeMax)
+	}
+	return nil
+}
+
 // ContractsFromQuantity 把标的币数量换算为合约张数。
 // 结果必须落在最小步长上，否则报错：不截断，也不把不足 1 张改成 1 张。
 func (s ContractSpec) ContractsFromQuantity(quantity float64) (string, error) {

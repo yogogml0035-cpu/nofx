@@ -8,19 +8,19 @@ import (
 
 // ClosedPnLRecord represents a single closed position record from exchange
 type ClosedPnLRecord struct {
-	Symbol       string    // Trading pair (e.g., "BTCUSDT")
-	Side         string    // "long" or "short"
-	EntryPrice   float64   // Entry price
-	ExitPrice    float64   // Exit/close price
-	Quantity     float64   // Position size
-	RealizedPnL  float64   // Realized profit/loss
-	Fee          float64   // Trading fee/commission
-	Leverage     int       // Leverage used
-	EntryTime    time.Time // Position open time
-	ExitTime     time.Time // Position close time
-	OrderID      string    // Close order ID
-	CloseType    string    // "manual", "stop_loss", "take_profit", "liquidation", "unknown"
-	ExchangeID   string    // Exchange-specific position ID
+	Symbol      string    // Trading pair (e.g., "BTCUSDT")
+	Side        string    // "long" or "short"
+	EntryPrice  float64   // Entry price
+	ExitPrice   float64   // Exit/close price
+	Quantity    float64   // Position size
+	RealizedPnL float64   // Realized profit/loss
+	Fee         float64   // Trading fee/commission
+	Leverage    int       // Leverage used
+	EntryTime   time.Time // Position open time
+	ExitTime    time.Time // Position close time
+	OrderID     string    // Close order ID
+	CloseType   string    // "manual", "stop_loss", "take_profit", "liquidation", "unknown"
+	ExchangeID  string    // Exchange-specific position ID
 }
 
 // TradeRecord represents a single trade/fill from exchange
@@ -151,6 +151,45 @@ type ProtectedOpener interface {
 	VerifyOrderProtection(symbol, orderID string) error
 }
 
+// PartialCloseStatus 描述一个持仓能否分批平仓。Supported 为 true 当且仅当交易所可精确
+// 读到持仓张数与最小步长，且持仓张数严格大于一个最小步长（至少两步）。只有一步的仓位
+// 任何一个小于 100% 的比例都会向下取整为 0 步，无法分批。
+type PartialCloseStatus struct {
+	Supported bool   // 能否分批
+	Reason    string // 不能分批的原因；Supported 为 false 时非空
+	Contracts string // 当前持仓张数（不带符号）
+	SizeStep  string // 最小步长（张）
+}
+
+// PartialCloseRequest 分批平仓请求：比例由模型给出，张数换算与下单由适配器完成。
+// Percent 取 (0, 100)；100% 是全平，必须走全平动作，适配器拒绝。
+type PartialCloseRequest struct {
+	Symbol  string
+	Side    string  // "long" / "short"
+	Percent float64 // (0, 100)
+}
+
+// PartialCloseResult 分批平仓的成交结果。
+type PartialCloseResult struct {
+	OrderID   string
+	Contracts string  // 本次平掉的张数（不带符号）
+	Remaining string  // 平后的剩余张数
+	FillPrice float64 // 成交价
+	Quantity  float64 // 平掉的基础币数量（展示与记账）
+	Notional  float64 // Quantity × FillPrice
+}
+
+// PartialCloser 精确分批平仓能力。实现该接口的适配器承载持仓读取、张数换算与
+// reduce-only 市价单提交；自动交易的分批平仓路径要求适配器实现它，未实现的适配器
+// 在发单前被拒绝（fail-closed，不回落全平）。
+type PartialCloser interface {
+	// PartialCloseStatus 报告该持仓能否分批；读取失败返回错误。
+	PartialCloseStatus(symbol, side string) (PartialCloseStatus, error)
+
+	// ClosePartial 按比例平掉部分持仓；比例换算后不足一个最小步长时报错。
+	ClosePartial(req PartialCloseRequest) (PartialCloseResult, error)
+}
+
 // OpenOrder represents a pending order on the exchange
 type OpenOrder struct {
 	OrderID      string  `json:"order_id"`
@@ -172,9 +211,9 @@ type LimitOrderRequest struct {
 	Price        float64 `json:"price"`         // Limit price
 	Quantity     float64 `json:"quantity"`
 	Leverage     int     `json:"leverage"`
-	PostOnly     bool    `json:"post_only"`     // Maker only order
-	ReduceOnly   bool    `json:"reduce_only"`   // Reduce position only
-	ClientID     string  `json:"client_id"`     // Client order ID for tracking
+	PostOnly     bool    `json:"post_only"`   // Maker only order
+	ReduceOnly   bool    `json:"reduce_only"` // Reduce position only
+	ClientID     string  `json:"client_id"`   // Client order ID for tracking
 }
 
 // LimitOrderResult represents the result of placing a limit order
