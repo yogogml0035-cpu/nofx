@@ -61,7 +61,7 @@
 | 8 | `strategy-config` | `archive/2026-11/11-25-strategy-config`（已归档） | 无 |
 | 9 | `sizing-engine` | `archive/2026-11/11-25-sizing-engine`（已归档） | 6、7 |
 | 10 | `partial-close` | `archive/2026-11/11-25-partial-close`（已归档） | 4、8 |
-| 11 | `protective-order-management` | 开工时创建 | 3、4、8 |
+| 11 | `protective-order-management` | `archive/2026-11/11-25-protective-order-management`（已归档） | 3、4、8 |
 | 12 | `market-source` | 开工时创建 | 1 |
 | 13 | `engine-klines-gate` | 开工时创建 | 11 |
 | 14 | `chart-klines-gate` | 开工时创建 | 11 |
