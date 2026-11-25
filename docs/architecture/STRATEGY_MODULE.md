@@ -169,7 +169,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 | **MACD** | `EnableMACD` | `calculateMACD(klines)` - 12/26/9 |
 | **RSI** | `EnableRSI`, `RSIPeriods` | `calculateRSI(klines, period)` |
 | **ATR** | `EnableATR`, `ATRPeriods` | `calculateATR(klines, period)` |
-| **Volume** | `EnableVolume` | Raw volume data |
+| **Volume** | `EnableVolume` | Volume data (USDT quote volume, Gate `sum`) |
 | **OI** | `EnableOI` | Open interest data |
 | **Funding Rate** | `EnableFundingRate` | Funding rate |
 

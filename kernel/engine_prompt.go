@@ -414,7 +414,7 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder, zh bool) 
 		sb.WriteString("\n")
 	}
 	if indicators.EnableVolume {
-		sb.WriteString("- " + label("Volume data", "成交量数据") + "\n")
+		sb.WriteString("- " + label("Volume data (USDT quote volume)", "成交量数据（USDT 成交额）") + "\n")
 	}
 	if indicators.EnableOI {
 		sb.WriteString("- " + label("Open Interest (OI) data", "持仓量 (OI) 数据") + "\n")
@@ -685,7 +685,8 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	}
 
 	if len(data.TimeframeData) > 0 {
-		timeframeOrder := []string{"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"}
+		// D25 保留周期（与市场层 Gate 取数一致；10s/7d/30d 必须出现在提示词里，F41）
+		timeframeOrder := []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"}
 		for _, tf := range timeframeOrder {
 			if tfData, ok := data.TimeframeData[tf]; ok {
 				sb.WriteString(fmt.Sprintf("=== %s Timeframe (oldest → latest) ===\n\n", strings.ToUpper(tf)))
@@ -720,11 +721,11 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 			}
 
 			if indicators.EnableVolume && len(data.IntradaySeries.Volume) > 0 {
-				sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
+				sb.WriteString(fmt.Sprintf("Volume (USDT): %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
 			}
 
 			if indicators.EnableATR {
-				sb.WriteString(fmt.Sprintf("3m ATR (14-period): %.3f\n\n", data.IntradaySeries.ATR14))
+				sb.WriteString(fmt.Sprintf("5m ATR (14-period): %.3f\n\n", data.IntradaySeries.ATR14))
 			}
 		}
 
@@ -742,7 +743,7 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 			}
 
 			if indicators.EnableVolume {
-				sb.WriteString(fmt.Sprintf("Current Volume: %.3f vs. Average Volume: %.3f\n\n",
+				sb.WriteString(fmt.Sprintf("Current Volume (USDT): %.3f vs. Average Volume (USDT): %.3f\n\n",
 					data.LongerTermContext.CurrentVolume, data.LongerTermContext.AverageVolume))
 			}
 
@@ -761,7 +762,7 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 
 func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *market.TimeframeSeriesData, indicators store.IndicatorConfig) {
 	if len(data.Klines) > 0 {
-		sb.WriteString("Time(UTC)      Open      High      Low       Close     Volume\n")
+		sb.WriteString("Time(UTC)      Open      High      Low       Close     Volume(USDT)\n")
 		for i, k := range data.Klines {
 			t := time.Unix(k.Time/1000, 0).UTC()
 			timeStr := t.Format("01-02 15:04")
@@ -776,7 +777,7 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	} else if len(data.MidPrices) > 0 {
 		sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.MidPrices)))
 		if indicators.EnableVolume && len(data.Volume) > 0 {
-			sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.Volume)))
+			sb.WriteString(fmt.Sprintf("Volume (USDT): %s\n\n", formatFloatSlice(data.Volume)))
 		}
 	}
 

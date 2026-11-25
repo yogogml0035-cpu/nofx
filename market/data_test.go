@@ -2,6 +2,7 @@ package market
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func generateTestKlines(count int) []Kline {
 		volume := 1000.0 + float64(i*100)
 
 		klines[i] = Kline{
-			OpenTime:  int64(i * 180000), // 3-minute interval
+			OpenTime:  int64(i * 180000), // 5-minute interval
 			Open:      open,
 			High:      high,
 			Low:       low,
@@ -581,5 +582,69 @@ func TestCalculateBoxData(t *testing.T) {
 	}
 	if box.CurrentPrice != 100.0 {
 		t.Errorf("Expected CurrentPrice = 100.0, got %v", box.CurrentPrice)
+	}
+}
+
+// 短周期（10s）下陈旧判定窗口至少 15 分钟：30 根（5 分钟）全部冻结不足以判陈旧
+func TestIsStaleData_ShortTimeframeUsesFifteenMinuteWindow(t *testing.T) {
+	short := make([]Kline, 30)
+	for i := range short {
+		short[i] = Kline{OpenTime: int64(1700000000000 + i*10000), Close: 100, Volume: 0}
+	}
+	if isStaleData(short, "DOGEUSDT") {
+		t.Error("30 根 10s（5 分钟）冻结不应判为陈旧")
+	}
+
+	long := make([]Kline, 100)
+	for i := range long {
+		long[i] = Kline{OpenTime: int64(1700000000000 + i*10000), Close: 100, Volume: 0}
+	}
+	if !isStaleData(long, "DOGEUSDT") {
+		t.Error("100 根 10s（约 16.7 分钟）冻结 + 零成交应判为陈旧")
+	}
+}
+
+// 1m 周期的窗口是 15 根：14 根冻结不判、15 根冻结判
+func TestIsStaleData_MinuteTimeframeWindow(t *testing.T) {
+	build := func(n int) []Kline {
+		klines := make([]Kline, n)
+		for i := range klines {
+			klines[i] = Kline{OpenTime: int64(1700000000000 + i*60000), Close: 100, Volume: 0}
+		}
+		return klines
+	}
+	if isStaleData(build(14), "DOGEUSDT") {
+		t.Error("14 根 1m 不应判为陈旧")
+	}
+	if !isStaleData(build(15), "DOGEUSDT") {
+		t.Error("15 根 1m 冻结 + 零成交应判为陈旧")
+	}
+}
+
+func TestFormatUses5mAndUSDTVolume(t *testing.T) {
+	data := &Data{
+		Symbol:       "DOGEUSDT",
+		CurrentPrice: 0.0543,
+		IntradaySeries: &IntradayData{
+			MidPrices: []float64{0.0540, 0.0543},
+			Volume:    []float64{12000, 13000},
+			ATR14:     0.001,
+		},
+		LongerTermContext: &LongerTermData{
+			EMA20: 0.05, EMA50: 0.049, ATR3: 0.001, ATR14: 0.002,
+			CurrentVolume: 50000, AverageVolume: 45000,
+		},
+	}
+	out := Format(data)
+	for _, want := range []string{
+		"Intraday series (5‑minute intervals",
+		"Volume (USDT):",
+		"5m ATR (14‑period)",
+		"Current Volume (USDT):",
+		"Average Volume (USDT):",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Format output is missing %q", want)
+		}
 	}
 }

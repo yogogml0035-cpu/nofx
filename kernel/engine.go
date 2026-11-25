@@ -248,11 +248,6 @@ func (e *StrategyEngine) filterExcludedCoins(candidates []CandidateCoin) []Candi
 // External Data
 // ============================================================================
 
-// FetchMarketData fetches market data based on strategy configuration
-func (e *StrategyEngine) FetchMarketData(symbol string) (*market.Data, error) {
-	return market.Get(symbol)
-}
-
 // FetchExternalData fetches external data sources
 func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
 	externalData := make(map[string]interface{})

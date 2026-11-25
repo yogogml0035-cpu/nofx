@@ -1,112 +1,9 @@
 package market
 
 import (
-	"context"
 	"fmt"
-	"nofx/logger"
-	"nofx/provider/coinank/coinank_api"
-	"nofx/provider/coinank/coinank_enum"
-	"strings"
 	"time"
 )
-
-// Note: Kline data now uses free/open API (coinank_api.Kline) which doesn't require authentication
-
-// getKlinesFromCoinAnk fetches kline data from CoinAnk API (replacement for WSMonitorCli)
-func getKlinesFromCoinAnk(symbol, interval, exchange string, limit int) ([]Kline, error) {
-	// Map interval string to coinank enum
-	var coinankInterval coinank_enum.Interval
-	switch interval {
-	case "1m":
-		coinankInterval = coinank_enum.Minute1
-	case "3m":
-		coinankInterval = coinank_enum.Minute3
-	case "5m":
-		coinankInterval = coinank_enum.Minute5
-	case "15m":
-		coinankInterval = coinank_enum.Minute15
-	case "30m":
-		coinankInterval = coinank_enum.Minute30
-	case "1h":
-		coinankInterval = coinank_enum.Hour1
-	case "2h":
-		coinankInterval = coinank_enum.Hour2
-	case "4h":
-		coinankInterval = coinank_enum.Hour4
-	case "6h":
-		coinankInterval = coinank_enum.Hour6
-	case "8h":
-		coinankInterval = coinank_enum.Hour8
-	case "12h":
-		coinankInterval = coinank_enum.Hour12
-	case "1d":
-		coinankInterval = coinank_enum.Day1
-	case "3d":
-		coinankInterval = coinank_enum.Day3
-	case "1w":
-		coinankInterval = coinank_enum.Week1
-	default:
-		return nil, fmt.Errorf("unsupported interval: %s", interval)
-	}
-
-	// Map exchange string to coinank enum
-	var coinankExchange coinank_enum.Exchange
-	switch strings.ToLower(exchange) {
-	case "binance":
-		coinankExchange = coinank_enum.Binance
-	case "bybit":
-		coinankExchange = coinank_enum.Bybit
-	case "okx":
-		coinankExchange = coinank_enum.Okex
-	case "bitget":
-		coinankExchange = coinank_enum.Bitget
-	case "gate":
-		coinankExchange = coinank_enum.Gate
-	case "aster":
-		coinankExchange = coinank_enum.Aster
-	default:
-		// Default to Binance for unknown exchanges
-		coinankExchange = coinank_enum.Binance
-	}
-
-	// Call CoinAnk free/open API (no authentication required)
-	ctx := context.Background()
-	ts := time.Now().UnixMilli()
-	// Use "To" side to search backward from current time (get historical klines)
-	coinankKlines, err := coinank_api.Kline(ctx, symbol, coinankExchange, ts, coinank_enum.To, limit, coinankInterval)
-	if err != nil || len(coinankKlines) == 0 {
-		// If exchange-specific data fails or returns empty, fallback to Binance
-		if coinankExchange != coinank_enum.Binance {
-			if err != nil {
-				logger.Warnf("⚠️ CoinAnk %s data failed, falling back to Binance: %v", exchange, err)
-			} else {
-				logger.Warnf("⚠️ CoinAnk %s %s data empty for %s, falling back to Binance", exchange, interval, symbol)
-			}
-			coinankKlines, err = coinank_api.Kline(ctx, symbol, coinank_enum.Binance, ts, coinank_enum.To, limit, coinankInterval)
-			if err != nil {
-				return nil, fmt.Errorf("CoinAnk API error (fallback): %w", err)
-			}
-		} else if err != nil {
-			return nil, fmt.Errorf("CoinAnk API error: %w", err)
-		}
-	}
-
-	// Convert coinank kline format to market.Kline format
-	klines := make([]Kline, len(coinankKlines))
-	for i, ck := range coinankKlines {
-		klines[i] = Kline{
-			OpenTime:  ck.StartTime,
-			Open:      ck.Open,
-			High:      ck.High,
-			Low:       ck.Low,
-			Close:     ck.Close,
-			Volume:    ck.Volume,
-			CloseTime: ck.EndTime,
-		}
-	}
-
-	return klines, nil
-}
 
 // calculateTimeframeSeries calculates series data for a single timeframe
 func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *TimeframeSeriesData {
@@ -193,20 +90,23 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 	return data
 }
 
-// calculatePriceChangeByBars calculates how many K-lines to look back for price change based on timeframe
+// calculatePriceChangeByBars 按 Gate 周期时长计算回看根数（秒级口径，10s 等周期也适用）。
 func calculatePriceChangeByBars(klines []Kline, timeframe string, targetMinutes int) float64 {
 	if len(klines) < 2 {
 		return 0
 	}
 
-	// Parse timeframe to minutes
-	tfMinutes := parseTimeframeToMinutes(timeframe)
-	if tfMinutes <= 0 {
+	duration, err := GateIntervalDuration(timeframe)
+	if err != nil {
+		return 0
+	}
+	stepSeconds := int64(duration / time.Second)
+	if stepSeconds <= 0 {
 		return 0
 	}
 
-	// Calculate how many K-lines to look back
-	barsBack := targetMinutes / tfMinutes
+	// Calculate how many K-lines to look back（不足时按可用窗口）
+	barsBack := int(int64(targetMinutes*60) / stepSeconds)
 	if barsBack < 1 {
 		barsBack = 1
 	}
@@ -224,43 +124,7 @@ func calculatePriceChangeByBars(klines []Kline, timeframe string, targetMinutes 
 	return 0
 }
 
-// parseTimeframeToMinutes parses timeframe string to minutes
-func parseTimeframeToMinutes(tf string) int {
-	switch tf {
-	case "1m":
-		return 1
-	case "3m":
-		return 3
-	case "5m":
-		return 5
-	case "15m":
-		return 15
-	case "30m":
-		return 30
-	case "1h":
-		return 60
-	case "2h":
-		return 120
-	case "4h":
-		return 240
-	case "6h":
-		return 360
-	case "8h":
-		return 480
-	case "12h":
-		return 720
-	case "1d":
-		return 1440
-	case "3d":
-		return 4320
-	case "1w":
-		return 10080
-	default:
-		return 0
-	}
-}
-
-// calculateIntradaySeries calculates intraday series data
+// calculateIntradaySeries 计算 5m 日内序列（成交量是 USDT 成交额）
 func calculateIntradaySeries(klines []Kline) *IntradayData {
 	data := &IntradayData{
 		MidPrices:   make([]float64, 0, 10),
@@ -304,7 +168,7 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 		}
 	}
 
-	// Calculate 3m ATR14
+	// Calculate 5m ATR14
 	data.ATR14 = calculateATR(klines, 14)
 
 	return data
@@ -360,8 +224,8 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 func GetBoxData(symbol string) (*BoxData, error) {
 	symbol = Normalize(symbol)
 
-	// Fetch 500 1h klines
-	klines, err := getKlinesFromCoinAnk(symbol, "1h", "binance", LongBoxPeriod)
+	// Fetch 500 1h klines from Gate（D1/D6）
+	klines, err := GetGateKlines(symbol, "1h", LongBoxPeriod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get 1h klines: %w", err)
 	}

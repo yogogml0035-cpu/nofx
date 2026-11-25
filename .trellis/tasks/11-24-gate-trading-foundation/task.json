@@ -29,7 +29,8 @@
     "11-25-sizing-engine",
     "11-25-partial-close",
     "11-25-protective-order-management",
-    "11-25-market-source"
+    "11-25-market-source",
+    "11-25-engine-klines-gate"
   ],
   "parent": null,
   "relatedFiles": [],

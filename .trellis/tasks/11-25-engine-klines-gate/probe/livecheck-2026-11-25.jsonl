@@ -1,0 +1,28 @@
+{"msg":"DOGEUSDT 10s: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=2.68","step":1,"ts":"2026-11-25T12:01:53Z"}
+{"msg":"DOGEUSDT 1m: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=149097.31","step":2,"ts":"2026-11-25T12:01:53Z"}
+{"msg":"DOGEUSDT 5m: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=239228.33","step":3,"ts":"2026-11-25T12:01:54Z"}
+{"msg":"DOGEUSDT 15m: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=239228.33","step":4,"ts":"2026-11-25T12:01:54Z"}
+{"msg":"DOGEUSDT 30m: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=239228.33","step":5,"ts":"2026-11-25T12:01:54Z"}
+{"msg":"DOGEUSDT 1h: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=239228.33","step":6,"ts":"2026-11-25T12:01:55Z"}
+{"msg":"DOGEUSDT 4h: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=239228.33","step":7,"ts":"2026-11-25T12:01:55Z"}
+{"msg":"DOGEUSDT 8h: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=15220290.10","step":8,"ts":"2026-11-25T12:01:55Z"}
+{"msg":"DOGEUSDT 1d: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=43939354.07","step":9,"ts":"2026-11-25T12:01:55Z"}
+{"msg":"DOGEUSDT 7d: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=675921324.75","step":10,"ts":"2026-11-25T12:01:56Z"}
+{"msg":"DOGEUSDT 1w: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=254834219.63","step":11,"ts":"2026-11-25T12:01:56Z"}
+{"msg":"DOGEUSDT 30d: klines=30 current=0.05363000 lastClose=0.05363000 lastVolumeUSDT=3160171747.00","step":12,"ts":"2026-11-25T12:01:56Z"}
+{"msg":"3m rejected: Primary timeframe 3m K-line data is empty","step":13,"ts":"2026-11-25T12:01:56Z"}
+{"msg":"box: short=[0.053520,0.060240] mid=[0.050740,0.060430] long=[0.050740,0.077700] current=0.053630","step":14,"ts":"2026-11-25T12:01:57Z"}
+{"msg":"prompt line: === 10S Timeframe (oldest → latest) ===","step":15,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: Time(UTC)      Open      High      Low       Close     Volume(USDT)","step":16,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: === 5M Timeframe (oldest → latest) ===","step":17,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: Time(UTC)      Open      High      Low       Close     Volume(USDT)","step":18,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: === 1H Timeframe (oldest → latest) ===","step":19,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: Time(UTC)      Open      High      Low       Close     Volume(USDT)","step":20,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: === 1D Timeframe (oldest → latest) ===","step":21,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: Time(UTC)      Open      High      Low       Close     Volume(USDT)","step":22,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: === 7D Timeframe (oldest → latest) ===","step":23,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: Time(UTC)      Open      High      Low       Close     Volume(USDT)","step":24,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: === 30D Timeframe (oldest → latest) ===","step":25,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt line: Time(UTC)      Open      High      Low       Close     Volume(USDT)","step":26,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"prompt: gate prices present current=0.05363000; new periods rendered","step":27,"ts":"2026-11-25T12:01:58Z"}
+{"msg":"PROBE_PASS","step":28,"ts":"2026-11-25T12:01:58Z"}
