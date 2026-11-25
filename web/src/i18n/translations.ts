@@ -1122,7 +1122,6 @@ export const translations = {
       orderMarkers: 'Order Markers',
       technicalIndicators: 'Technical Indicators',
       clickToToggle: 'Click to toggle indicators',
-      units: 'units',
     },
 
     // Chart With Orders
@@ -2412,7 +2411,6 @@ export const translations = {
       orderMarkers: '订单标记',
       technicalIndicators: '技术指标',
       clickToToggle: '点击选择需要显示的指标',
-      units: '个',
     },
 
     // Chart With Orders
@@ -3643,7 +3641,6 @@ export const translations = {
       orderMarkers: 'Penanda Order',
       technicalIndicators: 'Indikator Teknikal',
       clickToToggle: 'Klik untuk beralih indikator',
-      units: 'unit',
     },
 
     // Chart With Orders

@@ -136,7 +136,7 @@ func TestHandleKlinesRejectsNonRetainedInterval(t *testing.T) {
 		return nil, nil
 	})
 	s := newKlinesTestServer(t)
-	for _, interval := range []string{"1s", "5s", "30s", "3m", "2h", "6h", "12h", "3d", "1M"} {
+	for _, interval := range []string{"1s", "5s", "30s", "3m", "10m", "2h", "6h", "12h", "3d", "1M"} {
 		rec := doKlinesRequest(t, s, "?symbol=DOGEUSDT&interval="+interval)
 		assert.Equalf(t, http.StatusBadRequest, rec.Code, "interval %s must be rejected", interval)
 	}

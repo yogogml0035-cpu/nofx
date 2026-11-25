@@ -45,8 +45,6 @@ func (s *Server) handleKlines(c *gin.Context) {
 - `AdvancedChart`：删 `exchange` prop/默认 `binance`/URL 参数/交易所徽标/依赖项；
   `getQuoteUnit` 恒为 `USDT`，删 `getBaseUnit`；tooltip 只显示 `V(USDT)`（用 `quoteVolume`）；
   柱状图数据用 `quoteVolume`（USDT）。
-- `ChartWithOrders`：删 `exchange` prop/URL 参数；成交量按 `volume`（Gate 已是 USDT）展示，
-  注释改 USDT。
 - `ChartTabs`：删 `exchangeId` prop 与 `currentExchange`/key 段/`<AdvancedChart exchange>`。
 - `TraderDashboardPage`：不再传 `exchangeId`。
 - 删除无调用方的旧图表组件：`TradingViewChart.tsx`（旧交易所列表/外部 widget）、

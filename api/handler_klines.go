@@ -22,6 +22,7 @@ const defaultExchange = "gate"
 
 // cryptoKlines 取加密货币 K 线（测试可替换）；默认 Gate 直连（D1）。
 // 成交量由 GetGateKlines 返回 USDT 成交额（sum），handler 同时写入 QuoteVolume 供图表使用。
+// 包级变量是测试缝：api 包测试必须保持非并行（t.Parallel 会造成竞态）。
 var cryptoKlines = market.GetGateKlines
 
 // handleKlines K-line data：加密货币只走 Gate；股票（Alpaca）与外汇/金属（TwelveData）保留。
