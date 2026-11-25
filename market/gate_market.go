@@ -328,7 +328,12 @@ func GetGateContractMetrics(symbol string) (GateContractMetrics, error) {
 		return GateContractMetrics{}, fmt.Errorf("gate contract %s: %w", contract, err)
 	}
 
-	oi, _, err := getGateOpenInterestAndFunding(symbol)
+	// 只解析持仓量（资金费率取自已单独读取的合约接口，不因 stats 里该字段异常而失败）
+	stats, statsContract, err := fetchGateContractStats(symbol)
+	if err != nil {
+		return GateContractMetrics{}, fmt.Errorf("gate open interest for %s: %w", contract, err)
+	}
+	oi, err := statsOpenInterest(stats, statsContract)
 	if err != nil {
 		return GateContractMetrics{}, fmt.Errorf("gate open interest for %s: %w", contract, err)
 	}

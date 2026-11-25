@@ -533,3 +533,26 @@ func TestGetGateKlinesMonthlySmallLimitFetchesAllHistory(t *testing.T) {
 		t.Errorf("last sliced bar = %+v", klines[2])
 	}
 }
+
+func TestGetGateContractMetricsIgnoresFundingFieldInStats(t *testing.T) {
+	// stats 只用于持仓量：last_funding_rate 缺失不应让快照失败（资金费率来自合约接口）
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/futures/usdt/contracts/BTC_USDT":
+			fmt.Fprint(w, `{"mark_price":"1","index_price":"1","funding_rate":"0"}`)
+		case r.URL.Path == "/futures/usdt/contract_stats":
+			fmt.Fprint(w, `[{"time":100,"open_interest_usd":"3000000000"}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	overrideGateBaseURL(t, srv)
+
+	metrics, err := GetGateContractMetrics("BTCUSDT")
+	if err != nil {
+		t.Fatalf("GetGateContractMetrics: %v", err)
+	}
+	if metrics.OpenInterestUSD != 3000000000 {
+		t.Errorf("open interest = %v", metrics.OpenInterestUSD)
+	}
+}
