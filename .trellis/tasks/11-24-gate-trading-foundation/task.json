@@ -33,7 +33,8 @@
     "11-25-engine-klines-gate",
     "11-25-chart-klines-gate",
     "11-25-assistant-market",
-    "11-25-scan-alignment"
+    "11-25-scan-alignment",
+    "11-25-infra-hygiene"
   ],
   "parent": null,
   "relatedFiles": [],
