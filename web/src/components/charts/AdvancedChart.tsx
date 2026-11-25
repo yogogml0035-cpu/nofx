@@ -50,7 +50,6 @@ interface AdvancedChartProps {
   interval?: string
   traderID?: string
   height?: number
-  exchange?: string // Exchange type: binance, bybit, okx, bitget, gate, aster, lighter
   onSymbolChange?: (symbol: string) => void // Symbol change callback
 }
 
@@ -63,22 +62,8 @@ interface IndicatorConfig {
   params?: any
 }
 
-// Get quote currency unit
-const getQuoteUnit = (_exchange: string): string => {
-  // 加密合约统一 USDT 计价
-  return 'USDT'
-}
-
-// Get base volume unit
-const getBaseUnit = (
-  _exchange: string,
-  symbol: string,
-  language: string
-): string => {
-  // Crypto: extract base asset from symbol
-  const base = symbol.replace(/USDT$|USD$|BUSD$/, '')
-  return base || t('advancedChart.units', language as 'en' | 'zh' | 'id')
-}
+// 加密合约统一 USDT 计价；成交量是 USDT 成交额（Gate sum，D6）
+const QUOTE_UNIT = 'USDT'
 
 // Format large numbers
 const formatVolume = (value: number): string => {
@@ -93,13 +78,11 @@ export function AdvancedChart({
   interval = '5m',
   traderID,
   height = 550,
-  exchange = 'binance', // Default to binance
   onSymbolChange: _onSymbolChange, // Available for future use
 }: AdvancedChartProps) {
   void _onSymbolChange // Prevent unused warning
   const { language } = useLanguage()
-  const quoteUnit = getQuoteUnit(exchange)
-  const baseUnit = getBaseUnit(exchange, symbol, language)
+  const quoteUnit = QUOTE_UNIT
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
@@ -127,8 +110,8 @@ export function AdvancedChart({
     priceChangePercent: number
     high: number
     low: number
-    volume: number // Quantity (BTC/shares)
-    quoteVolume: number // Turnover (USDT/USD)
+    volume: number // USDT quote volume (Gate sum)
+    quoteVolume: number // USDT quote volume (mirrors volume)
   } | null>(null)
 
   // Indicator configuration
@@ -183,7 +166,7 @@ export function AdvancedChart({
   const fetchKlineData = async (symbol: string, interval: string) => {
     try {
       const limit = 1500
-      const klineUrl = `/api/klines?symbol=${symbol}&interval=${interval}&limit=${limit}&exchange=${exchange}`
+      const klineUrl = `/api/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
       const result = await httpClient.request(klineUrl, { silent: true })
 
       if (!result.success || !result.data) {
@@ -197,8 +180,8 @@ export function AdvancedChart({
         high: candle.high,
         low: candle.low,
         close: candle.close,
-        volume: candle.volume, // Quantity (BTC/shares)
-        quoteVolume: candle.quoteVolume, // Turnover (USDT/USD)
+        volume: candle.volume, // USDT quote volume (Gate sum)
+        quoteVolume: candle.quoteVolume, // USDT quote volume (mirrors volume)
       }))
 
       // Sort by time and deduplicate (lightweight-charts requires ascending, unique times)
@@ -689,7 +672,7 @@ export function AdvancedChart({
           if (volumeEnabled) {
             const volumeData = klineData.map((k: Kline) => ({
               time: k.time,
-              value: k.volume || 0,
+              value: k.quoteVolume || 0,
               color:
                 k.close >= k.open
                   ? 'rgba(14, 203, 129, 0.5)'
@@ -903,7 +886,7 @@ export function AdvancedChart({
     // Real-time auto-refresh (every 5 seconds)
     const refreshInterval = setInterval(() => loadData(true), 5000)
     return () => clearInterval(refreshInterval)
-  }, [symbol, interval, traderID, exchange])
+  }, [symbol, interval, traderID])
 
   // Refresh open order price lines separately (every 60s, avoid frequent exchange API calls)
   useEffect(() => {
@@ -1123,15 +1106,6 @@ export function AdvancedChart({
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1F2937] text-gray-400">
               {interval}
             </span>
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase"
-              style={{
-                background: 'rgba(243, 186, 47, 0.1)',
-                color: '#F3BA2F',
-              }}
-            >
-              {exchange?.toUpperCase()}
-            </span>
           </div>
 
           {/* Price Display */}
@@ -1176,11 +1150,11 @@ export function AdvancedChart({
                     {marketStats.low.toFixed(2)}
                   </span>
                 </span>
-                {marketStats.volume > 0 && baseUnit && (
+                {marketStats.quoteVolume > 0 && (
                   <span>
-                    Vol{' '}
+                    Vol(USDT){' '}
                     <span className="text-gray-300">
-                      {formatVolume(marketStats.volume)}
+                      {formatVolume(marketStats.quoteVolume)}
                     </span>
                   </span>
                 )}
@@ -1387,15 +1361,6 @@ export function AdvancedChart({
               >
                 {tooltipData.close?.toFixed(2)}
               </span>
-
-              {tooltipData.volume > 0 && baseUnit && (
-                <>
-                  <span style={{ color: '#848E9C' }}>V({baseUnit}):</span>
-                  <span style={{ color: '#3B82F6', fontWeight: '500' }}>
-                    {formatVolume(tooltipData.volume)}
-                  </span>
-                </>
-              )}
 
               {tooltipData.quoteVolume > 0 && quoteUnit && (
                 <>

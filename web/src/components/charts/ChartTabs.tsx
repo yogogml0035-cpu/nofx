@@ -11,7 +11,6 @@ interface ChartTabsProps {
   traderId: string
   selectedSymbol?: string // Externally selected symbol
   updateKey?: number // Force update key
-  exchangeId?: string // Exchange ID
   strategyId?: string // 当前 trader 绑定策略，用于行情标的下拉选项
 }
 
@@ -32,7 +31,6 @@ export function ChartTabs({
   traderId,
   selectedSymbol,
   updateKey,
-  exchangeId,
   strategyId,
 }: ChartTabsProps) {
   const { language } = useLanguage()
@@ -97,9 +95,6 @@ export function ChartTabs({
       setSymbolInput('')
     }
   }
-
-  // 加密行情固定使用 trader 交易所，缺省走 gate
-  const currentExchange = exchangeId || 'gate'
 
   return (
     <div
@@ -228,7 +223,7 @@ export function ChartTabs({
             </motion.div>
           ) : (
             <motion.div
-              key={`kline-${chartSymbol}-${interval}-${currentExchange}`}
+              key={`kline-${chartSymbol}-${interval}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -240,7 +235,6 @@ export function ChartTabs({
                 interval={interval}
                 traderID={traderId}
                 // Dynamic auto-sizing via ResizeObserver
-                exchange={currentExchange}
                 onSymbolChange={setChartSymbol}
               />
             </motion.div>

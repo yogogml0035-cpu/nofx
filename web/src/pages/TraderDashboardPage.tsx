@@ -52,17 +52,6 @@ function getExchangeDisplayNameFromList(
     : typeName
 }
 
-// Helper function to get exchange type from exchange ID (UUID) - for kline charts
-function getExchangeTypeFromList(
-  exchangeId: string | undefined,
-  exchanges: Exchange[] | undefined
-): string {
-  if (!exchangeId) return 'gate'
-  const exchange = exchanges?.find((e) => e.id === exchangeId)
-  if (!exchange) return 'gate' // Default to gate for charts (D7)
-  return exchange.exchange_type?.toLowerCase() || 'gate'
-}
-
 // Helper function to check if exchange is a perp-dex type (wallet-based)
 function isPerpDexExchange(exchangeType: string | undefined): boolean {
   if (!exchangeType) return false
@@ -622,10 +611,6 @@ export function TraderDashboardPage({
                 traderId={selectedTrader.trader_id}
                 selectedSymbol={selectedChartSymbol}
                 updateKey={chartUpdateKey}
-                exchangeId={getExchangeTypeFromList(
-                  selectedTrader.exchange_id,
-                  exchanges
-                )}
                 strategyId={selectedTrader.strategy_id}
               />
             </div>
