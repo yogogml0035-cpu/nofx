@@ -20,10 +20,10 @@
 | 9 | `sizing-engine` | `archive/2026-11/11-25-sizing-engine`（已归档） | 6、7 合父 | kernel 单测；提示词预览；`/strategies/test-run` |
 | 10 | `partial-close` | `archive/2026-11/11-25-partial-close`（已归档） | 4、8 合父 | 契约解析与换算单测；真实分批平仓（W2） |
 | 11 | `protective-order-management` | `archive/2026-11/11-25-protective-order-management`（已归档） | 3、4、8 合父 | 单测；真实改单（W2） |
-| 12 | `market-source` | 开工时创建 | 1 合父 | 单测；7 个标的 × 全部保留周期的真实取数 |
-| 13 | `engine-klines-gate` | 开工时创建 | 11 合父 | 单测；策略试运行显示 Gate 数据 |
-| 14 | `chart-klines-gate` | 开工时创建 | 11 合父 | 单测；前端测试与构建 |
-| 15 | `assistant-market` | 开工时创建 | 11 合父 | 单测；工具真实调用 |
+| 12 | `market-source` | `archive/2026-11/11-25-market-source`（已归档） | 1 合父 | 单测；7 个标的 × 全部保留周期的真实取数 |
+| 13 | `engine-klines-gate` | 开工时创建 | 12 合父 | 单测；策略试运行显示 Gate 数据 |
+| 14 | `chart-klines-gate` | 开工时创建 | 12 合父 | 单测；前端测试与构建 |
+| 15 | `assistant-market` | 开工时创建 | 12 合父 | 单测；工具真实调用 |
 | 16 | `scan-alignment` | 开工时创建 | 无 | 单测 |
 | 17 | `infra-hygiene` | 开工时创建 | 无 | 配置解析检查；构建上下文不含本地文件 |
 
@@ -69,4 +69,4 @@ make ci-local
 
 - 回滚单元是一个子任务的提交边界：手动恢复文件，不使用 git 回滚命令。
 - 子任务失败不外溢：未通过门禁的子分支不合入父分支，父分支始终保持上一个已验证的状态。
-- 子任务 11 已完成、合父并归档（2026-11-25，独立检查首轮 NEEDS FIX 修复后复审 PASS，合父 `d0072836`，详见计划文档 10.5）。下一步 ⑫ `market-source`：依赖 ① 已合父；纯新增 Gate 合约 K 线与 ticker 取数，其后 ⑬→⑰ 串行。
+- 子任务 12 已完成、合父并归档（2026-11-25，独立检查 PASS，合父 `0c1323e1`，详见计划文档 10.5）。下一步 ⑬ `engine-klines-gate`：依赖 ⑫ 已合父；决策 K 线与网格箱体切 Gate，并删除 CoinAnk K 线与旧内嵌路径（保持父分支每步可编译）。其后 ⑭→⑰ 串行。
