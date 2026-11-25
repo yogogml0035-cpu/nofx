@@ -47,31 +47,36 @@ type DecisionSizing struct {
   `validateDecision(d *Decision, sizing DecisionSizing)` 替换现有的
   `(accountEquity, btcEthLeverage, altcoinLeverage)` 参数组。
 - `PositionPercent` 在 `GetFullDecisionWithStrategy` 取 `RiskControl.PositionPercent`；
-  `ClampLimits` 已把缺失值与越界值归一，kernel 内再按 `<=0 → store.DefaultPositionPercent` 兜底一次。
+  运行时路径先 `ClampLimits` 归一，`openNotional` 对非正或越界（1–20）的百分比报错
+  （fail-closed）。提示词展示侧对 `<=0` 用 `store.DefaultPositionPercent` 兜底。
 - `Prices` 由 `ctx.MarketDataMap[symbol].CurrentPrice` 构建（模型看到的同一价格）。
 
 ### 金额换算（F33）
 
 ```go
 func openNotional(principal, percent float64) (float64, error) {
-    if principal <= 0 { return 0, 本金错误 }
-    tenths := math.Round(percent * 10)      // 百分比十分位整数；percent 由 store clamp 到 0.1 步长
-    if tenths <= 0 { return 0, 百分比错误 }
-    return principal * float64(tenths) / 1000, nil
+    // 本金与百分比按浮点的最短十进制表示转成 big.Rat（decimalValue），
+    // 精确相乘后除以 100，再转回 float64；百分比限定在 [1, 20]
+    notional := new(big.Rat).Mul(principalValue, percentValue)
+    notional.Quo(notional, big.NewRat(100, 1))
+    value, _ := notional.Float64()
+    return value, nil
 }
 ```
 
-先乘整数再除 1000：`percent/100` 的二进制噪声不会进入结果（`10000 × 0.0113` 得 `112.99999999999999`，`10000 × 113 ÷ 1000` 得 `113`）。适配器按最短十进制表示解析，不会少取一格。
+`percent/100` 的二进制噪声不会进入结果：`10000 × 1.13` 在 float64 下是 `112.99999999999999`，精确十进制给 `113`。适配器按最短十进制表示解析，不会少取一格。选十进制有理数而不是「百分比十分位整数 ÷ 1000」，是因为配置 JSON 里的百分比不一定落在 0.1 步长网格上（UI 才强制步长）。
 
 ### 校验顺序（`validateDecision`，开仓动作）
 
 1. 动作合法、杠杆 > 0（保留原自动回落到上限的行为与日志）。
-2. `openNotional` 成功（本金 > 0、百分比 > 0），写 `d.NotionalUSD`。
-3. 止损、止盈均 > 0；多头 SL < TP，空头 SL > TP（保留原校验）。
-4. 现价可得（`Prices[symbol]` 缺失即拒绝）。
+2. `openNotional` 成功（本金 > 0、百分比在 1–20），得到名义价值。
+3. 止损、止盈为有限正数；多头 SL < TP，空头 SL > TP（保留原校验）。
+4. 现价可得：先精确匹配 `Prices`，再按 `market.Normalize`（含去 `/`）匹配，最后按 base
+   匹配（与执行层 `filterDecisionsToStrategyUniverse` 的容错同口径）——模型把候选写成
+   `BTC`、`BTC-USDT`、`BTC/USDT` 或小写时不能误拒整批决策。
 5. 方向：多 `SL < price < TP`；空 `TP < price < SL`。
-6. 亏损上限：`d.NotionalUSD × |price − SL| ÷ price ≤ principal × 2%`（等于允许）。
-7. `d.NotionalUSD` 只在此处赋值；解析层不读模型任何金额字段。
+6. 亏损上限：`notional × |price − SL| ÷ price ≤ principal × 2%`（等于允许）。
+7. 全部通过后才写 `d.NotionalUSD`；解析层不读模型任何金额字段。
 
 `MaxLossPercentOfPrincipal = 2.0` 与 `LossAtStop(notional, entry, stop)`、`ValidateStopLossLoss(notional, entry, stop, principal)` 导出给 ⑪ 复用（修改止损时同一上限）。跌停/异常价格（现价 ≤ 0、非有限数）按校验失败处理。
 
@@ -87,9 +92,10 @@ func openNotional(principal, percent float64) (float64, error) {
 ### API 与前端
 
 - `POST /strategies/preview-prompt`：请求字段 `account_equity` → `account_principal`（默认 1000），
-  传给 `BuildSystemPrompt` 的数值即本金；前端 `StrategyStudioPage` 同步字段名。
+  传给 `BuildSystemPrompt` 的数值即本金；前端 `StrategyStudioPage` 同步字段名。handler 与运行时
+  一样先 `ClampLimits`，越界百分比按 1–20 归一后再渲染。
 - `POST /strategies/test-run`：模拟账户 `Principal: 1000`、`TotalEquity: 1000`、`UnrealizedPnL: 0`；
-  `BuildSystemPrompt(1000.0, …)`。`run_real_ai=false` 时只返回提示词（不使用 AI）。
+  `BuildSystemPrompt(1000.0, …)`；同样先 `ClampLimits`。`run_real_ai=false` 时只返回提示词（不使用 AI）。
 - `api/server.go` schema 文案：`position_percent` 改为「本金 × 百分比，代码计算并强制」；
   `min_risk_reward_ratio` 保留为提示词指引（代码不校验，D12）。
 
@@ -128,6 +134,11 @@ func openNotional(principal, percent float64) (float64, error) {
   旧校验不再拒绝（12 → 10 名义价值、低盈亏比可通过）。
 - `kernel/engine_prompt_test.go`：中英提示词契约（无金额字段、含本金口径与 2% 上限、示例可解析）。
 - `kernel/engine_analysis_test.go`：模型 JSON 带旧金额字段时被忽略；`NotionalUSD` = 代码计算值。
-- `api/strategy_test.go`：`preview-prompt` 与 `test-run`（无币种、无 AI）返回 200 且提示词含代码金额。
-- `probe/prompt_preview.go`（`livecheck`/`probe` 构建标签，不入单元测试）：渲染中英系统提示词留档为证据。
+- `kernel/sizing_test.go`：金额换算（含 F33 例）、方向矩阵、亏损上限边界、符号变体解析、
+  旧 12/60 门槛不再拒绝、本金/百分比异常、杠杆回落、模型金额字段忽略。
+- `kernel/engine_prompt_test.go`：中英提示词契约（无金额字段、含本金口径与 2% 上限、示例可解析）。
+- `api/strategy_prompt_test.go`：`preview-prompt`（含越界百分比 clamp）与 `test-run`（无币种、无 AI）
+  返回 200 且提示词含代码金额。
+- `probe/prompt_preview.go`（`probe` 构建标签，不入单元测试）：渲染中英系统提示词留档为证据；
+  数据字典的 map 顺序不定，复验比对关键行（见 `probe/README.md`）。
 - 门禁：`git diff --check`、`make test`、`make build`。

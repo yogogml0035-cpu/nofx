@@ -354,7 +354,7 @@ Adjust strategy based on Sharpe Ratio:
 - Sharpe < -0.5: Stop trading, observe for at least 18 minutes
 - Sharpe -0.5~0: Only trade confidence >80
 - Sharpe 0~0.7: Maintain current strategy
-- Sharpe > 0.7: Can moderately increase position size
+- Sharpe > 0.7: Can moderately raise the position percent (the system sizes notional from principal × percent)
 ```
 
 ---
@@ -379,10 +379,10 @@ unrealized_pnl, peak_pnl_pct, margin_used, leverage
 
 ### Hard Constraints (Non-overridable Rules)
 
-The following constraints are enforced by the system. **Methods 1 & 2** automatically add them; **Method 3** requires you to include them:
+The following constraints are enforced by the system and the strategy prompt (the code-enforced parts cannot be overridden). **Methods 1 & 2** automatically add them; **Method 3** requires you to include them:
 
 #### 1. Risk-Reward Ratio
-**Requirement**: Must be ≥ 1:3 (risk 1% for 3%+ reward)
+**Requirement**: the strategy prompt requires ≥ 1:3 (risk 1% for 3%+ reward); the code no longer validates it — the prompt guides the model (D12)
 
 **Meaning**: Take-profit space must be at least 3x stop-loss space
 
@@ -532,7 +532,7 @@ Your analysis...
 
 #### Core Features
 - Entry confidence ≥ 85 (only high-certainty opportunities)
-- Risk-reward ratio ≥ 1:4 (stricter than system requirement)
+- Risk-reward ratio ≥ 1:4 (stricter than the default prompt guidance)
 - Maximum 2 positions (reduced risk exposure)
 - Small position size (position percent 5%)
 
@@ -760,7 +760,7 @@ Sharpe 0 ~ 0.7 (positive returns):
   → Maintain current strategy
 
 Sharpe > 0.7 (excellent performance):
-  → Can moderately increase position size
+  → Can moderately raise the position percent
 
 Key: Sharpe Ratio is the only metric, naturally punishes frequent trading and excessive entries/exits.
 

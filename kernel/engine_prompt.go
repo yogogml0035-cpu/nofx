@@ -313,6 +313,7 @@ func writeOutputFormat(sb *strings.Builder, riskControl store.RiskControlConfig,
 		sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (开仓建议 ≥ %d)\n", riskControl.MinConfidence))
 		sb.WriteString("- 开仓时必填: leverage, stop_loss, take_profit, confidence\n")
 		sb.WriteString("- 开仓金额由系统按本金 × 百分比计算, 决策 JSON 不需要也无法指定金额字段\n")
+		sb.WriteString("- 示例里的 stop_loss / take_profit 数值只是占位, 必须替换为本轮行情的真实价格 (0 会被系统拒绝)\n")
 		sb.WriteString("- **重要**: 所有数值必须是算好的数字, 不能是公式/表达式 (例如写 `27.76`, 不要写 `3000 * 0.01`)\n")
 		if singleSymbol {
 			sb.WriteString(fmt.Sprintf("- **本策略只交易 %s**, JSON 中的 `symbol` 必须**完全等于** `%s`, 不要写成 `%s` 去掉后缀或加 USDT 的变体。\n", primarySymbol, primarySymbol, primarySymbol))
@@ -324,6 +325,7 @@ func writeOutputFormat(sb *strings.Builder, riskControl store.RiskControlConfig,
 		sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
 		sb.WriteString("- Required when opening: leverage, stop_loss, take_profit, confidence\n")
 		sb.WriteString("- The open notional is computed by the system from principal × percent; the decision JSON neither needs nor accepts an amount field\n")
+		sb.WriteString("- The stop_loss / take_profit values in the example are placeholders; replace them with real prices from this cycle (0 is refused by the system)\n")
 		sb.WriteString("- **IMPORTANT**: all numeric values must be calculated numbers, NOT formulas/expressions (e.g. use `27.76`, not `3000 * 0.01`)\n")
 		if singleSymbol {
 			sb.WriteString(fmt.Sprintf("- **This strategy trades only %s.** The JSON `symbol` MUST match `%s` exactly — do not add USDT/USDC suffix variants.\n", primarySymbol, primarySymbol))

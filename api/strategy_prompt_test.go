@@ -39,6 +39,30 @@ func TestPreviewPromptUsesPrincipalSizing(t *testing.T) {
 	require.NotContains(t, resp.SystemPrompt, "risk_usd")
 }
 
+func TestPreviewPromptClampsOutOfRangePositionPercent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	s := &Server{}
+
+	// 预览与真实运行同样先 ClampLimits：25% 应显示为 20%，而不是渲染 0.00 USDT
+	cfg := store.GetDefaultStrategyConfig("zh")
+	cfg.RiskControl.PositionPercent = 25
+	body, err := json.Marshal(map[string]any{
+		"config":            cfg,
+		"account_principal": 1000,
+	})
+	require.NoError(t, err)
+
+	w := callHandler(t, s.handlePreviewPrompt, http.MethodPost, "/api/strategies/preview-prompt", string(body), nil)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var resp struct {
+		SystemPrompt string `json:"system_prompt"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.Contains(t, resp.SystemPrompt, "本金 1000.00 × 20.0%")
+	require.Contains(t, resp.SystemPrompt, "200.00 USDT")
+}
+
 func TestStrategyTestRunUsesPrincipalSizing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	s := &Server{}

@@ -178,7 +178,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 
 **核心文件:** `decision/engine.go:700-818`
 
-**入口方法:** `StrategyEngine.BuildSystemPrompt(accountEquity, variant)`
+**入口方法:** `StrategyEngine.BuildSystemPrompt(principal, variant)`（principal = 本金，开仓金额按本金 × position_percent）
 
 ### 3.1 提示词结构 (8个部分)
 
@@ -362,7 +362,7 @@ RetryDelay: 2 seconds (exponential backoff)
 
 **核心文件:** `decision/engine.go:1303-1604`
 
-**入口方法:** `parseFullDecisionResponse(response, accountEquity, leverage, ratio)`
+**入口方法:** `parseFullDecisionResponse(response, DecisionSizing)`（金额、止损方向与 2% 亏损上限在这里校验）
 
 ### 6.1 解析流程
 
@@ -439,19 +439,18 @@ func fixMissingQuotes(s string) string {
 ### 6.5 决策验证
 
 ```go
-// decision/engine.go:1480-1602
-func validateDecisions(decisions []Decision, equity, leverage, ratio float64) error {
+// kernel/engine_position.go
+func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. 验证action类型
         validActions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait"}
 
         // 2. 开仓验证
         if isOpenAction(d.Action) {
-            // 杠杆范围检查
-            // 仓位大小检查
-            // 止损止盈检查
-            // 风险回报比检查
-            // 置信度检查
+            // 杠杆上限：超过自动回落到配置上限
+            // 开仓名义价值 = 本金 × position_percent（代码计算并写入 NotionalUSD）
+            // 止损止盈 > 0，且分居现价两侧（多：SL < 现价 < TP；空相反）
+            // 价格到止损价的亏损 ≤ 本金 2%（D34），超过即拒绝
         }
 
         // 3. 平仓验证

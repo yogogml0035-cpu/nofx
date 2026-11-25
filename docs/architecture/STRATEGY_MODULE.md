@@ -179,7 +179,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 
 **Core File:** `decision/engine.go:700-818`
 
-**Entry Method:** `StrategyEngine.BuildSystemPrompt(accountEquity, variant)`
+**Entry Method:** `StrategyEngine.BuildSystemPrompt(principal, variant)` (principal is the account principal; open notional = principal × position_percent)
 
 ### 3.1 Prompt Structure (8 Sections)
 
@@ -363,7 +363,7 @@ RetryDelay: 2 seconds (exponential backoff)
 
 **Core File:** `decision/engine.go:1303-1604`
 
-**Entry Method:** `parseFullDecisionResponse(response, accountEquity, leverage, ratio)`
+**Entry Method:** `parseFullDecisionResponse(response, DecisionSizing)` (sizing, protection direction and the 2% loss cap are validated here)
 
 ### 6.1 Parsing Flow
 
@@ -440,19 +440,18 @@ func fixMissingQuotes(s string) string {
 ### 6.5 Decision Validation
 
 ```go
-// decision/engine.go:1480-1602
-func validateDecisions(decisions []Decision, equity, leverage, ratio float64) error {
+// kernel/engine_position.go
+func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. Validate action type
         validActions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait"}
 
         // 2. Open position validation
         if isOpenAction(d.Action) {
-            // Leverage range check
-            // Position size check
-            // Stop loss/take profit check
-            // Risk/reward ratio check
-            // Confidence check
+            // Leverage cap: auto-adjusted down to the configured limit
+            // Open notional = principal × position_percent (computed by code into NotionalUSD)
+            // Stop loss / take profit > 0 and on opposite sides of the current price (long: SL < price < TP; short reversed)
+            // Loss at the stop loss ≤ 2% of principal (D34), otherwise refused
         }
 
         // 3. Close position validation

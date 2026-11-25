@@ -9,19 +9,19 @@
 - **Margin** (Margin Usage Rate): Higher value = higher risk. Safe <30%, Dangerous >70% | Formula: `Total Used Margin / Total Equity × 100` | Unit: %
 
 ### Trade Metrics
-- **Profit** (Realized PnL): Actual profit/loss of closed trades including fees. Positive=profit, Negative=loss | Formula: `(Exit Price - Entry Price) / Entry Price × Leverage × Position Value` | Unit: USDT
-- **PnL%** (PnL Percentage): Return on closed trade, +6.71% means 6.71% profit | Formula: `(Exit - Entry) / Entry × Leverage × 100` | Unit: %
 - **HoldDuration** (Holding Duration): Time from open to close. <15min=scalping, 15min-4h=intraday, >4h=swing | Unit: minutes
 - **Entry** (Entry Price): Average price when opening position | Unit: USDT
 - **Exit** (Exit Price): Average price when closing position | Unit: USDT
+- **Profit** (Realized PnL): Actual profit/loss of closed trades including fees. Positive=profit, Negative=loss | Formula: `(Exit Price - Entry Price) / Entry Price × Leverage × Position Value` | Unit: USDT
+- **PnL%** (PnL Percentage): Return on closed trade, +6.71% means 6.71% profit | Formula: `(Exit - Entry) / Entry × Leverage × 100` | Unit: %
 
 ### Position Metrics
+- **UnrealizedPnL%** (Unrealized PnL Percentage): Floating P&L of current position, not realized until closed | Formula: `(Current Price - Entry Price) / Entry Price × Leverage × 100` | Unit: %
+- **PeakPnL%** (Peak PnL Percentage): Historical max unrealized PnL for this position. Used for take-profit decisions | Unit: %
 - **Drawdown** (Drawdown from Peak): Negative = pulling back. E.g., Peak +5%, Current +3%, Drawdown = -2% | Formula: `Current PnL% - Peak PnL%` | Unit: %
 - **Leverage** (Leverage): 3x means 1% price move = 3% position PnL. Higher leverage = higher risk | Unit: x
 - **Margin** (Margin Used): Collateral locked for this position | Formula: `Position Value / Leverage` | Unit: USDT
 - **LiqPrice** (Liquidation Price): Price at which position will be force-closed. 0.0000 = no liquidation risk | Unit: USDT
-- **UnrealizedPnL%** (Unrealized PnL Percentage): Floating P&L of current position, not realized until closed | Formula: `(Current Price - Entry Price) / Entry Price × Leverage × 100` | Unit: %
-- **PeakPnL%** (Peak PnL Percentage): Historical max unrealized PnL for this position. Used for take-profit decisions | Unit: %
 
 ### Market Data
 - **Volume** (Volume): Trading volume in this period | Unit: base asset
@@ -116,5 +116,6 @@ Step 2: JSON decision array
 - `confidence`: 0-100 (opening recommended ≥ 75)
 - Required when opening: leverage, stop_loss, take_profit, confidence
 - The open notional is computed by the system from principal × percent; the decision JSON neither needs nor accepts an amount field
+- The stop_loss / take_profit values in the example are placeholders; replace them with real prices from this cycle (0 is refused by the system)
 - **IMPORTANT**: all numeric values must be calculated numbers, NOT formulas/expressions (e.g. use `27.76`, not `3000 * 0.01`)
 

@@ -434,6 +434,9 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 	if req.PromptVariant == "" {
 		req.PromptVariant = "balanced"
 	}
+	// The runtime path clamps the strategy before building the prompt; the preview
+	// must show the same numbers (position percent 1%-20%, leverage limits, ...).
+	req.Config.ClampLimits()
 
 	// Create strategy engine to build prompt
 	engine := kernel.NewStrategyEngine(&req.Config)
@@ -480,6 +483,8 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	if req.PromptVariant == "" {
 		req.PromptVariant = "balanced"
 	}
+	// Match the runtime path: clamp the strategy before rendering the prompt.
+	req.Config.ClampLimits()
 
 	// Create strategy engine to build prompt
 	engine := kernel.NewStrategyEngine(&req.Config)

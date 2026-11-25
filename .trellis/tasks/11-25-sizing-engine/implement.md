@@ -19,6 +19,18 @@
 - [ ] 13. 合父（`--no-ff` 合并提交）、父 worktree 归档、计划文档 10.5 勾选、父任务 prd/implement 地图同步、journal、push 父分支
 - [ ] 14. 确认父分支包含子提交、子 worktree 干净后删子分支与 worktree
 
+## 独立检查修复（2026-11-25）
+
+- [x] P1 符号变体回归：`currentPrice` 按执行层 `filterDecisionsToStrategyUniverse` 同口径解析（精确 → `market.Normalize` → 去 `/` → base 匹配）；新增 `SOL`/`sol-usdt`/`SOL/USDT`/小写单测
+- [x] P2 架构文档：`BuildSystemPrompt(principal)`、`parseFullDecisionResponse(response, DecisionSizing)`、`validateDecisions(decisions, sizing)` 与检查清单（本金×百分比/方向/2% 上限）中英同步
+- [x] P3-1 指南：去掉「系统强制盈亏比」「扩大仓位」措辞，改为提示词要求与开仓金额百分比
+- [x] P3-2 预览/试运行先 `ClampLimits`（越界 25% 渲染为 20%）+ handler 测试
+- [x] P3-3 探针 README：注明数据字典 map 顺序不定，复验比对关键行
+- [x] P3-4 `agent/skills/trade_execution.json`：12 USDT 与权益倍数旧口径改为策略最小开仓金额（默认 10）与安全上限表述
+- [x] P3-5 单标的示例：字段说明注明 stop_loss/take_profit 为占位，必须替换真实价格
+- [x] P3-6 补单测：本金 110 × 10% = 11 USDT 的山寨与 BTC 开仓通过（锁定旧 12/60 门槛已删）
+- [x] 自检项：止损止盈改为有限正数校验（NaN/Inf 拒绝）
+
 ## 验证命令
 
 ```bash

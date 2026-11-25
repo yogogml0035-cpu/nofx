@@ -212,6 +212,54 @@ func TestValidateStopLossLossBoundary(t *testing.T) {
 	}
 }
 
+// TestValidateDecisionResolvesSymbolVariants 锁定与执行层一致的符号容错：
+// 模型把候选写成 "SOL"、"sol-usdt"、"SOL/USDT" 或小写时，校验必须能取到现价，
+// 不能因此拒绝整批决策（含同一批里的平仓）。
+func TestValidateDecisionResolvesSymbolVariants(t *testing.T) {
+	sizing := sizingFor(1000, 10, 100) // SOLUSDT 现价 100
+
+	for _, symbol := range []string{"SOLUSDT", "SOL", "sol-usdt", "SOL/USDT", "solusdt"} {
+		t.Run(symbol, func(t *testing.T) {
+			decision := Decision{
+				Symbol: symbol, Action: "open_long", Leverage: 3,
+				StopLoss: 90, TakeProfit: 120,
+			}
+			if err := validateDecision(&decision, sizing); err != nil {
+				t.Fatalf("validateDecision(%q) unexpected error: %v", symbol, err)
+			}
+			if decision.NotionalUSD != 100 {
+				t.Fatalf("NotionalUSD = %v, want 100", decision.NotionalUSD)
+			}
+		})
+	}
+}
+
+// TestValidateDecisionAcceptsNotionalBelowOldThresholds 锁定旧硬编码最小下单（12/60）
+// 已删除：本金 110 × 10% = 11 USDT，山寨与 BTC 都应通过（只受策略最小下单与适配器
+// 取整后校验）。
+func TestValidateDecisionAcceptsNotionalBelowOldThresholds(t *testing.T) {
+	sizing := DecisionSizing{
+		Principal:       110,
+		PositionPercent: 10,
+		BTCETHLeverage:  10,
+		AltcoinLeverage: 5,
+		Prices:          map[string]float64{"SOLUSDT": 100, "BTCUSDT": 100000},
+	}
+	cases := []Decision{
+		{Symbol: "SOLUSDT", Action: "open_long", Leverage: 3, StopLoss: 95, TakeProfit: 120},
+		{Symbol: "BTCUSDT", Action: "open_long", Leverage: 3, StopLoss: 98000, TakeProfit: 105000},
+	}
+	for _, decision := range cases {
+		d := decision
+		if err := validateDecision(&d, sizing); err != nil {
+			t.Fatalf("%s notional 11 USDT must pass the old 12/60 thresholds, got %v", d.Symbol, err)
+		}
+		if d.NotionalUSD != 11 {
+			t.Fatalf("%s NotionalUSD = %v, want 11", d.Symbol, d.NotionalUSD)
+		}
+	}
+}
+
 func TestModelSuppliedAmountIsIgnored(t *testing.T) {
 	// 模型即使仍输出旧金额字段，也不得影响代码计算的 NotionalUSD。
 	response := `<decision>

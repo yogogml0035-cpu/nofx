@@ -5,8 +5,10 @@ import (
 	"math"
 	"math/big"
 	"strconv"
+	"strings"
 
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
 )
 
@@ -82,7 +84,7 @@ func validateDecision(d *Decision, sizing DecisionSizing) error {
 		return err
 	}
 
-	if d.StopLoss <= 0 || d.TakeProfit <= 0 {
+	if !finitePositive(d.StopLoss) || !finitePositive(d.TakeProfit) {
 		return fmt.Errorf("stop loss and take profit must be greater than 0")
 	}
 	if d.Action == "open_long" {
@@ -99,8 +101,8 @@ func validateDecision(d *Decision, sizing DecisionSizing) error {
 	// stop must sit below the market and its take profit above it (short reversed).
 	// A wrong-side protection would be rejected by the exchange, leaving the
 	// position unprotected — refuse it before anything is sent.
-	price, ok := sizing.Prices[d.Symbol]
-	if !ok || !finitePositive(price) {
+	price, ok := currentPrice(sizing.Prices, d.Symbol)
+	if !ok {
 		return fmt.Errorf("%s has no valid current price to validate stop loss and take profit", d.Symbol)
 	}
 	if d.Action == "open_long" {
@@ -211,4 +213,47 @@ func ValidateStopLossLoss(notional, entry, stop, principal float64) error {
 
 func finitePositive(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+// currentPrice 在 Prices 中找到决策标的的现价。模型偶尔把候选写成 "BTC"、
+// "BTC-USDT"、"BTC/USDT" 或小写；交易路径的 filterDecisionsToStrategyUniverse
+// 会把它们重写成候选里的规范符号后执行。校验用同一口径取价，否则一个变体就会让
+// 整批决策（包括平仓）被拒。
+func currentPrice(prices map[string]float64, symbol string) (float64, bool) {
+	if price, ok := prices[symbol]; ok && finitePositive(price) {
+		return price, true
+	}
+	trimmed := strings.TrimSpace(symbol)
+	if price, ok := prices[market.Normalize(trimmed)]; ok && finitePositive(price) {
+		return price, true
+	}
+	// market.Normalize 不处理 "/" 分隔符（"BTC/USDT"）
+	if price, ok := prices[market.Normalize(strings.ReplaceAll(trimmed, "/", ""))]; ok && finitePositive(price) {
+		return price, true
+	}
+	base := symbolBaseKey(symbol)
+	if base == "" {
+		return 0, false
+	}
+	for key, price := range prices {
+		if symbolBaseKey(key) == base && finitePositive(price) {
+			return price, true
+		}
+	}
+	return 0, false
+}
+
+// symbolBaseKey 与交易路径的 universeBaseKey 同口径：去掉常见计价后缀后的基础币种
+func symbolBaseKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	s = strings.ReplaceAll(s, "/", "")
+	if s == "" {
+		return ""
+	}
+	for _, suffix := range []string{"-USDC", "-USDT", "USDC", "USDT", "USD"} {
+		if strings.HasSuffix(s, suffix) && len(s) > len(suffix) {
+			return strings.TrimSuffix(s, suffix)
+		}
+	}
+	return s
 }
