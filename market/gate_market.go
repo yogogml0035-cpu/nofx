@@ -394,7 +394,8 @@ func ListGateTickers() ([]GateTicker, error) {
 		return nil, fmt.Errorf("gate tickers: no parseable contracts (skipped %d)", skipped)
 	}
 	if skipped > 0 {
-		logger.Infof("  [Gate] tickers: skipped %d unparseable contracts", skipped)
+		// 前端每 15s 轮询，脏合约长期存在时避免刷屏
+		logger.Debugf("  [Gate] tickers: skipped %d unparseable contracts", skipped)
 	}
 	return tickers, nil
 }

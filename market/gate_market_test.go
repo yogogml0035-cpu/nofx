@@ -556,3 +556,14 @@ func TestGetGateContractMetricsIgnoresFundingFieldInStats(t *testing.T) {
 		t.Errorf("open interest = %v", metrics.OpenInterestUSD)
 	}
 }
+
+func TestListGateTickersFailsWhenAllEntriesAreInvalid(t *testing.T) {
+	srv := serveGateTickers(t, "", `[
+		{"contract":"NEW_USDT","last":"0","change_percentage":"0","volume_24h_quote":"0"},
+		{"contract":"BROKEN_USDT"}
+	]`)
+	overrideGateBaseURL(t, srv)
+	if _, err := ListGateTickers(); err == nil {
+		t.Fatal("all-invalid list must fail")
+	}
+}
