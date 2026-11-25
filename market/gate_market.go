@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"nofx/logger"
 )
 
 // gateKlineMaxLimit 文档限制：candlesticks 单次最多 2000 点。
@@ -361,9 +363,8 @@ func GetGateTicker(symbol string) (GateTicker, error) {
 }
 
 // ListGateTickers 取全部 USDT 永续合约的 24h 行情（供 ⑮ 的 24h 行情接口）。
-// 任一条目字段缺失或不可解析即整体失败（fail-closed，不静默丢弃合约）；新上架且未成交的
-// 合约若 last 为 0/空，会让整个列表失败，这是 ⑮ 需要评估的边界（2026-11-25 实测 1042 个
-// 合约全部 last>0、字段齐全，未触发）。
+// 单条合约字段缺失/不可解析（如新上架未成交的 last=0）时跳过该条并记录数量，避免一个异常
+// 合约让整个列表不可用；全部条目都不可解析时才返回错误（fail-closed）。
 func ListGateTickers() ([]GateTicker, error) {
 	url := fmt.Sprintf("%s/futures/usdt/tickers", gateFuturesBaseURL)
 
@@ -375,12 +376,20 @@ func ListGateTickers() ([]GateTicker, error) {
 		return nil, fmt.Errorf("gate tickers returned no contracts")
 	}
 	tickers := make([]GateTicker, 0, len(rows))
+	skipped := 0
 	for _, row := range rows {
 		ticker, err := parseGateTicker(row)
 		if err != nil {
-			return nil, err
+			skipped++
+			continue
 		}
 		tickers = append(tickers, ticker)
+	}
+	if len(tickers) == 0 {
+		return nil, fmt.Errorf("gate tickers: no parseable contracts (skipped %d)", skipped)
+	}
+	if skipped > 0 {
+		logger.Infof("  [Gate] tickers: skipped %d unparseable contracts", skipped)
 	}
 	return tickers, nil
 }

@@ -599,6 +599,10 @@ func BuildGridContextFromMarketData(mktData *market.Data, config *store.GridStra
 				ctx.EMA50 = tf5m.EMA50Values[len(tf5m.EMA50Values)-1]
 			}
 		}
+		// 旧 LongerTermContext 的 EMA50 来自 4h；优先读 4h 周期，缺失时沿用 5m 值
+		if tf4h, ok := mktData.TimeframeData["4h"]; ok && tf4h != nil && len(tf4h.EMA50Values) > 0 {
+			ctx.EMA50 = tf4h.EMA50Values[len(tf4h.EMA50Values)-1]
+		}
 	}
 
 	ctx.EMA20 = mktData.CurrentEMA20

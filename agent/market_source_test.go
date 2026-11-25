@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http/httptest"
 	"strings"
@@ -93,5 +94,34 @@ func TestHandleTickersUsesGate(t *testing.T) {
 	}
 	if out[1]["lastPrice"] != "97000" || out[1]["volume"] != "100" {
 		t.Fatalf("BTC ticker mapping = %+v", out[1])
+	}
+}
+
+func TestToolGetKlineAllowsGateSymbolsOutsideKnownList(t *testing.T) {
+	prev := assistantGetKlines
+	t.Cleanup(func() { assistantGetKlines = prev })
+	assistantGetKlines = func(symbol, interval string, limit int) ([]market.Kline, error) {
+		if symbol != "HYPEUSDT" {
+			t.Errorf("symbol = %q", symbol)
+		}
+		return []market.Kline{{OpenTime: 1700000000000, Open: 30, High: 31, Low: 29, Close: 30, Volume: 10}}, nil
+	}
+	a := New(nil, nil, DefaultConfig(), nil)
+	raw := a.toolGetKline(`{"symbol":"HYPE","interval":"15m"}`)
+	if strings.Contains(raw, "crypto symbols only") || !strings.Contains(raw, "HYPEUSDT") {
+		t.Fatalf("HYPE must not be treated as a stock: %s", raw)
+	}
+}
+
+func TestToolGetKlineStockFallback(t *testing.T) {
+	prev := assistantGetKlines
+	t.Cleanup(func() { assistantGetKlines = prev })
+	assistantGetKlines = func(symbol, interval string, limit int) ([]market.Kline, error) {
+		return nil, errors.New("gate contract not found")
+	}
+	a := New(nil, nil, DefaultConfig(), nil)
+	raw := a.toolGetKline(`{"symbol":"AAPL","interval":"15m"}`)
+	if !strings.Contains(raw, "crypto symbols only") {
+		t.Fatalf("expected stock message: %s", raw)
 	}
 }

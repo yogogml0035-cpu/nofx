@@ -87,5 +87,15 @@ var (
   `quote_volume` 都取 USDT 成交额（D6），模型与前端看到的是同一量纲。
 - **`trade_count` 不可得**：Gate ticker 没有成交笔数，直接省略而不是填 0。
 - **OI 缺失即失败**：快照工具旧实现对 OI 取数失败返回错误；保持 fail-closed，不用 0 冒充。
+- **ticker 列表跳过异常合约**：Gate 的 1042 个合约里若个别新上架合约字段缺失（如 last=0），
+  `ListGateTickers` 跳过该条并记录数量，只有全部条目都不可解析时才报错；避免一个异常合约
+  让助手 24h 行情整体 502（2026-11-25 实测全部合约正常）。
+- **助手币种判定**：`get_market_snapshot`/`get_kline` 不再按 `isStockSymbol` 的启发式提前拒绝；
+  先按 Gate 取数，失败且符号形似股票（1–5 位纯字母）时才返回“仅支持加密币种”提示，避免
+  HYPE/GOAT/BERA 等不在硬编码清单里的 Gate 合约被误判为股票。
+- **无 AI 兜底价格精度**：按价格量级动态选择小数位（旧 `market.Format` 的精度口径），避免
+  极小价格显示为 0。
+- **网格 EMA50**：旧值来自 4h `LongerTermContext`；改为优先读 4h `TimeframeData` 的
+  EMA50，缺失时退回 5m，保持原口径。
 - **`GetWithTimeframes` 仅 200 根**：助手实时摘要只需价格/指标；K 线工具单独按请求 limit 取数。
 - **股票/外汇**：不在本子任务；Alpaca/TwelveData 工具与路由不动。

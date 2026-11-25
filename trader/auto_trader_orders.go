@@ -3,7 +3,7 @@ package trader
 // AI 决策的执行路径。开仓必须走随单保护（ProtectedOpener，保护不变量：仓位从存在那一刻起
 // 就带有止损与止盈，成交后核对保护单，缺失立即平仓并报错）；不支持随单保护的适配器
 // 直接拒绝开仓，不存在无保护的开仓回退路径。取价统一走适配器的 GetMarketPrice（D8/D26），
-// 开仓路径不再使用 market.GetWithExchange（CoinAnk 通道）。
+// 开仓路径不再使用旧内嵌行情路径（⑮ 已删除）。
 
 import (
 	"errors"

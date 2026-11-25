@@ -54,6 +54,7 @@ func main() {
 	}
 
 	symbols := []string{"BTCUSDT", "ETHUSDT", "DOGEUSDT"}
+	var dogeTicker market.GateTicker
 	for _, symbol := range symbols {
 		ticker, err := market.GetGateTicker(symbol)
 		if err != nil {
@@ -62,6 +63,9 @@ func main() {
 		}
 		if ticker.Last <= 0 || ticker.QuoteVolume24h < 0 {
 			fail("%s ticker invalid: %+v", symbol, ticker)
+		}
+		if symbol == "DOGEUSDT" {
+			dogeTicker = ticker
 		}
 		logf("%s ticker: last=%.8f chg24h=%.4f%% chg=%.6f high=%.8f low=%.8f quoteVol24h=%.2f",
 			symbol, ticker.Last, ticker.ChangePercent24h, ticker.Change24h, ticker.High24h, ticker.Low24h, ticker.QuoteVolume24h)
@@ -93,6 +97,22 @@ func main() {
 		last := klines[len(klines)-1]
 		if last.Close <= 0 || last.Volume < 0 || last.CloseTime <= last.OpenTime {
 			fail("kline DOGEUSDT %s invalid last bar: %+v", interval, last)
+		}
+		if dogeTicker.Last > 0 {
+			drift := (last.Close - dogeTicker.Last) / dogeTicker.Last * 100
+			if drift < 0 {
+				drift = -drift
+			}
+			if drift > 5 {
+				fail("kline DOGEUSDT %s last close %.8f drifts %.2f%% from ticker %.8f", interval, last.Close, drift, dogeTicker.Last)
+			}
+		}
+		if interval == "30d" {
+			// 30d 小 limit 修复后：末根必须是月初开盘且为该月真实成交（Gate 小 limit 的占位根）
+			lastOpen := time.UnixMilli(last.OpenTime).UTC()
+			if lastOpen.Day() != 1 || last.Volume <= 0 {
+				fail("kline DOGEUSDT 30d last bar not month-start/real: open=%s volume=%.2f", lastOpen, last.Volume)
+			}
 		}
 		logf("kline DOGEUSDT %s: bars=%d lastClose=%.8f lastVolumeUSDT=%.2f lastOpen=%s",
 			interval, len(klines), last.Close, last.Volume,

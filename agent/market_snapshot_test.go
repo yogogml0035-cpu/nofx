@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -97,9 +98,38 @@ func TestToolGetMarketSnapshotReturnsRealtimeAnalysisContext(t *testing.T) {
 }
 
 func TestToolGetMarketSnapshotRejectsStockSymbols(t *testing.T) {
+	prevTicker := assistantGetTicker
+	t.Cleanup(func() { assistantGetTicker = prevTicker })
+	assistantGetTicker = func(symbol string) (market.GateTicker, error) {
+		return market.GateTicker{}, errors.New("gate contract not found")
+	}
 	a := New(nil, nil, DefaultConfig(), nil)
 	raw := a.toolGetMarketSnapshot(`{"symbol":"AAPL"}`)
 	if !strings.Contains(raw, "currently supports crypto symbols only") {
 		t.Fatalf("expected stock rejection, got: %s", raw)
+	}
+}
+
+func TestToolGetMarketSnapshotAllowsGateSymbolsOutsideKnownList(t *testing.T) {
+	prevTicker, prevMetrics, prevKlines := assistantGetTicker, assistantGetMetrics, assistantGetKlines
+	t.Cleanup(func() {
+		assistantGetTicker, assistantGetMetrics, assistantGetKlines = prevTicker, prevMetrics, prevKlines
+	})
+	assistantGetTicker = func(symbol string) (market.GateTicker, error) {
+		if symbol != "HYPEUSDT" {
+			t.Errorf("symbol = %q", symbol)
+		}
+		return market.GateTicker{Symbol: "HYPEUSDT", Last: 30, QuoteVolume24h: 1000}, nil
+	}
+	assistantGetMetrics = func(symbol string) (market.GateContractMetrics, error) {
+		return market.GateContractMetrics{MarkPrice: 30, IndexPrice: 30, OpenInterestUSD: 1}, nil
+	}
+	assistantGetKlines = func(symbol, interval string, limit int) ([]market.Kline, error) {
+		return []market.Kline{{OpenTime: 1700000000000, Open: 30, High: 31, Low: 29, Close: 30, Volume: 10}}, nil
+	}
+	a := New(nil, nil, DefaultConfig(), nil)
+	raw := a.toolGetMarketSnapshot(`{"symbol":"HYPE"}`)
+	if strings.Contains(raw, "crypto symbols only") || !strings.Contains(raw, "HYPEUSDT") {
+		t.Fatalf("HYPE must not be treated as a stock: %s", raw)
 	}
 }

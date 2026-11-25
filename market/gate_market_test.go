@@ -300,28 +300,28 @@ func TestListGateTickers(t *testing.T) {
 	}
 }
 
-func TestListGateTickersFailClosed(t *testing.T) {
-	cases := []struct {
-		name    string
-		body    string
-		wantErr string
-	}{
-		{name: "空数组", body: `[]`, wantErr: "no contracts"},
-		{
-			name:    "任一条目缺字段",
-			body:    `[{"contract":"BTC_USDT","last":"97000","change_percentage":"1","volume_24h_quote":"100"},{"contract":"DOGE_USDT","last":"0.0543"}]`,
-			wantErr: "DOGE_USDT",
-		},
+func TestListGateTickersSkipsInvalidEntries(t *testing.T) {
+	// 单个异常合约（新上架 last=0/缺字段）跳过，其余合约照常返回
+	srv := serveGateTickers(t, "", `[
+		{"contract":"BTC_USDT","last":"97000","change_percentage":"1","volume_24h_quote":"100"},
+		{"contract":"NEW_USDT","last":"0","change_percentage":"0","volume_24h_quote":"0"},
+		{"contract":"DOGE_USDT","last":"0.0543"}
+	]`)
+	overrideGateBaseURL(t, srv)
+	tickers, err := ListGateTickers()
+	if err != nil {
+		t.Fatalf("ListGateTickers: %v", err)
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			srv := serveGateTickers(t, "", c.body)
-			overrideGateBaseURL(t, srv)
-			_, err := ListGateTickers()
-			if err == nil || !strings.Contains(err.Error(), c.wantErr) {
-				t.Fatalf("error = %v, want containing %q", err, c.wantErr)
-			}
-		})
+	if len(tickers) != 1 || tickers[0].Symbol != "BTCUSDT" {
+		t.Fatalf("tickers = %+v", tickers)
+	}
+}
+
+func TestListGateTickersFailsWhenNothingParses(t *testing.T) {
+	srv := serveGateTickers(t, "", `[]`)
+	overrideGateBaseURL(t, srv)
+	if _, err := ListGateTickers(); err == nil {
+		t.Fatal("empty list must fail")
 	}
 }
 

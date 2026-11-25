@@ -116,7 +116,22 @@ func assistantMarketSummary(data *market.Data) string {
 		funding = fmt.Sprintf("%.4f%%", *data.FundingRate*100)
 	}
 	return fmt.Sprintf(
-		"Price: $%.4f | 1h: %+.2f%% | 4h: %+.2f%% | RSI7: %.1f | EMA20: %.4f | MACD: %.6f | Funding: %s",
-		data.CurrentPrice, data.PriceChange1h, data.PriceChange4h, data.CurrentRSI7,
-		data.CurrentEMA20, data.CurrentMACD, funding)
+		"Price: $%s | 1h: %+.2f%% | 4h: %+.2f%% | RSI7: %.1f | EMA20: %s | MACD: %.6f | Funding: %s",
+		formatAssistantPrice(data.CurrentPrice), data.PriceChange1h, data.PriceChange4h, data.CurrentRSI7,
+		formatAssistantPrice(data.CurrentEMA20), data.CurrentMACD, funding)
+}
+
+// formatAssistantPrice 按价格量级选择小数位（旧 market.Format 的动态精度）：
+// <0.0001 用 8 位、<0.01 用 6 位、<1 用 4 位，其余 2 位。
+func formatAssistantPrice(price float64) string {
+	switch {
+	case price > 0 && price < 0.0001:
+		return fmt.Sprintf("%.8f", price)
+	case price > 0 && price < 0.01:
+		return fmt.Sprintf("%.6f", price)
+	case price > 0 && price < 1:
+		return fmt.Sprintf("%.4f", price)
+	default:
+		return fmt.Sprintf("%.2f", price)
+	}
 }

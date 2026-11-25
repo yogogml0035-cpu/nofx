@@ -1,7 +1,7 @@
 package market
 
-// 引擎行情路径切 Gate 的单元测试（子任务 13）：GetWithTimeframes（含 10s/7d/30d）、
-// GetBoxData、旧内嵌 GetWithExchange 都只请求 Gate candlesticks，成交量是 sum 成交额。
+// 引擎行情路径切 Gate 的单元测试（子任务 13）：GetWithTimeframes（含 10s/7d/30d）与
+// GetBoxData 都只请求 Gate candlesticks，成交量是 sum 成交额。
 
 import (
 	"encoding/json"

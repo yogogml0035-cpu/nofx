@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"nofx/logger"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -125,22 +124,6 @@ func Normalize(symbol string) string {
 		return symbol
 	}
 	return symbol + "USDT"
-}
-
-// parseFloat parses float value
-func parseFloat(v interface{}) (float64, error) {
-	switch val := v.(type) {
-	case string:
-		return strconv.ParseFloat(val, 64)
-	case float64:
-		return val, nil
-	case int:
-		return float64(val), nil
-	case int64:
-		return float64(val), nil
-	default:
-		return 0, fmt.Errorf("unsupported type: %T", v)
-	}
 }
 
 // isStaleData 检测数据陈旧（连续一段时间的价格冻结 + 成交量为 0）。

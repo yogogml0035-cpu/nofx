@@ -2881,9 +2881,6 @@ func (a *Agent) toolGetMarketSnapshot(argsJSON string) string {
 	if raw == "" {
 		return `{"error":"symbol is required"}`
 	}
-	if isStockSymbol(raw) {
-		return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
-	}
 	symbol := assistantCryptoSymbol(raw)
 
 	interval := strings.TrimSpace(strings.ToLower(args.Interval))
@@ -2904,14 +2901,23 @@ func (a *Agent) toolGetMarketSnapshot(argsJSON string) string {
 
 	ticker, err := assistantGetTicker(symbol)
 	if err != nil {
+		if isStockSymbol(raw) {
+			return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
+		}
 		return fmt.Sprintf(`{"error":"failed to fetch 24h ticker for %s: %s"}`, symbol, err)
 	}
 	metrics, err := assistantGetMetrics(symbol)
 	if err != nil {
+		if isStockSymbol(raw) {
+			return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
+		}
 		return fmt.Sprintf(`{"error":"failed to fetch perp metrics for %s: %s"}`, symbol, err)
 	}
 	klines, err := assistantGetKlines(symbol, interval, limit)
 	if err != nil {
+		if isStockSymbol(raw) {
+			return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
+		}
 		return fmt.Sprintf(`{"error":"failed to fetch kline for %s: %s"}`, symbol, err)
 	}
 	if len(klines) == 0 {
@@ -2987,9 +2993,6 @@ func (a *Agent) toolGetKline(argsJSON string) string {
 	if raw == "" {
 		return `{"error": "symbol is required"}`
 	}
-	if isStockSymbol(raw) {
-		return `{"error":"get_kline currently supports crypto symbols only"}`
-	}
 	symbol := assistantCryptoSymbol(raw)
 
 	interval := strings.TrimSpace(strings.ToLower(args.Interval))
@@ -3010,6 +3013,9 @@ func (a *Agent) toolGetKline(argsJSON string) string {
 
 	klines, err := assistantGetKlines(symbol, interval, limit)
 	if err != nil {
+		if isStockSymbol(raw) {
+			return `{"error":"get_kline currently supports crypto symbols only"}`
+		}
 		return fmt.Sprintf(`{"error":"failed to fetch kline for %s: %s"}`, symbol, err)
 	}
 
