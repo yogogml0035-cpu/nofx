@@ -130,12 +130,8 @@ func openNotional(principal, percent float64) (float64, error) {
 
 ## 测试与验证
 
-- `kernel/sizing_test.go`：金额换算（含 F33 例）、方向矩阵、亏损上限边界、本金/百分比异常、杠杆回落、
-  旧校验不再拒绝（12 → 10 名义价值、低盈亏比可通过）。
-- `kernel/engine_prompt_test.go`：中英提示词契约（无金额字段、含本金口径与 2% 上限、示例可解析）。
-- `kernel/engine_analysis_test.go`：模型 JSON 带旧金额字段时被忽略；`NotionalUSD` = 代码计算值。
 - `kernel/sizing_test.go`：金额换算（含 F33 例）、方向矩阵、亏损上限边界、符号变体解析、
-  旧 12/60 门槛不再拒绝、本金/百分比异常、杠杆回落、模型金额字段忽略。
+  旧 12/60 门槛不再拒绝、本金/百分比异常、杠杆回落、模型金额字段忽略、NaN/Inf 保护价拒绝。
 - `kernel/engine_prompt_test.go`：中英提示词契约（无金额字段、含本金口径与 2% 上限、示例可解析）。
 - `api/strategy_prompt_test.go`：`preview-prompt`（含越界百分比 clamp）与 `test-run`（无币种、无 AI）
   返回 200 且提示词含代码金额。

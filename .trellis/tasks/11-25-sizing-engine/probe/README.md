@@ -1,7 +1,7 @@
 # 提示词预览证据（⑨ sizing-engine）
 
 - `prompt_preview.go`（构建标签 `probe`）用固定的模拟本金渲染中英文系统提示词。
-- `sizing-prompt-zh.txt` / `sizing-prompt-en.txt` 是 2026-11-25 在候选 `d7572d84` 上渲染的留档。
+- `sizing-prompt-zh.txt` / `sizing-prompt-en.txt` 是 2026-11-25 在候选 `1daec733` 上渲染的留档。
 
 渲染命令（宿主机无 Go，走 Docker）：
 

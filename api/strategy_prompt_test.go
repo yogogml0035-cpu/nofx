@@ -89,3 +89,29 @@ func TestStrategyTestRunUsesPrincipalSizing(t *testing.T) {
 	require.NotContains(t, resp.SystemPrompt, "position_size_usd")
 	require.NotContains(t, resp.SystemPrompt, "risk_usd")
 }
+
+func TestStrategyTestRunClampsOutOfRangePositionPercent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	s := &Server{}
+
+	// test-run 与 preview、运行态一致：先 ClampLimits，25% 渲染为 20%
+	cfg := store.GetDefaultStrategyConfig("zh")
+	cfg.RiskControl.PositionPercent = 25
+	cfg.CoinSource.StaticCoins = nil
+	body, err := json.Marshal(map[string]any{
+		"config":         cfg,
+		"run_real_ai":    false,
+		"prompt_variant": "balanced",
+	})
+	require.NoError(t, err)
+
+	w := callHandler(t, s.handleStrategyTestRun, http.MethodPost, "/api/strategies/test-run", string(body), nil)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var resp struct {
+		SystemPrompt string `json:"system_prompt"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.Contains(t, resp.SystemPrompt, "本金 1000.00 × 20.0%")
+	require.Contains(t, resp.SystemPrompt, "200.00 USDT")
+}

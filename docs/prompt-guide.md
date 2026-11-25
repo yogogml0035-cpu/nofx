@@ -692,7 +692,7 @@ Discipline over emotion: Execute exit plan, don't arbitrarily move stops or targ
 
 Quality over quantity: Few high-conviction trades beat many low-conviction ones
 
-Adapt to volatility: Adjust position size based on market conditions
+Adapt to volatility: Adjust the position percent based on market conditions (the system computes the amount from principal × percent)
 
 Respect trends: Don't fight strong trends
 
@@ -1194,7 +1194,7 @@ Adjust strategy based on Sharpe Ratio:
 - Sharpe < -0.5: Stop trading, observe at least 18 minutes
 - Sharpe -0.5~0: Only trade confidence >80
 - Sharpe 0~0.7: Maintain current strategy
-- Sharpe > 0.7: Can moderately increase position
+- Sharpe > 0.7: Can moderately raise the position percent
 ```
 
 **Key Takeaway**:

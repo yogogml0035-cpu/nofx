@@ -152,6 +152,16 @@ func TestValidateDecisionProtectionDirectionAndLossCap(t *testing.T) {
 			wantErr:  "must be greater than 0",
 		},
 		{
+			name:     "止损为 NaN",
+			decision: Decision{Symbol: "SOLUSDT", Action: "open_long", Leverage: 3, StopLoss: math.NaN(), TakeProfit: 120},
+			wantErr:  "must be greater than 0",
+		},
+		{
+			name:     "止盈为 +Inf",
+			decision: Decision{Symbol: "SOLUSDT", Action: "open_long", Leverage: 3, StopLoss: 90, TakeProfit: math.Inf(1)},
+			wantErr:  "must be greater than 0",
+		},
+		{
 			name:     "多单止损价高于止盈价",
 			decision: Decision{Symbol: "SOLUSDT", Action: "open_long", Leverage: 3, StopLoss: 90, TakeProfit: 85},
 			wantErr:  "stop loss price must be less than take profit price",
@@ -218,7 +228,7 @@ func TestValidateStopLossLossBoundary(t *testing.T) {
 func TestValidateDecisionResolvesSymbolVariants(t *testing.T) {
 	sizing := sizingFor(1000, 10, 100) // SOLUSDT 现价 100
 
-	for _, symbol := range []string{"SOLUSDT", "SOL", "sol-usdt", "SOL/USDT", "solusdt"} {
+	for _, symbol := range []string{"SOLUSDT", "SOL", "sol-usdt", "SOL/USDT", "solusdt", "SOL-USDC"} {
 		t.Run(symbol, func(t *testing.T) {
 			decision := Decision{
 				Symbol: symbol, Action: "open_long", Leverage: 3,
