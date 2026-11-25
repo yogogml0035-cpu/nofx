@@ -398,14 +398,13 @@ The following constraints are enforced by the system. **Methods 1 & 2** automati
 **Meaning**: Diversify risk, avoid overexposure
 
 #### 3. Single Position Size
-**Requirement**:
-- Altcoins: 0.8~1.5x account equity
-- BTC/ETH: 5~10x account equity
+**Requirement**: open notional = principal × the strategy's position percent (1%-20%, step 0.1, default 10%)
 
-**Example** (Account equity 1000 USDT):
+**Note**: the amount is computed and enforced by the system; the decision JSON has no amount field. Leverage only decides how much margin is used — it does not change the notional.
+
+**Example** (principal 1000 USDT, percent 10%):
 ```
-✅ Altcoin position: 800~1500 USDT
-✅ BTC/ETH position: 5000~10000 USDT
+✅ Open notional per trade: 100 USDT (contract count is derived from the size step)
 ```
 
 #### 4. Leverage Limits
@@ -535,7 +534,7 @@ Your analysis...
 - Entry confidence ≥ 85 (only high-certainty opportunities)
 - Risk-reward ratio ≥ 1:4 (stricter than system requirement)
 - Maximum 2 positions (reduced risk exposure)
-- Small position size (0.5x account equity)
+- Small position size (position percent 5%)
 
 #### Expected Performance
 - Trading frequency: Low (possibly 1-2 trades/day)
@@ -586,7 +585,7 @@ Avoid low-quality signals:
 
 # Position Management (Conservative)
 
-Single position: 0.5x account equity (smaller than system default)
+Single position: position percent 5% (more conservative than the default 10%)
 Maximum positions: 2 coins (1 less than system default)
 Leverage usage:
 - Altcoins: 3x leverage (lower than system limit)
@@ -608,7 +607,7 @@ If P&L Amount drawdown from Peak % exceeds 40%, immediately reduce 50% position
 Sharpe < -0.5: Stop trading, observe continuously for at least 30 minutes
 Sharpe -0.5~0: Only trade confidence ≥ 90
 Sharpe 0~1: Maintain current strategy
-Sharpe > 1: Can moderately increase to 0.8x equity position
+Sharpe > 1: Can moderately raise the position percent to 8%
 
 # Decision Process
 
@@ -651,9 +650,9 @@ docker-compose restart
 
 #### Core Features
 - Entry confidence ≥ 75 (system default)
-- Risk-reward ratio ≥ 1:3 (system default)
+- Risk-reward ratio ≥ 1:3 (strategy default guidance)
 - Maximum 3 positions (system default)
-- Moderate position size (0.8~1.5x equity)
+- Moderate position size (position percent 10%)
 
 #### Expected Performance
 - Trading frequency: Medium (2-4 trades/day)
@@ -807,9 +806,9 @@ Same as Conservative strategy usage.
 
 #### Core Features
 - Entry confidence ≥ 70 (lower than system default)
-- Risk-reward ratio ≥ 1:3 (system minimum)
+- Risk-reward ratio ≥ 1:3 (strategy prompt requirement)
 - Maximum 3 positions
-- Large position size (near system limit 1.5x equity)
+- Large position size (position percent 18%, near the 20% cap)
 - High leverage (near system limits)
 
 #### Expected Performance
@@ -843,7 +842,7 @@ Moderate aggression: Maximize position size and leverage within risk control
 Entry conditions:
 - Confidence ≥ 70 (medium certainty acceptable)
 - At least 2 indicators support
-- Risk-reward ratio ≥ 1:3 (system minimum)
+- Risk-reward ratio ≥ 1:3 (strategy prompt requirement)
 - Follow major market trend
 
 Scenarios to try:
@@ -855,8 +854,7 @@ Scenarios to try:
 # Position Management (Aggressive)
 
 Single position:
-- Altcoins: 1.2~1.5x account equity (near limit)
-- BTC/ETH: 8~10x account equity (near limit)
+- Position percent 18% (near the 20% cap; notional = principal × percent, computed by the system)
 
 Maximum positions: 3 coins
 
@@ -878,7 +876,7 @@ P&L Amount drawdown from Peak % exceeds 60%, close all
 # Sharpe Ratio Adjustment
 
 Sharpe < -0.5: Pause trading 15 minutes
-Sharpe -0.5~0: Reduce position to 0.8x equity
+Sharpe -0.5~0: Lower the position percent to 8%
 Sharpe 0~0.7: Maintain current strategy
 Sharpe > 0.7: Stay aggressive, can full position
 
@@ -1120,8 +1118,8 @@ Risk-reward ratio can be appropriately lowered, 2:1 is also acceptable
 ```
 
 **Error Reason**:
-- System enforces risk-reward ratio ≥ 1:3
-- Users cannot override this constraint in Modes 1 & 2
+- The strategy prompt requires risk-reward ratio ≥ 1:3 (a prompt constraint executed by the model)
+- Custom prompts in Modes 1 & 2 should not loosen this requirement
 
 **✅ Correct Rewrite**:
 ```
@@ -1345,10 +1343,10 @@ Your custom Prompt must include:
 # Hard Constraints
 1. Risk-reward ratio ≥ 1:3
 2. Maximum 3 positions
-3. Single position: Altcoin 0.8-1.5x equity, BTC/ETH 5-10x equity
+3. Single position: open notional = principal × position percent (default 10%, adjustable 1%-20% in the strategy)
 4. Leverage: Altcoin ≤5x, BTC/ETH ≤20x
 5. Margin usage ≤ 90%
-6. Minimum opening: General ≥12U, BTC/ETH ≥60U
+6. Minimum opening: ≥ 10 USDT after rounding (configurable in the strategy)
 
 # Output Format
 Use <reasoning> and <decision> tags:
