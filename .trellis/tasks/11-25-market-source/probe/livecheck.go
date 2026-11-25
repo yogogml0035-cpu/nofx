@@ -197,6 +197,16 @@ func main() {
 		}
 	}
 
+	// 30d 小 limit 不保证月初对齐（调用方不得依赖）；仅记录实际窗口供留档
+	if small, err := market.GetGateKlines("BTCUSDT", "30d", 3); err != nil {
+		fail("30d small limit: %v", err)
+	} else {
+		first := time.UnixMilli(small[0].OpenTime).UTC()
+		logf("30d small-limit window: bars=%d first=%s dayOfMonth=%d closeOfFirst=%s",
+			len(small), first.Format(time.RFC3339), first.Day(),
+			time.UnixMilli(small[0].CloseTime).UTC().Format(time.RFC3339))
+	}
+
 	// 全合约 24h 列表（⑮ 的输入）
 	tickers, err := market.ListGateTickers()
 	if err != nil {

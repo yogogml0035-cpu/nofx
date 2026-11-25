@@ -4,6 +4,7 @@ package market
 // ticker 解析与失败闭合。HTTP 服务按 Gate 线上格式返回（数值字段字符串/数字混排）。
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -158,7 +159,12 @@ func TestGetGateKlinesFailClosed(t *testing.T) {
 		{name: "缺 sum", status: http.StatusOK, body: `[{"t":1700000000,"v":"1","c":"100","h":"101","l":"99","o":"100"}]`, wantErr: "missing sum"},
 		{name: "sum 为负", status: http.StatusOK, body: `[{"t":1700000000,"v":"1","c":"100","h":"101","l":"99","o":"100","sum":"-1"}]`, wantErr: "negative sum"},
 		{name: "收盘价为零", status: http.StatusOK, body: `[{"t":1700000000,"v":"1","c":"0","h":"101","l":"99","o":"100","sum":"1"}]`, wantErr: "non-positive c"},
-		{name: "OHLC 不一致", status: http.StatusOK, body: `[{"t":1700000000,"v":"1","c":"105","h":"101","l":"99","o":"100","sum":"1"}]`, wantErr: "inconsistent ohlc"},
+		{name: "OHLC 不一致（收盘高于最高）", status: http.StatusOK, body: `[{"t":1700000000,"v":"1","c":"105","h":"101","l":"99","o":"100","sum":"1"}]`, wantErr: "inconsistent ohlc"},
+		{name: "OHLC 不一致（开盘低于最低）", status: http.StatusOK, body: `[{"t":1700000000,"v":"1","c":"100","h":"101","l":"99","o":"98","sum":"1"}]`, wantErr: "inconsistent ohlc"},
+		{name: "OHLC 不一致（开盘高于最高）", status: http.StatusOK, body: `[{"t":1700000000,"v":"1","c":"100","h":"101","l":"99","o":"102","sum":"1"}]`, wantErr: "inconsistent ohlc"},
+		{name: "OHLC 不一致（最低高于收盘）", status: http.StatusOK, body: `[{"t":1700000000,"v":"1","c":"98","h":"101","l":"99","o":"100","sum":"1"}]`, wantErr: "inconsistent ohlc"},
+		{name: "t 为零", status: http.StatusOK, body: `[{"t":0,"v":"1","c":"100","h":"101","l":"99","o":"100","sum":"1"}]`, wantErr: "non-positive t"},
+		{name: "t 为负", status: http.StatusOK, body: `[{"t":-1,"v":"1","c":"100","h":"101","l":"99","o":"100","sum":"1"}]`, wantErr: "non-positive t"},
 		{name: "缺 t", status: http.StatusOK, body: `[{"v":"1","c":"100","h":"101","l":"99","o":"100","sum":"1"}]`, wantErr: "missing t"},
 		{name: "t 非整数", status: http.StatusOK, body: `[{"t":1700000000.5,"v":"1","c":"100","h":"101","l":"99","o":"100","sum":"1"}]`, wantErr: "not an integer second"},
 		{
@@ -210,11 +216,18 @@ func TestGetGateKlinesRejectsBadArgumentsWithoutRequest(t *testing.T) {
 	}
 }
 
-func serveGateTickers(t *testing.T, body string) *httptest.Server {
+// serveGateTickers 校验 ticker 请求形状：wantContract 非空时必须有该 contract 查询参数，
+// 为空表示全量列表（不带 contract）。
+func serveGateTickers(t *testing.T, wantContract, body string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/futures/usdt/tickers" {
 			t.Errorf("unexpected path %q", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("contract"); got != wantContract {
+			t.Errorf("ticker contract query = %q, want %q", got, wantContract)
 			http.NotFound(w, r)
 			return
 		}
@@ -223,7 +236,7 @@ func serveGateTickers(t *testing.T, body string) *httptest.Server {
 }
 
 func TestGetGateTicker(t *testing.T) {
-	srv := serveGateTickers(t, `[
+	srv := serveGateTickers(t, "BTC_USDT", `[
 		{"contract":"BTC_USDT","last":"97000.5","change_percentage":"-1.25","volume_24h_quote":"1234567.89"}
 	]`)
 	overrideGateBaseURL(t, srv)
@@ -255,7 +268,7 @@ func TestGetGateTickerFailClosed(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			srv := serveGateTickers(t, c.body)
+			srv := serveGateTickers(t, "BTC_USDT", c.body)
 			overrideGateBaseURL(t, srv)
 			_, err := GetGateTicker("BTCUSDT")
 			if err == nil || !strings.Contains(err.Error(), c.wantErr) {
@@ -266,7 +279,7 @@ func TestGetGateTickerFailClosed(t *testing.T) {
 }
 
 func TestListGateTickers(t *testing.T) {
-	srv := serveGateTickers(t, `[
+	srv := serveGateTickers(t, "", `[
 		{"contract":"BTC_USDT","last":"97000","change_percentage":"1.5","volume_24h_quote":"100"},
 		{"contract":"DOGE_USDT","last":"0.0543","change_percentage":"-2","volume_24h_quote":"20"}
 	]`)
@@ -302,12 +315,75 @@ func TestListGateTickersFailClosed(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			srv := serveGateTickers(t, c.body)
+			srv := serveGateTickers(t, "", c.body)
 			overrideGateBaseURL(t, srv)
 			_, err := ListGateTickers()
 			if err == nil || !strings.Contains(err.Error(), c.wantErr) {
 				t.Fatalf("error = %v, want containing %q", err, c.wantErr)
 			}
 		})
+	}
+}
+
+func TestGetGateTickerNumericFields(t *testing.T) {
+	// Gate 的数值字段也可能是 JSON number 而不是字符串
+	srv := serveGateTickers(t, "BTC_USDT", `[
+		{"contract":"BTC_USDT","last":97000.5,"change_percentage":1.25,"volume_24h_quote":1234567.89}
+	]`)
+	overrideGateBaseURL(t, srv)
+
+	ticker, err := GetGateTicker("BTCUSDT")
+	if err != nil {
+		t.Fatalf("GetGateTicker: %v", err)
+	}
+	if ticker.Last != 97000.5 || ticker.ChangePercent24h != 1.25 || ticker.QuoteVolume24h != 1234567.89 {
+		t.Errorf("numeric ticker fields = %+v", ticker)
+	}
+}
+
+func TestGetGateKlinesAcceptsMaxLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("limit"); got != "2000" {
+			t.Errorf("limit = %q, want 2000", got)
+		}
+		fmt.Fprint(w, `[{"t":1700000000,"v":"1","c":"100","h":"101","l":"99","o":"100","sum":"1"}]`)
+	}))
+	overrideGateBaseURL(t, srv)
+
+	if _, err := GetGateKlines("DOGE_USDT", "1m", 2000); err != nil {
+		t.Fatalf("limit 2000 must be accepted: %v", err)
+	}
+}
+
+func TestGetGateKlinesMonthlySmallLimitIsNotMonthStart(t *testing.T) {
+	// 小 limit 的 30d 窗口不保证月初（实测 limit=3 为 9/10/11 月 2 日）：
+	// 代码不依赖月初对齐，CloseTime 仍取下一根开盘。
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `[
+		 {"t":1788220800,"v":"1","c":"100","h":"101","l":"99","o":"100","sum":"10"},
+		 {"t":1790812800,"v":"1","c":"110","h":"111","l":"109","o":"110","sum":"11"}
+		]`)
+	}))
+	overrideGateBaseURL(t, srv)
+
+	klines, err := GetGateKlines("BTC_USDT", "30d", 3)
+	if err != nil {
+		t.Fatalf("GetGateKlines: %v", err)
+	}
+	if klines[0].CloseTime != klines[1].OpenTime {
+		t.Errorf("first close = %d, want next open %d", klines[0].CloseTime, klines[1].OpenTime)
+	}
+}
+
+func TestGateNumberRejectsNonFinite(t *testing.T) {
+	for _, raw := range []json.Number{"NaN", "Inf", "+Inf", "-Inf", "abc"} {
+		if _, err := gateNumber("x", raw); err == nil {
+			t.Errorf("gateNumber(%q) must be rejected", raw)
+		}
+	}
+	for _, raw := range []json.Number{"0", "-1.5", "123.45"} {
+		if _, err := gateNumber("x", raw); err != nil {
+			t.Errorf("gateNumber(%q): %v", raw, err)
+		}
 	}
 }

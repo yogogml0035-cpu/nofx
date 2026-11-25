@@ -1,101 +1,102 @@
-BTCUSDT ticker: last=58794.60000000 change24h=-1.5400% quote24h=4771113710.00
-BTCUSDT 10s: bars=200 first=2026-11-25T10:24:10Z last=2026-11-25T10:57:20Z close=58794.60000000 volume=170622.78 spacingOK=true tickerDrift=0.0000%
-BTCUSDT 1m: bars=200 first=2026-11-25T07:38:00Z last=2026-11-25T10:57:00Z close=58798.80000000 volume=647612.75 spacingOK=true tickerDrift=0.0071%
-BTCUSDT 5m: bars=200 first=2026-11-24T18:20:00Z last=2026-11-25T10:55:00Z close=58798.80000000 volume=4889247.41 spacingOK=true tickerDrift=0.0071%
-BTCUSDT 15m: bars=200 first=2026-11-23T09:00:00Z last=2026-11-25T10:45:00Z close=58794.60000000 volume=14880634.14 spacingOK=true tickerDrift=0.0000%
-BTCUSDT 30m: bars=200 first=2026-11-21T07:00:00Z last=2026-11-25T10:30:00Z close=58799.00000000 volume=26120988.90 spacingOK=true tickerDrift=0.0075%
-BTCUSDT 1h: bars=200 first=2026-11-17T03:00:00Z last=2026-11-25T10:00:00Z close=58799.00000000 volume=76749934.55 spacingOK=true tickerDrift=0.0075%
-BTCUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=58799.00000000 volume=511981636.47 spacingOK=true tickerDrift=0.0075%
-BTCUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=58799.00000000 volume=511981636.47 spacingOK=true tickerDrift=0.0075%
-BTCUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=58799.00000000 volume=1875126320.97 spacingOK=true tickerDrift=0.0075%
-BTCUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=58792.80000000 volume=38400743707.00 spacingOK=true tickerDrift=0.0031%
-BTCUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=58792.80000000 volume=13966488740.37 spacingOK=true tickerDrift=0.0031%
-BTCUSDT 30d: bars=85 first=2019-11-01T00:00:00Z last=2026-11-01T00:00:00Z close=58792.80000000 volume=149426669851.22 spacingOK=true tickerDrift=0.0031%
-BTCUSDT volume check: mapped=2037247.08147000 rawSum=2037247.08147000 at 1795604160000
-ETHUSDT ticker: last=1643.71000000 change24h=-2.3000% quote24h=3748936588.00
-ETHUSDT 10s: bars=200 first=2026-11-25T10:24:10Z last=2026-11-25T10:57:20Z close=1643.67000000 volume=19225.06 spacingOK=true tickerDrift=0.0024%
-ETHUSDT 1m: bars=200 first=2026-11-25T07:38:00Z last=2026-11-25T10:57:00Z close=1643.71000000 volume=352998.94 spacingOK=true tickerDrift=0.0000%
-ETHUSDT 5m: bars=200 first=2026-11-24T18:20:00Z last=2026-11-25T10:55:00Z close=1643.49000000 volume=2341999.87 spacingOK=true tickerDrift=0.0134%
-ETHUSDT 15m: bars=200 first=2026-11-23T09:00:00Z last=2026-11-25T10:45:00Z close=1643.49000000 volume=14996621.69 spacingOK=true tickerDrift=0.0134%
-ETHUSDT 30m: bars=200 first=2026-11-21T07:00:00Z last=2026-11-25T10:30:00Z close=1643.67000000 volume=26827017.38 spacingOK=true tickerDrift=0.0024%
-ETHUSDT 1h: bars=200 first=2026-11-17T03:00:00Z last=2026-11-25T10:00:00Z close=1643.50000000 volume=72845338.16 spacingOK=true tickerDrift=0.0128%
-ETHUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=1643.50000000 volume=468915440.24 spacingOK=true tickerDrift=0.0128%
-ETHUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=1643.50000000 volume=468915440.24 spacingOK=true tickerDrift=0.0128%
-ETHUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=1643.50000000 volume=1678416100.89 spacingOK=true tickerDrift=0.0128%
-ETHUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=1643.50000000 volume=30099817539.69 spacingOK=true tickerDrift=0.0128%
-ETHUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=1643.50000000 volume=10919360240.24 spacingOK=true tickerDrift=0.0128%
-ETHUSDT 30d: bars=85 first=2019-11-01T00:00:00Z last=2026-11-01T00:00:00Z close=1643.50000000 volume=124322530110.83 spacingOK=true tickerDrift=0.0128%
-ETHUSDT volume check: mapped=830739.53393000 rawSum=830739.53393000 at 1795604160000
-SOLUSDT ticker: last=67.66000000 change24h=-3.9100% quote24h=148196640.00
-SOLUSDT 10s: bars=200 first=2026-11-25T10:24:10Z last=2026-11-25T10:57:20Z close=67.65000000 volume=6324.76 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 1m: bars=200 first=2026-11-25T07:38:00Z last=2026-11-25T10:57:00Z close=67.65000000 volume=24591.53 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 5m: bars=200 first=2026-11-24T18:20:00Z last=2026-11-25T10:55:00Z close=67.66000000 volume=107217.68 spacingOK=true tickerDrift=0.0000%
-SOLUSDT 15m: bars=200 first=2026-11-23T09:00:00Z last=2026-11-25T10:45:00Z close=67.65000000 volume=570393.20 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 30m: bars=200 first=2026-11-21T07:00:00Z last=2026-11-25T10:30:00Z close=67.65000000 volume=1579461.15 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 1h: bars=200 first=2026-11-17T03:00:00Z last=2026-11-25T10:00:00Z close=67.65000000 volume=3908304.02 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=67.65000000 volume=19016851.08 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=67.65000000 volume=19016851.08 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=67.65000000 volume=57167273.54 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=67.65000000 volume=1158630872.63 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=67.65000000 volume=460095570.49 spacingOK=true tickerDrift=0.0148%
-SOLUSDT 30d: bars=73 first=2020-11-01T00:00:00Z last=2026-11-01T00:00:00Z close=67.65000000 volume=8260761170.69 spacingOK=true tickerDrift=0.0148%
-SOLUSDT volume check: mapped=37621.98200000 rawSum=37621.98200000 at 1795604160000
-ZECUSDT ticker: last=724.48000000 change24h=-1.9900% quote24h=73445929.00
-ZECUSDT 10s: bars=200 first=2026-11-25T10:24:20Z last=2026-11-25T10:57:30Z close=724.48000000 volume=28.98 spacingOK=true tickerDrift=0.0000%
-ZECUSDT 1m: bars=200 first=2026-11-25T07:38:00Z last=2026-11-25T10:57:00Z close=724.48000000 volume=12221.15 spacingOK=true tickerDrift=0.0000%
-ZECUSDT 5m: bars=200 first=2026-11-24T18:20:00Z last=2026-11-25T10:55:00Z close=724.48000000 volume=36454.89 spacingOK=true tickerDrift=0.0000%
-ZECUSDT 15m: bars=200 first=2026-11-23T09:00:00Z last=2026-11-25T10:45:00Z close=724.48000000 volume=255373.76 spacingOK=true tickerDrift=0.0000%
-ZECUSDT 30m: bars=200 first=2026-11-21T07:00:00Z last=2026-11-25T10:30:00Z close=724.48000000 volume=488052.70 spacingOK=true tickerDrift=0.0000%
-ZECUSDT 1h: bars=200 first=2026-11-17T03:00:00Z last=2026-11-25T10:00:00Z close=724.48000000 volume=1407174.17 spacingOK=true tickerDrift=0.0000%
-ZECUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=724.48000000 volume=6098095.44 spacingOK=true tickerDrift=0.0000%
-ZECUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=724.63000000 volume=6098109.94 spacingOK=true tickerDrift=0.0207%
-ZECUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=724.63000000 volume=25340247.33 spacingOK=true tickerDrift=0.0207%
-ZECUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=724.63000000 volume=720448883.73 spacingOK=true tickerDrift=0.0207%
-ZECUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=724.63000000 volume=236053747.15 spacingOK=true tickerDrift=0.0207%
-ZECUSDT 30d: bars=82 first=2020-02-01T00:00:00Z last=2026-11-01T00:00:00Z close=724.63000000 volume=4326831008.39 spacingOK=true tickerDrift=0.0207%
-ZECUSDT volume check: mapped=5033.42170000 rawSum=5033.42170000 at 1795604160000
-HYPEUSDT ticker: last=57.92000000 change24h=-7.6900% quote24h=23552546.00
-HYPEUSDT 10s: bars=200 first=2026-11-25T10:24:20Z last=2026-11-25T10:57:30Z close=57.92000000 volume=0.00 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 1m: bars=200 first=2026-11-25T07:38:00Z last=2026-11-25T10:57:00Z close=57.92000000 volume=967.16 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 5m: bars=200 first=2026-11-24T18:20:00Z last=2026-11-25T10:55:00Z close=57.92000000 volume=16501.37 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 15m: bars=200 first=2026-11-23T09:00:00Z last=2026-11-25T10:45:00Z close=57.92000000 volume=205944.89 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 30m: bars=200 first=2026-11-21T07:00:00Z last=2026-11-25T10:30:00Z close=57.92000000 volume=371838.00 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 1h: bars=200 first=2026-11-17T03:00:00Z last=2026-11-25T10:00:00Z close=57.92000000 volume=880321.07 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=57.92000000 volume=3076246.39 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=57.92000000 volume=3076246.39 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=57.92000000 volume=9020966.61 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 7d: bars=101 first=2024-12-19T00:00:00Z last=2026-11-19T00:00:00Z close=57.92000000 volume=218232347.48 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 1w: bars=102 first=2024-12-16T00:00:00Z last=2026-11-23T00:00:00Z close=57.92000000 volume=69410653.75 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT 30d: bars=24 first=2024-12-01T00:00:00Z last=2026-11-01T00:00:00Z close=57.92000000 volume=1085493046.76 spacingOK=true tickerDrift=0.0000%
-HYPEUSDT volume check: mapped=3172.07720000 rawSum=3172.07720000 at 1795604160000
-DOGEUSDT ticker: last=0.05391000 change24h=-2.9500% quote24h=93822764.00
-DOGEUSDT 10s: bars=200 first=2026-11-25T10:24:20Z last=2026-11-25T10:57:30Z close=0.05391000 volume=0.00 spacingOK=true tickerDrift=0.0000%
-DOGEUSDT 1m: bars=200 first=2026-11-25T07:38:00Z last=2026-11-25T10:57:00Z close=0.05391000 volume=49100.93 spacingOK=true tickerDrift=0.0000%
-DOGEUSDT 5m: bars=200 first=2026-11-24T18:20:00Z last=2026-11-25T10:55:00Z close=0.05391000 volume=146227.89 spacingOK=true tickerDrift=0.0000%
-DOGEUSDT 15m: bars=200 first=2026-11-23T09:00:00Z last=2026-11-25T10:45:00Z close=0.05391000 volume=476104.56 spacingOK=true tickerDrift=0.0000%
-DOGEUSDT 30m: bars=200 first=2026-11-21T07:00:00Z last=2026-11-25T10:30:00Z close=0.05391000 volume=1324085.01 spacingOK=true tickerDrift=0.0000%
-DOGEUSDT 1h: bars=200 first=2026-11-17T03:00:00Z last=2026-11-25T10:00:00Z close=0.05391000 volume=2663387.83 spacingOK=true tickerDrift=0.0000%
-DOGEUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=0.05391000 volume=11793424.23 spacingOK=true tickerDrift=0.0000%
-DOGEUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=0.05392000 volume=11793424.77 spacingOK=true tickerDrift=0.0185%
-DOGEUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=0.05392000 volume=40512488.74 spacingOK=true tickerDrift=0.0185%
-DOGEUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=0.05391000 volume=672494458.88 spacingOK=true tickerDrift=0.0000%
-DOGEUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=0.05392000 volume=251407354.29 spacingOK=true tickerDrift=0.0185%
-DOGEUSDT 30d: bars=77 first=2020-07-01T00:00:00Z last=2026-11-01T00:00:00Z close=0.05392000 volume=3156744881.67 spacingOK=true tickerDrift=0.0185%
-DOGEUSDT volume check: mapped=55060.92350000 rawSum=55060.92350000 at 1795604160000
-XAUUSDT ticker: last=3539.09000000 change24h=-2.5900% quote24h=150676887.00
-XAUUSDT 10s: bars=200 first=2026-11-25T10:24:20Z last=2026-11-25T10:57:30Z close=3539.09000000 volume=13131.12 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 1m: bars=200 first=2026-11-25T07:38:00Z last=2026-11-25T10:57:00Z close=3539.09000000 volume=15621.84 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 5m: bars=200 first=2026-11-24T18:20:00Z last=2026-11-25T10:55:00Z close=3539.09000000 volume=72477.09 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 15m: bars=200 first=2026-11-23T09:00:00Z last=2026-11-25T10:45:00Z close=3539.09000000 volume=322147.86 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 30m: bars=200 first=2026-11-21T07:00:00Z last=2026-11-25T10:30:00Z close=3539.09000000 volume=968075.68 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 1h: bars=200 first=2026-11-17T03:00:00Z last=2026-11-25T10:00:00Z close=3539.09000000 volume=2707255.22 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=3539.09000000 volume=12145893.53 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=3539.09000000 volume=12145893.53 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=3539.09000000 volume=66164445.80 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 7d: bars=46 first=2026-01-08T00:00:00Z last=2026-11-19T00:00:00Z close=3539.09000000 volume=1141507451.85 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 1w: bars=46 first=2026-01-12T00:00:00Z last=2026-11-23T00:00:00Z close=3539.09000000 volume=359762459.00 spacingOK=true tickerDrift=0.0000%
-XAUUSDT 30d: bars=11 first=2026-01-01T00:00:00Z last=2026-11-01T00:00:00Z close=3539.09000000 volume=7463444864.46 spacingOK=true tickerDrift=0.0000%
-XAUUSDT volume check: mapped=30622.08046000 rawSum=30622.08046000 at 1795604160000
-list tickers: 1042 contracts, first=HUAGONGTECH_USDT last=8.84100000
+BTCUSDT ticker: last=58764.60000000 change24h=-1.4500% quote24h=4528229685.00
+BTCUSDT 10s: bars=200 first=2026-11-25T10:49:40Z last=2026-11-25T11:22:50Z close=58764.60000000 volume=128351.90 spacingOK=true tickerDrift=0.0000%
+BTCUSDT 1m: bars=200 first=2026-11-25T08:03:00Z last=2026-11-25T11:22:00Z close=58764.60000000 volume=1673019.64 spacingOK=true tickerDrift=0.0000%
+BTCUSDT 5m: bars=200 first=2026-11-24T18:45:00Z last=2026-11-25T11:20:00Z close=58764.60000000 volume=4132193.74 spacingOK=true tickerDrift=0.0000%
+BTCUSDT 15m: bars=200 first=2026-11-23T09:30:00Z last=2026-11-25T11:15:00Z close=58764.60000000 volume=15455684.19 spacingOK=true tickerDrift=0.0000%
+BTCUSDT 30m: bars=200 first=2026-11-21T07:30:00Z last=2026-11-25T11:00:00Z close=58764.60000000 volume=38797866.54 spacingOK=true tickerDrift=0.0000%
+BTCUSDT 1h: bars=200 first=2026-11-17T04:00:00Z last=2026-11-25T11:00:00Z close=58764.60000000 volume=38797866.54 spacingOK=true tickerDrift=0.0000%
+BTCUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=58764.60000000 volume=554367264.13 spacingOK=true tickerDrift=0.0000%
+BTCUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=58758.70000000 volume=554368169.01 spacingOK=true tickerDrift=0.0100%
+BTCUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=58764.60000000 volume=1917511948.62 spacingOK=true tickerDrift=0.0000%
+BTCUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=58758.70000000 volume=38443132425.26 spacingOK=true tickerDrift=0.0100%
+BTCUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=58758.70000000 volume=14008877952.20 spacingOK=true tickerDrift=0.0100%
+BTCUSDT 30d: bars=85 first=2019-11-01T00:00:00Z last=2026-11-01T00:00:00Z close=58758.70000000 volume=149469059063.05 spacingOK=true tickerDrift=0.0100%
+BTCUSDT volume check: mapped=1176170.56707000 rawSum=1176170.56707000 at 1795605660000
+ETHUSDT ticker: last=1645.92000000 change24h=-2.2300% quote24h=3585099501.00
+ETHUSDT 10s: bars=200 first=2026-11-25T10:49:40Z last=2026-11-25T11:22:50Z close=1645.95000000 volume=50336.43 spacingOK=true tickerDrift=0.0018%
+ETHUSDT 1m: bars=200 first=2026-11-25T08:03:00Z last=2026-11-25T11:22:00Z close=1645.92000000 volume=639184.79 spacingOK=true tickerDrift=0.0000%
+ETHUSDT 5m: bars=200 first=2026-11-24T18:45:00Z last=2026-11-25T11:20:00Z close=1645.92000000 volume=1877985.09 spacingOK=true tickerDrift=0.0000%
+ETHUSDT 15m: bars=200 first=2026-11-23T09:30:00Z last=2026-11-25T11:15:00Z close=1645.85000000 volume=5784466.69 spacingOK=true tickerDrift=0.0043%
+ETHUSDT 30m: bars=200 first=2026-11-21T07:30:00Z last=2026-11-25T11:00:00Z close=1645.85000000 volume=26356178.30 spacingOK=true tickerDrift=0.0043%
+ETHUSDT 1h: bars=200 first=2026-11-17T04:00:00Z last=2026-11-25T11:00:00Z close=1645.85000000 volume=26356178.30 spacingOK=true tickerDrift=0.0043%
+ETHUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=1645.95000000 volume=500184357.89 spacingOK=true tickerDrift=0.0018%
+ETHUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=1645.85000000 volume=500200816.39 spacingOK=true tickerDrift=0.0043%
+ETHUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=1645.95000000 volume=1709685018.54 spacingOK=true tickerDrift=0.0018%
+ETHUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=1645.89000000 volume=30131102919.14 spacingOK=true tickerDrift=0.0018%
+ETHUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=1645.85000000 volume=10950645616.40 spacingOK=true tickerDrift=0.0043%
+ETHUSDT 30d: bars=85 first=2019-11-01T00:00:00Z last=2026-11-01T00:00:00Z close=1645.89000000 volume=124353815490.27 spacingOK=true tickerDrift=0.0018%
+ETHUSDT volume check: mapped=693200.09412000 rawSum=693200.09412000 at 1795605660000
+SOLUSDT ticker: last=67.66000000 change24h=-3.4400% quote24h=141651801.00
+SOLUSDT 10s: bars=200 first=2026-11-25T10:49:40Z last=2026-11-25T11:22:50Z close=67.66000000 volume=5419.56 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 1m: bars=200 first=2026-11-25T08:03:00Z last=2026-11-25T11:22:00Z close=67.66000000 volume=53580.14 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 5m: bars=200 first=2026-11-24T18:45:00Z last=2026-11-25T11:20:00Z close=67.66000000 volume=256394.51 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 15m: bars=200 first=2026-11-23T09:30:00Z last=2026-11-25T11:15:00Z close=67.66000000 volume=519015.73 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 30m: bars=200 first=2026-11-21T07:30:00Z last=2026-11-25T11:00:00Z close=67.66000000 volume=1290396.23 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 1h: bars=200 first=2026-11-17T04:00:00Z last=2026-11-25T11:00:00Z close=67.66000000 volume=1290396.23 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=67.66000000 volume=20409975.86 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=67.66000000 volume=20409975.86 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=67.66000000 volume=58560398.33 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=67.66000000 volume=1160023997.41 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=67.66000000 volume=461488695.27 spacingOK=true tickerDrift=0.0000%
+SOLUSDT 30d: bars=73 first=2020-11-01T00:00:00Z last=2026-11-01T00:00:00Z close=67.66000000 volume=8262154295.47 spacingOK=true tickerDrift=0.0000%
+SOLUSDT volume check: mapped=53580.14200000 rawSum=53580.14200000 at 1795605720000
+ZECUSDT ticker: last=726.72000000 change24h=-1.1000% quote24h=71317024.00
+ZECUSDT 10s: bars=200 first=2026-11-25T10:49:50Z last=2026-11-25T11:23:00Z close=726.72000000 volume=0.00 spacingOK=true tickerDrift=0.0000%
+ZECUSDT 1m: bars=200 first=2026-11-25T08:04:00Z last=2026-11-25T11:23:00Z close=726.72000000 volume=0.00 spacingOK=true tickerDrift=0.0000%
+ZECUSDT 5m: bars=200 first=2026-11-24T18:45:00Z last=2026-11-25T11:20:00Z close=726.72000000 volume=199447.35 spacingOK=true tickerDrift=0.0000%
+ZECUSDT 15m: bars=200 first=2026-11-23T09:30:00Z last=2026-11-25T11:15:00Z close=726.72000000 volume=822045.84 spacingOK=true tickerDrift=0.0000%
+ZECUSDT 30m: bars=200 first=2026-11-21T07:30:00Z last=2026-11-25T11:00:00Z close=726.68000000 volume=1550015.23 spacingOK=true tickerDrift=0.0055%
+ZECUSDT 1h: bars=200 first=2026-11-17T04:00:00Z last=2026-11-25T11:00:00Z close=726.68000000 volume=1550015.23 spacingOK=true tickerDrift=0.0055%
+ZECUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=726.68000000 volume=7677808.59 spacingOK=true tickerDrift=0.0055%
+ZECUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=726.68000000 volume=7677808.59 spacingOK=true tickerDrift=0.0055%
+ZECUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=726.72000000 volume=26919924.18 spacingOK=true tickerDrift=0.0000%
+ZECUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=726.68000000 volume=722028582.38 spacingOK=true tickerDrift=0.0055%
+ZECUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=726.72000000 volume=237633424.01 spacingOK=true tickerDrift=0.0000%
+ZECUSDT 30d: bars=82 first=2020-02-01T00:00:00Z last=2026-11-01T00:00:00Z close=726.68000000 volume=4328410707.04 spacingOK=true tickerDrift=0.0055%
+ZECUSDT volume check: mapped=35437.22240000 rawSum=35437.22240000 at 1795605720000
+HYPEUSDT ticker: last=57.91000000 change24h=-7.4600% quote24h=22612794.00
+HYPEUSDT 10s: bars=200 first=2026-11-25T10:49:50Z last=2026-11-25T11:23:00Z close=57.90200000 volume=503.89 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 1m: bars=200 first=2026-11-25T08:04:00Z last=2026-11-25T11:23:00Z close=57.90200000 volume=503.89 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 5m: bars=200 first=2026-11-24T18:45:00Z last=2026-11-25T11:20:00Z close=57.90200000 volume=55391.42 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 15m: bars=200 first=2026-11-23T09:30:00Z last=2026-11-25T11:15:00Z close=57.90200000 volume=106195.26 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 30m: bars=200 first=2026-11-21T07:30:00Z last=2026-11-25T11:00:00Z close=57.90200000 volume=154440.08 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 1h: bars=200 first=2026-11-17T04:00:00Z last=2026-11-25T11:00:00Z close=57.90200000 volume=154440.08 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=57.90200000 volume=3261543.80 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=57.90200000 volume=3261543.80 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=57.90200000 volume=9206264.02 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 7d: bars=101 first=2024-12-19T00:00:00Z last=2026-11-19T00:00:00Z close=57.90200000 volume=218417644.89 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 1w: bars=102 first=2024-12-16T00:00:00Z last=2026-11-23T00:00:00Z close=57.90200000 volume=69595951.16 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT 30d: bars=24 first=2024-12-01T00:00:00Z last=2026-11-01T00:00:00Z close=57.90200000 volume=1085678344.17 spacingOK=true tickerDrift=0.0138%
+HYPEUSDT volume check: mapped=31057.20710000 rawSum=31057.20710000 at 1795605720000
+DOGEUSDT ticker: last=0.05394000 change24h=-2.6700% quote24h=90215518.00
+DOGEUSDT 10s: bars=200 first=2026-11-25T10:49:50Z last=2026-11-25T11:23:00Z close=0.05394000 volume=0.00 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 1m: bars=200 first=2026-11-25T08:04:00Z last=2026-11-25T11:23:00Z close=0.05394000 volume=0.00 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 5m: bars=200 first=2026-11-24T18:45:00Z last=2026-11-25T11:20:00Z close=0.05394000 volume=112296.08 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 15m: bars=200 first=2026-11-23T09:30:00Z last=2026-11-25T11:15:00Z close=0.05394000 volume=220851.44 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 30m: bars=200 first=2026-11-21T07:30:00Z last=2026-11-25T11:00:00Z close=0.05394000 volume=770336.70 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 1h: bars=200 first=2026-11-17T04:00:00Z last=2026-11-25T11:00:00Z close=0.05394000 volume=770336.70 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=0.05394000 volume=12631082.99 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=0.05394000 volume=12631082.99 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=0.05394000 volume=41350146.96 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 7d: bars=200 first=2023-01-26T00:00:00Z last=2026-11-19T00:00:00Z close=0.05394000 volume=673332117.63 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 1w: bars=200 first=2023-01-30T00:00:00Z last=2026-11-23T00:00:00Z close=0.05394000 volume=252245012.51 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT 30d: bars=77 first=2020-07-01T00:00:00Z last=2026-11-01T00:00:00Z close=0.05394000 volume=3157582539.89 spacingOK=true tickerDrift=0.0000%
+DOGEUSDT volume check: mapped=1804.02110000 rawSum=1804.02110000 at 1795605720000
+XAUUSDT ticker: last=3533.50000000 change24h=-2.8400% quote24h=147015939.00
+XAUUSDT 10s: bars=200 first=2026-11-25T10:49:50Z last=2026-11-25T11:23:00Z close=3533.50000000 volume=9574.02 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 1m: bars=200 first=2026-11-25T08:04:00Z last=2026-11-25T11:23:00Z close=3533.50000000 volume=9574.02 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 5m: bars=200 first=2026-11-24T18:45:00Z last=2026-11-25T11:20:00Z close=3533.50000000 volume=172493.04 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 15m: bars=200 first=2026-11-23T09:30:00Z last=2026-11-25T11:15:00Z close=3533.50000000 volume=512786.95 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 30m: bars=200 first=2026-11-21T07:30:00Z last=2026-11-25T11:00:00Z close=3533.50000000 volume=1062952.69 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 1h: bars=200 first=2026-11-17T04:00:00Z last=2026-11-25T11:00:00Z close=3533.50000000 volume=1062952.69 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 4h: bars=200 first=2026-10-23T04:00:00Z last=2026-11-25T08:00:00Z close=3533.50000000 volume=13276998.50 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 8h: bars=200 first=2026-09-20T00:00:00Z last=2026-11-25T08:00:00Z close=3533.50000000 volume=13276998.50 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 1d: bars=200 first=2026-05-10T00:00:00Z last=2026-11-25T00:00:00Z close=3533.50000000 volume=67295550.77 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 7d: bars=46 first=2026-01-08T00:00:00Z last=2026-11-19T00:00:00Z close=3533.50000000 volume=1142638556.82 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 1w: bars=46 first=2026-01-12T00:00:00Z last=2026-11-23T00:00:00Z close=3533.50000000 volume=360893563.98 spacingOK=true tickerDrift=0.0000%
+XAUUSDT 30d: bars=11 first=2026-01-01T00:00:00Z last=2026-11-01T00:00:00Z close=3533.50000000 volume=7464575969.43 spacingOK=true tickerDrift=0.0000%
+XAUUSDT volume check: mapped=79013.11393400 rawSum=79013.11393400 at 1795605720000
+30d small-limit window: bars=3 first=2026-09-02T00:00:00Z dayOfMonth=2 closeOfFirst=2026-10-02T00:00:00Z
+list tickers: 1042 contracts, first=HUMA_USDT last=0.00770000
 non-retained intervals rejected
 PROBE_PASS

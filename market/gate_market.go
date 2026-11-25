@@ -22,8 +22,10 @@ const gateKlineMaxLimit = 2000
 
 // gateRetainedIntervalDurations D25 保留的周期及其时长。
 // 1w 是自然周（周一起算），7d 与 Unix 初始时间对齐；两者时长相同但起点不同。
-// 30d 是自然月（每月 1 日，实测 2026-11 起的 K 线首根为 2026-01-01）：时长按 30 天近似，
-// 每根的 CloseTime 用下一根的开盘时间，最后一根才用 30 天近似。
+// 30d 是自然月：当 limit 覆盖合约全部历史时，首根为每月 1 日 00:00 UTC（2026-11-25 实测
+// limit=200 共 85 根、日期均为 1 号）；更小的 limit 返回非月初窗口（实测 limit=3 为 9/10/11 月
+// 2 日），调用方不能依赖“每根都是月初”。时长按 30 天用于调用方的周期换算；每根 CloseTime
+// 取下一根的开盘时间，最后一根才用 30 天近似（31 天月份会差 1 天，禁止用于精确收线判断）。
 var gateRetainedIntervalDurations = map[string]time.Duration{
 	"10s": 10 * time.Second,
 	"1m":  time.Minute,
@@ -54,9 +56,9 @@ func GateIntervalDuration(interval string) (time.Duration, error) {
 }
 
 // gateCandleGate candlesticks 的线上格式：所有数值字段按 json.Number 读（字符串或数字都能解析）。
+// v（合约张数）不属于交付字段（D6 用 sum 成交额），不在此解析。
 type gateCandleGate struct {
 	T   json.Number `json:"t"`
-	V   json.Number `json:"v"`
 	C   json.Number `json:"c"`
 	H   json.Number `json:"h"`
 	L   json.Number `json:"l"`
@@ -101,9 +103,10 @@ func gateNonNegative(field string, raw json.Number) (float64, error) {
 	return value, nil
 }
 
-// GateKlines 取 Gate USDT 永续合约 K 线，按时间升序返回。
+// GetGateKlines 取 Gate USDT 永续合约 K 线，按时间升序返回。
 // OpenTime/CloseTime 为毫秒；Volume 是成交额（USDT，来自 sum），不是合约张数。
-// CloseTime 取下一根的开盘时间（30d 为自然月，间距 28–31 天）；最后一根用周期时长近似。
+// CloseTime 取下一根的开盘时间（30d 为自然月，间距 28–31 天）；最后一根用周期时长近似
+// （30d 固定 30 天，31 天月份会早 1 天，禁止用于精确收线判断）。
 // 时间戳必须严格递增；OHLC 必须为正且满足 low ≤ open/close ≤ high；sum 必须存在（允许 0）。
 func GetGateKlines(symbol, interval string, limit int) ([]Kline, error) {
 	if strings.TrimSpace(symbol) == "" {
@@ -257,7 +260,9 @@ func GetGateTicker(symbol string) (GateTicker, error) {
 }
 
 // ListGateTickers 取全部 USDT 永续合约的 24h 行情（供 ⑮ 的 24h 行情接口）。
-// 任一条目字段缺失或不可解析即整体失败（fail-closed，不静默丢弃合约）。
+// 任一条目字段缺失或不可解析即整体失败（fail-closed，不静默丢弃合约）；新上架且未成交的
+// 合约若 last 为 0/空，会让整个列表失败，这是 ⑮ 需要评估的边界（2026-11-25 实测 1042 个
+// 合约全部 last>0、字段齐全，未触发）。
 func ListGateTickers() ([]GateTicker, error) {
 	url := fmt.Sprintf("%s/futures/usdt/tickers", gateFuturesBaseURL)
 
