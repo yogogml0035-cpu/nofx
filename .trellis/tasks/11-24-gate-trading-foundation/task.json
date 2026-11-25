@@ -26,7 +26,8 @@
     "11-24-account-equity",
     "11-25-drawdown-monitor",
     "11-25-strategy-config",
-    "11-25-sizing-engine"
+    "11-25-sizing-engine",
+    "11-25-partial-close"
   ],
   "parent": null,
   "relatedFiles": [],
