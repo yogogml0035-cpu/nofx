@@ -3850,6 +3850,8 @@ func isAIServiceFailureError(err error) bool {
 	return strings.Contains(lower, "api returned error") ||
 		strings.Contains(lower, "rate_limit_error") ||
 		strings.Contains(lower, "upstream_empty_output") ||
+		strings.Contains(lower, "truncated before any content") ||
+		strings.Contains(lower, "returned empty content") ||
 		strings.Contains(lower, "insufficient balance") ||
 		strings.Contains(lower, "context deadline exceeded")
 }

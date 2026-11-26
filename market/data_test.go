@@ -397,3 +397,36 @@ func TestIsStaleData_MinuteTimeframeWindow(t *testing.T) {
 		t.Error("15 根 1m 冻结 + 零成交应判为陈旧")
 	}
 }
+
+func TestSymbolKeys(t *testing.T) {
+	tests := []struct {
+		symbol string
+		match  string
+		base   string
+		quote  string
+	}{
+		{"BTCUSDT", "BTCUSDT", "BTC", "USDT"},
+		{"btc/usdt", "BTCUSDT", "BTC", "USDT"},
+		{"BTC-USDT", "BTCUSDT", "BTC", "USDT"},
+		{"BTC_USDT", "BTCUSDT", "BTC", "USDT"},
+		{"BTC-USDT-SWAP", "BTCUSDT", "BTC", "USDT"},
+		{"BTC/USDC", "BTCUSDC", "BTC", "USDC"},
+		{"BTC-USD", "BTCUSD", "BTC", "USD"},
+		{"DOGE", "DOGE", "DOGE", ""},
+		{"XSWAP", "XSWAP", "XSWAP", ""},
+		{"XSWAPUSDT", "XSWAPUSDT", "XSWAP", "USDT"},
+		{"", "", "", ""},
+	}
+
+	for _, tt := range tests {
+		if got := MatchKey(tt.symbol); got != tt.match {
+			t.Errorf("MatchKey(%q) = %q, want %q", tt.symbol, got, tt.match)
+		}
+		if got := BaseSymbol(tt.symbol); got != tt.base {
+			t.Errorf("BaseSymbol(%q) = %q, want %q", tt.symbol, got, tt.base)
+		}
+		if got := QuoteCurrency(tt.symbol); got != tt.quote {
+			t.Errorf("QuoteCurrency(%q) = %q, want %q", tt.symbol, got, tt.quote)
+		}
+	}
+}

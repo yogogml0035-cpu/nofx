@@ -352,8 +352,10 @@ func (at *AutoTrader) runCycle() error {
 		} else {
 			actionRecord.Success = true
 			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("✓ %s %s succeeded", d.Symbol, d.Action))
-			// Brief delay after successful execution
-			time.Sleep(1 * time.Second)
+			// Brief delay after a real exchange action; wait/hold are no-ops.
+			if !decisionHasNoInstrument(d.Action) {
+				time.Sleep(1 * time.Second)
+			}
 		}
 
 		record.Decisions = append(record.Decisions, actionRecord)
@@ -375,25 +377,95 @@ func normalizeUniverseSymbol(symbol string) string {
 // matching. The AI sometimes echoes a candidate as "BTC/USDT", "BTC-USDT",
 // or even just "BTC" instead of the canonical "BTCUSDT" we supplied in the
 // prompt. All of those resolve to the same instrument, so we accept any of
-// them when the base matches an allowed candidate's base.
+// them when the base matches an allowed candidate's base. The rule lives in
+// market.BaseSymbol so validation, execution and position lookup agree.
 func universeBaseKey(symbol string) string {
-	s := strings.ToUpper(strings.TrimSpace(symbol))
-	if s == "" {
-		return ""
-	}
-	// Drop common quote suffixes in order of specificity.
-	for _, suf := range []string{"-USDC", "-USDT", "USDC", "USDT", "USD"} {
-		if strings.HasSuffix(s, suf) && len(s) > len(suf) {
-			s = strings.TrimSuffix(s, suf)
-			break
-		}
-	}
-	return s
+	return market.BaseSymbol(symbol)
+}
+
+// universeQuoteKey identifies an explicit quote currency on the model's symbol.
+func universeQuoteKey(symbol string) string {
+	return market.QuoteCurrency(symbol)
 }
 
 func isOpenDecision(action string) bool {
 	a := strings.ToLower(strings.TrimSpace(action))
 	return a == "open_long" || a == "open_short"
+}
+
+// decisionHasNoInstrument reports actions that operate on the whole portfolio
+// rather than a concrete trading pair. wait/hold legitimately carry an empty
+// symbol or the "ALL" sentinel and must never enter symbol normalization.
+func decisionHasNoInstrument(action string) bool {
+	a := strings.ToLower(strings.TrimSpace(action))
+	return a == "wait" || a == "hold"
+}
+
+// decisionManagesPosition reports actions that operate on an already-open
+// position. Their canonical symbol must come from the position snapshot.
+func decisionManagesPosition(action string) bool {
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "close_long", "close_short", "close_long_partial", "close_short_partial",
+		"update_stop_loss", "update_take_profit":
+		return true
+	}
+	return false
+}
+
+// quoteCompatible reports whether a base-level candidate/position is allowed
+// to absorb a model symbol that named a quote explicitly. "BTC" may resolve to
+// BTCUSDT, but "BTC/USDC" must not be silently rewritten to a USDT pair.
+func quoteCompatible(rawQuote, canonical string) bool {
+	return rawQuote == "" || universeQuoteKey(canonical) == rawQuote
+}
+
+// canonicalUniverseSymbol resolves a decision symbol against the candidate and
+// position universes. It always returns the canonical symbol for the matched
+// instrument, so model variants ("BTC-USDT", "DOGE", "DOGE/USDT") never reach
+// the exchange adapters unchanged. Opens prefer candidates; close/protection
+// actions prefer the position snapshot.
+func canonicalUniverseSymbol(action, exactKey, baseKey, quote string, allowed, allowedBases, positions, positionBases map[string]string) (string, bool) {
+	if decisionManagesPosition(action) {
+		if canonical, ok := positions[exactKey]; ok {
+			return canonical, true
+		}
+		if baseKey != "" {
+			if canonical, ok := positionBases[baseKey]; ok && quoteCompatible(quote, canonical) {
+				return canonical, true
+			}
+		}
+	}
+	if canonical, ok := allowed[exactKey]; ok {
+		return canonical, true
+	}
+	if baseKey != "" {
+		if canonical, ok := allowedBases[baseKey]; ok && quoteCompatible(quote, canonical) {
+			return canonical, true
+		}
+	}
+	if canonical, ok := positions[exactKey]; ok {
+		return canonical, true
+	}
+	if baseKey != "" {
+		if canonical, ok := positionBases[baseKey]; ok && quoteCompatible(quote, canonical) {
+			return canonical, true
+		}
+	}
+	return "", false
+}
+
+func (at *AutoTrader) dropDecision(d kernel.Decision, reason string, onDrop func(string)) {
+	if isOpenDecision(d.Action) {
+		at.logWarnf("🚫 Blocked AI %s for %s: %s", d.Action, d.Symbol, reason)
+		if onDrop != nil {
+			onDrop(fmt.Sprintf("🚫 Blocked %s %s: %s", d.Action, d.Symbol, reason))
+		}
+		return
+	}
+	at.logWarnf("🚫 Dropped AI decision for %s: %s", d.Symbol, reason)
+	if onDrop != nil {
+		onDrop(fmt.Sprintf("🚫 Dropped %s %s: %s", d.Symbol, d.Action, reason))
+	}
 }
 
 func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decision, ctx *kernel.Context) []kernel.Decision {
@@ -407,80 +479,60 @@ func (at *AutoTrader) filterDecisionsToStrategyUniverseWithLog(decisions []kerne
 		return decisions
 	}
 
-	allowed := make(map[string]bool, len(ctx.CandidateCoins))
-	allowedBases := make(map[string]bool, len(ctx.CandidateCoins))
+	allowed := make(map[string]string, len(ctx.CandidateCoins))
+	allowedBases := make(map[string]string, len(ctx.CandidateCoins))
 	for _, coin := range ctx.CandidateCoins {
-		allowed[normalizeUniverseSymbol(coin.Symbol)] = true
+		allowed[normalizeUniverseSymbol(coin.Symbol)] = coin.Symbol
 		if base := universeBaseKey(coin.Symbol); base != "" {
-			allowedBases[base] = true
+			if _, exists := allowedBases[base]; !exists {
+				allowedBases[base] = coin.Symbol
+			}
 		}
 	}
 
-	positions := make(map[string]bool, len(ctx.Positions))
-	positionBases := make(map[string]bool, len(ctx.Positions))
+	positions := make(map[string]string, len(ctx.Positions))
+	positionBases := make(map[string]string, len(ctx.Positions))
 	for _, pos := range ctx.Positions {
-		positions[normalizeUniverseSymbol(pos.Symbol)] = true
+		positions[normalizeUniverseSymbol(pos.Symbol)] = pos.Symbol
 		if base := universeBaseKey(pos.Symbol); base != "" {
-			positionBases[base] = true
+			if _, exists := positionBases[base]; !exists {
+				positionBases[base] = pos.Symbol
+			}
 		}
 	}
 
 	filtered := make([]kernel.Decision, 0, len(decisions))
 	for _, d := range decisions {
-		sym := normalizeUniverseSymbol(d.Symbol)
-		if sym == "" || sym == "ALL" {
+		// wait/hold are portfolio-level no-ops: skip universe checks entirely.
+		// Running their "ALL" sentinel through market.Normalize used to produce
+		// "ALLUSDT" and drop the safety decision as an out-of-universe coin.
+		if decisionHasNoInstrument(d.Action) {
 			filtered = append(filtered, d)
 			continue
 		}
 
-		if allowed[sym] || positions[sym] {
-			filtered = append(filtered, d)
+		rawSymbol := strings.TrimSpace(d.Symbol)
+		if rawSymbol == "" {
+			at.dropDecision(d, "missing symbol", onDrop)
 			continue
 		}
 
-		// Fall back to base-level match so AI outputs like "BTC/USDT" still
-		// resolve to candidate "BTCUSDT". Rewrite the decision's symbol to
-		// the canonical form so downstream order placement works.
-		if base := universeBaseKey(d.Symbol); base != "" {
-			if allowedBases[base] || positionBases[base] {
-				if canonical := canonicalUniverseSymbolForBase(ctx, base); canonical != "" {
-					d.Symbol = canonical
-				}
-				filtered = append(filtered, d)
-				continue
-			}
+		canonical, ok := canonicalUniverseSymbol(
+			d.Action,
+			normalizeUniverseSymbol(rawSymbol),
+			universeBaseKey(rawSymbol),
+			universeQuoteKey(rawSymbol),
+			allowed, allowedBases, positions, positionBases,
+		)
+		if !ok {
+			at.dropDecision(d, "symbol is outside strategy candidate universe", onDrop)
+			continue
 		}
 
-		if isOpenDecision(d.Action) {
-			at.logWarnf("🚫 Blocked AI %s for %s: symbol is outside strategy candidate universe", d.Action, d.Symbol)
-			if onDrop != nil {
-				onDrop(fmt.Sprintf("🚫 Blocked %s %s: symbol is outside strategy candidate universe", d.Action, d.Symbol))
-			}
-		} else {
-			at.logWarnf("🚫 Dropped AI decision for %s: symbol is outside strategy candidate universe", d.Symbol)
-			if onDrop != nil {
-				onDrop(fmt.Sprintf("🚫 Dropped %s %s: symbol is outside strategy candidate universe", d.Symbol, d.Action))
-			}
-		}
+		d.Symbol = canonical
+		filtered = append(filtered, d)
 	}
 	return filtered
-}
-
-// canonicalUniverseSymbolForBase finds the canonical candidate or position
-// symbol that has the given base. Used to rewrite an AI decision's symbol
-// (e.g. "BTC/USDT") to the form our order pipeline expects ("BTCUSDT").
-func canonicalUniverseSymbolForBase(ctx *kernel.Context, base string) string {
-	for _, coin := range ctx.CandidateCoins {
-		if universeBaseKey(coin.Symbol) == base {
-			return coin.Symbol
-		}
-	}
-	for _, pos := range ctx.Positions {
-		if universeBaseKey(pos.Symbol) == base {
-			return pos.Symbol
-		}
-	}
-	return ""
 }
 
 // buildTradingContext builds trading context

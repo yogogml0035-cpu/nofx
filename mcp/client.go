@@ -250,6 +250,12 @@ func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[s
 	} else {
 		requestBody["max_tokens"] = client.MaxTokens
 	}
+	// DeepSeek supports explicit thinking control. Structured trading decisions
+	// carry their analysis in the visible answer, so hidden reasoning would only
+	// consume the shared output budget.
+	if client.Provider == ProviderDeepSeek && client.Cfg.DisableThinking {
+		requestBody["thinking"] = map[string]string{"type": "disabled"}
+	}
 	return requestBody
 }
 
@@ -270,6 +276,25 @@ func (client *Client) ParseMCPResponse(body []byte) (string, error) {
 	return r.Content, nil
 }
 
+// ValidateLLMResponse rejects replies that carry no usable content. A non-empty
+// reply is left alone even when finish_reason is "length": the model may have
+// emitted a complete decision before hitting the cap, and only the consumer
+// knows whether the payload is complete.
+func ValidateLLMResponse(r *LLMResponse) error {
+	if r == nil {
+		return fmt.Errorf("AI returned no response")
+	}
+	if strings.TrimSpace(r.Content) != "" || len(r.ToolCalls) > 0 {
+		return nil
+	}
+	// OpenAI-compatible gateways report "length"; Anthropic reports "max_tokens".
+	if strings.EqualFold(r.FinishReason, "length") || strings.EqualFold(r.FinishReason, "max_tokens") {
+		return fmt.Errorf("AI response truncated before any content (finish_reason=%s); increase the output token budget",
+			r.FinishReason)
+	}
+	return fmt.Errorf("AI returned empty content (finish_reason=%s)", r.FinishReason)
+}
+
 // ParseMCPResponseFull parses the OpenAI-format response body and returns both
 // the text content and any tool calls.
 func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
@@ -280,6 +305,7 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 				ReasoningContent string     `json:"reasoning_content"`
 				ToolCalls        []ToolCall `json:"tool_calls"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 		Usage struct {
 			PromptTokens     int `json:"prompt_tokens"`
@@ -308,11 +334,16 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 	}
 
 	msg := result.Choices[0].Message
-	return &LLMResponse{
+	response := &LLMResponse{
 		Content:          msg.Content,
 		ReasoningContent: msg.ReasoningContent,
 		ToolCalls:        msg.ToolCalls,
-	}, nil
+		FinishReason:     result.Choices[0].FinishReason,
+	}
+	if err := ValidateLLMResponse(response); err != nil {
+		return nil, err
+	}
+	return response, nil
 }
 
 func (client *Client) BuildUrl() string {
@@ -674,6 +705,9 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 	} else {
 		// If not set in Request, use Client's MaxTokens
 		requestBody[tokenKey] = client.MaxTokens
+	}
+	if client.Provider == ProviderDeepSeek && client.Cfg.DisableThinking {
+		requestBody["thinking"] = map[string]string{"type": "disabled"}
 	}
 
 	if req.TopP != nil {

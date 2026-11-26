@@ -3,6 +3,7 @@ package mcp
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -421,4 +422,146 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// ============================================================
+// Response finish-state validation
+// ============================================================
+
+func TestDefaultConfig_ReasoningBudget(t *testing.T) {
+	t.Setenv("AI_MAX_TOKENS", "")
+
+	client := NewClient().(*Client)
+	if client.MaxTokens != 8000 {
+		t.Fatalf("default output budget must fit reasoning + decision, got %d", client.MaxTokens)
+	}
+	body := client.Hooks.BuildMCPRequestBody("system", "user")
+	if got := body["max_tokens"]; got != 8000 {
+		t.Fatalf("request body must carry the default budget, got %v", got)
+	}
+}
+
+func TestBuildMCPRequestBody_ThinkingDisabledForDeepSeek(t *testing.T) {
+	client := NewClient(
+		WithProvider(ProviderDeepSeek),
+		WithDisableThinking(true),
+	).(*Client)
+
+	body := client.BuildMCPRequestBody("system", "user")
+	thinking, ok := body["thinking"].(map[string]string)
+	if !ok {
+		t.Fatalf("thinking field missing: %#v", body["thinking"])
+	}
+	if thinking["type"] != "disabled" {
+		t.Fatalf("thinking must be disabled, got %#v", thinking)
+	}
+}
+
+func TestBuildMCPRequestBody_ThinkingOmittedByDefault(t *testing.T) {
+	client := NewClient(WithProvider(ProviderDeepSeek)).(*Client)
+
+	body := client.BuildMCPRequestBody("system", "user")
+	if _, ok := body["thinking"]; ok {
+		t.Fatal("thinking must not be sent unless explicitly disabled")
+	}
+}
+
+func TestBuildMCPRequestBody_ThinkingNotSentToOtherProviders(t *testing.T) {
+	client := NewClient(
+		WithProvider(ProviderOpenAI),
+		WithDisableThinking(true),
+	).(*Client)
+
+	body := client.BuildMCPRequestBody("system", "user")
+	if _, ok := body["thinking"]; ok {
+		t.Fatal("thinking is a DeepSeek-specific request field")
+	}
+}
+
+func TestParseMCPResponse_TruncatedResponseIsError(t *testing.T) {
+	client := NewClient(WithMaxTokens(2000), WithProvider(ProviderDeepSeek)).(*Client)
+	body := []byte(`{
+		"choices": [{
+			"message": {"content": "", "reasoning_content": "still thinking"},
+			"finish_reason": "length"
+		}],
+		"usage": {"completion_tokens": 2000}
+	}`)
+
+	_, err := client.ParseMCPResponse(body)
+	if err == nil {
+		t.Fatal("truncated response must not be accepted")
+	}
+	if !strings.Contains(err.Error(), "truncated") || !strings.Contains(err.Error(), "output token budget") {
+		t.Fatalf("error must explain the missing output budget, got: %v", err)
+	}
+}
+
+func TestParseMCPResponse_TruncatedAfterCompleteContentIsAccepted(t *testing.T) {
+	client := NewClient().(*Client)
+	body := []byte(`{
+		"choices": [{
+			"message": {"content": "<reasoning>done</reasoning><decision>[]</decision> trailing"},
+			"finish_reason": "length"
+		}]
+	}`)
+
+	content, err := client.ParseMCPResponse(body)
+	if err != nil {
+		t.Fatalf("a complete payload must survive a trailing length stop: %v", err)
+	}
+	if !strings.Contains(content, "<decision>[]</decision>") {
+		t.Fatalf("unexpected content: %q", content)
+	}
+}
+
+func TestParseMCPResponse_EmptyContentIsError(t *testing.T) {
+	client := NewClient().(*Client)
+	body := []byte(`{
+		"choices": [{"message": {"content": ""}, "finish_reason": "stop"}]
+	}`)
+
+	_, err := client.ParseMCPResponse(body)
+	if err == nil {
+		t.Fatal("empty content must not be accepted as a valid reply")
+	}
+	if !strings.Contains(err.Error(), "empty content") {
+		t.Fatalf("error must identify the empty reply, got: %v", err)
+	}
+}
+
+func TestParseMCPResponse_ToolCallsMayHaveEmptyContent(t *testing.T) {
+	client := NewClient().(*Client)
+	body := []byte(`{
+		"choices": [{
+			"message": {
+				"content": "",
+				"tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_price", "arguments": "{}"}}]
+			},
+			"finish_reason": "tool_calls"
+		}]
+	}`)
+
+	resp, err := client.ParseMCPResponseFull(body)
+	if err != nil {
+		t.Fatalf("tool-call response must stay valid: %v", err)
+	}
+	if len(resp.ToolCalls) != 1 {
+		t.Fatalf("expected one tool call, got %d", len(resp.ToolCalls))
+	}
+}
+
+func TestParseMCPResponse_CompleteContentIsAccepted(t *testing.T) {
+	client := NewClient().(*Client)
+	body := []byte(`{
+		"choices": [{"message": {"content": "<decision>[]</decision>"}, "finish_reason": "stop"}]
+	}`)
+
+	content, err := client.ParseMCPResponse(body)
+	if err != nil {
+		t.Fatalf("complete response must be accepted: %v", err)
+	}
+	if content != "<decision>[]</decision>" {
+		t.Fatalf("unexpected content: %q", content)
+	}
 }

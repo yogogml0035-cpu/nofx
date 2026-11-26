@@ -862,6 +862,8 @@ func aiServiceFailureGuidance(lang, reason string) string {
 		strings.Contains(lower, "<!doctype html")
 	looksLikeUpstreamEmptyOutput := strings.Contains(lower, "upstream_empty_output") ||
 		(strings.Contains(lower, "empty output") && strings.Contains(lower, "rate_limit_error"))
+	looksLikeOutputBudget := strings.Contains(lower, "truncated before any content") ||
+		strings.Contains(lower, "returned empty content")
 	looksLikeRateLimit := strings.Contains(lower, "status 429") ||
 		strings.Contains(lower, "rate limit") ||
 		strings.Contains(lower, "rate_limit_error")
@@ -884,6 +886,9 @@ func aiServiceFailureGuidance(lang, reason string) string {
 		if looksLikeAuthFailure {
 			return "这不是“未配置模型”。当前启用模型已经连到了上游，但鉴权失败了。请检查当前启用模型的 API Key、provider 账号状态和 custom_api_url 是否匹配；修复凭证或切换到另一个可用模型后再试。"
 		}
+		if looksLikeOutputBudget {
+			return "这不是“未配置模型”或“余额不足”。模型调用已经完成，但正文为空或在正文前就被截断，通常是思考 token 耗尽了输出预算（finish_reason=length/max_tokens），或上游返回了空 content。请检查该模型/请求的输出上限（AI_MAX_TOKENS 或请求级 max_tokens），必要时降低输入规模（币种、周期、K 线根数）或换用非思考模型。"
+		}
 		if looksLikeUpstreamEmptyOutput {
 			return "这不是“未配置模型”。这次更像是上游模型没有返回有效内容，当前 provider 把它包装成了 429 / rate_limit_error。更可能原因是上游临时限流、服务拥塞、模型空响应，或 provider 网关没有拿到有效结果；不应优先归因成“余额不足”。请先重试一次；如果持续出现，再检查当前启用模型的 provider 状态、限流配额、网关日志，或先切换到另一个可用模型。"
 		}
@@ -900,6 +905,9 @@ func aiServiceFailureGuidance(lang, reason string) string {
 	}
 	if looksLikeAuthFailure {
 		return "This is not a missing-model issue. The active model reached the upstream provider, but authentication failed. Check the active model API key, provider account status, and custom_api_url, or switch to another enabled model."
+	}
+	if looksLikeOutputBudget {
+		return "This is not a missing-model or insufficient-balance issue. The model call completed, but the reply was empty or was cut off before any content. The likely cause is that reasoning tokens exhausted the output budget (finish_reason=length/max_tokens), or the upstream returned an empty content field. Check the model/request output limit (AI_MAX_TOKENS or the request-level max_tokens), reduce the input size (coins, timeframes, K-line count), or switch to a non-thinking model."
 	}
 	if looksLikeUpstreamEmptyOutput {
 		return "This is not a missing-model issue. The upstream model appears to have returned no usable output, and the provider wrapped it as a 429 / rate_limit_error. The more likely causes are temporary throttling, upstream congestion, an empty model response, or a gateway that did not receive a valid result. Do not treat this as an insufficient-balance issue first. Retry once, then check the active provider status, rate limits, gateway logs, or switch to another model."
