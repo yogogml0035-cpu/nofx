@@ -336,7 +336,7 @@ StrategyConfig fields:
   coin_source.static_coins: ["BTCUSDT","ETHUSDT"] — hand-picked Gate USDT perpetual symbols (the only coin source)
   coin_source.excluded_coins: coins to filter out from the candidate list
   indicators.klines.primary_timeframe: "10s"|"1m"|"5m"|"15m"|"30m"|"1h"|"4h"|"8h"|"1d"|"7d"|"1w"|"30d" (Gate candlestick intervals; D25) — scalping→"5m", trend/swing→"1h"/"4h"
-  indicators.klines.primary_count: number of candles (20-100)
+  indicators.klines.primary_count: number of candles (10-2000, Gate per-query ceiling)
   indicators.klines.enable_multi_timeframe: true for trend/swing analysis
   indicators.klines.selected_timeframes: e.g. ["5m","15m","1h","4h"]
   indicators.enable_raw_klines: ALWAYS true (raw OHLCV required)

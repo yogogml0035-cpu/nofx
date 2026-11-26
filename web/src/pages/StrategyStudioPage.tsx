@@ -128,7 +128,7 @@ export function StrategyStudioPage() {
   // Accordion states for left panel
   const [expandedSections, setExpandedSections] = useState({
     gridConfig: true,
-    coinSource: true,
+    coinSource: false,
     marketContext: false,
     indicators: false,
     riskControl: false,
@@ -561,9 +561,20 @@ export function StrategyStudioPage() {
           }),
         }
       )
-      if (!response.ok) throw new Error('Failed to save strategy')
+      let payload: { error?: string; warnings?: string[] } | null = null
+      try {
+        payload = await response.json()
+      } catch {
+        payload = null
+      }
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to save strategy')
+      }
       setHasChanges(false)
       notify.success(tr('strategySaved'))
+      if (Array.isArray(payload?.warnings) && payload.warnings.length > 0) {
+        notify.warning(payload.warnings.join('；'))
+      }
       await fetchStrategies()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')

@@ -172,8 +172,8 @@
     "primary_count": {
       "type": "int",
       "min": 10,
-      "max": 30,
-      "description": "主周期 K 线样本数量，手动页面范围 10～30。"
+      "max": 2000,
+      "description": "主周期 K 线样本数量，手动页面范围 10～2000（上限为 Gate candlesticks 单次查询上限）。"
     },
     "enable_ema": {
       "type": "bool",
