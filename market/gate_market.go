@@ -4,7 +4,7 @@ package market
 // 成交量口径是成交额（sum，USDT），不是合约张数（D6）；周期只用 D25 的保留集合。
 // 公开行情无需认证；接口字段以 Gate 官方 Go SDK v7.2.184 的模型为准（文档站本机不可达）：
 // FuturesCandlestick{t,v,c,h,l,o,sum} 与 FuturesTicker{contract,last,change_percentage,volume_24h_quote}。
-// 接入方（⑬ 引擎、⑭ 图表、⑮ 助手）在后续子任务替换旧路径；本文件不修改任何现有调用方。
+// 引擎、图表、助手与调度都只从这里取 K 线与 ticker；取数经 gate_cache.go 的短 TTL 缓存与并发合并。
 
 import (
 	"encoding/json"
@@ -114,14 +114,30 @@ func GetGateKlines(symbol, interval string, limit int) ([]Kline, error) {
 	if strings.TrimSpace(symbol) == "" {
 		return nil, fmt.Errorf("gate kline symbol is empty")
 	}
-	duration, err := GateIntervalDuration(interval)
-	if err != nil {
+	if _, err := GateIntervalDuration(interval); err != nil {
 		return nil, err
 	}
 	if limit < 1 || limit > gateKlineMaxLimit {
 		return nil, fmt.Errorf("gate kline limit must be in [1, %d], got %d", gateKlineMaxLimit, limit)
 	}
 	contract := toGateContractSymbol(symbol)
+	// 缓存 key 含 limit：不同的截取长度各自缓存；返回的切片按只读对待（QuoteVolume 已在此填好）。
+	key := fmt.Sprintf("klines|%s|%s|%d", contract, interval, limit)
+	cached, err := gateCached(key, gateKlineCacheTTL(interval, limit), func() (any, error) {
+		return fetchGateKlines(contract, interval, limit)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cached.([]Kline), nil
+}
+
+// fetchGateKlines 真正访问 Gate 的 K 线取数。
+func fetchGateKlines(contract, interval string, limit int) ([]Kline, error) {
+	duration, err := GateIntervalDuration(interval)
+	if err != nil {
+		return nil, err
+	}
 	// Gate 的 30d 小 limit 返回非月初窗口，并夹杂无成交的占位根（2026-11-25 实测：0.1268 / v=0 /
 	// sum=0）；用全历史上限拉取后再截取最后 limit 根，保证月初对齐与真实读数。1w/7d 小 limit 正常。
 	requestLimit := limit
@@ -185,12 +201,13 @@ func GetGateKlines(symbol, interval string, limit int) ([]Kline, error) {
 
 		openMillis := seconds * 1000
 		klines = append(klines, Kline{
-			OpenTime: openMillis,
-			Open:     open,
-			High:     high,
-			Low:      low,
-			Close:    closePrice,
-			Volume:   volume, // 成交额（USDT）
+			OpenTime:    openMillis,
+			Open:        open,
+			High:        high,
+			Low:         low,
+			Close:       closePrice,
+			Volume:      volume, // 成交额（USDT）
+			QuoteVolume: volume, // USDT 永续的计价成交量就是成交额；缓存切片不可被调用方原地改写
 		})
 	}
 	for i := range klines {
@@ -306,6 +323,18 @@ func GetGateContractMetrics(symbol string) (GateContractMetrics, error) {
 		return GateContractMetrics{}, fmt.Errorf("gate contract metrics symbol is empty")
 	}
 	contract := toGateContractSymbol(symbol)
+	key := "metrics|" + contract
+	cached, err := gateCached(key, 10*time.Second, func() (any, error) {
+		return fetchGateContractMetrics(contract)
+	})
+	if err != nil {
+		return GateContractMetrics{}, err
+	}
+	return cached.(GateContractMetrics), nil
+}
+
+// fetchGateContractMetrics 真正访问 Gate 的合约指标取数。
+func fetchGateContractMetrics(contract string) (GateContractMetrics, error) {
 	var row gateContractGate
 	url := fmt.Sprintf("%s/futures/usdt/contracts/%s", gateFuturesBaseURL, contract)
 	if err := getGateJSON(url, &row); err != nil {
@@ -329,7 +358,7 @@ func GetGateContractMetrics(symbol string) (GateContractMetrics, error) {
 	}
 
 	// 只解析持仓量（资金费率取自已单独读取的合约接口，不因 stats 里该字段异常而失败）
-	stats, statsContract, err := fetchGateContractStats(symbol)
+	stats, statsContract, err := fetchGateContractStats(contract)
 	if err != nil {
 		return GateContractMetrics{}, fmt.Errorf("gate open interest for %s: %w", contract, err)
 	}
@@ -352,6 +381,17 @@ func GetGateTicker(symbol string) (GateTicker, error) {
 		return GateTicker{}, fmt.Errorf("gate ticker symbol is empty")
 	}
 	contract := toGateContractSymbol(symbol)
+	cached, err := gateCached("ticker|"+contract, 10*time.Second, func() (any, error) {
+		return fetchGateTicker(contract)
+	})
+	if err != nil {
+		return GateTicker{}, err
+	}
+	return cached.(GateTicker), nil
+}
+
+// fetchGateTicker 真正访问 Gate 的单合约行情取数。
+func fetchGateTicker(contract string) (GateTicker, error) {
 	url := fmt.Sprintf("%s/futures/usdt/tickers?contract=%s", gateFuturesBaseURL, contract)
 
 	var rows []gateTickerGate
@@ -371,6 +411,17 @@ func GetGateTicker(symbol string) (GateTicker, error) {
 // 单条合约字段缺失/不可解析（如新上架未成交的 last=0）时跳过该条并记录数量，避免一个异常
 // 合约让整个列表不可用；全部条目都不可解析时才返回错误（fail-closed）。
 func ListGateTickers() ([]GateTicker, error) {
+	cached, err := gateCached("tickers", 10*time.Second, func() (any, error) {
+		return fetchGateTickers()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cached.([]GateTicker), nil
+}
+
+// fetchGateTickers 真正访问 Gate 的全量行情取数。
+func fetchGateTickers() ([]GateTicker, error) {
 	url := fmt.Sprintf("%s/futures/usdt/tickers", gateFuturesBaseURL)
 
 	var rows []gateTickerGate
@@ -414,7 +465,7 @@ func getGateJSON(url string, out interface{}) error {
 		return fmt.Errorf("read body failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("returned status %d: %s", resp.StatusCode, errorBodySnippet(body))
+		return classifyGateError(resp.StatusCode, resp.Header, body)
 	}
 	if err := json.Unmarshal(body, out); err != nil {
 		return fmt.Errorf("decode failed: %w", err)

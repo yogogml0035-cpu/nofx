@@ -96,7 +96,7 @@ Final Prompt = Your Custom Strategy (Complete Replacement)
 
 ### How Prompts Work
 
-NoFx builds a message containing market data every 3 minutes to send to the AI:
+NoFx builds a message containing market data after each close of the strategy's primary timeframe (5 seconds after the candle close) and sends it to the AI:
 
 ```mermaid
 graph LR
@@ -354,7 +354,7 @@ Adjust strategy based on Sharpe Ratio:
 - Sharpe < -0.5: Stop trading, observe for at least 18 minutes
 - Sharpe -0.5~0: Only trade confidence >80
 - Sharpe 0~0.7: Maintain current strategy
-- Sharpe > 0.7: Can moderately raise the position percent (the system sizes notional from principal × percent)
+- Sharpe > 0.7: Keep the current pace; the position percent is a strategy setting sized by the system (principal × percent) and is not adjusted by the AI
 ```
 
 ---
@@ -607,7 +607,7 @@ If P&L Amount drawdown from Peak % exceeds 40%, immediately reduce 50% position
 Sharpe < -0.5: Stop trading, observe continuously for at least 30 minutes
 Sharpe -0.5~0: Only trade confidence ≥ 90
 Sharpe 0~1: Maintain current strategy
-Sharpe > 1: Can moderately raise the position percent to 8%
+Sharpe > 1: Keep the current pace; the position percent is a strategy setting (currently 5%) sized by the system, not adjusted by the AI
 
 # Decision Process
 
@@ -679,7 +679,7 @@ This means:
 - Overtrading, fee erosion → Direct losses
 - Early exits, frequent in/out → Miss major moves
 
-Key insight: System scans every 3 minutes, but doesn't mean trade every time!
+Key insight: The system decides after each close of the strategy's primary timeframe, but doesn't mean trade every time!
 Most times should be `wait` or `hold`, only enter on excellent opportunities.
 
 # Trading Philosophy & Best Practices
@@ -692,7 +692,7 @@ Discipline over emotion: Execute exit plan, don't arbitrarily move stops or targ
 
 Quality over quantity: Few high-conviction trades beat many low-conviction ones
 
-Adapt to volatility: Adjust the position percent based on market conditions (the system computes the amount from principal × percent)
+Adapt to volatility: In volatile markets raise entry standards and trade less often (the position percent is a strategy setting and is not adjusted by the AI)
 
 Respect trends: Don't fight strong trends
 
@@ -760,7 +760,7 @@ Sharpe 0 ~ 0.7 (positive returns):
   → Maintain current strategy
 
 Sharpe > 0.7 (excellent performance):
-  → Can moderately raise the position percent
+  → Keep the current pace and wait for the next setup that meets the standards
 
 Key: Sharpe Ratio is the only metric, naturally punishes frequent trading and excessive entries/exits.
 
@@ -876,9 +876,9 @@ P&L Amount drawdown from Peak % exceeds 60%, close all
 # Sharpe Ratio Adjustment
 
 Sharpe < -0.5: Pause trading 15 minutes
-Sharpe -0.5~0: Lower the position percent to 8%
+Sharpe -0.5~0: Raise entry standards and trade less often (the position percent is a strategy setting, not adjusted by the AI)
 Sharpe 0~0.7: Maintain current strategy
-Sharpe > 0.7: Stay aggressive, can full position
+Sharpe > 0.7: Stay aggressive and keep looking for entries that meet the standards (the system sizes every position from the strategy settings)
 
 # Special Strategies
 

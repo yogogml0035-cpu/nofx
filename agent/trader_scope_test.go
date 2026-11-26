@@ -610,10 +610,10 @@ func TestStrategyUpdateDoesNotInferTargetFromCurrentReference(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	if err := st.Strategy().Create(&store.Strategy{
-		ID:      "strategy-short",
-		UserID:  "default",
-		Name:    "BTC趋势做空",
-		Config:  string(rawCfg),
+		ID:     "strategy-short",
+		UserID: "default",
+		Name:   "BTC趋势做空",
+		Config: string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -669,10 +669,10 @@ func TestBulkStrategyDeleteRequiresConfirmationBeforeDeleting(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	if err := st.Strategy().Create(&store.Strategy{
-		ID:      "strategy-custom",
-		UserID:  "default",
-		Name:    "自定义策略",
-		Config:  string(rawCfg),
+		ID:     "strategy-custom",
+		UserID: "default",
+		Name:   "自定义策略",
+		Config: string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -919,6 +919,33 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 	}
 	if cfg.RiskControl.PositionPercent != 15 {
 		t.Fatalf("expected stored position_percent 15, got %v", cfg.RiskControl.PositionPercent)
+	}
+}
+
+func TestApplyStrategyConfigPatchRejectsUnsupportedTimeframes(t *testing.T) {
+	cfg := store.GetDefaultStrategyConfig("zh")
+
+	// 已废弃的周期必须被拒绝并带出 D25 清单，不能静默写入后被归一化成空串
+	if err := applyStrategyConfigPatch(&cfg, "primary_timeframe", "3m"); err == nil {
+		t.Fatal("expected primary_timeframe 3m to be rejected")
+	} else if !strings.Contains(err.Error(), "10s") || !strings.Contains(err.Error(), "30d") {
+		t.Fatalf("expected the retained timeframe list in the error, got: %v", err)
+	}
+	if err := applyStrategyConfigPatch(&cfg, "selected_timeframes", "5m,3m"); err == nil {
+		t.Fatal("expected selected_timeframes containing 3m to be rejected")
+	}
+
+	// 保留集合内的值与别名可用
+	for _, value := range []string{"10s", "7d", "30d", "1小时"} {
+		if err := applyStrategyConfigPatch(&cfg, "primary_timeframe", value); err != nil {
+			t.Fatalf("expected primary_timeframe %s to be accepted, got: %v", value, err)
+		}
+	}
+	if err := applyStrategyConfigPatch(&cfg, "selected_timeframes", "5m, 15m, 1h, 4h"); err != nil {
+		t.Fatalf("expected retained selected_timeframes to be accepted, got: %v", err)
+	}
+	if got := strings.Join(cfg.Indicators.Klines.SelectedTimeframes, ","); got != "5m,15m,1h,4h" {
+		t.Fatalf("expected trimmed selected_timeframes, got %q", got)
 	}
 }
 
@@ -1359,8 +1386,8 @@ func TestStrategyCreateConfirmationForcesExecutionWithoutPriorPromptPhrase(t *te
 			},
 			"indicators": map[string]any{
 				"klines": map[string]any{
-					"primary_timeframe":   "3m",
-					"selected_timeframes": []any{"3m", "5m", "15m"},
+					"primary_timeframe":   "5m",
+					"selected_timeframes": []any{"5m", "15m", "1h"},
 				},
 			},
 			"risk_control": map[string]any{
@@ -1634,7 +1661,7 @@ func TestStrategyCreateConfigPatchReplyUsesStructuredMissingFields(t *testing.T)
 		t.Fatalf("create store: %v", err)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
-	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"我建议按高频但稳健来填：主周期 3m，多周期 3m/5m/15m，BTC/ETH 3倍，山寨币 2倍。确认的话我会继续整理完整模板。","extracted_data":{"config_patch":{"strategy_type":"ai_trading","ai_config":{"indicators":{"klines":{"primary_timeframe":"3m","selected_timeframes":["3m","5m","15m"]}}}}}}`})
+	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"我建议按高频但稳健来填：主周期 5m，多周期 5m/15m/1h，BTC/ETH 3倍，山寨币 2倍。确认的话我会继续整理完整模板。","extracted_data":{"config_patch":{"strategy_type":"ai_trading","ai_config":{"indicators":{"klines":{"primary_timeframe":"5m","selected_timeframes":["5m","15m","1h"]}}}}}}`})
 
 	session := ActiveSkillSession{
 		UserID:     42,
@@ -1679,7 +1706,7 @@ func TestStrategyCreateFirstStageConfigProgressUsesStructuredMissingFields(t *te
 		t.Fatalf("create store: %v", err)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
-	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"收到，静态币种和最低置信度 80 是你指定的；其他我建议按高频稳健来定：主周期 3m，多周期 3m/5m/15m，BTC/ETH 3倍，山寨币 2倍，最小盈亏比 2。","extracted_data":{}}`})
+	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"收到，静态币种和最低置信度 80 是你指定的；其他我建议按高频稳健来定：主周期 5m，多周期 5m/15m/1h，BTC/ETH 3倍，山寨币 2倍，最小盈亏比 2。","extracted_data":{}}`})
 
 	session := ActiveSkillSession{
 		UserID:     42,

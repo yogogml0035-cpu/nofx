@@ -176,6 +176,10 @@ export function TraderConfigModal({
   }
 
   const selectedStrategy = strategies.find(s => s.id === formData.strategy_id)
+  // 决策按策略主周期收线后 5 秒触发（D17）；扫描间隔只在主周期无效时回退生效
+  const cadenceTimeframe = selectedStrategy?.config?.indicators?.klines?.primary_timeframe
+    || selectedStrategy?.config?.indicators?.klines?.selected_timeframes?.[0]
+    || ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
@@ -431,6 +435,16 @@ export function TraderConfigModal({
                   <p className="text-xs text-gray-500 mt-1">
                     {t('scanIntervalRecommend', language)}
                   </p>
+                  {cadenceTimeframe && (
+                    <p className="text-xs text-[#F0B90B] mt-1" data-testid="trader-scan-cadence">
+                      {t('scanCadence', language, { timeframe: cadenceTimeframe })}
+                    </p>
+                  )}
+                  {cadenceTimeframe && ['10s', '1m'].includes(cadenceTimeframe) && (
+                    <p className="text-xs text-amber-400 mt-1">
+                      {t('scanCadenceCost', language)}
+                    </p>
+                  )}
                 </div>
               </div>
 

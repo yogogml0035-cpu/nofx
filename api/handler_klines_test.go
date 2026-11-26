@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -65,7 +66,8 @@ func TestHandleKlinesCryptoUsesGateAndIgnoresExchange(t *testing.T) {
 			var calls []klineCall
 			overrideCryptoKlines(t, func(symbol, interval string, limit int) ([]market.Kline, error) {
 				calls = append(calls, klineCall{symbol: symbol, interval: interval, limit: limit})
-				return []market.Kline{{OpenTime: 1700000000000, Open: 0.05, High: 0.06, Low: 0.04, Close: 0.0543, Volume: 12345.6, CloseTime: 1700000300000}}, nil
+				// QuoteVolume 在取数层填好（缓存切片不可原地改写），handler 不再改写返回值
+				return []market.Kline{{OpenTime: 1700000000000, Open: 0.05, High: 0.06, Low: 0.04, Close: 0.0543, Volume: 12345.6, QuoteVolume: 12345.6, CloseTime: 1700000300000}}, nil
 			})
 			s := newKlinesTestServer(t)
 			rec := doKlinesRequest(t, s, c.query)
@@ -141,4 +143,33 @@ func TestHandleKlinesRejectsNonRetainedInterval(t *testing.T) {
 		assert.Equalf(t, http.StatusBadRequest, rec.Code, "interval %s must be rejected", interval)
 	}
 	assert.False(t, called, "invalid intervals must not reach the data source")
+}
+
+// Gate 公共接口按 IP 限频：上游 429 是暂时不可用（503 + Retry-After），不是 500；
+// 未知合约是客户端参数错误（404）。
+func TestHandleKlinesMapsGateErrors(t *testing.T) {
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantHeader string
+	}{
+		{"rate limited", fmt.Errorf("gate candlesticks X 5m: %w", &market.GateRateLimitError{Body: "too many"}),
+			http.StatusServiceUnavailable, "1"},
+		{"unknown contract", fmt.Errorf("gate candlesticks NOPE_USDT 5m: %w", market.ErrGateContractNotFound),
+			http.StatusNotFound, ""},
+		{"other upstream error", errors.New("gate candlesticks returned status 502"),
+			http.StatusInternalServerError, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			overrideCryptoKlines(t, func(symbol, interval string, limit int) ([]market.Kline, error) {
+				return nil, c.err
+			})
+			s := newKlinesTestServer(t)
+			rec := doKlinesRequest(t, s, "?symbol=NOPEUSDT&interval=5m&limit=10")
+			require.Equal(t, c.wantStatus, rec.Code)
+			assert.Equal(t, c.wantHeader, rec.Header().Get("Retry-After"))
+		})
+	}
 }

@@ -1,8 +1,8 @@
 package gate
 
 // 保护单适配：仓位级止损止盈构造、随单附带止盈止损、条件单查询/挂单/改单/撤销。
-// 纯新增，不接入交易路径；旧的 SetStopLoss/SetTakeProfit 触发规则四个方向与 Gate 文档
-// 相反（计划文档 F6），由子任务 4 在接入时删除，本文件是语义修正后的新实现。
+// 随单保护由开仓路径（protected_open.go）提交并在成交后核对；修改止损止盈走
+// protection_management.go 的「挂新→核对→撤旧→核对」。
 // 文档依据见子任务 research/gate-price-order-docs.md。
 
 import (

@@ -218,7 +218,10 @@ func (a *Agent) resolveTradeExecutionContext(trade *TradeAction) (bool, tradeSel
 		return false, nil, nil, fmt.Errorf("no traders configured")
 	}
 
-	wantStock := isStockSymbol(trade.Symbol)
+	wantStock := a.resolveStockSymbol(trade.Symbol)
+	if !wantStock && !strings.HasSuffix(strings.ToUpper(trade.Symbol), "USDT") {
+		trade.Symbol += "USDT"
+	}
 	for _, t := range traders {
 		s := t.GetStatus()
 		running, _ := s["is_running"].(bool)
@@ -348,8 +351,7 @@ func validateTradeAction(
 		return fmt.Errorf("position value %.2f USDT is below configured minimum %.2f USDT", positionValue, minPositionSize)
 	}
 
-	// The old equity×position-value-ratio cap is gone with the percent-based
-	// sizing (D18/D22/D23); engine-enforced amounts land in plan step 9.
+	// 仓位金额由策略的 position_percent（本金 × 百分比）决定，助手下单只检查不低于最小开仓金额。
 	return nil
 }
 

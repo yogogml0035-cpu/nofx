@@ -158,6 +158,17 @@ type FullDecision struct {
 	RawResponse         string     `json:"raw_response"`
 	Timestamp           time.Time  `json:"timestamp"`
 	AIRequestDurationMs int64      `json:"ai_request_duration_ms,omitempty"`
+	// Rejected lists decisions the validator dropped in this round (per-decision
+	// rejection): the remaining Decisions are valid and still execute.
+	Rejected []RejectedDecision `json:"rejected_decisions,omitempty"`
+}
+
+// RejectedDecision records why one model decision was dropped without failing the round.
+type RejectedDecision struct {
+	Index  int    `json:"index"`
+	Symbol string `json:"symbol"`
+	Action string `json:"action"`
+	Reason string `json:"reason"`
 }
 
 // ============================================================================

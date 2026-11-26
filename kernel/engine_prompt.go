@@ -233,16 +233,16 @@ func writeHardConstraints(sb *strings.Builder, principal float64, riskControl st
 		}
 	} else {
 		if zh {
-			sb.WriteString(fmt.Sprintf("- 交易杠杆: 山寨币/股票 最高 %dx | BTC/ETH 最高 %dx\n", riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
+			sb.WriteString(fmt.Sprintf("- 交易杠杆: 山寨币最高 %dx | BTC/ETH 最高 %dx\n", riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
 		} else {
-			sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoin/Stock max %dx | BTC/ETH max %dx\n", riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
+			sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoin max %dx | BTC/ETH max %dx\n", riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
 		}
 	}
 	if zh {
-		sb.WriteString(fmt.Sprintf("- 风险回报比: ≥1:%.1f (take_profit / stop_loss)\n", riskControl.MinRiskRewardRatio))
+		sb.WriteString(fmt.Sprintf("- 风险回报比: ≥1:%.1f (收益 ÷ 风险 = 入场到止盈的距离 ÷ 入场到止损的距离；由你把握，代码不强制)\n", riskControl.MinRiskRewardRatio))
 		sb.WriteString(fmt.Sprintf("- 最小置信度: ≥%d 才开仓\n\n", riskControl.MinConfidence))
 	} else {
-		sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss)\n", riskControl.MinRiskRewardRatio))
+		sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (reward ÷ risk = distance to take profit ÷ distance to stop loss; your call, not code-enforced)\n", riskControl.MinRiskRewardRatio))
 		sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
 	}
 
@@ -367,19 +367,26 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder, zh bool) 
 	}
 
 	if zh {
+		// 多周期取数用的是 SelectedTimeframes（kernel/engine_analysis.go），不是 LongerTimeframe
+		multi := strings.Join(kline.SelectedTimeframes, "/")
+		if multi == "" && kline.EnableMultiTimeframe {
+			multi = kline.LongerTimeframe
+		}
 		sb.WriteString(fmt.Sprintf("- %s 价格序列", kline.PrimaryTimeframe))
-		if kline.EnableMultiTimeframe {
-			sb.WriteString(fmt.Sprintf(" + %s K 线序列\n", kline.LongerTimeframe))
-		} else {
-			sb.WriteString("\n")
+		if multi != "" {
+			sb.WriteString(fmt.Sprintf(" + %s K 线序列", multi))
 		}
+		sb.WriteString("\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("- %s price series", kline.PrimaryTimeframe))
-		if kline.EnableMultiTimeframe {
-			sb.WriteString(fmt.Sprintf(" + %s K-line series\n", kline.LongerTimeframe))
-		} else {
-			sb.WriteString("\n")
+		multi := strings.Join(kline.SelectedTimeframes, "/")
+		if multi == "" && kline.EnableMultiTimeframe {
+			multi = kline.LongerTimeframe
 		}
+		sb.WriteString(fmt.Sprintf("- %s price series", kline.PrimaryTimeframe))
+		if multi != "" {
+			sb.WriteString(fmt.Sprintf(" + %s K-line series", multi))
+		}
+		sb.WriteString("\n")
 	}
 
 	if indicators.EnableEMA {

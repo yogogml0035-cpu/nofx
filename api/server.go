@@ -222,13 +222,13 @@ NOTE: The id field is "trader_id" (NOT "id"). Always read trader_id from this en
 				`:id = trader_id from GET /api/my-traders`,
 				s.handleGetTraderConfig)
 			s.routeWithSchema(protected, "POST", "/traders", "Create a new AI trader",
-				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3>}
+				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3 — fallback only: decisions run 5s after each close of the strategy primary timeframe; this interval is used only when the strategy has no valid timeframe>}
 IMPORTANT: ai_model_id and exchange_id must be the full "id" value from the Account State, not the provider/type name.
 The initial balance is not part of the body: it is recorded from the exchange account's current principal. Change it afterwards with PUT /traders/:id.`,
 				s.handleCreateTrader)
 			s.routeWithSchema(protected, "PUT", "/traders/:id", "Update trader configuration",
 				`:id = trader_id from GET /api/my-traders
-Body: {"name":"<string>","ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<EXACT id from GET /api/strategies>","scan_interval_minutes":<int, min 3>,"is_cross_margin":<bool>,"initial_balance":<number, must be above 0; omit or send 0 to keep the current value. When exchange_id changes to another account, the initial balance is reset and rebuilt from the new account's principal when the trader loads, unless a new value is sent in the same request>}
+Body: {"name":"<string>","ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<EXACT id from GET /api/strategies>","scan_interval_minutes":<int, min 3 — fallback only, decisions normally run 5s after each primary-timeframe close>,"is_cross_margin":<bool>,"initial_balance":<number, must be above 0; omit or send 0 to keep the current value. When exchange_id changes to another account, the initial balance is reset and rebuilt from the new account's principal when the trader loads, unless a new value is sent in the same request>}
 name, ai_model_id and exchange_id are required: send their current values when you only change other fields.`,
 				s.handleUpdateTrader)
 			s.routeWithSchema(protected, "DELETE", "/traders/:id", "Delete trader",

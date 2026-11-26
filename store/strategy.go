@@ -12,25 +12,25 @@ import (
 
 // Hard limits to prevent token explosion in AI requests
 const (
-	MaxCandidateCoins = 10
-	MaxPositions      = 3
-	MaxTimeframes     = 4
-	MinKlineCount     = 10
-	MaxKlineCount     = 30
-	MinLeverage       = 1
-	MaxBTCETHLeverage = 20
-	MaxAltLeverage    = 20
+	MaxCandidateCoins      = 10
+	MaxPositions           = 3
+	MaxTimeframes          = 4
+	MinKlineCount          = 10
+	MaxKlineCount          = 30
+	MinLeverage            = 1
+	MaxBTCETHLeverage      = 20
+	MaxAltLeverage         = 20
 	MinPositionPercent     = 1.0
 	MaxPositionPercent     = 20.0
 	DefaultPositionPercent = 10.0
 	MinRiskReward          = 1.0
-	MaxRiskReward     = 10.0
-	MinMarginUsage    = 0.1
-	MaxMarginUsage    = 1.0
-	MinPositionSize   = 10.0
-	MaxPositionSize   = 1000.0
-	MinConfidence     = 50
-	MaxConfidence     = 100
+	MaxRiskReward          = 10.0
+	MinMarginUsage         = 0.1
+	MaxMarginUsage         = 1.0
+	MinPositionSize        = 10.0
+	MaxPositionSize        = 1000.0
+	MinConfidence          = 50
+	MaxConfidence          = 100
 )
 
 // ClampLimits enforces product-level limits on strategy config to prevent token overflow.
@@ -249,6 +249,20 @@ func normalizeTimeframe(value string) string {
 	return value
 }
 
+// RetainedTimeframes 策略可选的 K 线周期（D25）：Gate 合约 K 线文档枚举加 1w 与 30d。
+// 决策按主周期收线后固定延迟触发，周期越短调用模型越频繁。
+var RetainedTimeframes = []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"}
+
+// IsValidTimeframe 判断周期是否可用：保留集合内的值或其别名（1小时→1h）都算可用。
+func IsValidTimeframe(value string) bool {
+	return normalizeTimeframe(value) != ""
+}
+
+// RetainedTimeframeList 供错误与告警文案使用的周期清单。
+func RetainedTimeframeList() string {
+	return strings.Join(RetainedTimeframes, " / ")
+}
+
 // MergeStrategyConfig applies a partial JSON-style patch onto a full strategy config.
 // Nested objects are merged recursively so omitted fields keep their previous values.
 func MergeStrategyConfig(base StrategyConfig, patch map[string]any) (StrategyConfig, error) {
@@ -403,6 +417,32 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 	appendFloat("最大保证金使用率", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
 	appendFloat("最小开仓金额", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
 	appendInt("最低置信度", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
+
+	// 周期：别名归一（1小时→1h）或不在保留集合的值被清空时给出提示（D25）
+	beforeTF, afterTF := before.Indicators.Klines.PrimaryTimeframe, after.Indicators.Klines.PrimaryTimeframe
+	if beforeTF != afterTF {
+		if lang == "zh" {
+			if afterTF == "" {
+				warnings = append(warnings, fmt.Sprintf("主周期 %q 不在支持范围（%s），已清空：运行时回退到 trader 的扫描间隔", beforeTF, strings.Join(RetainedTimeframes, "、")))
+			} else {
+				warnings = append(warnings, fmt.Sprintf("主周期已从 %q 调整为 %q", beforeTF, afterTF))
+			}
+		} else {
+			if afterTF == "" {
+				warnings = append(warnings, fmt.Sprintf("primary timeframe %q is not supported (%s) and was cleared: the trader falls back to its scan interval", beforeTF, strings.Join(RetainedTimeframes, ", ")))
+			} else {
+				warnings = append(warnings, fmt.Sprintf("primary timeframe adjusted from %q to %q", beforeTF, afterTF))
+			}
+		}
+	}
+	beforeSelected, afterSelected := before.Indicators.Klines.SelectedTimeframes, after.Indicators.Klines.SelectedTimeframes
+	if strings.Join(beforeSelected, ",") != strings.Join(afterSelected, ",") {
+		if lang == "zh" {
+			warnings = append(warnings, fmt.Sprintf("多周期已按支持范围调整为 [%s]", strings.Join(afterSelected, ", ")))
+		} else {
+			warnings = append(warnings, fmt.Sprintf("selected timeframes adjusted to the supported set: [%s]", strings.Join(afterSelected, ", ")))
+		}
+	}
 	return warnings
 }
 
@@ -516,7 +556,7 @@ func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
 		CoinSource     *CoinSourceConfig     `json:"coin_source"`
 		Indicators     *IndicatorConfig      `json:"indicators"`
 		CustomPrompt   *string               `json:"custom_prompt"`
-		RiskControl    *RiskControlConfig     `json:"risk_control"`
+		RiskControl    *RiskControlConfig    `json:"risk_control"`
 		PromptSections *PromptSectionsConfig `json:"prompt_sections"`
 	}
 
@@ -643,7 +683,7 @@ type IndicatorConfig struct {
 
 // KlineConfig K-line configuration
 type KlineConfig struct {
-	// primary timeframe: "1m", "3m", "5m", "15m", "1h", "4h"
+	// primary timeframe: Gate candlestick intervals (D25), e.g. "10s", "1m", "5m", "15m", "1h", "4h", "1d", "7d", "1w", "30d"
 	PrimaryTimeframe string `json:"primary_timeframe"`
 	// primary timeframe K-line count
 	PrimaryCount int `json:"primary_count"`

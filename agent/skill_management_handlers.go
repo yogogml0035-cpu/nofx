@@ -795,7 +795,7 @@ func strategyCreateFieldInlineHint(lang, field string) string {
 		case "static_coins":
 			return "Static coins: up to 10 Gate USDT perpetual symbols, e.g. BTCUSDT, ETHUSDT"
 		case "primary_timeframe":
-			return "Primary timeframe: 1m / 3m / 5m / 15m / 30m / 1h / 2h / 4h / 6h / 8h / 12h / 1d / 3d / 1w"
+			return "Primary timeframe: 10s / 1m / 5m / 15m / 30m / 1h / 4h / 8h / 1d / 7d / 1w / 30d"
 		case "selected_timeframes":
 			return "Multi-timeframes: up to 4, e.g. 5m,15m,1h"
 		case "btceth_max_leverage", "altcoin_max_leverage":
@@ -833,7 +833,7 @@ func strategyCreateFieldInlineHint(lang, field string) string {
 	case "static_coins":
 		return "静态币种：最多 10 个 Gate USDT 永续符号，例如 BTCUSDT、ETHUSDT"
 	case "primary_timeframe":
-		return "主周期：1m / 3m / 5m / 15m / 30m / 1h / 2h / 4h / 6h / 8h / 12h / 1d / 3d / 1w"
+		return "主周期：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d"
 	case "selected_timeframes":
 		return "多周期时间框架：最多 4 个，例如 5m,15m,1h"
 	case "btceth_max_leverage":
@@ -885,7 +885,7 @@ func formatStrategyCreateFieldOptionsReply(lang, text, missingKind string) strin
 		case "static_coins":
 			return "Coin source is a static list: give me up to 10 Gate USDT perpetual symbols (e.g. BTCUSDT, ETHUSDT) and I will keep filling the AI strategy template."
 		case "primary_timeframe", "selected_timeframes":
-			return "Timeframe options: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w."
+			return "Timeframe options: 10s, 1m, 5m, 15m, 30m, 1h, 4h, 8h, 1d, 7d, 1w, 30d."
 		}
 		return "For " + strategyCreateFieldDisplayName(lang, field) + ", tell me the value you want and I will keep filling the selected strategy template."
 	}
@@ -895,9 +895,9 @@ func formatStrategyCreateFieldOptionsReply(lang, text, missingKind string) strin
 	case "static_coins":
 		return "币源就是静态清单：直接给我最多 10 个 Gate USDT 永续符号（例如 BTCUSDT、ETHUSDT），我继续填模板。"
 	case "primary_timeframe":
-		return "主周期可选：1m、3m、5m、15m、30m、1h、2h、4h、6h、8h、12h、1d、3d、1w。高频一般偏 1m/3m/5m，稳健一点可以用 15m/1h。"
+		return "主周期可选：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d。高频一般偏 10s/1m/5m，稳健一点可以用 15m/1h/4h。决策按主周期收线后 5 秒触发，周期越短调用模型越频繁。"
 	case "selected_timeframes":
-		return "多周期最多选 4 个，可选：1m、3m、5m、15m、30m、1h、2h、4h、6h、8h、12h、1d、3d、1w。常见组合比如 5m,15m,1h。"
+		return "多周期最多选 4 个，可选：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d。常见组合比如 5m,15m,1h。"
 	case "btceth_max_leverage", "altcoin_max_leverage":
 		return strategyCreateFieldDisplayName(lang, field) + "范围是 1～20 倍。数值越高风险越大。"
 	case "min_confidence":

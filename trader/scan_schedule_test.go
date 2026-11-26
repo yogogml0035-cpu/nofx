@@ -117,12 +117,24 @@ func TestScanTimeframe(t *testing.T) {
 	if got := scanTimeframe(nil); got != "" {
 		t.Errorf("nil config = %q", got)
 	}
+	// 与引擎同口径：主周期为空时取 SelectedTimeframes[0]
 	cfg := base
 	cfg.Indicators.Klines.PrimaryTimeframe = ""
-	assert.Equal(t, "", scanTimeframe(&cfg))
+	cfg.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h"}
+	assert.Equal(t, "15m", scanTimeframe(&cfg), "主周期为空时取多周期第一个")
 
+	// 主周期与多周期都为空：引擎回退到 5m
+	cfg.Indicators.Klines.SelectedTimeframes = nil
+	assert.Equal(t, "5m", scanTimeframe(&cfg), "两者都为空时与引擎一致回退到 5m")
+
+	// 旧周期跳过，取下一个候选
 	cfg.Indicators.Klines.PrimaryTimeframe = "3m"
-	assert.Equal(t, "", scanTimeframe(&cfg), "旧周期必须回退")
+	cfg.Indicators.Klines.SelectedTimeframes = []string{"4h", "1d"}
+	assert.Equal(t, "4h", scanTimeframe(&cfg), "旧周期跳过后取多周期第一个")
+
+	// 主周期与多周期都是旧周期：回退
+	cfg.Indicators.Klines.SelectedTimeframes = []string{"2h"}
+	assert.Equal(t, "", scanTimeframe(&cfg), "全部无效时必须回退")
 
 	cfg.Indicators.Klines.PrimaryTimeframe = "30D"
 	assert.Equal(t, "30d", scanTimeframe(&cfg))

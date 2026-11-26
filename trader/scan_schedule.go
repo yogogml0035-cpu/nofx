@@ -23,19 +23,31 @@ func (at *AutoTrader) scanFallbackInterval() time.Duration {
 	return at.config.ScanInterval
 }
 
-// scanTimeframe 返回策略配置里的主周期；缺失或不在 D25 保留集合时返回空串（调用方回退到 ScanInterval）。
+// scanTimeframe 返回调度使用的周期，与引擎取数的主周期同口径（kernel/engine_analysis.go）：
+// PrimaryTimeframe → SelectedTimeframes[0] → "5m"；都不在 D25 保留集合时返回空串（调用方回退到 ScanInterval）。
+// 主周期为空的存量策略因此也按引擎实际使用的周期收线对齐，而不是回到固定间隔。
 func scanTimeframe(config *store.StrategyConfig) string {
 	if config == nil {
 		return ""
 	}
-	tf := strings.ToLower(strings.TrimSpace(config.Indicators.Klines.PrimaryTimeframe))
-	if tf == "" {
-		return ""
+	klines := config.Indicators.Klines
+	candidates := []string{klines.PrimaryTimeframe}
+	if len(klines.SelectedTimeframes) > 0 {
+		candidates = append(candidates, klines.SelectedTimeframes[0])
+	} else {
+		candidates = append(candidates, "5m")
 	}
-	if _, err := market.GateIntervalDuration(tf); err != nil {
-		return ""
+	for _, candidate := range candidates {
+		tf := strings.ToLower(strings.TrimSpace(candidate))
+		if tf == "" {
+			continue
+		}
+		if _, err := market.GateIntervalDuration(tf); err != nil {
+			continue
+		}
+		return tf
 	}
-	return tf
+	return ""
 }
 
 // nextScanTime 返回 now 之后（含当前边界尚未到点的触发时刻）最近的一次扫描时刻：

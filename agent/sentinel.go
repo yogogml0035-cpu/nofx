@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"net/http"
 	"nofx/safe"
 	"strings"
 	"sync"
@@ -36,7 +35,6 @@ type Sentinel struct {
 	symbols  []string
 	history  map[string][]pricePt
 	onSignal SignalCallback
-	http     *http.Client
 	logger   *slog.Logger
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -53,7 +51,6 @@ func NewSentinel(symbols []string, cb SignalCallback, logger *slog.Logger) *Sent
 		symbols:  symbols,
 		history:  make(map[string][]pricePt),
 		onSignal: cb,
-		http:     &http.Client{Timeout: 10 * time.Second},
 		logger:   logger,
 		stopCh:   make(chan struct{}),
 	}

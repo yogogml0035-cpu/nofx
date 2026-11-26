@@ -75,7 +75,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	// Data staleness detection
 	if isStaleData(primaryKlines, symbol) {
 		logger.Infof("⚠️  WARNING: %s detected stale data (consecutive price freeze), skipping symbol", symbol)
-		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
+		return nil, fmt.Errorf("%s data is stale (consecutive price freeze)", symbol)
 	}
 
 	// Calculate current indicators (based on primary timeframe latest data)

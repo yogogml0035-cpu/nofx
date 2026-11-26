@@ -121,3 +121,41 @@ func TestStrategyClampWarningsCoversPositionPercent(t *testing.T) {
 		t.Fatalf("expected position percent clamp warning, got %v", warnings)
 	}
 }
+
+func TestStrategyClampWarningsTimeframes(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		before       string
+		after        string
+		lang         string
+		wantContains string
+	}{
+		{"unsupported cleared zh", "3m", "", "zh", "不在支持范围"},
+		{"unsupported cleared en", "3m", "", "en", "is not supported"},
+		{"alias normalized zh", "1小时", "1h", "zh", "已从"},
+		{"alias normalized en", "1小时", "1h", "en", "adjusted from"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := StrategyConfig{Language: tc.lang}
+			before.Indicators.Klines.PrimaryTimeframe = tc.before
+			after := before
+			after.Indicators.Klines.PrimaryTimeframe = tc.after
+			warnings := StrategyClampWarnings(before, after, tc.lang)
+			if len(warnings) != 1 || !strings.Contains(warnings[0], tc.wantContains) {
+				t.Fatalf("expected one timeframe warning containing %q, got %v", tc.wantContains, warnings)
+			}
+		})
+	}
+
+	// 保留集合内的值不产生告警
+	before := StrategyConfig{Language: "zh"}
+	before.Indicators.Klines.PrimaryTimeframe = "1h"
+	after := before
+	after.Indicators.Klines.SelectedTimeframes = []string{"5m", "15m"}
+	if warnings := StrategyClampWarnings(before, after, "zh"); len(warnings) != 1 || !strings.Contains(warnings[0], "多周期") {
+		t.Fatalf("expected only the selected-timeframes warning, got %v", warnings)
+	}
+	if warnings := StrategyClampWarnings(after, after, "zh"); len(warnings) != 0 {
+		t.Fatalf("expected no warnings for an unchanged config, got %v", warnings)
+	}
+}

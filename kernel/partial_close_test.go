@@ -165,3 +165,45 @@ func TestUserPromptMarksPartialCloseAvailability(t *testing.T) {
 		t.Fatalf("user prompt does not explain how to use partial close:\n%s", prompt)
 	}
 }
+
+// 一条非法决策不得让同批次里合法的决策（如平仓、改保护）一起作废。
+func TestInvalidDecisionDoesNotDropValidOnes(t *testing.T) {
+	response := `<decision>
+[
+  {"symbol":"DOGE_USDT","action":"close_long_partial","close_percent":100},
+  {"symbol":"BTCUSDT","action":"wait"}
+]
+</decision>`
+
+	full, err := parseFullDecisionResponse(response, DecisionSizing{})
+	if err != nil {
+		t.Fatalf("parseFullDecisionResponse() error = %v, want the valid decision to survive", err)
+	}
+	if len(full.Decisions) != 1 || full.Decisions[0].Action != "wait" {
+		t.Fatalf("decisions = %+v, want only the valid wait decision", full.Decisions)
+	}
+	if len(full.Rejected) != 1 || full.Rejected[0].Action != "close_long_partial" ||
+		!strings.Contains(full.Rejected[0].Reason, "full close") {
+		t.Fatalf("rejected = %+v, want the partial-close decision with its reason", full.Rejected)
+	}
+	if full.Rejected[0].Index != 1 || full.Rejected[0].Symbol != "DOGE_USDT" {
+		t.Fatalf("rejected = %+v, want index 1 for DOGE_USDT", full.Rejected[0])
+	}
+}
+
+func TestAllDecisionsInvalidStillFailsTheRound(t *testing.T) {
+	response := `<decision>
+[
+  {"symbol":"DOGE_USDT","action":"close_long_partial","close_percent":100},
+  {"symbol":"BTCUSDT","action":"open_long","leverage":5,"stop_loss":95000,"take_profit":90000}
+]
+</decision>`
+	// 第二条：多单的止损价不低于止盈价，同样非法
+	_, err := parseFullDecisionResponse(response, DecisionSizing{})
+	if err == nil {
+		t.Fatal("all decisions invalid must still fail the round")
+	}
+	if !strings.Contains(err.Error(), "decision validation failed") {
+		t.Fatalf("error = %q, want the round-level validation error", err)
+	}
+}

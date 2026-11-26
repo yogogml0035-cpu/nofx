@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -21,7 +22,7 @@ import (
 const defaultExchange = "gate"
 
 // cryptoKlines 取加密货币 K 线（测试可替换）；默认 Gate 直连（D1）。
-// 成交量由 GetGateKlines 返回 USDT 成交额（sum），handler 同时写入 QuoteVolume 供图表使用。
+// 成交量由 GetGateKlines 返回 USDT 成交额（sum），QuoteVolume 在取数层填好（缓存切片不可原地改写）。
 // 包级变量是测试缝：api 包测试必须保持非并行（t.Parallel 会造成竞态）。
 var cryptoKlines = market.GetGateKlines
 
@@ -70,11 +71,19 @@ func (s *Server) handleKlines(c *gin.Context) {
 		}
 		klines, err = cryptoKlines(symbol, interval, limit)
 		if err != nil {
+			// Gate 公共接口按 IP 限频（单个接口 200r/10s）：上游 429 是暂时不可用，不是服务端故障；
+			// 未知合约是客户端参数错误。两者都不记成 500。
+			if errors.Is(err, market.ErrGateRateLimited) {
+				c.Header("Retry-After", "1")
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "market data source is rate limited, retry shortly"})
+				return
+			}
+			if errors.Is(err, market.ErrGateContractNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "unknown symbol"})
+				return
+			}
 			SafeInternalError(c, "Get klines from Gate", err)
 			return
-		}
-		for i := range klines {
-			klines[i].QuoteVolume = klines[i].Volume
 		}
 	}
 

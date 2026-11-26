@@ -74,10 +74,14 @@ without `dual_side` (the account trades in one-way position mode). It returns a 
 | `GET positions/{contract}` fails with any other label | that error is returned as is; it is never treated as "no entry" |
 | Entry `mode` is present and is not `single` | error |
 
-Not verified against the real API: `set_leverage` on a contract that has no position entry yet (the first
-open of a new contract), changing the setting while a position or pending orders exist, and accounts in
-single-currency margin mode. The adapter has no branch for these situations. Only the missing-entry case is
-covered by a unit test with a mock exchange.
+Verified against the real API on 2026-11-26 (W5, `LIVECHECK_PASS`): `set_leverage` on a contract that has
+no position entry yet (the first open of a new contract) returns 200, the adapter reads the target back from
+the response, and the position entry appears with the same field shape as an existing entry (an isolated
+entry keeps the previous cross leverage in `cross_leverage_limit`; `lever` is the current leverage). Evidence:
+`.trellis/tasks/11-24-gate-trading-foundation/probe/README.md`.
+
+Not verified against the real API: changing the setting while a position or pending orders exist, and
+accounts in single-currency margin mode. The adapter has no branch for these situations.
 
 `SetLeverage(symbol, leverage)` on Gate keeps the contract's current mode and changes only the leverage;
 a contract with no position entry is set to isolated. `SetMarginMode(symbol, isCross)` keeps the current
@@ -531,3 +535,56 @@ err = t.verifyProtectiveOrder(symbol, side, kind, newID, ratFloat(value))
 for _, old := range oldOrders { err = t.CancelProtectiveOrder(old.OrderID()) }
 // on any failure: restoreReplacement(...) keeps the position protected
 ```
+
+## Scenario: Scheduling decisions on candle close (all exchanges)
+
+### 1. Scope / Trigger
+
+The automatic trading loop picks the next decision time. It applies to every trader, grid or not.
+
+### 2. Signatures
+
+- `trader/scan_schedule.go`: `scanTimeframe(config *store.StrategyConfig) string`,
+  `nextScanTime(now time.Time, timeframe string, delay time.Duration) (time.Time, error)`,
+  `scanCloseDelay` (5 seconds), `(*AutoTrader).scanFallbackInterval()`.
+
+### 3. Contracts
+
+- The cadence timeframe is resolved exactly like the engine's primary timeframe:
+  `PrimaryTimeframe` -> `SelectedTimeframes[0]` -> `"5m"`; a value outside the D25 set is skipped.
+  An empty result means the trader falls back to `ScanInterval` (1 minute when it is not positive).
+- Boundaries use the UTC wall clock: `1w` starts on Monday 00:00, `30d` on the first day of the month,
+  every other retained interval (including `7d`) uses the Unix-epoch grid. The trigger is the boundary
+  plus 5 seconds.
+- `nextScanTime` returns the trigger at or after `now`; when `now` equals the trigger, the next boundary
+  is returned (nothing runs twice).
+- The loop runs one round immediately on start, then waits for the next trigger; a round that overruns a
+  boundary skips it instead of catching up. `stopMonitorCh` stops the timer and returns at once.
+- `scan_interval_minutes` is a fallback only. UI copy, assistant skills and the API schema must not
+  describe it as the decision cadence.
+
+### 4. Validation & Error Matrix
+
+| Situation | Result |
+|---|---|
+| Negative `delay` | error |
+| Timeframe outside the D25 set | error from `nextScanTime`; the caller logs and falls back |
+| `ScanInterval <= 0` on the fallback path | 1 minute |
+| Primary and selected timeframes both empty | `"5m"` (same as the engine) |
+
+### 5. Good/Base/Bad Cases
+
+- Base: strategy primary `1h` -> a round at 12:00:05, 13:00:05, ... UTC.
+- Good: primary empty, selected `["15m","1h"]` -> the 15-minute grid.
+- Bad: primary `"3m"` (legacy) -> skipped; the next valid candidate is used, or the fallback interval.
+
+### 6. Tests Required
+
+`trader/scan_schedule_test.go` covers the epoch grid for every retained interval, the exact-trigger
+boundary, the `1w`/`30d` calendar boundaries, invalid input, and the `scanTimeframe` fallback chain.
+
+### 7. Wrong vs Correct
+
+- Wrong: a fixed `time.NewTicker(ScanInterval)` — the model sees half-formed candles and the phase
+  depends on when the trader started.
+- Correct: compute the next candle close of the engine's own primary timeframe and wait for it.

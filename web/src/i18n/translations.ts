@@ -89,10 +89,6 @@ export const translations = {
     // TradingView Chart
     marketChart: 'Market Chart',
     viewChart: 'Click to view chart',
-    enterSymbol: 'Enter symbol...',
-    popularSymbols: 'Popular Symbols',
-    fullscreen: 'Fullscreen',
-    exitFullscreen: 'Exit Fullscreen',
 
     // Competition Page
     aiCompetition: 'AI Competition',
@@ -147,8 +143,10 @@ export const translations = {
     create: 'Create',
     configureAIModels: 'Configure AI Models',
     configureExchanges: 'Configure Exchanges',
-    aiScanInterval: 'AI Scan Decision Interval (minutes)',
-    scanIntervalRecommend: 'Recommended: 3-10 minutes',
+    aiScanInterval: 'Fallback scan interval (minutes)',
+    scanIntervalRecommend: 'Only used when the strategy has no valid primary timeframe. Decisions normally run 5s after each close of the primary timeframe.',
+    scanCadence: 'Effective cadence: 5s after each {timeframe} candle close',
+    scanCadenceCost: 'A primary timeframe of 1m or shorter calls the model about once a minute or more often.',
     useTestnet: 'Use Testnet',
     enabled: 'Enabled',
     save: 'Save',
@@ -1124,14 +1122,6 @@ export const translations = {
       clickToToggle: 'Click to toggle indicators',
     },
 
-    // Chart With Orders
-    chartWithOrders: {
-      failedToLoad: 'Failed to load chart data',
-      loading: 'Loading...',
-      buy: 'BUY',
-      sell: 'SELL',
-    },
-
     // Comparison Chart
     comparisonChart: {
       '1d': '1D',
@@ -1331,7 +1321,7 @@ export const translations = {
       crossMargin: 'Cross',
       isolatedMargin: 'Isolated',
       scanInterval: '{minutes} minutes',
-      scanIntervalLabel: 'Scan Interval',
+      scanIntervalLabel: 'Fallback Scan Interval',
       strategyUsed: 'Strategy Used',
       strategyName: 'Strategy Name',
       close: 'Close',
@@ -1427,10 +1417,6 @@ export const translations = {
     // TradingView Chart
     marketChart: '行情图表',
     viewChart: '点击查看图表',
-    enterSymbol: '输入币种...',
-    popularSymbols: '热门币种',
-    fullscreen: '全屏',
-    exitFullscreen: '退出全屏',
 
     // Competition Page
     aiCompetition: 'AI竞赛',
@@ -1484,8 +1470,10 @@ export const translations = {
     create: '创建',
     configureAIModels: '配置AI模型',
     configureExchanges: '配置交易所',
-    aiScanInterval: 'AI 扫描决策间隔 (分钟)',
-    scanIntervalRecommend: '建议: 3-10分钟',
+    aiScanInterval: '回退扫描间隔（分钟）',
+    scanIntervalRecommend: '仅当策略没有有效主周期时生效；正常按主周期收线后 5 秒触发决策。',
+    scanCadence: '实际节奏：每根 {timeframe} K 线收线后 5 秒',
+    scanCadenceCost: '主周期为 1m 及更短时，约每分钟或更频繁调用一次模型。',
     useTestnet: '使用测试网',
     enabled: '启用',
     save: '保存',
@@ -2413,14 +2401,6 @@ export const translations = {
       clickToToggle: '点击选择需要显示的指标',
     },
 
-    // Chart With Orders
-    chartWithOrders: {
-      failedToLoad: '加载图表数据失败',
-      loading: '加载中...',
-      buy: 'BUY (买入)',
-      sell: 'SELL (卖出)',
-    },
-
     // Comparison Chart
     comparisonChart: {
       '1d': '1天',
@@ -2608,7 +2588,7 @@ export const translations = {
       crossMargin: '全仓',
       isolatedMargin: '逐仓',
       scanInterval: '{minutes} 分钟',
-      scanIntervalLabel: '扫描间隔',
+      scanIntervalLabel: '回退扫描间隔',
       strategyUsed: '使用策略',
       strategyName: '策略名称',
       close: '关闭',
@@ -2705,10 +2685,6 @@ export const translations = {
     // TradingView Chart
     marketChart: 'Grafik Pasar',
     viewChart: 'Klik untuk melihat grafik',
-    enterSymbol: 'Masukkan simbol...',
-    popularSymbols: 'Simbol Populer',
-    fullscreen: 'Layar Penuh',
-    exitFullscreen: 'Keluar Layar Penuh',
 
     // Competition Page
     aiCompetition: 'Kompetisi AI',
@@ -2763,8 +2739,10 @@ export const translations = {
     create: 'Buat',
     configureAIModels: 'Konfigurasi Model AI',
     configureExchanges: 'Konfigurasi Bursa',
-    aiScanInterval: 'Interval Keputusan AI (menit)',
-    scanIntervalRecommend: 'Disarankan: 3-10 menit',
+    aiScanInterval: 'Interval pemindaian cadangan (menit)',
+    scanIntervalRecommend: 'Hanya dipakai saat strategi tidak punya timeframe utama yang valid. Keputusan biasanya berjalan 5 detik setelah penutupan timeframe utama.',
+    scanCadence: 'Irama efektif: 5 detik setelah penutupan candle {timeframe}',
+    scanCadenceCost: 'Timeframe utama 1m atau lebih pendek memanggil model sekitar sekali per menit atau lebih sering.',
     useTestnet: 'Gunakan Testnet',
     enabled: 'Aktif',
     save: 'Simpan',
@@ -3643,14 +3621,6 @@ export const translations = {
       clickToToggle: 'Klik untuk beralih indikator',
     },
 
-    // Chart With Orders
-    chartWithOrders: {
-      failedToLoad: 'Gagal memuat data grafik',
-      loading: 'Memuat...',
-      buy: 'BELI',
-      sell: 'JUAL',
-    },
-
     // Comparison Chart
     comparisonChart: {
       '1d': '1H',
@@ -3844,7 +3814,7 @@ export const translations = {
       crossMargin: 'Cross',
       isolatedMargin: 'Isolated',
       scanInterval: '{minutes} menit',
-      scanIntervalLabel: 'Interval Scan',
+      scanIntervalLabel: 'Interval Cadangan',
       strategyUsed: 'Strategi Digunakan',
       strategyName: 'Nama Strategi',
       close: 'Tutup',

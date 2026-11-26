@@ -244,16 +244,36 @@ func parseFullDecisionResponse(aiResponse string, sizing DecisionSizing) (*FullD
 		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
-	if err := validateDecisions(decisions, sizing); err != nil {
+	// 逐条校验：非法决策只丢弃自己并记录原因，同批次里合法的平仓、改保护照常执行。
+	// 全部被拒时沿用整批失败语义（交给上层的重试与安全模式）。
+	kept := make([]Decision, 0, len(decisions))
+	rejected := make([]RejectedDecision, 0)
+	var firstErr error
+	for i := range decisions {
+		if err := validateDecision(&decisions[i], sizing); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("decision #%d validation failed: %w", i+1, err)
+			}
+			rejected = append(rejected, RejectedDecision{
+				Index: i + 1, Symbol: decisions[i].Symbol, Action: decisions[i].Action, Reason: err.Error(),
+			})
+			logger.Warnf("⚠️  Dropping decision #%d (%s %s): %v", i+1, decisions[i].Action, decisions[i].Symbol, err)
+			continue
+		}
+		kept = append(kept, decisions[i])
+	}
+	if len(decisions) > 0 && len(kept) == 0 {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
-		}, fmt.Errorf("decision validation failed: %w", err)
+			Rejected:  rejected,
+		}, fmt.Errorf("decision validation failed: %w", firstErr)
 	}
 
 	return &FullDecision{
 		CoTTrace:  cotTrace,
-		Decisions: decisions,
+		Decisions: kept,
+		Rejected:  rejected,
 	}, nil
 }
 

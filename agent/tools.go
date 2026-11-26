@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"nofx/kernel"
+	"nofx/market"
 	"nofx/mcp"
 	"nofx/safe"
 	"nofx/security"
@@ -322,7 +323,7 @@ func strategyConfigSchema() map[string]any {
 									"longer_timeframe":       map[string]any{"type": "string"},
 									"longer_count":           map[string]any{"type": "number"},
 									"enable_multi_timeframe": map[string]any{"type": "boolean"},
-									"selected_timeframes":    stringArraySchema("Selected analysis timeframes. Allowed values: 1m,3m,5m,15m,30m,1h,2h,4h,6h,8h,12h,1d,3d,1w. Manual page allows at most 4."),
+									"selected_timeframes":    stringArraySchema("Selected analysis timeframes. Allowed values: 10s, 1m, 5m, 15m, 30m, 1h, 4h, 8h, 1d, 7d, 1w, 30d. Manual page allows at most 4."),
 								},
 							},
 							"enable_raw_klines":   map[string]any{"type": "boolean"},
@@ -461,7 +462,7 @@ func traderConfigFieldsSchema() map[string]any {
 		"ai_model_id":           map[string]any{"type": "string", "description": "Bound AI model id."},
 		"exchange_id":           map[string]any{"type": "string", "description": "Bound exchange id."},
 		"strategy_id":           map[string]any{"type": "string", "description": "Bound strategy id."},
-		"scan_interval_minutes": map[string]any{"type": "number", "description": "Trading scan interval in minutes."},
+		"scan_interval_minutes": map[string]any{"type": "number", "description": "Fallback scan interval in minutes. Decisions run 5s after each close of the strategy's primary timeframe; this interval only applies when the strategy has no valid timeframe."},
 		"is_cross_margin":       map[string]any{"type": "boolean", "description": "Whether cross margin is enabled."},
 		"show_in_competition":   map[string]any{"type": "boolean", "description": "Whether to show this trader in competition views."},
 	}
@@ -2621,10 +2622,10 @@ func (a *Agent) toolExecuteTrade(ctx context.Context, userID int64, lang, argsJS
 		return fmt.Sprintf(`{"error": "invalid arguments: %s"}`, err)
 	}
 
-	// Normalize symbol
+	// Normalize symbol. Gate-first routing: a base symbol that is a listed Gate USDT
+	// perpetual is crypto even when the letter heuristic would call it a stock ticker.
 	sym := strings.ToUpper(args.Symbol)
-	// Only append USDT for crypto symbols; stock tickers (e.g. AAPL, TSLA) stay as-is
-	if !isStockSymbol(sym) && !strings.HasSuffix(sym, "USDT") {
+	if !a.resolveStockSymbol(sym) && !strings.HasSuffix(sym, "USDT") {
 		sym += "USDT"
 	}
 
@@ -2818,15 +2819,14 @@ func (a *Agent) toolGetMarketPrice(argsJSON string) string {
 	}
 
 	sym := strings.ToUpper(args.Symbol)
-	if !isStockSymbol(sym) && !strings.HasSuffix(sym, "USDT") {
+	wantStock := a.resolveStockSymbol(sym)
+	if !wantStock && !strings.HasSuffix(sym, "USDT") {
 		sym += "USDT"
 	}
 
 	if a.traderManager == nil {
 		return `{"error": "no trader manager configured"}`
 	}
-
-	wantStock := isStockSymbol(sym)
 	for _, t := range a.traderManager.GetAllTraders() {
 		underlying := t.GetUnderlyingTrader()
 		if underlying == nil {
@@ -3372,6 +3372,54 @@ var knownCryptoSymbols = map[string]bool{
 	"GMT": true, "APE": true, "GALA": true, "IMX": true, "BLUR": true,
 	"STRK": true, "ZK": true, "W": true, "IO": true, "ZRO": true,
 	"BONK": true, "FLOKI": true, "ORDI": true, "STX": true, "RUNE": true,
+}
+
+// resolveStockSymbol decides whether a symbol must be routed to a stock (Alpaca) trader.
+// Gate-first: when a crypto trader is configured and the base symbol is a listed Gate USDT
+// perpetual, it is crypto even if the base symbol is missing from knownCryptoSymbols
+// (HYPE, ZEC, GT, ...). The letter heuristic only applies when no Gate contract matches,
+// so stock-only setups never call Gate.
+func (a *Agent) resolveStockSymbol(sym string) bool {
+	sym = strings.ToUpper(strings.TrimSpace(sym))
+	if strings.HasSuffix(sym, "USDT") || !isStockSymbol(sym) {
+		return false
+	}
+	return !a.gateContractExists(sym)
+}
+
+// gateContractExists reports whether base (BTC, ZEC, BTC_USDT, ...) names a listed Gate
+// USDT perpetual. It is consulted only when at least one non-Alpaca trader exists, and it
+// reuses the assistant ticker seam (one cached list request, not a per-symbol lookup).
+func (a *Agent) gateContractExists(base string) bool {
+	if a == nil || a.traderManager == nil {
+		return false
+	}
+	hasCryptoTrader := false
+	for _, t := range a.traderManager.GetAllTraders() {
+		if t.GetExchange() != "alpaca" {
+			hasCryptoTrader = true
+			break
+		}
+	}
+	if !hasCryptoTrader {
+		return false
+	}
+	tickers, err := assistantListTickers()
+	if err != nil {
+		return false
+	}
+	return gateContractInList(base, tickers)
+}
+
+// gateContractInList reports whether base names a Gate USDT perpetual present in tickers.
+func gateContractInList(base string, tickers []market.GateTicker) bool {
+	symbol := assistantCryptoSymbol(base)
+	for _, ticker := range tickers {
+		if ticker.Symbol == symbol {
+			return true
+		}
+	}
+	return false
 }
 
 // isStockSymbol heuristically determines if a symbol is a stock ticker (not crypto).

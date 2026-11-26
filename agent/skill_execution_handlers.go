@@ -16,7 +16,7 @@ import (
 var (
 	firstIntegerPattern = regexp.MustCompile(`\d+`)
 	firstFloatPattern   = regexp.MustCompile(`\d+(?:\.\d+)?`)
-	timeframeTokenRE    = regexp.MustCompile(`(?i)\b\d{1,2}[mhdw]\b`)
+	timeframeTokenRE    = regexp.MustCompile(`(?i)\b\d{1,2}[mhdws]\b`)
 	coinSymbolTokenRE   = regexp.MustCompile(`(?i)^(?:xyz:)?[a-z0-9._-]{2,20}(?:usdt|usd|-usdc)?$`)
 	quotedContentRE     = regexp.MustCompile(`[“"]([^“”"]{1,200})[”"]`)
 )
@@ -901,11 +901,17 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		if err != nil {
 			return fmt.Errorf("最小开仓金额需要是数字")
 		}
-		if parsed <= 0 {
-			return fmt.Errorf("最小开仓金额需要大于 0")
+		if parsed < store.MinPositionSize {
+			return fmt.Errorf("最小开仓金额不能低于 %.0f USDT", store.MinPositionSize)
+		}
+		if parsed > store.MaxPositionSize {
+			return fmt.Errorf("最小开仓金额不能高于 %.0f USDT", store.MaxPositionSize)
 		}
 		cfg.RiskControl.MinPositionSize = parsed
 	case "primary_timeframe":
+		if !store.IsValidTimeframe(value) {
+			return fmt.Errorf("主周期 %q 不在支持范围，可选：%s", value, store.RetainedTimeframeList())
+		}
 		cfg.Indicators.Klines.PrimaryTimeframe = value
 	case "primary_count":
 		parsed, err := strconv.Atoi(value)
@@ -915,6 +921,15 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		cfg.Indicators.Klines.PrimaryCount = parsed
 	case "selected_timeframes":
 		tfs := strings.Split(value, ",")
+		for i := range tfs {
+			tfs[i] = strings.TrimSpace(strings.Trim(tfs[i], "\"'"))
+			if tfs[i] == "" {
+				continue
+			}
+			if !store.IsValidTimeframe(tfs[i]) {
+				return fmt.Errorf("多周期 %q 不在支持范围，可选：%s", tfs[i], store.RetainedTimeframeList())
+			}
+		}
 		cfg.Indicators.Klines.SelectedTimeframes = tfs
 		cfg.Indicators.Klines.EnableMultiTimeframe = len(tfs) > 1
 	case "ema_periods":

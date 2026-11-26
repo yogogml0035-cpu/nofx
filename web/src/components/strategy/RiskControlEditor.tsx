@@ -259,10 +259,11 @@ export function RiskControlEditor({
                 type="number"
                 value={config.min_position_size ?? 10}
                 onChange={(e) =>
-                  updateField('min_position_size', parseFloat(e.target.value) || 10)
+                  // 服务端下限是 10 USDT（store.MinPositionSize），界面同口径，避免保存后被静默夹回
+                  updateField('min_position_size', Math.max(10, parseFloat(e.target.value) || 10))
                 }
                 disabled={disabled}
-                min={1}
+                min={10}
                 step={1}
                 className="w-20 px-3 py-2 rounded"
                 style={{
