@@ -28,6 +28,9 @@ help:
 	@echo "  make build                - Build backend binary"
 	@echo "  make build-frontend       - Build frontend"
 	@echo ""
+	@echo "Delivery gate:"
+	@echo "  make ci-local             - Full local gate (tests, build, infra-check, images)"
+	@echo ""
 	@echo "Deploy & infra:"
 	@echo "  make up                   - Rebuild dev-offline test stack (fixed containers)"
 	@echo "  make main-stack           - Rebuild main stack from clean checkout (D20 guarded)"
@@ -175,15 +178,17 @@ deps-frontend:
 
 # 本地完整门禁：回归 + 构建 + 镜像构建（候选 push 前必须全绿）
 ci-local:
-	@echo "🧪 [1/5] Backend tests (docker golang:1.25-alpine)..."
+	@echo "🧪 [1/6] Backend tests (docker golang:1.25-alpine)..."
 	docker run --rm -v "$$PWD":/app -v nofx-gocache:/go -w /app golang:1.25-alpine sh -c "apk add --no-cache gcc musl-dev >/dev/null 2>&1 && CGO_ENABLED=1 GOPROXY=https://goproxy.cn,direct go test -count=1 ./..."
-	@echo "🧪 [2/5] Frontend tests..."
+	@echo "🧪 [2/6] Frontend tests..."
 	cd web && npm run test
-	@echo "🔨 [3/5] Backend build..."
+	@echo "🔨 [3/6] Backend build..."
 	docker run --rm -v "$$PWD":/app -v nofx-gocache:/go -w /app golang:1.25-alpine sh -c "apk add --no-cache gcc musl-dev >/dev/null 2>&1 && CGO_ENABLED=1 GOPROXY=https://goproxy.cn,direct go build -o nofx ."
-	@echo "🔨 [4/5] Frontend build..."
+	@echo "🔨 [4/6] Frontend build (tsc + vite)..."
 	cd web && npm run build
-	@echo "🐳 [5/5] Docker images build (nofx-dev-offline 送测栈)..."
+	@echo "🔎 [5/6] Infra check (dockerignore / compose / healthcheck / build context)..."
+	$(MAKE) infra-check
+	@echo "🐳 [6/6] Docker images build (nofx-dev-offline 送测栈)..."
 	$(COMPOSE_DEV) build --build-arg GOPROXY=https://goproxy.cn,direct
 	@echo "✅ ci-local passed"
 
