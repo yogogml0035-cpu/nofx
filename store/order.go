@@ -37,9 +37,9 @@ type TraderOrder struct {
 	PriceProtect      bool    `gorm:"column:price_protect;default:false" json:"price_protect"`
 	OrderAction       string  `gorm:"column:order_action;default:''" json:"order_action"`
 	RelatedPositionID int64   `gorm:"column:related_position_id;default:0" json:"related_position_id"`
-	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"`         // Unix milliseconds UTC
-	UpdatedAt         int64   `gorm:"column:updated_at" json:"updated_at"`         // Unix milliseconds UTC
-	FilledAt          int64   `gorm:"column:filled_at" json:"filled_at"`           // Unix milliseconds UTC
+	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
+	UpdatedAt         int64   `gorm:"column:updated_at" json:"updated_at"` // Unix milliseconds UTC
+	FilledAt          int64   `gorm:"column:filled_at" json:"filled_at"`   // Unix milliseconds UTC
 }
 
 // TableName returns the table name for TraderOrder
@@ -209,6 +209,21 @@ func (s *OrderStore) GetFillByExchangeTradeID(exchangeID, exchangeTradeID string
 		return nil, fmt.Errorf("failed to get fill: %w", err)
 	}
 	return &fill, nil
+}
+
+// DeleteSyncedTrade deletes a synced trade's order row and fill (keyed by exchange trade id).
+// The exchange sync uses it when the position write failed after the rows were created:
+// removing them lets the next sync replay that trade from scratch instead of skipping it forever.
+func (s *OrderStore) DeleteSyncedTrade(exchangeID, exchangeTradeID string) error {
+	if err := s.db.Where("exchange_id = ? AND exchange_trade_id = ?", exchangeID, exchangeTradeID).
+		Delete(&TraderFill{}).Error; err != nil {
+		return fmt.Errorf("failed to delete fill: %w", err)
+	}
+	if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", exchangeID, exchangeTradeID).
+		Delete(&TraderOrder{}).Error; err != nil {
+		return fmt.Errorf("failed to delete order: %w", err)
+	}
+	return nil
 }
 
 // GetOrderByExchangeID gets order by exchange order ID

@@ -447,7 +447,7 @@ func TestOpenLongProtectedPayload(t *testing.T) {
 	assert.Equal(t, "0.010000", body["market_order_slip_ratio"], "滑点上限 1%（D8）")
 	assert.Equal(t, "0.48000", body["tpsl_sl_trigger_price"], "随单止损触发价（对齐到 0.00001 步长）")
 	assert.Equal(t, "0.65000", body["tpsl_tp_trigger_price"], "随单止盈触发价（对齐到 0.00001 步长）")
-	assert.Equal(t, "t-nofx", body["text"])
+	assert.Equal(t, "t-nofx-ai", body["text"], "AI trader 的开仓备注：同步层据此判定仓位归属（D40）")
 	_, hasClose := body["close"]
 	assert.False(t, hasClose, "开仓单不设 close")
 	_, hasReduceOnly := body["reduce_only"]

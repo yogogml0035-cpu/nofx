@@ -4,6 +4,7 @@ package trader
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -24,6 +25,9 @@ type ownershipStub struct {
 	partialCloses []types.PartialCloseRequest
 	updates       []types.ProtectionUpdateRequest
 	closeErr      error
+	// protection / protectionErr：PositionProtection 的返回（nil 表示默认的「止损止盈都在」）
+	protection    *types.PositionProtection
+	protectionErr error
 }
 
 func (s *ownershipStub) PartialCloseStatus(symbol, side string) (types.PartialCloseStatus, error) {
@@ -36,6 +40,12 @@ func (s *ownershipStub) ClosePartial(req types.PartialCloseRequest) (types.Parti
 }
 
 func (s *ownershipStub) PositionProtection(symbol, side string) (types.PositionProtection, error) {
+	if s.protectionErr != nil {
+		return types.PositionProtection{}, s.protectionErr
+	}
+	if s.protection != nil {
+		return *s.protection, nil
+	}
 	return types.PositionProtection{StopLoss: 0.04, TakeProfit: 0.07, Known: true}, nil
 }
 
@@ -171,16 +181,20 @@ func TestPrepareOpenOwnershipRules(t *testing.T) {
 	})
 }
 
-// 每轮兜底：确认没有止损的本 trader 仓位立即平仓；只是读不到保护时不平仓
+// 每轮兜底：确认没有止损的本 trader 仓位立即平仓；只是读不到保护时不平仓。
+// 平仓前会再读一次保护（破坏性动作不靠单次读数）。
 func TestEnforceProtectionInvariant(t *testing.T) {
+	unprotected := func() *types.PositionProtection {
+		return &types.PositionProtection{Known: false, Reason: "no open stop-loss order for this side"}
+	}
 	t.Run("confirmed missing stop loss is closed", func(t *testing.T) {
-		stub := &ownershipStub{positions: []map[string]interface{}{ownPosition("DOGE_USDT", "long", 17)}}
+		stub := &ownershipStub{positions: []map[string]interface{}{ownPosition("DOGE_USDT", "long", 17)}, protection: unprotected()}
 		at := newOwnershipTrader(stub)
-		remaining, closed, err := at.enforceProtectionInvariant([]kernel.PositionInfo{
+		remaining, closed, failures := at.enforceProtectionInvariant([]kernel.PositionInfo{
 			{Symbol: "DOGE_USDT", Side: "long", ProtectionConfirmed: true},
 			{Symbol: "ETH_USDT", Side: "short", StopLoss: 2000, ProtectionConfirmed: true},
 		})
-		require.NoError(t, err)
+		require.Empty(t, failures)
 		assert.Equal(t, 1, closed)
 		require.Len(t, remaining, 1)
 		assert.Equal(t, "ETH_USDT", remaining[0].Symbol)
@@ -189,25 +203,73 @@ func TestEnforceProtectionInvariant(t *testing.T) {
 	t.Run("unreadable protection is left alone", func(t *testing.T) {
 		stub := &ownershipStub{}
 		at := newOwnershipTrader(stub)
-		remaining, closed, err := at.enforceProtectionInvariant([]kernel.PositionInfo{
+		remaining, closed, failures := at.enforceProtectionInvariant([]kernel.PositionInfo{
 			{Symbol: "DOGE_USDT", Side: "long", ProtectionUnavailableReason: "status unavailable: timeout"},
 		})
-		require.NoError(t, err)
+		require.Empty(t, failures)
 		assert.Zero(t, closed)
 		require.Len(t, remaining, 1)
 		assert.Empty(t, stub.closeLongs)
 	})
-	t.Run("failed emergency close is reported", func(t *testing.T) {
-		stub := &ownershipStub{closeErr: errors.New("exchange down")}
+	t.Run("second read showing a stop loss vetoes the close", func(t *testing.T) {
+		// 第一轮读到没有止损，平仓前的第二次读数看到止损又在了（交易所列表短暂不一致）：不能平仓
+		stub := &ownershipStub{positions: []map[string]interface{}{ownPosition("DOGE_USDT", "long", 17)}}
 		at := newOwnershipTrader(stub)
-		_, closed, err := at.enforceProtectionInvariant([]kernel.PositionInfo{
-			{Symbol: "DOGE_USDT", Side: "short", ProtectionConfirmed: true},
+		remaining, closed, failures := at.enforceProtectionInvariant([]kernel.PositionInfo{
+			{Symbol: "DOGE_USDT", Side: "long", ProtectionConfirmed: true},
 		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "emergency close FAILED")
+		require.Empty(t, failures)
 		assert.Zero(t, closed)
-		assert.Equal(t, []string{"DOGE_USDT"}, stub.closeShorts)
+		require.Len(t, remaining, 1)
+		assert.Empty(t, stub.closeLongs)
 	})
+	t.Run("second read failing vetoes the close", func(t *testing.T) {
+		stub := &ownershipStub{positions: []map[string]interface{}{ownPosition("DOGE_USDT", "long", 17)},
+			protectionErr: errors.New("gate timeout")}
+		at := newOwnershipTrader(stub)
+		remaining, closed, failures := at.enforceProtectionInvariant([]kernel.PositionInfo{
+			{Symbol: "DOGE_USDT", Side: "long", ProtectionConfirmed: true},
+		})
+		require.Empty(t, failures)
+		assert.Zero(t, closed)
+		require.Len(t, remaining, 1)
+		assert.Empty(t, stub.closeLongs)
+	})
+	t.Run("position already gone counts as resolved", func(t *testing.T) {
+		// 两次读数之间仓位被止损单平掉：平仓报「持仓不存在」，按已解决处理，不算失败
+		stub := &ownershipStub{closeErr: fmt.Errorf("%w: long position not found for DOGE_USDT", types.ErrPositionNotFound),
+			protection: unprotected()}
+		at := newOwnershipTrader(stub)
+		remaining, closed, failures := at.enforceProtectionInvariant([]kernel.PositionInfo{
+			{Symbol: "DOGE_USDT", Side: "long", ProtectionConfirmed: true},
+		})
+		require.Empty(t, failures)
+		assert.Equal(t, 1, closed)
+		assert.Empty(t, remaining)
+	})
+	t.Run("failed emergency close keeps the position and reports it", func(t *testing.T) {
+		stub := &ownershipStub{closeErr: errors.New("exchange down"), protection: unprotected()}
+		at := newOwnershipTrader(stub)
+		remaining, closed, failures := at.enforceProtectionInvariant([]kernel.PositionInfo{
+			{Symbol: "DOGE_USDT", Side: "long", ProtectionConfirmed: true},
+			{Symbol: "ETH_USDT", Side: "short", StopLoss: 2000, ProtectionConfirmed: true},
+		})
+		require.Len(t, failures, 1)
+		assert.Contains(t, failures[0].Error(), "emergency close FAILED")
+		assert.Zero(t, closed)
+		require.Len(t, remaining, 2, "the position stays visible to the model; the other one is untouched")
+		assert.Equal(t, []string{"DOGE_USDT"}, stub.closeLongs)
+	})
+}
+
+// 兜底平不掉时本轮禁止开仓，其余动作照常
+func TestPrepareOpenIsBlockedWhenProtectionCouldNotBeRestored(t *testing.T) {
+	stub := &ownershipStub{}
+	at := newOwnershipTrader(stub)
+	at.openBlockReason = "a position lost its stop loss and could not be closed"
+	_, _, err := at.prepareOpen(&kernel.Decision{Symbol: "DOGEUSDT", Action: "open_long", Leverage: 5, NotionalUSD: 50})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "opening is blocked this cycle")
 }
 
 // 开仓请求报错后交易所上出现了仓位：必须立即平掉，原始错误保留

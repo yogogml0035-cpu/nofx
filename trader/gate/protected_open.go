@@ -100,7 +100,7 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 		Size:                 signedSize,
 		Price:                "0", // 市价
 		Tif:                  "ioc",
-		Text:                 "t-nofx",
+		Text:                 aiTraderOpenText, // 仓位归属依据：同步只为带这个备注的开仓成交建持仓记录（D40）
 		MarketOrderSlipRatio: slip,
 	}
 	// 保护不变量：随开仓单一并提交止损止盈；两价合法且分居两侧，触发方向由交易所按委托方向推导。
@@ -154,6 +154,8 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 
 	result, _, err := t.client.FuturesApi.CreateFuturesOrder(t.ctx, "usdt", order, nil)
 	if err != nil {
+		// 请求可能超时但订单已成交：清掉持仓缓存，调用方随后「读持仓→有仓位就平掉」的兜底必须读到最新值
+		t.clearCache()
 		return types.ProtectedOpenResult{}, fmt.Errorf("failed to open %s position with protection: %w", side, err)
 	}
 	t.clearCache()

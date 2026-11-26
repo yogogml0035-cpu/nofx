@@ -63,7 +63,7 @@ func (t *GateTrader) openMarket(symbol string, quantity float64, leverage int, s
 		Size:     size,
 		Price:    "0", // 市价单
 		Tif:      "ioc",
-		Text:     "t-nofx",
+		Text:     assistantOpenText,
 	}
 
 	logger.Infof("  [Gate] Open%s: symbol=%s, size=%s, leverage=%d", side, symbol, size, leverage)
@@ -125,7 +125,12 @@ func (t *GateTrader) findPosition(symbol, side string) (gateapi.Position, error)
 			return pos, nil
 		}
 	}
-	return gateapi.Position{}, fmt.Errorf("%s position not found for %s", strings.ToLower(side), symbol)
+	return gateapi.Position{}, fmt.Errorf("%w: %s position not found for %s", types.ErrPositionNotFound, strings.ToLower(side), symbol)
+}
+
+// ClearPositionsCache 清掉持仓缓存，下一次 GetPositions 重新向交易所读取（失败开仓后的兜底读数使用）
+func (t *GateTrader) ClearPositionsCache() {
+	t.clearCache()
 }
 
 // findPositionSize 读取该合约指定方向的当前持仓张数（字符串，带方向符号）。
@@ -148,7 +153,7 @@ func (t *GateTrader) closePosition(symbol string, quantity float64, side string)
 		Contract: symbol,
 		Price:    "0", // 市价单
 		Tif:      "ioc",
-		Text:     "t-nofx-close",
+		Text:     closeText,
 	}
 
 	if quantity == 0 {

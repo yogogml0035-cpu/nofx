@@ -48,3 +48,15 @@ GATE_KEY=… GATE_SECRET=… /tmp/w5livecheck -out w5-livecheck-2026-11-26.jsonl
 
 - 带仓或有挂单时能否修改设置（W4、W5 都要求账户空闲）。
 - 单币种保证金模式下的读回（账户仍是跨币种模式）。
+
+## 只读探针：成交记录的下单备注（2026-11-26）
+
+- `mytrades_text_probe.go` — 只读探针：列出 `GET /futures/usdt/my_trades` 最近 55 笔成交的 `text`（下单备注）。
+- `mytrades-text-2026-11-26.jsonl` — 逐笔输出；`mytrades-text-2026-11-26.summary.txt` — 备注分布。
+
+用途：确认仓位归属可以按下单备注判定（对抗审查复核的 P1：同步层此前把账户内全部成交记到 trader 名下）。
+
+结果：`text` 原样带回下单备注，分布为 `t-nofx` 18、`t-nofx-close` 19、`t-nofx-partial-close` 11、
+`t-nofxe2e` 2（e2e 探针）、`app` 3、`app-auto-trail-p-s8qc` 1、`ao-2125517580666933248` 1。
+账户里确有其他入口的成交，所以归属必须按备注区分；AI trader 的开仓此后使用专属备注 `t-nofx-ai`。
+不下单、不改任何设置；凭据经环境变量传入，编译产物不入库。

@@ -166,12 +166,14 @@ type AutoTrader struct {
 	selfOpenedMutex     sync.RWMutex
 	// consecutiveRejectedRounds 连续出现被校验丢弃的决策的轮数（见 noteRejectedDecisions）
 	consecutiveRejectedRounds int
-	lastBalanceSyncTime       time.Time  // Last balance sync time
-	userID                    string     // User ID
-	gridState                 *GridState // Grid trading state (only used when StrategyType == "grid_trading")
-	consecutiveAIFailures     int        // Consecutive AI call failures
-	safeMode                  bool       // Safe mode: no new positions, protect existing ones
-	safeModeReason            string     // Why safe mode was activated
+	// openBlockReason 非空时本轮禁止开仓（例如有仓位失去止损且没能平掉）；每轮开始时清空
+	openBlockReason       string
+	lastBalanceSyncTime   time.Time  // Last balance sync time
+	userID                string     // User ID
+	gridState             *GridState // Grid trading state (only used when StrategyType == "grid_trading")
+	consecutiveAIFailures int        // Consecutive AI call failures
+	safeMode              bool       // Safe mode: no new positions, protect existing ones
+	safeModeReason        string     // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader

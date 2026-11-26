@@ -35,6 +35,7 @@ func (at *AutoTrader) runCycle() error {
 		ExecutionLog: []string{},
 		Success:      true,
 	}
+	at.openBlockReason = ""
 
 	// 1. Check if trading needs to be stopped
 	if time.Now().Before(at.stopUntil) {
@@ -73,21 +74,20 @@ func (at *AutoTrader) runCycle() error {
 
 	// 保护不变量（每轮）：本 trader 的持仓在交易所上确认没有止损 → 立即平仓。
 	// 只处理确定性的「读到了条件单列表且止损不在」；读不到保护时不据此平仓（见 enforceProtectionInvariant）。
-	remaining, closed, err := at.enforceProtectionInvariant(ctx.Positions)
-	if err != nil {
-		at.logErrorf("🚨 %v", err)
-		record.Success = false
-		record.ErrorMessage = err.Error()
-		if saveErr := at.saveDecision(record); saveErr != nil {
-			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
-		}
-		return err
-	}
+	remaining, closed, failures := at.enforceProtectionInvariant(ctx.Positions)
 	if closed > 0 {
 		record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf(
 			"PROTECTION LOST: %d position(s) had no stop loss on the exchange and were closed immediately", closed))
 		ctx.Positions = remaining
 		ctx.Account.PositionCount = len(remaining)
+	}
+	if len(failures) > 0 {
+		// 平不掉的仓位仍留在 ctx.Positions 里交给模型；本轮禁止开仓，其余动作照常
+		at.openBlockReason = "a position lost its stop loss and could not be closed"
+		for _, failure := range failures {
+			at.logErrorf("🚨 %v", failure)
+			record.ExecutionLog = append(record.ExecutionLog, "PROTECTION LOST: "+failure.Error())
+		}
 	}
 
 	// If no candidate coins available, log but do not error
@@ -130,8 +130,9 @@ func (at *AutoTrader) runCycle() error {
 		return nil
 	}
 
-	if aiDecision != nil && len(aiDecision.Rejected) > 0 {
-		// 被校验丢弃的决策必须进决策记录（助手诊断的证据优先级：决策记录 > 日志）
+	if aiDecision != nil {
+		// 被校验丢弃的决策必须进决策记录（助手诊断的证据优先级：决策记录 > 日志）；
+		// 没有被拒决策的轮次要把「连续被拒」计数归零，所以无条件调用
 		for _, rejected := range aiDecision.Rejected {
 			line := fmt.Sprintf("REJECTED decision #%d (%s %s): %s", rejected.Index, rejected.Action, rejected.Symbol, rejected.Reason)
 			record.ExecutionLog = append(record.ExecutionLog, line)
@@ -251,7 +252,9 @@ func (at *AutoTrader) runCycle() error {
 
 	// 8. Sort decisions: ensure close positions first, then open positions (prevent position stacking overflow)
 	sortedDecisions := sortDecisionsByPriority(aiDecision.Decisions)
-	sortedDecisions = at.filterDecisionsToStrategyUniverse(sortedDecisions, ctx)
+	sortedDecisions = at.filterDecisionsToStrategyUniverseWithLog(sortedDecisions, ctx, func(line string) {
+		record.ExecutionLog = append(record.ExecutionLog, line)
+	})
 
 	logger.Info("🔄 Execution order (optimized): Close positions first → Open positions later")
 	for i, d := range sortedDecisions {
@@ -274,6 +277,8 @@ func (at *AutoTrader) runCycle() error {
 		for _, d := range sortedDecisions {
 			if d.Action == "open_long" || d.Action == "open_short" {
 				at.logWarnf("🛡️ Safe mode: BLOCKED %s %s (no new positions allowed)", d.Action, d.Symbol)
+				record.ExecutionLog = append(record.ExecutionLog,
+					fmt.Sprintf("🛡️ Safe mode blocked %s %s (no new positions allowed)", d.Action, d.Symbol))
 				continue
 			}
 			filtered = append(filtered, d)
@@ -362,6 +367,12 @@ func isOpenDecision(action string) bool {
 }
 
 func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decision, ctx *kernel.Context) []kernel.Decision {
+	return at.filterDecisionsToStrategyUniverseWithLog(decisions, ctx, nil)
+}
+
+// filterDecisionsToStrategyUniverseWithLog 同 filterDecisionsToStrategyUniverse，丢弃的决策另外通过
+// onDrop 回调（调用方用来写进决策记录）。
+func (at *AutoTrader) filterDecisionsToStrategyUniverseWithLog(decisions []kernel.Decision, ctx *kernel.Context, onDrop func(string)) []kernel.Decision {
 	if ctx == nil || len(decisions) == 0 {
 		return decisions
 	}
@@ -412,8 +423,14 @@ func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decis
 
 		if isOpenDecision(d.Action) {
 			at.logWarnf("🚫 Blocked AI %s for %s: symbol is outside strategy candidate universe", d.Action, d.Symbol)
+			if onDrop != nil {
+				onDrop(fmt.Sprintf("🚫 Blocked %s %s: symbol is outside strategy candidate universe", d.Action, d.Symbol))
+			}
 		} else {
 			at.logWarnf("🚫 Dropped AI decision for %s: symbol is outside strategy candidate universe", d.Symbol)
+			if onDrop != nil {
+				onDrop(fmt.Sprintf("🚫 Dropped %s %s: symbol is outside strategy candidate universe", d.Symbol, d.Action))
+			}
 		}
 	}
 	return filtered
@@ -596,6 +613,14 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		}
 	}
 	at.forgetClosedSelfOpened(func(key string) bool { return openPositionKeys[key] })
+	// 已平掉的仓位不再带上一笔的峰值：同一个合约同向再开仓时带着旧峰值，可能被回撤监控提前平掉
+	at.peakPnLCacheMutex.Lock()
+	for key := range at.peakPnLCache {
+		if !currentPositionKeys[key] {
+			delete(at.peakPnLCache, key)
+		}
+	}
+	at.peakPnLCacheMutex.Unlock()
 
 	// 3. Use strategy engine to get candidate coins (must have strategy engine)
 	var candidateCoins []kernel.CandidateCoin

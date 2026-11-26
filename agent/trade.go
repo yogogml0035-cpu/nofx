@@ -432,7 +432,9 @@ func formatTradeConfirmation(trade *TradeAction, lang string) string {
 	if trade.EstimatedNotional > 0 {
 		msg += fmt.Sprintf("Estimated notional: %.2f USDT\n", trade.EstimatedNotional)
 	}
-	msg += manualTradeRiskNotice(lang)
+	if strings.HasPrefix(trade.Action, "open_") {
+		msg += manualTradeRiskNotice(lang)
+	}
 	if trade.RequiresLargeOrderConfirmation {
 		msg += fmt.Sprintf("\n⚠️ This order triggered high-risk protection. Send `"+tradeLargeOrderConfirmCommandEN+"` to execute, or ignore to cancel.", trade.ID)
 		return msg

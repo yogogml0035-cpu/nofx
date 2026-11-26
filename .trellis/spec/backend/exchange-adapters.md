@@ -588,3 +588,51 @@ boundary, the `1w`/`30d` calendar boundaries, invalid input, and the `scanTimefr
 - Wrong: a fixed `time.NewTicker(ScanInterval)` — the model sees half-formed candles and the phase
   depends on when the trader started.
 - Correct: compute the next candle close of the engine's own primary timeframe and wait for it.
+
+## Scenario: Attributing exchange fills to the trader (Gate)
+
+### 1. Scope / Trigger
+
+The order sync (`SyncOrdersFromGate`) turns exchange fills into local order, fill and position records.
+These records decide which positions an AI trader manages (plan D40): a position the trader did not open
+must stay invisible to the model and must never be closed by it.
+
+### 2. Signatures
+
+- `trader/gate/order_texts.go`: `aiTraderOpenText` (`t-nofx-ai`), `assistantOpenText`, `closeText`,
+  `partialCloseText`.
+- `GateTrade.OrderText` carries the order `text` of each fill (the `my_trades` endpoint returns it).
+
+### 3. Contracts
+
+- Only **opening** fills whose text is `t-nofx-ai` create order, fill and OPEN position records.
+  Opens placed by the assistant, the grid, the user or other tools are skipped.
+- **Closing** fills are applied only when the trader already has an OPEN record for that symbol and side.
+- When the position write of an opening fill fails, the just-created order and fill rows are deleted so the
+  next sync replays the trade; otherwise the existing order row would make every later sync skip it.
+- Every new entry point that is allowed to open positions for the trader must use `aiTraderOpenText`.
+  Assistant and grid opens keep `t-nofx` on purpose: those positions are not the trader's.
+- The trader loop adds its own in-memory registration for a position it just opened (before the sync
+  has written the record); it is cleared once the position disappears from the exchange.
+
+### 4. Validation & Error Matrix
+
+| Situation | Result |
+|---|---|
+| Opening fill, text `t-nofx-ai` | order + fill + position records under the trader |
+| Opening fill, any other text | skipped (not the trader's position) |
+| Closing fill, trader has an OPEN record for the symbol/side | applied, record reduced/closed |
+| Closing fill, no OPEN record | skipped (nothing of this trader to close) |
+| Opening fill whose position write fails | rows rolled back, replayed on the next sync |
+| Two AI traders on one exchange account | not distinguishable (same text) — one account, one AI trader |
+
+### 5. Good/Base/Bad Cases
+
+- Base: trader opens DOGE_USDT with attached TP/SL → the next sync creates its OPEN record.
+- Good: the user opens SOL_USDT from the Gate app → no record; the model never sees it.
+- Bad: a new trader entry point opens with text `t-nofx` → the position is never attributed (unmanaged).
+
+### 6. Tests Required
+
+`trader/gate/order_sync_ownership_test.go` covers the four rules above; `trader/auto_trader_ownership_test.go`
+covers the trader-side visibility and the ownership assertions before close, partial close and protection updates.

@@ -223,6 +223,9 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 // prepareOpen 汇集开仓前的仓位、余额与风控检查，返回通过校验的名义价值与账户本金
 // （本金交给适配器在提交前按最坏成交价复核亏损上限，D34）。交易判断集中在这里；换算与提交由适配器完成。
 func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, float64, error) {
+	if at.openBlockReason != "" {
+		return 0, 0, fmt.Errorf("opening is blocked this cycle: %s", at.openBlockReason)
+	}
 	// ⚠️ Get current positions for multiple checks
 	positions, err := at.trader.GetPositions()
 	if err != nil {

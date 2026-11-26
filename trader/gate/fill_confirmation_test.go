@@ -5,6 +5,7 @@ package gate
 // 2% 亏损上限要按最坏成交价在提交前再算一次。
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/gate/gateapi-go/v7"
@@ -223,4 +224,42 @@ func TestVerifyOrderProtectionRetriesPositionReadback(t *testing.T) {
 // orderWithFill 构造下单接口的返回（线上格式：数值字段为字符串）
 func orderWithFill(finishAs, left string) gateapi.FuturesOrder {
 	return gateapi.FuturesOrder{FinishAs: finishAs, Left: left}
+}
+
+// AI trader 的开仓带专属备注：同步层据此判定仓位归属（D40），助手/网格的普通市价单不带
+func TestOpenProtectedCarriesAITraderText(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+
+	_, err := gt.OpenLongProtected(longRequest(95.5))
+	require.NoError(t, err)
+	assert.Equal(t, "t-nofx-ai", mock.lastOrderBody(t)["text"])
+
+	_, err = gt.OpenLong("DOGE_USDT", 170, 10)
+	require.NoError(t, err)
+	assert.Equal(t, "t-nofx", mock.lastOrderBody(t)["text"], "the assistant/grid primitive keeps its own text")
+}
+
+// 请求报错时持仓缓存必须已清：调用方「读持仓→有仓位就平掉」的兜底才能读到最新值
+func TestOpenProtectedClearsPositionCacheOnRequestError(t *testing.T) {
+	mock := newGateMock()
+	mock.positions = []map[string]interface{}{livePosition("ETH_USDT", "1", "1600")}
+	mock.setLeverageFail = &gateAPIFailure{status: http.StatusInternalServerError, label: "INTERNAL", message: "boom"}
+	gt := newLocalGateTrader(t, mock.handler)
+
+	_, err := gt.OpenLongProtected(longRequest(95.5))
+	require.Error(t, err)
+	// 报错后交易所上多了一个仓位：不带缓存清理时 GetPositions 仍会返回开仓前的快照
+	mock.mu.Lock()
+	mock.positions = append(mock.positions, livePosition("DOGE_USDT", "6", "0.55"))
+	mock.mu.Unlock()
+	positions, err := gt.GetPositions()
+	require.NoError(t, err)
+	found := false
+	for _, pos := range positions {
+		if pos["symbol"] == "DOGE_USDT" {
+			found = true
+		}
+	}
+	assert.True(t, found, "positions must be re-read after the failed request")
 }

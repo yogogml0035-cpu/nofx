@@ -112,7 +112,7 @@ func (t *GateTrader) ClosePartial(req types.PartialCloseRequest) (types.PartialC
 		Price:      "0", // 市价单
 		Tif:        "ioc",
 		ReduceOnly: true,
-		Text:       "t-nofx-partial-close",
+		Text:       partialCloseText,
 	}
 
 	logger.Infof("  [Gate] PartialClose%s: symbol=%s, size=%s, percent=%v, remaining=%s",

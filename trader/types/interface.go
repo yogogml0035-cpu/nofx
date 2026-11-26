@@ -249,6 +249,10 @@ type ProtectiveOrderManager interface {
 	UpdateProtection(req ProtectionUpdateRequest) (ProtectionUpdateResult, error)
 }
 
+// ErrPositionNotFound 要平的持仓在交易所上已经不存在（例如刚被止损单平掉）。调用方据此把
+// 「平仓失败」识别为「已解决」，而不是当成紧急平仓失败。
+var ErrPositionNotFound = errors.New("position not found")
+
 // ErrPositionUnprotected 改单或恢复过程中保护单已无法确认存在：调用方必须立即平仓
 // （保护不变量：持仓从存在那一刻起必须带有止损与止盈）。
 var ErrPositionUnprotected = errors.New("position is not protected")
