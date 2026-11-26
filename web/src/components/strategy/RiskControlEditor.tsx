@@ -147,7 +147,8 @@ export function RiskControlEditor({
             <div className="flex items-center">
               <input
                 type="number"
-                value={config.position_percent ?? 10}
+                // 旧配置可能存着 0/缺失：运行时会按默认 10% 处理，界面显示同一个值
+                value={config.position_percent && config.position_percent > 0 ? config.position_percent : 10}
                 onChange={(e) =>
                   updateField('position_percent', parseFloat(e.target.value) || 10)
                 }
