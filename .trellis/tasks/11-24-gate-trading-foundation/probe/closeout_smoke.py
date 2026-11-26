@@ -227,9 +227,11 @@ def run_smoke(compose, BACKEND, FRONTEND):
         _, bars, _ = http("GET", f"/api/klines?symbol=BTC_USDT&interval={tf}&limit=5")
         ok = isinstance(bars, list) and len(bars) == 5
         if ok:
-            for b in bars:
+            for i, b in enumerate(bars):
+                # 最后一根是未收线的那根：刚开盘的 10s/1m 可以还没有成交，成交量允许为 0
+                min_volume = 0 if i == len(bars) - 1 else 1
                 ok = ok and all(k in b for k in ("openTime", "open", "high", "low", "close", "volume")) \
-                    and b["high"] >= b["low"] > 0 and b["volume"] > 0 and b["quoteVolume"] == b["volume"]
+                    and b["high"] >= b["low"] > 0 and b["volume"] >= min_volume and b["quoteVolume"] == b["volume"]
             times = [b["openTime"] // 1000 for b in bars]
             ok = ok and times == sorted(times) and len(set(times)) == 5
             days = [datetime.fromtimestamp(t, timezone.utc) for t in times]
