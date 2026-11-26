@@ -206,8 +206,20 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 	at.peakPnLCacheMutex.Lock()
 	defer at.peakPnLCacheMutex.Unlock()
 
-	posKey := symbol + "_" + side
-	delete(at.peakPnLCache, posKey)
+	side = strings.ToLower(strings.TrimSpace(side))
+	delete(at.peakPnLCache, symbol+"_"+side)
+	// 缓存键由交易所持仓的原始符号构成（如 DOGE_USDT_long），而决策里的 symbol 可能是
+	// DOGEUSDT。按符号比较键再清一遍，避免同轮全平后同向再开仓沿用旧峰值。
+	target := positionSymbolKey(symbol)
+	for key := range at.peakPnLCache {
+		idx := strings.LastIndex(key, "_")
+		if idx <= 0 || key[idx+1:] != side {
+			continue
+		}
+		if positionSymbolKey(key[:idx]) == target {
+			delete(at.peakPnLCache, key)
+		}
+	}
 }
 
 // ============================================================================

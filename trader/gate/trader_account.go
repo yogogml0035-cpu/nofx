@@ -138,10 +138,29 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 			continue // Skip empty positions
 		}
 
-		entryPrice, _ := strconv.ParseFloat(pos.EntryPrice, 64)
-		markPrice, _ := strconv.ParseFloat(pos.MarkPrice, 64)
-		liqPrice, _ := strconv.ParseFloat(pos.LiqPrice, 64)
-		unrealizedPnl, _ := strconv.ParseFloat(pos.UnrealisedPnl, 64)
+		entryPrice, err := parseRequiredSize("entry price", pos.EntryPrice)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
+		}
+		if entryPrice <= 0 {
+			return nil, fmt.Errorf("position %s has invalid non-positive entry price %q", pos.Contract, pos.EntryPrice)
+		}
+		markPrice, err := parseRequiredSize("mark price", pos.MarkPrice)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
+		}
+		if markPrice <= 0 {
+			return nil, fmt.Errorf("position %s has invalid non-positive mark price %q", pos.Contract, pos.MarkPrice)
+		}
+		// 强平价与未实现盈亏在部分仓位形态下会缺省（空串=0），但非空值必须能解析，不能静默落成 0。
+		liqPrice, err := parseOptionalSize("liquidation price", pos.LiqPrice)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
+		}
+		unrealizedPnl, err := parseOptionalSize("unrealized pnl", pos.UnrealisedPnl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
+		}
 		leverage := positionLeverage(&pos)
 
 		// Gate 返回的持仓张数换算为标的币数量：元数据经 GetContractSpec 精确解析，

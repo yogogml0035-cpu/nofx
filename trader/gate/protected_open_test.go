@@ -156,7 +156,7 @@ func positionLevelTriggerOrder(id int64, contract, side, kind string) map[string
 // livePosition 一笔持仓的线上格式（保护核对与改单读取使用）
 func livePosition(contract, size, entry string) map[string]interface{} {
 	return map[string]interface{}{
-		"contract": contract, "size": size, "entry_price": entry, "mode": "single",
+		"contract": contract, "size": size, "entry_price": entry, "mark_price": entry, "mode": "single",
 		"pos_margin_mode": "cross", "lever": "10",
 	}
 }

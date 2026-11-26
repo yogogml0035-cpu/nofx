@@ -48,7 +48,7 @@ func TestSymbolInfoFromContract(t *testing.T) {
 		t.Errorf("maxLeverage = %d, want 100", info.MaxLeverage)
 	}
 	if info.SzDecimals != 1 {
-		t.Errorf("sz_decimals = %d, want order_size_min 1", info.SzDecimals)
+		t.Errorf("sz_decimals = %v, want order_size_min 1", info.SzDecimals)
 	}
 }
 
@@ -85,5 +85,20 @@ func TestBaseSymbol(t *testing.T) {
 		if got := baseSymbol(contract); got != want {
 			t.Errorf("baseSymbol(%q) = %q, want %q", contract, got, want)
 		}
+	}
+}
+
+func TestSymbolInfoFromContractKeepsFractionalOrderSizeMinimum(t *testing.T) {
+	contract := gateapi.Contract{
+		Name:         "ETH_USDT",
+		LeverageMax:  "100",
+		OrderSizeMin: "0.1", // ETH/SOL 的步长是 0.1 张，不能截断成 0
+	}
+	info, ok := SymbolInfoFromContract(contract, gateapi.FuturesTicker{Contract: "ETH_USDT"}, false)
+	if !ok {
+		t.Fatalf("normal contract should be included")
+	}
+	if info.SzDecimals != 0.1 {
+		t.Errorf("sz_decimals = %v, want order_size_min 0.1", info.SzDecimals)
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"nofx/logger"
 )
 
 // adaptivePriceRound rounds a price based on its magnitude to preserve meaningful precision.
@@ -116,14 +118,28 @@ type TraderPosition struct {
 	Status             string  `gorm:"column:status;default:OPEN;index:idx_positions_status" json:"status"`
 	CloseReason        string  `gorm:"column:close_reason;default:''" json:"close_reason"`
 	Source             string  `gorm:"column:source;default:system" json:"source"`
-	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"`   // Unix milliseconds UTC
-	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"`   // Unix milliseconds UTC
+	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
+	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"` // Unix milliseconds UTC
 }
 
 // TableName returns the table name
 func (TraderPosition) TableName() string {
 	return "trader_positions"
 }
+
+// 持仓记录状态。RECONCILED 是「交易所上已不可归属、但平仓成交可能还没同步到」的中间态：
+// 不计入历史与统计（所有统计只取 CLOSED），等迟到的平仓成交回填后转为 CLOSED。
+// 不能直接按 CLOSED 落库：那时候既没有出场价也没有真实盈亏，写 0 会造出 -100%×杠杆 的假交易。
+const (
+	PositionStatusOpen       = "OPEN"
+	PositionStatusClosed     = "CLOSED"
+	PositionStatusReconciled = "RECONCILED"
+
+	// ReconciledPositionGone 仓位在交易所上已经消失，平仓成交可能稍后才同步到（可回填）
+	ReconciledPositionGone = "reconciled: position no longer exists on the exchange"
+	// ReconciledEntryMismatch 交易所仓位入场价与记录不符（不可归属，且不存在属于本记录的平仓成交）
+	ReconciledEntryMismatch = "reconciled: exchange position entry price differs from this record"
+)
 
 // PositionStore position storage
 type PositionStore struct {
@@ -198,15 +214,115 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 func (s *PositionStore) ClosePosition(id int64, exitPrice float64, exitOrderID string, realizedPnL float64, fee float64, closeReason string) error {
 	nowMs := time.Now().UTC().UnixMilli()
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"exit_price":   exitPrice,
+		"exit_price":    exitPrice,
 		"exit_order_id": exitOrderID,
-		"exit_time":    nowMs,
-		"realized_pnl": realizedPnL,
-		"fee":          fee,
-		"status":       "CLOSED",
-		"close_reason": closeReason,
-		"updated_at":   nowMs,
+		"exit_time":     nowMs,
+		"realized_pnl":  realizedPnL,
+		"fee":           fee,
+		"status":        "CLOSED",
+		"close_reason":  closeReason,
+		"updated_at":    nowMs,
 	}).Error
+}
+
+// ReconcileClose 把对账确认已不可归属的 OPEN 记录转为 RECONCILED：不编造出场价与盈亏，
+// 也不进入历史/统计。仓位消失的平仓成交如果只是迟到（同步退避或主周期先于同步），
+// 会由 BackfillReconciledClose 回填后转为 CLOSED。
+func (s *PositionStore) ReconcileClose(id int64, reason string) error {
+	nowMs := time.Now().UTC().UnixMilli()
+	return s.db.Model(&TraderPosition{}).Where("id = ? AND status = ?", id, PositionStatusOpen).
+		Updates(map[string]interface{}{
+			"status":       PositionStatusReconciled,
+			"exit_time":    nowMs,
+			"close_reason": reason,
+			"updated_at":   nowMs,
+		}).Error
+}
+
+// GetBackfillableReconciledPosition 找到可以接收迟到平仓成交的 RECONCILED 记录：
+// 只匹配「仓位消失」类对账（入场价不符的记录本来就不属于这些成交），
+// 且限定在同步窗口内，避免把很久以前的记录重新翻出来。
+func (s *PositionStore) GetBackfillableReconciledPosition(traderID, symbol, side string, sinceMs int64) (*TraderPosition, error) {
+	var pos TraderPosition
+	err := s.db.Where(
+		"trader_id = ? AND symbol = ? AND side = ? AND status = ? AND close_reason = ? AND exit_time >= ?",
+		traderID, symbol, side, PositionStatusReconciled, ReconciledPositionGone, sinceMs,
+	).Order("exit_time DESC").First(&pos).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query reconciled position: %w", err)
+	}
+	return &pos, nil
+}
+
+// BackfillReconciledClose 把迟到的一条平仓成交应用到 RECONCILED 记录：按成交数量递减剩余数量、
+// 加权出场价、累加真实盈亏与手续费。剩余数量归零时转为 CLOSED 并进入历史；
+// 同一平仓委托拆成多笔成交时，前几笔保持 RECONCILED，等最后一笔到齐。
+// 返回 false 表示这条记录已不再可回填（例如已被处理或状态变化），调用方应跳过这条成交。
+func (s *PositionStore) BackfillReconciledClose(id int64, fillQty, fillPrice, realizedPnL, fee float64, tradeTimeMs int64, exitOrderID string) (bool, error) {
+	var pos TraderPosition
+	if err := s.db.First(&pos, id).Error; err != nil {
+		return false, fmt.Errorf("failed to get reconciled position: %w", err)
+	}
+	if pos.Status != PositionStatusReconciled || fillQty <= 0 || fillPrice <= 0 || pos.Quantity <= 0 {
+		return false, nil
+	}
+
+	closedQty := fillQty
+	if closedQty > pos.Quantity {
+		logger.Infof("  ⚠️ Reconciled backfill over-close: %s %s closes %.6f of %.6f, clamping",
+			pos.Symbol, pos.Side, closedQty, pos.Quantity)
+		closedQty = pos.Quantity
+	}
+	prevClosed := pos.EntryQuantity - pos.Quantity
+	if prevClosed < 0 {
+		prevClosed = 0
+	}
+	totalClosed := prevClosed + closedQty
+
+	exitPrice := fillPrice
+	if prevClosed > 0 && pos.ExitPrice > 0 {
+		exitPrice = (pos.ExitPrice*prevClosed + fillPrice*closedQty) / totalClosed
+		exitPrice = adaptivePriceRound(exitPrice, pos.ExitPrice, fillPrice, pos.EntryPrice)
+	}
+	if realizedPnL == 0 && pos.EntryPrice > 0 {
+		if strings.EqualFold(pos.Side, "SHORT") {
+			realizedPnL = (pos.EntryPrice - fillPrice) * closedQty
+		} else {
+			realizedPnL = (fillPrice - pos.EntryPrice) * closedQty
+		}
+		realizedPnL = math.Round(realizedPnL*100) / 100
+	}
+
+	nowMs := time.Now().UTC().UnixMilli()
+	updates := map[string]interface{}{
+		"exit_price":    exitPrice,
+		"exit_order_id": exitOrderID,
+		"exit_time":     tradeTimeMs,
+		"realized_pnl":  pos.RealizedPnL + realizedPnL,
+		"fee":           pos.Fee + fee,
+		"updated_at":    nowMs,
+	}
+	const quantityTolerance = 0.0001
+	remaining := pos.Quantity - closedQty
+	if remaining <= quantityTolerance {
+		finalQty := pos.EntryQuantity
+		if finalQty <= 0 {
+			finalQty = closedQty
+		}
+		updates["quantity"] = finalQty
+		updates["status"] = PositionStatusClosed
+		updates["close_reason"] = "sync"
+	} else {
+		updates["quantity"] = remaining
+	}
+
+	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return false, fmt.Errorf("failed to backfill reconciled position: %w", err)
+	}
+	return true, nil
 }
 
 // UpdatePositionQuantityAndPrice updates position quantity and recalculates entry price
@@ -322,15 +438,15 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 	}
 
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"quantity":       quantity,
-		"exit_price":     exitPrice,
-		"exit_order_id":  exitOrderID,
-		"exit_time":      exitTimeMs,
-		"realized_pnl":   totalRealizedPnL,
-		"fee":            totalFee,
-		"status":         "CLOSED",
-		"close_reason":   closeReason,
-		"updated_at":     time.Now().UTC().UnixMilli(),
+		"quantity":      quantity,
+		"exit_price":    exitPrice,
+		"exit_order_id": exitOrderID,
+		"exit_time":     exitTimeMs,
+		"realized_pnl":  totalRealizedPnL,
+		"fee":           totalFee,
+		"status":        "CLOSED",
+		"close_reason":  closeReason,
+		"updated_at":    time.Now().UTC().UnixMilli(),
 	}).Error
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/store"
 	"nofx/trader/types"
 )
 
@@ -246,8 +247,7 @@ func (at *AutoTrader) reconcileOpenPositionRecords(exchangePositions []map[strin
 		if !exists {
 			at.logWarnf("🧹 %s: closing stale OPEN record %s %s (%s): no such position on the exchange",
 				at.name, record.Side, record.Symbol, record.CloseReason)
-			if err := at.store.Position().ClosePosition(record.ID, 0, "", 0, 0,
-				"reconciled: position no longer exists on the exchange"); err != nil {
+			if err := at.store.Position().ReconcileClose(record.ID, store.ReconciledPositionGone); err != nil {
 				at.logWarnf("⚠️ Failed to close stale record %d: %v", record.ID, err)
 			}
 			continue
@@ -255,8 +255,7 @@ func (at *AutoTrader) reconcileOpenPositionRecords(exchangePositions []map[strin
 		if !entryPricesMatch(record.EntryPrice, current.entry) {
 			at.logWarnf("🧹 %s: closing OPEN record %s %s: entry price %.10g does not match the exchange position %.10g; treating it as not this trader's",
 				at.name, record.Side, record.Symbol, record.EntryPrice, current.entry)
-			if err := at.store.Position().ClosePosition(record.ID, 0, "", 0, 0,
-				"reconciled: exchange position entry price differs from this record"); err != nil {
+			if err := at.store.Position().ReconcileClose(record.ID, store.ReconciledEntryMismatch); err != nil {
 				at.logWarnf("⚠️ Failed to close mismatched record %d: %v", record.ID, err)
 			}
 			continue

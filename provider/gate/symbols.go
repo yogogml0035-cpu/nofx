@@ -27,7 +27,7 @@ type SymbolInfo struct {
 	FundingRate  float64 `json:"funding_rate"` // 资金费率，Gate 原始小数语义（不 ×100；可为 0，不能缺字段）
 	Change24hPct float64 `json:"change_24h_pct,omitempty"`
 	MaxLeverage  int     `json:"maxLeverage,omitempty"`
-	SzDecimals   int     `json:"sz_decimals,omitempty"` // 最小下单张数（Gate 语义）
+	SzDecimals   float64 `json:"sz_decimals,omitempty"` // 最小下单张数（Gate 语义，可为小数：ETH/SOL 为 0.1）
 }
 
 // ListSymbols 结果进程内 TTL 缓存：该端点免鉴权且被前端高频轮询，
@@ -138,7 +138,7 @@ func SymbolInfoFromContract(contract gateapi.Contract, ticker gateapi.FuturesTic
 	if maxLev, err := strconv.ParseFloat(contract.LeverageMax, 64); err == nil {
 		info.MaxLeverage = int(maxLev)
 	}
-	info.SzDecimals = int(parseFloat(contract.OrderSizeMin))
+	info.SzDecimals = parseFloat(contract.OrderSizeMin)
 
 	if hasTicker {
 		info.MarkPrice = parseFirstFloat(ticker.Last, ticker.MarkPrice)
