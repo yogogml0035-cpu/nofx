@@ -247,7 +247,8 @@ func (c *ClaudeClient) ParseMCPResponseFull(body []byte) (*mcp.LLMResponse, erro
 			InputTokens  int `json:"input_tokens"`
 			OutputTokens int `json:"output_tokens"`
 		} `json:"usage"`
-		Error *struct {
+		StopReason string `json:"stop_reason"`
+		Error      *struct {
 			Type    string `json:"type"`
 			Message string `json:"message"`
 		} `json:"error"`
@@ -271,11 +272,17 @@ func (c *ClaudeClient) ParseMCPResponseFull(body []byte) (*mcp.LLMResponse, erro
 		})
 	}
 
-	result := &mcp.LLMResponse{}
+	result := &mcp.LLMResponse{FinishReason: raw.StopReason}
 	for _, block := range raw.Content {
 		switch block.Type {
 		case "text":
-			result.Content = block.Text
+			// Anthropic may return several text blocks around tool_use.
+			// Overwriting would discard earlier text and can turn a non-empty
+			// reply into a false empty response.
+			if result.Content != "" {
+				result.Content += "\n"
+			}
+			result.Content += block.Text
 
 		case "tool_use":
 			// Input is a JSON object; serialise back to a JSON string so it
@@ -293,6 +300,9 @@ func (c *ClaudeClient) ParseMCPResponseFull(body []byte) (*mcp.LLMResponse, erro
 				},
 			})
 		}
+	}
+	if err := mcp.ValidateLLMResponse(result); err != nil {
+		return nil, err
 	}
 	return result, nil
 }

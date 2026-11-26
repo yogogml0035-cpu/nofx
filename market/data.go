@@ -150,6 +150,40 @@ func Normalize(symbol string) string {
 	return symbol + "USDT"
 }
 
+// MatchKey returns the exchange-agnostic comparison key for a trading pair:
+// uppercase, without the derivative "-SWAP" suffix and without / - _ separators.
+// "BTC/USDT", "BTC-USDT" and "BTC_USDT" all become "BTCUSDT". A bare ticker
+// that merely ends in the letters SWAP (e.g. "XSWAP") is left untouched.
+func MatchKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	s = strings.TrimSuffix(s, "-SWAP")
+	return strings.NewReplacer("/", "", "-", "", "_", "").Replace(s)
+}
+
+// QuoteCurrency returns the quote currency of a pair (USDT, USDC or USD), or
+// an empty string for a bare base ticker.
+func QuoteCurrency(symbol string) string {
+	s := MatchKey(symbol)
+	for _, quote := range []string{"USDC", "USDT", "USD"} {
+		if strings.HasSuffix(s, quote) && len(s) > len(quote) {
+			return quote
+		}
+	}
+	return ""
+}
+
+// BaseSymbol returns MatchKey without the quote currency. Used to match model
+// symbol variants (BTC/USDT, BTC-USDT, plain BTC) to the canonical pair.
+func BaseSymbol(symbol string) string {
+	s := MatchKey(symbol)
+	for _, quote := range []string{"USDC", "USDT", "USD"} {
+		if strings.HasSuffix(s, quote) && len(s) > len(quote) {
+			return strings.TrimSuffix(s, quote)
+		}
+	}
+	return s
+}
+
 // isStaleData 检测数据陈旧（连续一段时间的价格冻结 + 成交量为 0）。
 // 判定窗口按 K 线间隔换算成至少 15 分钟（最少 5 根）：10s 周期需要 90 根、1m 需要 15 根，
 // 避免短周期下 5 根（50 秒）无成交就被误判为数据源异常；30d 等长周期仍以 5 根为下限。

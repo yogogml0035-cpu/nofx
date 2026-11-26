@@ -18,7 +18,7 @@ import (
 
 var (
 	// Safe regex: precisely match ```json code blocks
-	reJSONFence      = regexp.MustCompile(`(?is)` + "```json\\s*(\\[\\s*\\{.*?\\}\\s*\\])\\s*```")
+	reJSONFence      = regexp.MustCompile(`(?is)` + "```json\\s*(\\[\\s*(?:\\{.*?\\}\\s*)?\\])\\s*```")
 	reJSONArray      = regexp.MustCompile(`(?is)\[\s*\{.*?\}\s*\]`)
 	reArrayHead      = regexp.MustCompile(`^\[\s*\{`)
 	reArrayOpenSpace = regexp.MustCompile(`^\[\s+\{`)
@@ -61,21 +61,27 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	// Determine context limit for the specific model being used
 	contextLimit := 131072 // safe default (strictest common limit)
 	var providerName string
+	outputBudget := 0
 	if embedder, ok := mcpClient.(mcp.ClientEmbedder); ok {
 		base := embedder.BaseClient()
 		providerName = base.Provider
 		contextLimit = store.GetContextLimitForClient(base.Provider, base.Model)
+		outputBudget = base.MaxTokens
 	}
 
-	if estimate.Total > contextLimit {
-		logger.Errorf("🚫 Token estimate %d exceeds %s context limit %d — blocking analysis",
-			estimate.Total, providerName, contextLimit)
-		return nil, fmt.Errorf("estimated %d tokens exceeds model context limit of %d; reduce coins, timeframes, or K-line count",
-			estimate.Total, contextLimit)
+	// The model context limit covers prompt + completion. Reserve the configured
+	// output budget too; otherwise a prompt that just fits the input estimate can
+	// still fail upstream once the reasoning tokens are added.
+	required := estimate.Total + outputBudget
+	if required > contextLimit {
+		logger.Errorf("🚫 Token estimate %d + output budget %d exceeds %s context limit %d — blocking analysis",
+			estimate.Total, outputBudget, providerName, contextLimit)
+		return nil, fmt.Errorf("estimated %d input tokens + %d output budget exceeds model context limit of %d; reduce coins, timeframes, K-line count, or output budget",
+			estimate.Total, outputBudget, contextLimit)
 	}
-	if estimate.Total*100/contextLimit >= 80 {
-		logger.Infof("⚠️  Token estimate %d — approaching %s context limit %d",
-			estimate.Total, providerName, contextLimit)
+	if required*100/contextLimit >= 80 {
+		logger.Infof("⚠️  Token estimate %d + output budget %d — approaching %s context limit %d",
+			estimate.Total, outputBudget, providerName, contextLimit)
 	}
 
 	// 1. Fetch market data using strategy config
@@ -330,8 +336,17 @@ func extractDecisions(response string) ([]Decision, error) {
 	s = strings.TrimSpace(s)
 	s = fixMissingQuotes(s)
 
+	// An empty reply is a failed AI call, not a model that forgot the JSON
+	// format. Returning SafeFallback here would hide the transport/budget error
+	// behind a successful "wait" cycle.
+	if s == "" {
+		return nil, fmt.Errorf("AI returned empty response")
+	}
+
 	var jsonPart string
+	tagFound := false
 	if match := reDecisionTag.FindStringSubmatch(s); match != nil && len(match) > 1 {
+		tagFound = true
 		jsonPart = strings.TrimSpace(match[1])
 		logger.Infof("✓ Extracted JSON using <decision> tag")
 	} else {
@@ -355,8 +370,20 @@ func extractDecisions(response string) ([]Decision, error) {
 		return decisions, nil
 	}
 
+	// An empty decision array is a valid "do nothing" answer, not a fallback.
+	if strings.TrimSpace(jsonPart) == "[]" {
+		logger.Infof("✓ AI returned an empty decision array")
+		return []Decision{}, nil
+	}
+
 	jsonContent := strings.TrimSpace(reJSONArray.FindString(jsonPart))
 	if jsonContent == "" {
+		// A <decision> tag without a complete array means the model started
+		// structured output but it was cut off or malformed. That is a failed
+		// call, not the "model wrote prose" case that SafeFallback covers.
+		if tagFound {
+			return nil, fmt.Errorf("AI response contained <decision> but no complete JSON array (likely truncated)")
+		}
 		logger.Infof("⚠️  [SafeFallback] AI didn't output JSON decision, entering safe wait mode")
 
 		cotSummary := jsonPart
