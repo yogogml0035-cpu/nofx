@@ -272,6 +272,11 @@ func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 		// 委托查询失败（如完结超过 10 分钟）时用交易所持仓方向判定，避免反向遗留保护对误判
 		side = positionSide
 	}
+	if side == "" {
+		// 委托查询与持仓读取都失败时方向未知：不能把任意方向的条件单当成这笔开仓的保护
+		// （同合约可能残留反向触发单）。按未验证处理，由调用方立即平仓。
+		return fmt.Errorf("protection verification for %s is impossible: order history and position direction are both unavailable (order %s)", symbol, orderID)
+	}
 
 	var lastErr error
 	for attempt := 1; attempt <= 3; attempt++ {

@@ -118,4 +118,3 @@ Step 2: JSON decision array
 - The open notional is computed by the system from principal × percent; the decision JSON neither needs nor accepts an amount field
 - The stop_loss / take_profit values in the example are placeholders; replace them with real prices from this cycle (0 is refused by the system)
 - **IMPORTANT**: all numeric values must be calculated numbers, NOT formulas/expressions (e.g. use `27.76`, not `3000 * 0.01`)
-

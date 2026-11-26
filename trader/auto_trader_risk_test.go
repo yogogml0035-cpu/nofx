@@ -370,3 +370,16 @@ func TestDrawdownTriggersAtExactlyFortyPercentDrawdown(t *testing.T) {
 	assert.Equal(t, []string{"CloseLong DOGE_USDT 0"}, stub.closeCalls, "恰 40% 回撤满足 ≥ 语义，触发全平")
 	assert.Empty(t, at.GetPeakPnLCache())
 }
+
+func TestClearPeakPnLCacheMatchesSymbolVariants(t *testing.T) {
+	at := &AutoTrader{peakPnLCache: map[string]float64{
+		"DOGE_USDT_long":  12.3,
+		"DOGE_USDT_short": 4.5,
+		"BTC_USDT_long":   1.0,
+	}}
+	at.ClearPeakPnLCache("DOGEUSDT", "long")
+
+	assert.NotContains(t, at.peakPnLCache, "DOGE_USDT_long", "决策里的 DOGEUSDT 也要清掉交易所符号键")
+	assert.Contains(t, at.peakPnLCache, "DOGE_USDT_short", "同合约反方向不受影响")
+	assert.Contains(t, at.peakPnLCache, "BTC_USDT_long", "其他合约不受影响")
+}

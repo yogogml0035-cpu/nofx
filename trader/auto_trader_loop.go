@@ -99,6 +99,24 @@ func (at *AutoTrader) runCycle() error {
 		}
 	}
 
+	// 静态币池为空但仍有持仓时，把持仓合约补进本轮候选：模型仍需要拿到行情来管理仓位
+	//（平仓、改保护），不能因为「没有可开仓的候选」整轮跳过。
+	if len(ctx.CandidateCoins) == 0 && len(ctx.Positions) > 0 {
+		seen := make(map[string]bool, len(ctx.Positions))
+		for _, position := range ctx.Positions {
+			key := positionSymbolKey(position.Symbol)
+			if key == "" || seen[key] {
+				continue
+			}
+			seen[key] = true
+			ctx.CandidateCoins = append(ctx.CandidateCoins, kernel.CandidateCoin{
+				Symbol:  position.Symbol,
+				Sources: []string{"position"},
+			})
+		}
+		at.logInfof("ℹ️ No static candidates; %d held position(s) added as candidates for position management", len(ctx.CandidateCoins))
+	}
+
 	// If no candidate coins available, log but do not error
 	if len(ctx.CandidateCoins) == 0 {
 		at.logInfof("ℹ️ No candidate coins available, skipping this cycle")
