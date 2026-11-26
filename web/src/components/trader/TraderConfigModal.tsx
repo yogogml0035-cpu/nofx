@@ -179,8 +179,12 @@ export function TraderConfigModal({
   const selectedStrategy = strategies.find(s => s.id === formData.strategy_id)
   // 决策按策略主周期收线后 5 秒触发（D17）；扫描间隔只在主周期无效时回退生效。
   // 存量策略可能存着已废弃的周期（如 3m）：不在保留集合内时不显示「实际节奏」，避免给出错误信息。
-  const candidateTimeframe = selectedStrategy?.config?.indicators?.klines?.primary_timeframe
-    || selectedStrategy?.config?.indicators?.klines?.selected_timeframes?.[0]
+  // 策略配置的线上形状是 { strategy_type, ai_config: { indicators, risk_control, ... } }；
+  // 旧的扁平配置把 indicators 放在顶层。两种都要读，否则保存后的策略永远不显示实际节奏。
+  const selectedKlines = selectedStrategy?.config?.ai_config?.indicators?.klines
+    ?? selectedStrategy?.config?.indicators?.klines
+  const candidateTimeframe = selectedKlines?.primary_timeframe
+    || selectedKlines?.selected_timeframes?.[0]
     || ''
   const cadenceTimeframe = isRetainedTimeframe(candidateTimeframe) ? candidateTimeframe : ''
 

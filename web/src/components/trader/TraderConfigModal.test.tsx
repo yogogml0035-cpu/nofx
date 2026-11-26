@@ -229,19 +229,22 @@ describe('TraderConfigModal – scan cadence', () => {
     is_default: false,
     created_at: '',
     updated_at: '',
+    // 线上真实形状：AI 策略的 indicators/risk_control 在 ai_config 下（GET /api/strategies 返回）
     config: {
       strategy_type: 'ai_trading',
-      coin_source: { static_coins: ['BTCUSDT'] },
-      indicators: {
-        klines: {
-          primary_timeframe: timeframe,
-          primary_count: 30,
-          longer_timeframe: '',
-          longer_count: 0,
-          enable_multi_timeframe: false,
+      ai_config: {
+        coin_source: { static_coins: ['BTCUSDT'] },
+        indicators: {
+          klines: {
+            primary_timeframe: timeframe,
+            primary_count: 30,
+            longer_timeframe: '',
+            longer_count: 0,
+            enable_multi_timeframe: false,
+          },
         },
+        risk_control: { max_margin_usage: 0.9 },
       },
-      risk_control: { max_margin_usage: 0.9 },
     },
   })
 
@@ -292,11 +295,15 @@ describe('TraderConfigModal – scan cadence validation', () => {
             created_at: '', updated_at: '',
             config: {
               strategy_type: 'ai_trading',
-              indicators: {
-                klines: {
-                  primary_timeframe: '3m', primary_count: 30, longer_timeframe: '', longer_count: 0,
-                  enable_multi_timeframe: false,
+              ai_config: {
+                coin_source: { static_coins: ['BTCUSDT'] },
+                indicators: {
+                  klines: {
+                    primary_timeframe: '3m', primary_count: 30, longer_timeframe: '', longer_count: 0,
+                    enable_multi_timeframe: false,
+                  },
                 },
+                risk_control: { max_margin_usage: 0.9 },
               },
             },
           },
