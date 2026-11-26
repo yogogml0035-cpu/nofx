@@ -17,6 +17,12 @@ import (
 // gateCandleServer 按 interval 返回一组递增的 Gate K 线；记录收到的 interval 与 limit。
 func gateCandleServer(t *testing.T, bars int, basePrice float64) *httptest.Server {
 	t.Helper()
+	// 固定「现在」：每个周期的 K 线都从这个锚点往回排，末根是锚点所在的未收线那根
+	// （与线上一致，全部周期同时新鲜；末根新鲜度断言见 klinesFresh）
+	anchor := time.Unix(1700000000, 0)
+	previousNow := marketNow
+	marketNow = func() time.Time { return anchor }
+	t.Cleanup(func() { marketNow = previousNow })
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/futures/usdt/candlesticks" {
 			// OI/资金费率容忍失败，其余未知路径直接 404
@@ -31,13 +37,13 @@ func gateCandleServer(t *testing.T, bars int, basePrice float64) *httptest.Serve
 			http.Error(w, "bad interval", http.StatusBadRequest)
 			return
 		}
-		start := int64(1700000000)
 		step := int64(duration / time.Second)
+		last := anchor.Unix() - anchor.Unix()%step
 		rows := make([]map[string]interface{}, 0, bars)
 		for i := 0; i < bars; i++ {
 			price := basePrice + float64(i)*0.5
 			rows = append(rows, map[string]interface{}{
-				"t":   start + int64(i)*step,
+				"t":   last - int64(bars-1-i)*step,
 				"v":   "10",
 				"o":   fmt.Sprintf("%.4f", price),
 				"h":   fmt.Sprintf("%.4f", price+1),
@@ -145,6 +151,12 @@ func TestGetBoxDataFailClosedWhenGateFails(t *testing.T) {
 }
 
 func TestGetWithTimeframesFailureClosure(t *testing.T) {
+	// 固定「现在」，writeOneCandle 返回的 K 线落在锚点所在的 5m 桶内（末根新鲜度断言）
+	anchor := time.Unix(1700000000, 0)
+	previousNow := marketNow
+	marketNow = func() time.Time { return anchor }
+	t.Cleanup(func() { marketNow = previousNow })
+
 	// 全周期失败 → 主周期为空，整次失败
 	failAll := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
@@ -198,7 +210,7 @@ func TestGetWithTimeframesFailureClosure(t *testing.T) {
 
 func writeOneCandle(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode([]map[string]interface{}{{
-		"t": 1700000000, "v": "1", "o": "100", "h": "101", "l": "99", "c": "100.5", "sum": "500",
+		"t": 1699999800, "v": "1", "o": "100", "h": "101", "l": "99", "c": "100.5", "sum": "500", // 锚点 1700000000 所在的 5m 桶
 	}})
 }
 

@@ -220,8 +220,8 @@ func TestDrawdownProcessesOnlyOwnPositions(t *testing.T) {
 	})
 	stub := &riskStub{positions: [][]map[string]interface{}{
 		{
-			drawdownPosition("DOGE_USDT", "long", 100, 100.9, leverageOf(25)),  // 有记录 → 处理
-			drawdownPosition("ETH_USDT", "long", 100, 100.9, leverageOf(25)), // 无记录 → 无视
+			drawdownPosition("DOGE_USDT", "long", 100, 100.9, leverageOf(25)), // 有记录 → 处理
+			drawdownPosition("ETH_USDT", "long", 100, 100.9, leverageOf(25)),  // 无记录 → 无视
 		},
 		{
 			drawdownPosition("DOGE_USDT", "long", 100, 100.45, leverageOf(25)),
@@ -277,8 +277,8 @@ func TestDrawdownGridTraderOwnsItsGridSymbol(t *testing.T) {
 	// 网格品种以外的持仓无视
 	stub := &riskStub{positions: [][]map[string]interface{}{
 		{
-			drawdownPosition("DOGE_USDT", "long", 100, 100.9, leverageOf(25)),  // 网格品种 → 处理
-			drawdownPosition("ETH_USDT", "long", 100, 100.9, leverageOf(25)), // 非网格品种 → 无视
+			drawdownPosition("DOGE_USDT", "long", 100, 100.9, leverageOf(25)), // 网格品种 → 处理
+			drawdownPosition("ETH_USDT", "long", 100, 100.9, leverageOf(25)),  // 非网格品种 → 无视
 		},
 		{
 			drawdownPosition("DOGE_USDT", "long", 100, 100.45, leverageOf(25)),

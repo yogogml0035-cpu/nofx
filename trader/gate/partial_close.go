@@ -133,6 +133,12 @@ func (t *GateTrader) ClosePartial(req types.PartialCloseRequest) (types.PartialC
 		return types.PartialCloseResult{}, fmt.Errorf(
 			"order %d finished but fill price %q is not positive", result.Id, result.FillPrice)
 	}
+	// 分批平仓要求一次成交完：部分成交时实际平掉的张数与计划不符，不能按计划张数记账
+	if !orderFilled(result) {
+		return types.PartialCloseResult{}, fmt.Errorf(
+			"order %d was not fully filled (finish_as=%q, left=%s); refusing to record the planned contracts",
+			result.Id, result.FinishAs, result.Left)
+	}
 
 	quantity, err := spec.QuantityFromContracts(quote.Contracts)
 	if err != nil {

@@ -198,7 +198,7 @@ func TestAllDecisionsInvalidStillFailsTheRound(t *testing.T) {
   {"symbol":"BTCUSDT","action":"open_long","leverage":5,"stop_loss":95000,"take_profit":90000}
 ]
 </decision>`
-	// 第二条：多单的止损价不低于止盈价，同样非法
+	// 第二条：本金为 0，openNotional 拒绝（零值 sizing 下开仓无法计算金额），同样非法
 	_, err := parseFullDecisionResponse(response, DecisionSizing{})
 	if err == nil {
 		t.Fatal("all decisions invalid must still fail the round")

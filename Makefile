@@ -14,6 +14,10 @@ MAIN_STACK_SHA ?=
 
 .PHONY: help test test-backend test-frontend test-coverage clean ci-local up main-stack infra-check
 
+# go 命令：宿主机没有 Go 时经 scripts/go 在 Docker 里执行（golang:1.25-alpine + gcc），
+# 子任务门禁 make test / make build 因此在本机可复现；有 Go 的机器直接用宿主机的 go。
+GO ?= ./scripts/go
+
 # Default target
 help:
 	@echo "NOFX Testing & Development Commands"
@@ -46,7 +50,7 @@ help:
 # Run all tests
 test:
 	@echo "🧪 Running backend tests..."
-	go test -v ./...
+	$(GO) test -v ./...
 	@echo ""
 	@echo "🧪 Running frontend tests..."
 	cd web && npm run test
@@ -55,7 +59,7 @@ test:
 # Backend tests only
 test-backend:
 	@echo "🧪 Running backend tests..."
-	go test -v ./...
+	$(GO) test -v ./...
 
 # Frontend tests only
 test-frontend:
@@ -65,8 +69,8 @@ test-frontend:
 # Coverage report
 test-coverage:
 	@echo "📊 Generating coverage..."
-	go test -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
+	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "✅ Backend coverage: coverage.html"
 
 # =============================================================================
@@ -76,7 +80,7 @@ test-coverage:
 # Build backend binary
 build:
 	@echo "🔨 Building backend..."
-	go build -o nofx
+	$(GO) build -o nofx
 	@echo "✅ Backend built: ./nofx"
 
 # Build frontend
@@ -188,8 +192,10 @@ ci-local:
 	cd web && npm run build
 	@echo "🔎 [5/6] Infra check (dockerignore / compose / healthcheck / build context)..."
 	$(MAKE) infra-check
-	@echo "🐳 [6/6] Docker images build (nofx-dev-offline 送测栈)..."
-	$(COMPOSE_DEV) build --build-arg GOPROXY=https://goproxy.cn,direct
+	@echo "🐳 [6/6] Docker images build (nofx-ci:<sha>，不覆盖送测栈镜像 tag)..."
+	docker build -f docker/Dockerfile.backend -t nofx-ci-backend:$$(git rev-parse --short HEAD) --build-arg GOPROXY=https://goproxy.cn,direct .
+	docker build -f docker/Dockerfile.frontend -t nofx-ci-frontend:$$(git rev-parse --short HEAD) .
+	docker rmi nofx-ci-backend:$$(git rev-parse --short HEAD) nofx-ci-frontend:$$(git rev-parse --short HEAD) >/dev/null
 	@echo "✅ ci-local passed"
 
 # 送测启动：在固定容器 nofx-dev-offline / nofx-dev-offline-backend 上重建（数据卷沿用），

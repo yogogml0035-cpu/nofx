@@ -71,6 +71,25 @@ func (at *AutoTrader) runCycle() error {
 	// NOTE: Must be called BEFORE candidate coins check to ensure equity is always recorded
 	at.saveEquitySnapshot(ctx)
 
+	// 保护不变量（每轮）：本 trader 的持仓在交易所上确认没有止损 → 立即平仓。
+	// 只处理确定性的「读到了条件单列表且止损不在」；读不到保护时不据此平仓（见 enforceProtectionInvariant）。
+	remaining, closed, err := at.enforceProtectionInvariant(ctx.Positions)
+	if err != nil {
+		at.logErrorf("🚨 %v", err)
+		record.Success = false
+		record.ErrorMessage = err.Error()
+		if saveErr := at.saveDecision(record); saveErr != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
+		}
+		return err
+	}
+	if closed > 0 {
+		record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf(
+			"PROTECTION LOST: %d position(s) had no stop loss on the exchange and were closed immediately", closed))
+		ctx.Positions = remaining
+		ctx.Account.PositionCount = len(remaining)
+	}
+
 	// If no candidate coins available, log but do not error
 	if len(ctx.CandidateCoins) == 0 {
 		at.logInfof("ℹ️ No candidate coins available, skipping this cycle")
@@ -100,6 +119,26 @@ func (at *AutoTrader) runCycle() error {
 	// 5. Use strategy engine to call AI for decision
 	at.logInfof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
 	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
+
+	if aiDecision != nil && aiDecision.SkippedReason != "" {
+		at.logWarnf("⏭️ AI decision skipped: %s", aiDecision.SkippedReason)
+		record.Success = true
+		record.ExecutionLog = append(record.ExecutionLog, "AI call skipped: "+aiDecision.SkippedReason)
+		if saveErr := at.saveDecision(record); saveErr != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
+		}
+		return nil
+	}
+
+	if aiDecision != nil && len(aiDecision.Rejected) > 0 {
+		// 被校验丢弃的决策必须进决策记录（助手诊断的证据优先级：决策记录 > 日志）
+		for _, rejected := range aiDecision.Rejected {
+			line := fmt.Sprintf("REJECTED decision #%d (%s %s): %s", rejected.Index, rejected.Action, rejected.Symbol, rejected.Reason)
+			record.ExecutionLog = append(record.ExecutionLog, line)
+			at.logWarnf("⚠️ %s", line)
+		}
+		at.noteRejectedDecisions(aiDecision.Rejected)
+	}
 
 	if aiDecision != nil && aiDecision.AIRequestDurationMs > 0 {
 		record.AIRequestDurationMs = aiDecision.AIRequestDurationMs
@@ -422,6 +461,8 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 	// Current position key set (for cleaning up closed position records)
 	currentPositionKeys := make(map[string]bool)
+	// 交易所里仍存在的仓位（归一化键），用于清理本进程的自开仓位登记
+	openPositionKeys := make(map[string]bool)
 
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
@@ -435,6 +476,14 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 		// Skip closed positions (quantity = 0), prevent "ghost positions" from being passed to AI
 		if quantity == 0 {
+			continue
+		}
+		openPositionKeys[ownPositionKey(symbol, side)] = true
+
+		// 只把本 trader 开出的仓位交给模型（计划文档 D40）：不是本 trader 开出的持仓对模型
+		// 不可见、不管理、不平仓。归属判定见 isOwnPosition（网格品种 / DB 的 OPEN 记录 / 本进程刚开出）。
+		if !at.isOwnPosition(symbol, side) {
+			logger.Infof("🙈 [%s] Ignoring %s %s position not opened by this trader (D40)", at.name, side, symbol)
 			continue
 		}
 
@@ -501,6 +550,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		// 模型不得修改该持仓的保护（旧单无法枚举时不能保证被替换）。
 		var stopLoss, takeProfit float64
 		protectionReason := "adapter does not support protective order management"
+		protectionConfirmed := false
 		if manager, ok := at.trader.(types.ProtectiveOrderManager); ok {
 			protectionReason = ""
 			protection, err := manager.PositionProtection(symbol, side)
@@ -508,6 +558,8 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 				at.logWarnf("⚠️ Protection status unavailable for %s %s: %v", symbol, side, err)
 				protectionReason = "status unavailable: " + err.Error()
 			} else {
+				// 条件单列表读取成功：此时 StopLoss==0 就是「确认没有止损」（见 enforceProtectionInvariant）
+				protectionConfirmed = true
 				stopLoss, takeProfit = protection.StopLoss, protection.TakeProfit
 				if !protection.Known {
 					protectionReason = protection.Reason
@@ -533,6 +585,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			StopLoss:                      stopLoss,
 			TakeProfit:                    takeProfit,
 			ProtectionUnavailableReason:   protectionReason,
+			ProtectionConfirmed:           protectionConfirmed,
 		})
 	}
 
@@ -542,6 +595,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			delete(at.positionFirstSeenTime, key)
 		}
 	}
+	at.forgetClosedSelfOpened(func(key string) bool { return openPositionKeys[key] })
 
 	// 3. Use strategy engine to get candidate coins (must have strategy engine)
 	var candidateCoins []kernel.CandidateCoin

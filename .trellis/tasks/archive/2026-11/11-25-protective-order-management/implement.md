@@ -1,27 +1,29 @@
 # 执行计划：⑪ protective-order-management
 
+> 归档后回填（2026-11-26）：下列待办在交付时均已完成，原文件没有回填勾选。完成证据见计划文档 10.5 第 11 行、本任务的 probe/ 与父分支的合并提交。
+
 ## 待办（实施顺序，完成即勾选）
 
-- [ ] 1. `ContractSpec` 增加价格步长 `order_price_round` 与 `AlignTriggerPrice`（收紧/远离方向、
+- [x] 1. `ContractSpec` 增加价格步长 `order_price_round` 与 `AlignTriggerPrice`（收紧/远离方向、
   边界、精度）；更新构造调用点与单测矩阵。
-- [ ] 2. 开仓路径对齐 SL/TP 并允许返回实际价格；`VerifyOrderProtection` 改为以未触发条件单
+- [x] 2. 开仓路径对齐 SL/TP 并允许返回实际价格；`VerifyOrderProtection` 改为以未触发条件单
   列表为准（同侧重试、持仓已平视为无需保护）；单测覆盖静默未创建、重试、已平仓。
-- [ ] 3. `trader/types`：`ProtectionKind` / `PositionProtection` / `ProtectionUpdateRequest` /
+- [x] 3. `trader/types`：`ProtectionKind` / `PositionProtection` / `ProtectionUpdateRequest` /
   `ProtectionUpdateResult` / `ProtectiveOrderManager`；`ProtectedOpenResult` 加实际止损止盈。
-- [ ] 4. `gate` 适配器：保护读取（列表归类、多条取最近、未知原因）；改单执行（持仓/本金/
+- [x] 4. `gate` 适配器：保护读取（列表归类、多条取最近、未知原因）；改单执行（持仓/本金/
   2% 上限、对齐、先挂新核对、撤旧核对、失败恢复）与单测。
-- [ ] 5. `kernel`：Decision 动作、`DecisionSizing.Positions`、校验矩阵（未知保护、方向、
+- [x] 5. `kernel`：Decision 动作、`DecisionSizing.Positions`、校验矩阵（未知保护、方向、
   2% 上限、字段匹配、无持仓）、`PositionInfo` 字段。
-- [ ] 6. 交易循环：每轮读取保护写入持仓信息；执行路径分发与 fail-closed；开仓记录实际价格。
-- [ ] 7. 提示词中英：动作清单、字段说明、示例、持仓行当前 SL/TP 与未知标记。
-- [ ] 8. 前端决策卡片动作映射与新价格展示、用例。
-- [ ] 9. 架构文档中英、规范场景、父任务计划文档（F44/F45、10.5 进度）同步。
-- [ ] 10. 定向测试：对齐矩阵、读取归类、改单路径、校验矩阵、提示词、前端。
-- [ ] 11. 真实 W2（DOGE 17 张：开仓 → 分批 → 改止损 → 改止盈 → 全平零残留）与
+- [x] 6. 交易循环：每轮读取保护写入持仓信息；执行路径分发与 fail-closed；开仓记录实际价格。
+- [x] 7. 提示词中英：动作清单、字段说明、示例、持仓行当前 SL/TP 与未知标记。
+- [x] 8. 前端决策卡片动作映射与新价格展示、用例。
+- [x] 9. 架构文档中英、规范场景、父任务计划文档（F44/F45、10.5 进度）同步。
+- [x] 10. 定向测试：对齐矩阵、读取归类、改单路径、校验矩阵、提示词、前端。
+- [x] 11. 真实 W2（DOGE 17 张：开仓 → 分批 → 改止损 → 改止盈 → 全平零残留）与
   W3 级 ETH 0.1 张（开仓列表核对 → 改止损 → 全平）；证据留档 `probe/`。
-- [ ] 12. 子任务门禁：`git diff --check`、`make test`、`make build`。
-- [ ] 13. 独立检查子智能体检查（范围、需求、规范、候选、验收规则），修复问题并定向补验。
-- [ ] 14. 合父、归档、推送父分支、清理子分支与 worktree；同步子任务地图与进度。
+- [x] 12. 子任务门禁：`git diff --check`、`make test`、`make build`。
+- [x] 13. 独立检查子智能体检查（范围、需求、规范、候选、验收规则），修复问题并定向补验。
+- [x] 14. 合父、归档、推送父分支、清理子分支与 worktree；同步子任务地图与进度。
 
 ## 验证命令
 

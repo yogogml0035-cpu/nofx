@@ -33,15 +33,6 @@ type DecisionSizing struct {
 	Positions       []PositionInfo     // 本轮持仓快照
 }
 
-func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
-	for i := range decisions {
-		if err := validateDecision(&decisions[i], sizing); err != nil {
-			return fmt.Errorf("decision #%d validation failed: %w", i+1, err)
-		}
-	}
-	return nil
-}
-
 // validateDecision 校验一条 AI 决策。开仓的名义价值由代码按本金 × 百分比计算并写入
 // Decision.NotionalUSD（D22/D24）；模型给出的任何金额字段都不参与。
 // 校验包含随单保护的两项硬约束：止损止盈分居现价两侧（否则交易所条件单方向非法）、
@@ -92,7 +83,9 @@ func validateDecision(d *Decision, sizing DecisionSizing) error {
 	//   - BTC/ETH crypto perps use the BTC/ETH leverage tier.
 	//   - Everything else uses the altcoin tier.
 	maxLeverage := sizing.AltcoinLeverage
-	if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
+	// 符号变体（BTC/USDT、BTC-USDT、只写基础币种）与规范写法落到同一档，不能因此掉进山寨档
+	switch positionBaseKey(d.Symbol) {
+	case "BTC", "ETH":
 		maxLeverage = sizing.BTCETHLeverage
 	}
 

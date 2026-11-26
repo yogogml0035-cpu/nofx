@@ -121,8 +121,9 @@ func GetGateKlines(symbol, interval string, limit int) ([]Kline, error) {
 		return nil, fmt.Errorf("gate kline limit must be in [1, %d], got %d", gateKlineMaxLimit, limit)
 	}
 	contract := toGateContractSymbol(symbol)
-	// 缓存 key 含 limit：不同的截取长度各自缓存；返回的切片按只读对待（QuoteVolume 已在此填好）。
-	key := fmt.Sprintf("klines|%s|%s|%d", contract, interval, limit)
+	// 缓存 key 含 limit 与当前 K 线时间桶：不同的截取长度各自缓存，收线后的请求不与收线前共用；
+	// 返回的切片按只读对待（QuoteVolume 已在此填好）。
+	key := gateKlineCacheKey(contract, interval, limit)
 	cached, err := gateCached(key, gateKlineCacheTTL(interval, limit), func() (any, error) {
 		return fetchGateKlines(contract, interval, limit)
 	})

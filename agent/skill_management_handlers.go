@@ -748,6 +748,20 @@ func strategyCreatePatchHasPath(value any, path ...string) bool {
 	return true
 }
 
+// strategyConfigPatchErrorField 暂存上一步被拒绝的配置值的原因，随下一条「模板还没填完整」的回复带回给用户
+const strategyConfigPatchErrorField = "config_patch_error"
+
+// prefixStrategyPatchError 有被拒绝的值时，在追问前说明原因
+func prefixStrategyPatchError(lang, patchErr, reply string) string {
+	if patchErr == "" {
+		return reply
+	}
+	if lang == "zh" {
+		return "上一个值没有被接受：" + patchErr + "。请换一个值。\n\n" + reply
+	}
+	return "The last value was not accepted: " + patchErr + ". Please choose another value.\n\n" + reply
+}
+
 func formatStrategyCreateConfigNeeded(lang, missingKind string) string {
 	if lang == "zh" {
 		if missingKind == "strategy_type" {
@@ -2284,11 +2298,14 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))
 		setSkillDAGStep(&session, "collect_config")
 		session.Phase = "collecting"
+		// 上一步被拒绝的值只提示一次：取出后清掉，再保存会话
+		patchErr := fieldValue(session, strategyConfigPatchErrorField)
+		delete(session.Fields, strategyConfigPatchErrorField)
 		a.saveSkillSession(userID, session)
 		if reply := formatStrategyCreateFieldOptionsReply(lang, text, missingKind); reply != "" {
-			return reply
+			return prefixStrategyPatchError(lang, patchErr, reply)
 		}
-		return formatStrategyCreateConfigNeeded(lang, missingKind)
+		return prefixStrategyPatchError(lang, patchErr, formatStrategyCreateConfigNeeded(lang, missingKind))
 	}
 	if !strategyCreateConfirmationReply(text) && !strategyCreateFinalConfirmationReady(session) {
 		setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))

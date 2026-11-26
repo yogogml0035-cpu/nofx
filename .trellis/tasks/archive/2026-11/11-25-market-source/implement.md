@@ -1,5 +1,7 @@
 # 执行计划：⑫ market-source
 
+> 归档后回填（2026-11-26）：下列待办在交付时均已完成，原文件没有回填勾选。完成证据见计划文档 10.5 第 12 行、本任务的 probe/ 与父分支的合并提交。
+
 ## 待办（完成即勾选）
 
 - [x] 1. `market/gate_market.go`：保留周期与时长、`GetGateKlines`（sum 成交量、毫秒时间、
@@ -8,9 +10,9 @@
   非递增、低高关系）、limit 边界、HTTP/JSON 错误、ticker 单条/列表/失败注入。
 - [x] 3. 真实探针 `probe/livecheck.go`：7 标的 × 12 周期取数与校验、ticker 一致性、
   拒绝非保留周期；证据落 `probe/livecheck-<date>.{log,jsonl}`。
-- [ ] 4. 门禁：`git diff --check`、`make test`、`make build`。
-- [ ] 5. 独立检查子智能体检查；修复并补验。
-- [ ] 6. 合父、归档、推送父分支、清理子分支/worktree；更新地图与 10.5 进度。
+- [x] 4. 门禁：`git diff --check`、`make test`、`make build`。
+- [x] 5. 独立检查子智能体检查；修复并补验。
+- [x] 6. 合父、归档、推送父分支、清理子分支/worktree；更新地图与 10.5 进度。
 
 ## 验证命令
 

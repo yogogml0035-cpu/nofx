@@ -56,6 +56,12 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 			logger.Infof("⚠️ %s %s K-line data is empty", symbol, tf)
 			continue
 		}
+		// 末根必须新鲜：最后一根的开盘时间距今不超过两个周期。行情源滞后或返回了旧快照时，
+		// 决策会基于收线前的数据（模型把刚收的 K 线当成未收线）。
+		if err := klinesFresh(klines, tf); err != nil {
+			logger.Infof("⚠️ %s %s K-line data is not fresh: %v", symbol, tf, err)
+			continue
+		}
 
 		// Save primary timeframe K-lines for calculating base indicators
 		if tf == primaryTimeframe {
@@ -176,4 +182,25 @@ func isStaleData(klines []Kline, symbol string) bool {
 	// Price frozen but has volume: might be extremely low volatility market, allow but log warning
 	logger.Infof("⚠️  %s detected extreme price stability (no fluctuation for %d consecutive periods), but volume is normal", symbol, stalePriceThreshold)
 	return false
+}
+
+// marketNow 取当前时间；测试替换成固定锚点，让本地 HTTP 服务返回的 K 线与「现在」对齐
+var marketNow = time.Now
+
+// klinesFresh 末根 K 线的新鲜度：最后一根的开盘时间距今不超过两个周期（末根通常是未收线的
+// 当前根，年龄 0～1 个周期；行情源略滞后时最坏是上一根，年龄 1～2 个周期）。
+func klinesFresh(klines []Kline, timeframe string) error {
+	if len(klines) == 0 {
+		return fmt.Errorf("no klines")
+	}
+	duration, err := GateIntervalDuration(timeframe)
+	if err != nil {
+		return err
+	}
+	last := klines[len(klines)-1]
+	age := marketNow().Sub(time.UnixMilli(last.OpenTime))
+	if limit := 2*duration + 5*time.Second; age > limit {
+		return fmt.Errorf("last bar opened %s ago (limit %s)", age.Truncate(time.Second), limit)
+	}
+	return nil
 }

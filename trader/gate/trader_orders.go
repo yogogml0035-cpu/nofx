@@ -20,6 +20,15 @@ import (
 	"github.com/gate/gateapi-go/v7"
 )
 
+// orderFilled IOC 市价单是否一次成交完。finish_as 为 filled 才算全部成交；finish_as 缺失时
+// 退回看 left（未成交张数）是否为 0。部分成交或零成交都返回 false。
+func orderFilled(order gateapi.FuturesOrder) bool {
+	if order.FinishAs != "" {
+		return order.FinishAs == "filled"
+	}
+	return order.Left == "" || order.Left == "0"
+}
+
 // openMarket 多空共用的普通市价开仓原语：币数量按最小步长向下取整换算张数，
 // 不足一个最小步长时报错（删除旧的浮点截断与强制 1 张，计划文档 F3/F23）。
 func (t *GateTrader) openMarket(symbol string, quantity float64, leverage int, side string) (map[string]interface{}, error) {
@@ -66,6 +75,11 @@ func (t *GateTrader) openMarket(symbol string, quantity float64, leverage int, s
 	t.clearCache()
 
 	fillPrice, _ := strconv.ParseFloat(result.FillPrice, 64)
+	// 成交确认：IOC 可能零成交或部分成交，不能无条件报 FILLED
+	if !orderFilled(result) || fillPrice <= 0 {
+		return nil, fmt.Errorf("open %s %s order %d was not fully filled (finish_as=%q, left=%s, fillPrice=%q); check the position on the exchange",
+			side, symbol, result.Id, result.FinishAs, result.Left, result.FillPrice)
+	}
 
 	logger.Infof("  [Gate] Opened %s position: orderId=%d, fillPrice=%.4f", side, result.Id, fillPrice)
 
@@ -173,6 +187,10 @@ func (t *GateTrader) closePosition(symbol string, quantity float64, side string)
 	}
 	t.clearCache()
 
+	// 成交确认：IOC 市价单可能零成交或部分成交，不能无条件当成已平（见 confirmCloseFilled）
+	if err := t.confirmCloseFilled(symbol, side, quantity, &order, &result); err != nil {
+		return nil, err
+	}
 	fillPrice, _ := strconv.ParseFloat(result.FillPrice, 64)
 
 	logger.Infof("  [Gate] Closed %s position: orderId=%d, fillPrice=%.4f", side, result.Id, fillPrice)
@@ -184,6 +202,71 @@ func (t *GateTrader) closePosition(symbol string, quantity float64, side string)
 		"fillPrice": fillPrice,
 		"avgPrice":  fillPrice,
 	}, nil
+}
+
+// positionExists 读取该合约指定方向的持仓是否仍然存在（张数非 0）。
+// 查询失败返回错误，不把「读不到」当成「已平」。
+func (t *GateTrader) positionExists(symbol, side string) (bool, error) {
+	positions, _, err := t.client.FuturesApi.ListPositions(t.ctx, "usdt", nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get positions: %w", err)
+	}
+	for _, pos := range positions {
+		if pos.Contract != symbol {
+			continue
+		}
+		size, err := parseDecimal("position size", pos.Size)
+		if err != nil {
+			return false, fmt.Errorf("failed to parse position %s: %w", pos.Contract, err)
+		}
+		if size.Sign() == 0 {
+			continue
+		}
+		if (side == "SHORT") == (size.Sign() < 0) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// confirmCloseFilled 平仓成交确认。IOC 市价单可能零成交或部分成交（finish_as=ioc）；
+// 以前这里无条件报 FILLED，紧急平仓会静默失败——仓位无保护地留在交易所，日志却说已平。
+//   - 部分平（quantity>0）：要求一次成交完，否则报错；
+//   - 全平（quantity=0）：以持仓是否消失为准，没平掉就再提交一次，仍在则报错。
+//
+// 全平不设滑点上限：平仓（尤其是紧急平仓）以成交为优先，价格由交易所撮合。
+func (t *GateTrader) confirmCloseFilled(symbol, side string, quantity float64, order *gateapi.FuturesOrder, result *gateapi.FuturesOrder) error {
+	for attempt := 1; attempt <= 2; attempt++ {
+		fillPrice, _ := strconv.ParseFloat(result.FillPrice, 64)
+		if result.FinishAs == "filled" && fillPrice > 0 {
+			return nil
+		}
+		exists, err := t.positionExists(symbol, side)
+		if err != nil {
+			return fmt.Errorf("close %s %s order %d (finish_as=%q, left=%s) and the position readback failed: %w",
+				side, symbol, result.Id, result.FinishAs, result.Left, err)
+		}
+		if !exists {
+			// 持仓已不存在：已平掉，或已被保护单平掉
+			return nil
+		}
+		if quantity > 0 {
+			return fmt.Errorf("close %s %s order %d was not fully filled (finish_as=%q, left=%s, fillPrice=%q); position still open",
+				side, symbol, result.Id, result.FinishAs, result.Left, result.FillPrice)
+		}
+		if attempt == 2 {
+			return fmt.Errorf("close %s %s did not fill after retry (order %d finish_as=%q, left=%s); position is still open",
+				side, symbol, result.Id, result.FinishAs, result.Left)
+		}
+		logger.Warnf("  [Gate] CloseAll%s %s not filled (order %d finish_as=%s left=%s); retrying",
+			side, symbol, result.Id, result.FinishAs, result.Left)
+		*result, _, err = t.client.FuturesApi.CreateFuturesOrder(t.ctx, "usdt", *order, nil)
+		if err != nil {
+			return fmt.Errorf("failed to retry close %s position: %w", side, err)
+		}
+		t.clearCache()
+	}
+	return nil
 }
 
 // CloseLong closes a long position (quantity=0 means close all)

@@ -58,7 +58,7 @@ func (s *partialCloseStub) ClosePartial(req types.PartialCloseRequest) (types.Pa
 func newPartialCloseAutoTrader(stub *partialCloseStub) *AutoTrader {
 	cfg := store.GetDefaultStrategyConfig("en")
 	engine := kernel.NewStrategyEngine(&cfg)
-	return &AutoTrader{
+	at := &AutoTrader{
 		id:                    "test-trader",
 		name:                  "partial-close-test",
 		exchange:              "gate",
@@ -68,6 +68,11 @@ func newPartialCloseAutoTrader(stub *partialCloseStub) *AutoTrader {
 		positionFirstSeenTime: map[string]int64{},
 		peakPnLCache:          map[string]float64{},
 	}
+	// 这些持仓都是本 trader 开出的（D40）：测试夹具没有 DB，用自开登记表达归属
+	for _, pos := range stub.positions {
+		at.markSelfOpened(pos["symbol"].(string), pos["side"].(string))
+	}
+	return at
 }
 
 func TestExecutePartialCloseRoutesToAdapter(t *testing.T) {
@@ -83,7 +88,9 @@ func TestExecutePartialCloseRoutesToAdapter(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// 分批平仓前要找到本 trader 开出的同向持仓（D40 的方向与归属断言）
 			stub := &partialCloseStub{
+				positions: []map[string]interface{}{{"symbol": "DOGE_USDT", "side": strings.ToLower(tc.wantSide)}},
 				closeResult: types.PartialCloseResult{
 					OrderID: "99123", Contracts: "8", Remaining: "9",
 					FillPrice: 0.56, Quantity: 80, Notional: 44.8,
@@ -132,7 +139,10 @@ func TestPartialCloseRefusedWithoutCapability(t *testing.T) {
 }
 
 func TestPartialClosePropagatesAdapterError(t *testing.T) {
-	stub := &partialCloseStub{closeError: errors.New("exchange refused")}
+	stub := &partialCloseStub{
+		positions:  []map[string]interface{}{{"symbol": "DOGE_USDT", "side": "long"}},
+		closeError: errors.New("exchange refused"),
+	}
 	at := newPartialCloseAutoTrader(stub)
 	decision := &kernel.Decision{
 		Symbol: "DOGE_USDT", Action: "close_long_partial", ClosePercent: 50,
@@ -187,6 +197,7 @@ func TestBuildTradingContextMarksUnsupportedAdapter(t *testing.T) {
 	// 未实现 PartialCloser 的适配器：即使有持仓也标为不可分批
 	at := newPartialCloseAutoTrader(&partialCloseStub{})
 	at.trader = &partialCloseNoCapabilityStub{}
+	at.markSelfOpened("DOGE_USDT", "long")
 
 	ctx, err := at.buildTradingContext()
 	require.NoError(t, err)

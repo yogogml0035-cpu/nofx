@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { isRetainedTimeframe } from '../../constants/timeframes'
 import type { AIModel, Exchange, CreateTraderRequest, Strategy, TraderConfigData } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -176,10 +177,12 @@ export function TraderConfigModal({
   }
 
   const selectedStrategy = strategies.find(s => s.id === formData.strategy_id)
-  // 决策按策略主周期收线后 5 秒触发（D17）；扫描间隔只在主周期无效时回退生效
-  const cadenceTimeframe = selectedStrategy?.config?.indicators?.klines?.primary_timeframe
+  // 决策按策略主周期收线后 5 秒触发（D17）；扫描间隔只在主周期无效时回退生效。
+  // 存量策略可能存着已废弃的周期（如 3m）：不在保留集合内时不显示「实际节奏」，避免给出错误信息。
+  const candidateTimeframe = selectedStrategy?.config?.indicators?.klines?.primary_timeframe
     || selectedStrategy?.config?.indicators?.klines?.selected_timeframes?.[0]
     || ''
+  const cadenceTimeframe = isRetainedTimeframe(candidateTimeframe) ? candidateTimeframe : ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">

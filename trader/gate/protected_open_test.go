@@ -50,6 +50,11 @@ type gateMock struct {
 
 	// requests 收到的请求（"方法 路径?查询串"），用于断言顺序
 	requests []string
+
+	// orderResponses 按下单顺序覆盖 POST /orders 的返回字段（构造零成交、部分成交）；用完后回落到默认的已成交响应
+	orderResponses []map[string]interface{}
+	// afterOrder 每次下单记录后的回调（模拟「平仓后持仓消失」等状态变化；修改 mock 状态时自行加 m.mu）
+	afterOrder func(m *gateMock, body map[string]interface{})
 }
 
 // gateAPIFailure 模拟交易所的错误响应（非 2xx + label）
@@ -243,6 +248,16 @@ func (m *gateMock) handler(w http.ResponseWriter, r *http.Request) {
 			m.attachAttachedTriggers(contract, size, sl, tp, 99123)
 			m.mu.Unlock()
 		}
+		if m.afterOrder != nil {
+			m.afterOrder(m, body)
+		}
+		m.mu.Lock()
+		if idx := len(m.orderBodies) - 1; idx >= 0 && idx < len(m.orderResponses) {
+			for key, value := range m.orderResponses[idx] {
+				resp[key] = value
+			}
+		}
+		m.mu.Unlock()
 		writeObj(resp)
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/futures/usdt/orders/"):
 		id := strings.TrimPrefix(path, "/futures/usdt/orders/")

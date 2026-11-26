@@ -1,5 +1,7 @@
 # 执行计划：⑧ strategy-config
 
+> 归档后回填（2026-11-26）：下列待办在交付时均已完成，原文件没有回填勾选。完成证据见计划文档 10.5 第 8 行、本任务的 probe/ 与父分支的合并提交。
+
 迭代期只跑定向测试；收敛后跑一次完整门禁。检查由独立子智能体完成后，主会话修复并补验。
 
 ## 清单
@@ -14,8 +16,8 @@
 - [x] 8. 全仓旧语义残留检索：ratio 族 0 命中（除计划文档留档与 legacy 用例）；12 兜底文案清零（kernel 12/60 硬编码属 ⑨，prompt-guide 与代码一致）
 - [x] 9. 完整门禁：`git diff --check` 干净、`make test` 全绿（22 Go 包 + 前端 158 用例）、`make build` 成功
 - [x] 10. 独立检查子智能体：**PASS**（P0/P1 无；1 P2 + 4 P3）。主会话修复：P2 断言收紧为 `"\"error\""` 约定；P3-1 删 `isBTCETH` 死代码；P3-4 en 标签改 "position size percent"。P3-2（10s/7d/30d 引擎取数在 ⑫⑬ 落地）、P3-3（网格 RiskInfo.position_percent 同名异义）留档进计划文档。修复后 `go build ./...` + `go test ./trader/ ./agent/` 全绿
-- [ ] 11. 合父（--no-ff 合并提交）、父 worktree 归档、jsonl 路径修正、计划文档 10.5/文件表/F 发现、父任务 prd/implement 地图同步、journal、push 父分支
-- [ ] 12. 清子 worktree 被忽略文件后移除，`merge-base --is-ancestor` 确认后删子分支
+- [x] 11. 合父（--no-ff 合并提交）、父 worktree 归档、jsonl 路径修正、计划文档 10.5/文件表/F 发现、父任务 prd/implement 地图同步、journal、push 父分支
+- [x] 12. 清子 worktree 被忽略文件后移除，`merge-base --is-ancestor` 确认后删子分支
 
 ## 验证命令
 

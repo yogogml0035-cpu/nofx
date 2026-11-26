@@ -3,8 +3,10 @@
 
 从当前候选构建隔离的 compose project（nofx-closeout-smoke，独立容器名、端口与数据卷），
 串联验证：健康检查与前端入口 → 注册/登录 → Gate K 线（全部保留周期、1w/30d/7d 边界、
-非保留周期 400）→ 24h 行情 → 策略创建/读取/旧周期归一化 → 提示词预览（Gate 数据、无金额字段）
-→ 无 trader 被自动拉起。失败即停，退出码非 0；证据写到 probe/smoke-<sha>/。
+非保留周期 400）→ 24h 行情 → 策略创建/读取/旧周期被清空并告警 → 提示词预览（Gate 数据、无金额字段）
+→ 库里没有运行中的 trader、启动日志没有自动拉起。交易所与模型的创建接口要求加密传输，
+建 trader 的链路由浏览器验收覆盖；这里的「无自动拉起」只核对空库上的启动路径。
+失败即停，退出码非 0；证据写到 probe/smoke-<sha>/。
 
 用法：python3 closeout_smoke.py [--port 1189] [--keep]
 依赖：宿主机 docker、python3；worktree 根有 .env（RSA 私钥与 JWT 配置经 env_file 注入）。
@@ -140,132 +142,155 @@ volumes:
         if args.keep and results and any(r["result"] == "FAIL" for r in results):
             print(f"--keep: stack kept for inspection (project {PROJECT}, port {PORT})", file=sys.stderr)
             return
-        subprocess.run(compose + ["down", "-v", "--remove-orphans"], cwd=ROOT,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(["docker", "rmi", "-f", f"{BACKEND}:{SHA}", f"{FRONTEND}:{SHA}"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        down = subprocess.run(compose + ["down", "-v", "--remove-orphans"], cwd=ROOT,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if down.returncode != 0:
+            print(f"⚠️ cleanup: compose down -v failed ({down.returncode}):\n{down.stdout}", file=sys.stderr)
+        rmi = subprocess.run(["docker", "rmi", "-f", f"{BACKEND}:{SHA}", f"{FRONTEND}:{SHA}"],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if rmi.returncode != 0:
+            print(f"⚠️ cleanup: image removal failed ({rmi.returncode}):\n{rmi.stdout}", file=sys.stderr)
         shutil.rmtree(work, ignore_errors=True)
 
     try:
-        print(f"building candidate {SHA} into isolated project {PROJECT} ...", flush=True)
-        sh(compose + ["build", "--build-arg", f"GOPROXY={GOPROXY}"], check=True, capture=False)
-        record("images built", True, {"backend": f"{BACKEND}:{SHA}", "frontend": f"{FRONTEND}:{SHA}"})
-
-        sh(compose + ["up", "-d"], check=True, capture=False)
-        deadline = time.time() + 180
-        http_ok = False
-        while time.time() < deadline:
-            try:
-                status, _, _ = http("GET", "/api/health", expect=200)
-                status2, _, _ = http("GET", "/", expect=200)
-                http_ok = status == 200 and status2 == 200
-                break
-            except (AssertionError, OSError):
-                time.sleep(2)
-        record("http health via frontend proxy", http_ok)
-        deadline = time.time() + 120
-        states = {}
-        while time.time() < deadline:
-            states = {BACKEND: container_health(BACKEND), FRONTEND: container_health(FRONTEND)}
-            if all(v == "healthy" for v in states.values()):
-                break
-            time.sleep(2)
-        record("container health (image HEALTHCHECK)", all(v == "healthy" for v in states.values()), states)
-
-        status, reg, _ = http("POST", "/api/register",
-                              {"email": "smoke@example.com", "password": "SmokePass12345!", "lang": "en"},
-                              expect=200)
-        _, login, _ = http("POST", "/api/login",
-                           {"email": "smoke@example.com", "password": "SmokePass12345!"})
-        token = login["token"]
-        record("register + login", bool(token))
-
-        # Gate K 线：全部保留周期
-        kline_detail = {}
-        for tf in RETAINED:
-            _, bars, _ = http("GET", f"/api/klines?symbol=BTC_USDT&interval={tf}&limit=5")
-            ok = isinstance(bars, list) and len(bars) == 5
-            if ok:
-                for b in bars:
-                    ok = ok and all(k in b for k in ("openTime", "open", "high", "low", "close", "volume")) \
-                        and b["high"] >= b["low"] > 0 and b["volume"] > 0 and b["quoteVolume"] == b["volume"]
-                times = [b["openTime"] // 1000 for b in bars]
-                ok = ok and times == sorted(times) and len(set(times)) == 5
-                days = [datetime.fromtimestamp(t, timezone.utc) for t in times]
-                if tf == "1w":
-                    ok = ok and all(d.weekday() == 0 for d in days)
-                elif tf == "30d":
-                    ok = ok and all(d.day == 1 for d in days)
-                elif tf == "7d":
-                    ok = ok and all(d.weekday() == 3 for d in days)
-                elif tf == "1d":
-                    ok = ok and all((d.hour, d.minute) == (0, 0) for d in days)
-            kline_detail[tf] = {"bars": len(bars) if isinstance(bars, list) else None, "ok": ok}
-            record(f"klines {tf}", ok, kline_detail[tf])
-
-        status, _, text = http("GET", "/api/klines?symbol=BTC_USDT&interval=3m&limit=5", expect=400)
-        record("klines non-retained 3m rejected", status == 400, {"body": text[:120]})
-
-        _, tickers, _ = http("GET", "/api/agent/tickers?symbols=BTCUSDT,ETHUSDT,SOLUSDT")
-        ok = isinstance(tickers, list) and {t.get("symbol") for t in tickers} == {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
-        ok = ok and all(float(t["lastPrice"]) > 0 and float(t["volume"]) > 0 for t in tickers)
-        record("gate 24h tickers", ok, {"count": len(tickers) if isinstance(tickers, list) else None})
-
-        # 策略：新语义字段与旧周期归一化
-        cfg = {
-            "coin_source": {"static_coins": ["BTCUSDT"]},
-            "indicators": {"klines": {"primary_timeframe": "1h", "primary_count": 30}},
-            "risk_control": {"position_percent": 10, "min_position_size": 10},
-        }
-        _, created, _ = http("POST", "/api/strategies",
-                             {"name": "closeout-smoke", "description": "chained smoke", "lang": "en", "config": cfg},
-                             token=token, expect=200)
-        sid = created["id"]
-        _, got, _ = http("GET", f"/api/strategies/{sid}", token=token)
-        saved = got.get("config", got)
-        rc = saved.get("risk_control", {})
-        ok = rc.get("position_percent") == 10 and rc.get("min_position_size") == 10 \
-            and saved.get("indicators", {}).get("klines", {}).get("primary_timeframe") == "1h"
-        record("strategy create + read back", ok, {"id": sid, "position_percent": rc.get("position_percent"),
-                                                   "min_position_size": rc.get("min_position_size")})
-
-        legacy_cfg = {"coin_source": {"static_coins": ["BTCUSDT"]},
-                      "indicators": {"klines": {"primary_timeframe": "3m"}}}
-        _, created2, _ = http("POST", "/api/strategies",
-                              {"name": "closeout-smoke-legacy", "lang": "en", "config": legacy_cfg},
-                              token=token, expect=200)
-        _, got2, _ = http("GET", f"/api/strategies/{created2['id']}", token=token)
-        saved2 = got2.get("config", got2)
-        tf2 = saved2.get("indicators", {}).get("klines", {}).get("primary_timeframe")
-        record("legacy 3m timeframe normalized into retained set", tf2 in RETAINED, {"saved": tf2})
-
-        # 提示词预览：Gate 数据、无金额字段
-        _, preview, _ = http("POST", "/api/strategies/preview-prompt",
-                             {"config": saved, "account_principal": 1000, "prompt_variant": "balanced"},
-                             token=token)
-        prompt = preview.get("system_prompt", "")
-        ok = "Volume(USDT)" in prompt and "1h" in prompt \
-            and "position_size_usd" not in prompt and "risk_usd" not in prompt \
-            and "position_size_value_multiplier" not in prompt
-        record("preview prompt (Gate data, no amount fields)", ok, {"chars": len(prompt)})
-
-        # 不启动 trader：没有 trader、没有自动拉起
-        _, my_traders, _ = http("GET", "/api/my-traders", token=token)
-        record("no trader created", isinstance(my_traders, list) and len(my_traders) == 0,
-               {"count": len(my_traders) if isinstance(my_traders, list) else None})
-        count = sh(["docker", "exec", BACKEND, "sqlite3", "/app/data/data.db",
-                    "SELECT COUNT(*) FROM traders WHERE is_running=1;"])
-        record("no trader auto-started (db)", count == "0", {"running": count})
-        logs = sh(["docker", "logs", BACKEND], check=False)
-        auto = [m for m in ("Auto-starting trader", "Trader auto-started successfully",
-                            "Auto-restoring trader runtime") if m in logs]
-        record("no trader auto-started (logs)", not auto, {"markers": auto})
-
-        save_results()
-        print("SMOKE_PASS", flush=True)
-        return 0
+        try:
+            return run_smoke(compose, BACKEND, FRONTEND)
+        except Exception as e:  # noqa: BLE001 - any aborted step must still land in the evidence
+            results.append({"step": "smoke aborted", "result": "FAIL",
+                            "detail": {"error": f"{type(e).__name__}: {e}"}})
+            save_results()
+            print(f"SMOKE_FAIL {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+            return 1
     finally:
         cleanup()
+
+
+def run_smoke(compose, BACKEND, FRONTEND):
+    global PORT, SHA, out_dir
+    print(f"building candidate {SHA} into isolated project {PROJECT} ...", flush=True)
+    sh(compose + ["build", "--build-arg", f"GOPROXY={GOPROXY}"], check=True, capture=False)
+    record("images built", True, {"backend": f"{BACKEND}:{SHA}", "frontend": f"{FRONTEND}:{SHA}"})
+
+    sh(compose + ["up", "-d"], check=True, capture=False)
+    deadline = time.time() + 180
+    http_ok = False
+    while time.time() < deadline:
+        try:
+            status, _, _ = http("GET", "/api/health", expect=200)
+            status2, _, _ = http("GET", "/", expect=200)
+            http_ok = status == 200 and status2 == 200
+            break
+        except (AssertionError, OSError):
+            time.sleep(2)
+    record("http health via frontend proxy", http_ok)
+    deadline = time.time() + 120
+    states = {}
+    while time.time() < deadline:
+        states = {BACKEND: container_health(BACKEND), FRONTEND: container_health(FRONTEND)}
+        if all(v == "healthy" for v in states.values()):
+            break
+        time.sleep(2)
+    record("container health (image HEALTHCHECK)", all(v == "healthy" for v in states.values()), states)
+
+    status, reg, _ = http("POST", "/api/register",
+                          {"email": "smoke@example.com", "password": "SmokePass12345!", "lang": "en"},
+                          expect=200)
+    _, login, _ = http("POST", "/api/login",
+                       {"email": "smoke@example.com", "password": "SmokePass12345!"})
+    token = login["token"]
+    record("register + login", bool(token))
+
+    # Gate K 线：全部保留周期
+    kline_detail = {}
+    for tf in RETAINED:
+        _, bars, _ = http("GET", f"/api/klines?symbol=BTC_USDT&interval={tf}&limit=5")
+        ok = isinstance(bars, list) and len(bars) == 5
+        if ok:
+            for b in bars:
+                ok = ok and all(k in b for k in ("openTime", "open", "high", "low", "close", "volume")) \
+                    and b["high"] >= b["low"] > 0 and b["volume"] > 0 and b["quoteVolume"] == b["volume"]
+            times = [b["openTime"] // 1000 for b in bars]
+            ok = ok and times == sorted(times) and len(set(times)) == 5
+            days = [datetime.fromtimestamp(t, timezone.utc) for t in times]
+            if tf == "1w":
+                ok = ok and all(d.weekday() == 0 for d in days)
+            elif tf == "30d":
+                ok = ok and all(d.day == 1 for d in days)
+            elif tf == "7d":
+                ok = ok and all(d.weekday() == 3 for d in days)
+            elif tf == "1d":
+                ok = ok and all((d.hour, d.minute) == (0, 0) for d in days)
+        kline_detail[tf] = {"bars": len(bars) if isinstance(bars, list) else None, "ok": ok}
+        record(f"klines {tf}", ok, kline_detail[tf])
+
+    status, _, text = http("GET", "/api/klines?symbol=BTC_USDT&interval=3m&limit=5", expect=400)
+    record("klines non-retained 3m rejected", status == 400, {"body": text[:120]})
+
+    _, tickers, _ = http("GET", "/api/agent/tickers?symbols=BTCUSDT,ETHUSDT,SOLUSDT")
+    ok = isinstance(tickers, list) and {t.get("symbol") for t in tickers} == {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+    ok = ok and all(float(t["lastPrice"]) > 0 and float(t["volume"]) > 0 for t in tickers)
+    record("gate 24h tickers", ok, {"count": len(tickers) if isinstance(tickers, list) else None})
+
+    # 策略：新语义字段与旧周期归一化
+    cfg = {
+        "coin_source": {"static_coins": ["BTCUSDT"]},
+        "indicators": {"klines": {"primary_timeframe": "1h", "primary_count": 30}},
+        "risk_control": {"position_percent": 10, "min_position_size": 10},
+    }
+    _, created, _ = http("POST", "/api/strategies",
+                         {"name": "closeout-smoke", "description": "chained smoke", "lang": "en", "config": cfg},
+                         token=token, expect=200)
+    sid = created["id"]
+    _, got, _ = http("GET", f"/api/strategies/{sid}", token=token)
+    # GET /api/strategies/:id 的 config 是 {strategy_type, ai_config: {coin_source, indicators, risk_control}}
+    # （store.StrategyConfig.MarshalJSON）；旧写法直接在顶层取 risk_control 会得到空字典。
+    saved = got.get("config", got)
+    saved_ai = saved.get("ai_config") or saved
+    rc = saved_ai.get("risk_control", {})
+    ok = rc.get("position_percent") == 10 and rc.get("min_position_size") == 10 \
+        and saved_ai.get("indicators", {}).get("klines", {}).get("primary_timeframe") == "1h"
+    record("strategy create + read back", ok, {"id": sid, "position_percent": rc.get("position_percent"),
+                                               "min_position_size": rc.get("min_position_size")})
+
+    legacy_cfg = {"coin_source": {"static_coins": ["BTCUSDT"]},
+                  "indicators": {"klines": {"primary_timeframe": "3m"}}}
+    _, created2, _ = http("POST", "/api/strategies",
+                          {"name": "closeout-smoke-legacy", "lang": "en", "config": legacy_cfg},
+                          token=token, expect=200)
+    _, got2, _ = http("GET", f"/api/strategies/{created2['id']}", token=token)
+    saved2 = (got2.get("config", got2).get("ai_config")) or got2.get("config", got2)
+    tf2 = saved2.get("indicators", {}).get("klines", {}).get("primary_timeframe")
+    warnings2 = created2.get("warnings") or []
+    # 已废弃的周期不在 D25 集合内：ClampLimits 把它清空，并在创建响应里明确告警
+    warned = any("not supported" in w for w in warnings2)
+    record("legacy 3m timeframe cleared with a warning", tf2 == "" and warned,
+           {"saved": tf2, "warnings": warnings2})
+
+    # 提示词预览：Gate 数据、无金额字段
+    _, preview, _ = http("POST", "/api/strategies/preview-prompt",
+                         {"config": saved, "account_principal": 1000, "prompt_variant": "balanced"},
+                         token=token)
+    prompt = preview.get("system_prompt", "")
+    ok = "Volume(USDT)" in prompt and "1h" in prompt \
+        and "position_size_usd" not in prompt and "risk_usd" not in prompt \
+        and "position_size_value_multiplier" not in prompt
+    record("preview prompt (Gate data, no amount fields)", ok, {"chars": len(prompt)})
+
+    # 不启动 trader：没有 trader、没有自动拉起
+    _, my_traders, _ = http("GET", "/api/my-traders", token=token)
+    record("no trader created", isinstance(my_traders, list) and len(my_traders) == 0,
+           {"count": len(my_traders) if isinstance(my_traders, list) else None})
+    count = sh(["docker", "exec", BACKEND, "sqlite3", "/app/data/data.db",
+                "SELECT COUNT(*) FROM traders WHERE is_running=1;"])
+    record("no trader auto-started (db)", count == "0", {"running": count})
+    logs = sh(["docker", "logs", BACKEND], check=False)
+    auto = [m for m in ("Auto-starting trader", "Trader auto-started successfully",
+                        "Auto-restoring trader runtime") if m in logs]
+    record("no trader auto-started (logs)", not auto, {"markers": auto})
+
+    save_results()
+    print("SMOKE_PASS", flush=True)
+    return 0
 
 
 if __name__ == "__main__":

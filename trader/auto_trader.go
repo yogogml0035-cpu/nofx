@@ -160,12 +160,18 @@ type AutoTrader struct {
 	monitorWg             sync.WaitGroup     // Used to wait for monitoring goroutine to finish
 	peakPnLCache          map[string]float64 // Peak profit cache (symbol -> peak P&L percentage)
 	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
-	lastBalanceSyncTime   time.Time          // Last balance sync time
-	userID                string             // User ID
-	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
-	consecutiveAIFailures int                // Consecutive AI call failures
-	safeMode              bool               // Safe mode: no new positions, protect existing ones
-	safeModeReason        string             // Why safe mode was activated
+	// selfOpenedPositions 记录本进程刚开出的仓位（归一化 symbol_side），补上「开仓成交 → OrderSync
+	// 把持仓落到 DB」之间的归属空窗（D40：归属不了就不管理，这段时间仓位仍是自己的）
+	selfOpenedPositions map[string]bool
+	selfOpenedMutex     sync.RWMutex
+	// consecutiveRejectedRounds 连续出现被校验丢弃的决策的轮数（见 noteRejectedDecisions）
+	consecutiveRejectedRounds int
+	lastBalanceSyncTime       time.Time  // Last balance sync time
+	userID                    string     // User ID
+	gridState                 *GridState // Grid trading state (only used when StrategyType == "grid_trading")
+	consecutiveAIFailures     int        // Consecutive AI call failures
+	safeMode                  bool       // Safe mode: no new positions, protect existing ones
+	safeModeReason            string     // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader
@@ -335,6 +341,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		monitorWg:             sync.WaitGroup{},
 		peakPnLCache:          make(map[string]float64),
 		peakPnLCacheMutex:     sync.RWMutex{},
+		selfOpenedPositions:   make(map[string]bool),
+		selfOpenedMutex:       sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil

@@ -1,5 +1,7 @@
 # 执行计划：⑭ chart-klines-gate
 
+> 归档后回填（2026-11-26）：下列待办在交付时均已完成，原文件没有回填勾选。完成证据见计划文档 10.5 第 14 行、本任务的 probe/ 与父分支的合并提交。
+
 ## 待办（完成即勾选）
 
 - [x] 1. `api/handler_klines.go`：加密货币分支改 `market.GetGateKlines`（包级 `cryptoKlines`
@@ -12,8 +14,8 @@
 - [x] 4. 后端单测：Gate mock/注入的取数形状、exchange 忽略、limit 边界、错误 500、周期拒绝。
 - [x] 5. 前端门禁：`npm test`、`tsc --noEmit`、`vite build`。
 - [x] 6. 门禁：`git diff --check`、`make test`、`make build`。
-- [ ] 7. 独立检查子智能体检查；修复并补验。
-- [ ] 8. 合父、归档、推送父分支、清理子分支/worktree；更新地图与 10.5 进度。
+- [x] 7. 独立检查子智能体检查；修复并补验。
+- [x] 8. 合父、归档、推送父分支、清理子分支/worktree；更新地图与 10.5 进度。
 
 ## 验证命令
 

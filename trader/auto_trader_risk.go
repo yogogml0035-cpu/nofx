@@ -135,6 +135,9 @@ func (at *AutoTrader) isOwnPosition(symbol, side string) bool {
 		normalized == market.Normalize(at.config.StrategyConfig.GridConfig.Symbol) {
 		return true
 	}
+	if at.isSelfOpened(symbol, side) {
+		return true
+	}
 	if at.store == nil {
 		return false
 	}
@@ -210,7 +213,6 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 // ============================================================================
 // Risk Control Helpers
 // ============================================================================
-
 
 // enforceMinPositionSize checks minimum position size (CODE ENFORCED)
 func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {

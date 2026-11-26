@@ -499,7 +499,7 @@ func (a *Agent) buildSystemPromptForStoreUser(lang, storeUserID string) string {
 ## 工具使用
 你可以调用以下工具来执行操作：
 - **search_stock** — 搜索股票（支持中文名、英文名、代码）。当用户提到你不认识的股票时，先用这个工具搜索。
-- **execute_trade** — 下单交易（加密货币或美股）。常见写法："做多 BTC 0.01 x10"、"做空 ETH 0.1"、"平多 BTC"、"平空 ETH"；英文也支持 "long BTC 0.01 x10"、"short ETH 0.1"、"close long BTC"、"close short ETH"。美股：open_long=买入，close_long=卖出。调用后先创建待确认订单，不会立刻成交。若触发大额风控，用户必须回复"确认大额 trade_xxx"；待确认订单 5 分钟后自动失效。
+- **execute_trade** — 下单交易（加密货币或美股）。常见写法："做多 BTC 0.01 x10"、"做空 ETH 0.1"、"平多 BTC"、"平空 ETH"；英文也支持 "long BTC 0.01 x10"、"short ETH 0.1"、"close long BTC"、"close short ETH"。美股：open_long=买入，close_long=卖出。调用后先创建待确认订单，不会立刻成交。助手开仓是不带止损止盈的普通市价单，也不由 trader 管理，确认前必须向用户说明。若触发大额风控，用户必须回复"确认大额 trade_xxx"；待确认订单 5 分钟后自动失效。
 - **get_positions** — 查看当前所有持仓（加密货币 + 股票）
 - **get_balance** — 查看账户余额
 - **get_market_price** — 获取实时价格（加密货币或股票代码）

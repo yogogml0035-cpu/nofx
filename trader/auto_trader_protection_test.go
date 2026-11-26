@@ -70,7 +70,7 @@ func (s *protectionStub) CloseShort(symbol string, quantity float64) (map[string
 func newProtectionAutoTrader(stub types.Trader) *AutoTrader {
 	cfg := store.GetDefaultStrategyConfig("en")
 	engine := kernel.NewStrategyEngine(&cfg)
-	return &AutoTrader{
+	at := &AutoTrader{
 		id:                    "test-trader",
 		name:                  "protection-test",
 		exchange:              "gate",
@@ -80,6 +80,13 @@ func newProtectionAutoTrader(stub types.Trader) *AutoTrader {
 		positionFirstSeenTime: map[string]int64{},
 		peakPnLCache:          map[string]float64{},
 	}
+	// 这些持仓都是本 trader 开出的（D40）：测试夹具没有 DB，用自开登记表达归属
+	if positions, err := stub.GetPositions(); err == nil {
+		for _, pos := range positions {
+			at.markSelfOpened(pos["symbol"].(string), pos["side"].(string))
+		}
+	}
+	return at
 }
 
 func longPosition() []map[string]interface{} {

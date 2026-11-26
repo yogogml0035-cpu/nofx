@@ -253,6 +253,12 @@ func normalizeTimeframe(value string) string {
 // 决策按主周期收线后固定延迟触发，周期越短调用模型越频繁。
 var RetainedTimeframes = []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"}
 
+// NormalizeTimeframe 把周期归一成 D25 集合内的值（别名 1小时→1h、大小写与首尾空白）；
+// 不在集合内的值返回空串。
+func NormalizeTimeframe(value string) string {
+	return normalizeTimeframe(value)
+}
+
 // IsValidTimeframe 判断周期是否可用：保留集合内的值或其别名（1小时→1h）都算可用。
 func IsValidTimeframe(value string) bool {
 	return normalizeTimeframe(value) != ""
@@ -423,13 +429,13 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 	if beforeTF != afterTF {
 		if lang == "zh" {
 			if afterTF == "" {
-				warnings = append(warnings, fmt.Sprintf("主周期 %q 不在支持范围（%s），已清空：运行时回退到 trader 的扫描间隔", beforeTF, strings.Join(RetainedTimeframes, "、")))
+				warnings = append(warnings, fmt.Sprintf("主周期 %q 不在支持范围（%s），已清空：运行时改用多周期的第一个周期（都没有则 5m）", beforeTF, strings.Join(RetainedTimeframes, "、")))
 			} else {
 				warnings = append(warnings, fmt.Sprintf("主周期已从 %q 调整为 %q", beforeTF, afterTF))
 			}
 		} else {
 			if afterTF == "" {
-				warnings = append(warnings, fmt.Sprintf("primary timeframe %q is not supported (%s) and was cleared: the trader falls back to its scan interval", beforeTF, strings.Join(RetainedTimeframes, ", ")))
+				warnings = append(warnings, fmt.Sprintf("primary timeframe %q is not supported (%s) and was cleared: the first selected timeframe is used instead (5m when none)", beforeTF, strings.Join(RetainedTimeframes, ", ")))
 			} else {
 				warnings = append(warnings, fmt.Sprintf("primary timeframe adjusted from %q to %q", beforeTF, afterTF))
 			}

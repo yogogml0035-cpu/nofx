@@ -43,6 +43,9 @@ type PositionInfo struct {
 	TakeProfit float64 `json:"take_profit"`
 	// ProtectionUnavailableReason 当前保护不可读的原因（StopLoss 或 TakeProfit 为 0 时非空）
 	ProtectionUnavailableReason string `json:"protection_unavailable_reason,omitempty"`
+	// ProtectionConfirmed 为 true 表示交易所的条件单列表读取成功：此时 StopLoss==0 就是「确认没有止损」，
+	// 调用方可以做确定性处置（立即平仓）；false 时缺失只是「读不到」，不得据此平仓。
+	ProtectionConfirmed bool `json:"protection_confirmed"`
 }
 
 // AccountInfo account information
@@ -161,6 +164,9 @@ type FullDecision struct {
 	// Rejected lists decisions the validator dropped in this round (per-decision
 	// rejection): the remaining Decisions are valid and still execute.
 	Rejected []RejectedDecision `json:"rejected_decisions,omitempty"`
+	// SkippedReason is set when the engine returned without calling the model
+	// (for example no market data and no positions to manage).
+	SkippedReason string `json:"skipped_reason,omitempty"`
 }
 
 // RejectedDecision records why one model decision was dropped without failing the round.

@@ -711,7 +711,7 @@ export const translations = {
 
     faqDecisionFrequency: 'How often does the AI make decisions?',
     faqDecisionFrequencyAnswer:
-      'Configurable per trader, default is 3-5 minutes. Considerations: Too frequent (1-2 min) = overtrading, high fees; Too slow (30+ min) = missed opportunities. Recommended: 5 minutes for active trading, 15-30 minutes for swing trading. The AI may decide to "hold" (no action) in many cycles.',
+      'The AI decides once per candle of the strategy primary timeframe (5 seconds after each close). Set that timeframe in the strategy: 10s/1m call the model every few seconds to about a minute (higher fees, more noise), 15m-1h suit swing trading. The AI may decide to "hold" (no action) in many cycles. The scan interval on the trader is only a fallback used when the strategy has no valid timeframe.',
 
     faqNoTradesExecuting: "Why isn't my trader executing any trades?",
     faqNoTradesExecutingAnswer:
@@ -1999,7 +1999,7 @@ export const translations = {
 
     faqDecisionFrequency: 'AI 多久做一次决策？',
     faqDecisionFrequencyAnswer:
-      '每个交易员可单独配置，默认 3-5 分钟。考虑因素：太频繁（1-2 分钟）= 过度交易、手续费高；太慢（30+ 分钟）= 错过机会。建议：活跃交易 5 分钟，波段交易 15-30 分钟。AI 在很多周期可能决定"持有"（不操作）。',
+      'AI 按策略主周期每根 K 线决策一次（收线后 5 秒）。节奏在策略的主周期里设置：10s/1m 约每几秒到一分钟调用一次模型（费用高、噪声多），15m-1h 适合波段。AI 在很多周期可能决定"持有"（不操作）。交易员上的扫描间隔只是回退值，仅在策略没有有效主周期时生效。',
 
     faqNoTradesExecuting: '为什么交易员不执行任何交易？',
     faqNoTradesExecutingAnswer:
@@ -2023,7 +2023,7 @@ export const translations = {
 
     faqAICosts: 'AI API 调用费用是多少？',
     faqAICostsAnswer:
-      '每个交易员每天大约费用（5 分钟间隔）：DeepSeek：$0.10-0.50；Qwen：$0.20-0.80；OpenAI：$2-5；Claude：$1-3。费用取决于提示词长度和响应 token 数。DeepSeek 性价比最高。更长的决策间隔可降低费用。',
+      '每个交易员每天大约费用（策略主周期 5m）：DeepSeek：$0.10-0.50；Qwen：$0.20-0.80；OpenAI：$2-5；Claude：$1-3。费用取决于提示词长度和响应 token 数。DeepSeek 性价比最高。策略主周期越长，调用越少、费用越低。',
 
     // ===== 技术问题 =====
     faqPortInUse: '端口 8080 或 3000 被占用',
@@ -3256,7 +3256,7 @@ export const translations = {
       'AI menggunakan penalaran Chain of Thought (CoT) dalam 4 langkah: 1) Analisis Posisi; 2) Penilaian Risiko; 3) Evaluasi Peluang; 4) Keputusan Akhir.',
     faqDecisionFrequency: 'Seberapa sering AI membuat keputusan?',
     faqDecisionFrequencyAnswer:
-      'Dapat dikonfigurasi per trader, default 3-5 menit. Disarankan: 5 menit untuk trading aktif, 15-30 menit untuk swing trading.',
+      'AI mengambil keputusan sekali per candle timeframe utama strategi (5 detik setelah penutupan). Atur timeframe itu di strategi: 10s/1m memanggil model setiap beberapa detik hingga sekitar satu menit (biaya lebih tinggi, noise lebih banyak), 15m-1h cocok untuk swing trading. Interval pemindaian di trader hanyalah nilai cadangan saat strategi tidak punya timeframe yang valid.',
     faqNoTradesExecuting: 'Mengapa trader saya tidak mengeksekusi trading?',
     faqNoTradesExecutingAnswer:
       'Penyebab umum: 1) AI memutuskan menunggu; 2) Saldo tidak cukup; 3) Batas posisi maks tercapai; 4) Masalah API bursa; 5) Batasan strategi terlalu ketat.',

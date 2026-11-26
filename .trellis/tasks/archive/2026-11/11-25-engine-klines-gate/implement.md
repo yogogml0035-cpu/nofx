@@ -1,5 +1,7 @@
 # 执行计划：⑬ engine-klines-gate
 
+> 归档后回填（2026-11-26）：下列待办在交付时均已完成，原文件没有回填勾选。完成证据见计划文档 10.5 第 13 行、本任务的 probe/ 与父分支的合并提交。
+
 ## 待办（完成即勾选）
 
 - [x] 1. `market` 切 Gate：`GetWithTimeframes`、`GetBoxData`、`GetWithExchange`；`calculatePriceChangeByBars`
@@ -12,8 +14,8 @@
   删除后无残留引用（`go build ./...`）。
 - [x] 5. 真实探针：12 个保留周期经 GetWithTimeframes、箱体、无 AI 提示词渲染。
 - [x] 6. 门禁：`git diff --check`、`make test`、`make build`。
-- [ ] 7. 独立检查子智能体检查；修复并补验。
-- [ ] 8. 合父、归档、推送父分支、清理子分支/worktree；更新地图与 10.5 进度（F41 收口）。
+- [x] 7. 独立检查子智能体检查；修复并补验。
+- [x] 8. 合父、归档、推送父分支、清理子分支/worktree；更新地图与 10.5 进度（F41 收口）。
 
 ## 验证命令
 

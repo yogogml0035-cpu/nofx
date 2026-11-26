@@ -5,7 +5,6 @@ package trader
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"nofx/market"
@@ -38,7 +37,9 @@ func scanTimeframe(config *store.StrategyConfig) string {
 		candidates = append(candidates, "5m")
 	}
 	for _, candidate := range candidates {
-		tf := strings.ToLower(strings.TrimSpace(candidate))
+		// 别名（1小时→1h）与大小写在这里归一，与引擎 ClampLimits 的口径一致：
+		// 启动日志与首轮调度就按归一后的周期算，不会先报一次「回退」
+		tf := store.NormalizeTimeframe(candidate)
 		if tf == "" {
 			continue
 		}

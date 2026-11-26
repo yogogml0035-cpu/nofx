@@ -90,12 +90,9 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 	}
 
 	// 张数：多正空负；数量换算一律用不带符号的值
-	signedSize := quote.Contracts
-	if side == "SHORT" {
-		signedSize, err = negateDecimal(quote.Contracts)
-		if err != nil {
-			return types.ProtectedOpenResult{}, err
-		}
+	signedSize, err := signedContracts(quote.Contracts, side)
+	if err != nil {
+		return types.ProtectedOpenResult{}, err
 	}
 
 	order := gateapi.FuturesOrder{
@@ -129,6 +126,23 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 		return types.ProtectedOpenResult{}, fmt.Errorf("invalid protection for %s: %w", symbol, err)
 	}
 
+	// 提交前按最坏成交价复核亏损上限（D34）：决策校验用的是取数时刻的 K 线收盘价，模型调用
+	// 期间价格会漂移，IOC 市价单还可能成交在滑点上限上。超过上限时等比收缩名义价值。
+	if req.Principal > 0 && req.MaxLossPercent > 0 {
+		resized, err := t.capNotionalForWorstCaseLoss(spec, req, side, price, slip, slValue, quote)
+		if err != nil {
+			return types.ProtectedOpenResult{}, fmt.Errorf("refusing to open %s: %w", symbol, err)
+		}
+		if resized.Contracts != quote.Contracts {
+			// 名义价值被收缩：下单张数必须跟着重算（多正空负）
+			quote = resized
+			order.Size, err = signedContracts(quote.Contracts, side)
+			if err != nil {
+				return types.ProtectedOpenResult{}, err
+			}
+		}
+	}
+
 	// 保证金模式与杠杆按 trader 的设置一并生效并读回，失败不开仓（D38）。
 	// 不显式设置时首次建仓的合约会落到全仓最大杠杆（W2/W3 实测），设置没有生效就不能开仓。
 	if err := t.ApplyMarginSettings(symbol, req.IsCrossMargin, req.Leverage); err != nil {
@@ -155,8 +169,18 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 			"order %d finished but fill price %q is not positive", result.Id, result.FillPrice)
 	}
 
+	// 实际成交张数 = 下单张数 − 未成交的 left：IOC 部分成交时按成交部分记账（计划张数会高估仓位）
+	filledContracts, err := filledContractsOf(result, quote.Contracts)
+	if err != nil {
+		return types.ProtectedOpenResult{}, err
+	}
+	if filledContracts != quote.Contracts {
+		logger.Warnf("  [Gate] Order %d partially filled: contracts=%s of %s (finish_as=%q, left=%s)",
+			result.Id, filledContracts, quote.Contracts, result.FinishAs, result.Left)
+	}
+
 	// 实际名义价值 = 张数 × 每张币数量 × 成交价（与换算时的参考价可能不同）
-	quantity, err := spec.QuantityFromContracts(quote.Contracts)
+	quantity, err := spec.QuantityFromContracts(filledContracts)
 	if err != nil {
 		return types.ProtectedOpenResult{}, err
 	}
@@ -164,7 +188,7 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 	if err != nil {
 		return types.ProtectedOpenResult{}, err
 	}
-	contractsValue, err := parseDecimal("contracts", quote.Contracts)
+	contractsValue, err := parseDecimal("contracts", filledContracts)
 	if err != nil {
 		return types.ProtectedOpenResult{}, err
 	}
@@ -172,7 +196,7 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 
 	res := types.ProtectedOpenResult{
 		OrderID:    strconv.FormatInt(result.Id, 10),
-		Contracts:  quote.Contracts,
+		Contracts:  filledContracts,
 		Notional:   ratFloat(notional),
 		FillPrice:  fillPrice,
 		Quantity:   quantity,
@@ -226,7 +250,18 @@ func (t *GateTrader) VerifyOrderProtection(symbol, orderID string) error {
 		logger.Infof("  [Gate] Order %s lookup failed (%v), falling back to trigger order list", orderID, err)
 	}
 
-	positionSide, positionExists := t.livePositionSide(symbol)
+	// 成交后持仓读数可能有延迟：连续 3 次都读不到持仓才认定「仓位已不存在」（如已被保护单
+	// 平掉）。读不到就通过会让核对空过，仓位在没有保护的情况下留着。
+	positionSide, positionExists := "", false
+	for attempt := 1; attempt <= 3; attempt++ {
+		positionSide, positionExists = t.livePositionSide(symbol)
+		if positionExists {
+			break
+		}
+		if attempt < 3 {
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
 	if !positionExists {
 		logger.Infof("  [Gate] %s position is already closed, nothing to protect (order %s)", symbol, orderID)
 		return nil
@@ -301,4 +336,135 @@ func (t *GateTrader) livePositionSide(symbol string) (string, bool) {
 		return "LONG", true
 	}
 	return "", false
+}
+
+// filledContractsOf 订单实际成交的张数（不带符号）= 下单张数 − 未成交的 left。零成交返回错误。
+func filledContractsOf(order gateapi.FuturesOrder, contracts string) (string, error) {
+	size, err := parseDecimal("contracts", contracts)
+	if err != nil {
+		return "", err
+	}
+	size.Abs(size)
+	left := new(big.Rat)
+	if order.Left != "" {
+		if left, err = parseDecimal("order left", order.Left); err != nil {
+			return "", err
+		}
+	}
+	filled := new(big.Rat).Sub(size, left)
+	if filled.Sign() <= 0 {
+		return "", fmt.Errorf("order %d filled no contracts (finish_as=%q, left=%s)", order.Id, order.FinishAs, order.Left)
+	}
+	text, err := formatDecimal(filled, decimalScale(contracts))
+	if err != nil {
+		return "", err
+	}
+	return text, nil
+}
+
+// worstCaseEntryPrice 最坏成交价：最新价 × (1 + 滑点比率)（多单）或最新价 × (1 − 滑点比率)（空单）。
+// 滑点比率留空表示用交易所默认（数值未知），按最新价复核。
+func worstCaseEntryPrice(price float64, side, slip string) (*big.Rat, error) {
+	entry, err := decimalFromFloat("market price", price)
+	if err != nil {
+		return nil, err
+	}
+	if slip == "" {
+		return entry, nil
+	}
+	ratio, err := parseDecimal("slip ratio", slip)
+	if err != nil {
+		return nil, err
+	}
+	one := big.NewRat(1, 1)
+	if side == "SHORT" {
+		return new(big.Rat).Mul(entry, new(big.Rat).Sub(one, ratio)), nil
+	}
+	return new(big.Rat).Mul(entry, new(big.Rat).Add(one, ratio)), nil
+}
+
+// worstCaseLossAtStop 按给定入场价计算到止损价的亏损（USDT）：
+// 亏损 = |张数| × quanto_multiplier × |入场价 − 止损价|；止损在盈利一侧时为 0。
+func worstCaseLossAtStop(spec ContractSpec, side, contracts string, entry, stop *big.Rat) (*big.Rat, error) {
+	size, err := parseDecimal("contracts", contracts)
+	if err != nil {
+		return nil, err
+	}
+	size.Abs(size)
+	quantity := new(big.Rat).Mul(size, spec.multiplier)
+	var distance *big.Rat
+	if side == "LONG" {
+		if stop.Cmp(entry) >= 0 {
+			return new(big.Rat), nil
+		}
+		distance = new(big.Rat).Sub(entry, stop)
+	} else {
+		if stop.Cmp(entry) <= 0 {
+			return new(big.Rat), nil
+		}
+		distance = new(big.Rat).Sub(stop, entry)
+	}
+	return new(big.Rat).Mul(quantity, distance), nil
+}
+
+// capNotionalForWorstCaseLoss 让「到止损价的亏损 ≤ 本金 × MaxLossPercent%」在最坏成交价下仍成立：
+// 超过时按 上限 ÷ 亏损 等比收缩名义价值并重新换算张数（向下取整只会让亏损更小）。
+// 收缩后不足最小下单金额时返回错误——止损太远，这个仓位开不了。
+func (t *GateTrader) capNotionalForWorstCaseLoss(spec ContractSpec, req types.ProtectedOpenRequest, side string,
+	price float64, slip string, stop *big.Rat, quote SizeQuote) (SizeQuote, error) {
+	entry, err := worstCaseEntryPrice(price, side, slip)
+	if err != nil {
+		return quote, err
+	}
+	loss, err := worstCaseLossAtStop(spec, side, quote.Contracts, entry, stop)
+	if err != nil {
+		return quote, err
+	}
+	principal, err := decimalFromFloat("account principal", req.Principal)
+	if err != nil {
+		return quote, err
+	}
+	percent, err := decimalFromFloat("max loss percent", req.MaxLossPercent)
+	if err != nil {
+		return quote, err
+	}
+	limit := new(big.Rat).Mul(principal, new(big.Rat).Quo(percent, big.NewRat(100, 1)))
+	if loss.Cmp(limit) <= 0 {
+		return quote, nil
+	}
+
+	scale := new(big.Rat).Quo(limit, loss)
+	adjusted, err := decimalFromFloat("adjusted notional", req.NotionalUSD*ratFloat(scale))
+	if err != nil {
+		return quote, err
+	}
+	adjustedNotional := ratFloat(adjusted)
+	adjustedQuote, err := spec.SizeForNotional(price, adjustedNotional, req.MinNotional)
+	if err != nil {
+		return quote, err
+	}
+	if !adjustedQuote.Orderable() {
+		return quote, fmt.Errorf(
+			"stop loss %v is too far for the %.2f%% principal loss cap: notional would shrink from %.4f to %.4f USDT (%s)",
+			ratFloat(stop), req.MaxLossPercent, req.NotionalUSD, adjustedNotional, adjustedQuote.Skip)
+	}
+	// 张数向下取整只会让亏损更小；仍超过上限说明换算有误，宁可拒绝
+	recheck, err := worstCaseLossAtStop(spec, side, adjustedQuote.Contracts, entry, stop)
+	if err != nil {
+		return quote, err
+	}
+	if recheck.Cmp(limit) > 0 {
+		return quote, fmt.Errorf("loss at stop %.6f USDT still exceeds the %.6f USDT cap after resizing", ratFloat(recheck), ratFloat(limit))
+	}
+	logger.Infof("  [Gate] Notional reduced %.4f -> %.4f USDT: worst-case loss at stop %.6f exceeded the %.2f%% cap %.6f USDT (price %v, slip %s)",
+		req.NotionalUSD, adjustedNotional, ratFloat(loss), req.MaxLossPercent, ratFloat(limit), price, slipDisplay(slip))
+	return adjustedQuote, nil
+}
+
+// signedContracts 张数的带符号写法：多头为正、空头为负
+func signedContracts(contracts, side string) (string, error) {
+	if side == "SHORT" {
+		return negateDecimal(contracts)
+	}
+	return contracts, nil
 }

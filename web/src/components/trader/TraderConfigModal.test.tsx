@@ -276,3 +276,37 @@ describe('TraderConfigModal – scan cadence', () => {
     expect(screen.getByText(/calls the model about once a minute/)).toBeTruthy()
   })
 })
+
+describe('TraderConfigModal – scan cadence validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('does not show an effective cadence for a legacy timeframe outside the retained set', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({
+      success: true,
+      data: {
+        strategies: [
+          {
+            id: 'strategy-1', name: 'legacy', description: '', is_active: true, is_default: false,
+            created_at: '', updated_at: '',
+            config: {
+              strategy_type: 'ai_trading',
+              indicators: {
+                klines: {
+                  primary_timeframe: '3m', primary_count: 30, longer_timeframe: '', longer_count: 0,
+                  enable_multi_timeframe: false,
+                },
+              },
+            },
+          },
+        ],
+      },
+    } as never)
+
+    await renderModal()
+
+    expect(screen.queryByTestId('trader-scan-cadence')).toBeNull()
+    expect(screen.getByText(/Fallback scan interval \(minutes\)/)).toBeTruthy()
+  })
+})

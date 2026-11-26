@@ -366,6 +366,18 @@ func isMajorTradeSymbol(symbol string) bool {
 	return isBTCETHSymbol(symbol)
 }
 
+// manualTradeRiskNotice 助手手动开仓的风险说明：这是不带保护的普通市价单——没有止损止盈，
+// 不受 AI 自动开仓的本金 2% 亏损上限与开仓金额百分比约束，也不会被任何 trader 管理（计划文档 D40/F48）。
+// 用户必须在下单前看到这一点。
+func manualTradeRiskNotice(lang string) string {
+	if lang == "zh" {
+		return "\n⚠️ 这是普通市价单：**不附带止损止盈**，不受 AI 自动开仓的亏损上限与开仓金额百分比约束，" +
+			"也不会由任何 trader 管理。仓位需要你自行平仓，或另行下单平仓。\n"
+	}
+	return "\n⚠️ This is a plain market order: **no stop loss or take profit is attached**, the automated " +
+		"loss cap and position percent do not apply, and no trader will manage it. You close it yourself.\n"
+}
+
 // formatTradeConfirmation creates a confirmation message for a pending trade.
 func formatTradeConfirmation(trade *TradeAction, lang string) string {
 	actionNames := map[string]string{
@@ -397,6 +409,9 @@ func formatTradeConfirmation(trade *TradeAction, lang string) string {
 		if trade.EstimatedNotional > 0 {
 			msg += fmt.Sprintf("估算仓位价值: %.2f USDT\n", trade.EstimatedNotional)
 		}
+		if strings.HasPrefix(trade.Action, "open_") {
+			msg += manualTradeRiskNotice(lang)
+		}
 		if trade.RequiresLargeOrderConfirmation {
 			msg += fmt.Sprintf("\n⚠️ 该订单已触发大额风控，请发送 `"+tradeLargeOrderConfirmCommandZH+"` 执行交易，或忽略取消。", trade.ID)
 			return msg
@@ -417,6 +432,7 @@ func formatTradeConfirmation(trade *TradeAction, lang string) string {
 	if trade.EstimatedNotional > 0 {
 		msg += fmt.Sprintf("Estimated notional: %.2f USDT\n", trade.EstimatedNotional)
 	}
+	msg += manualTradeRiskNotice(lang)
 	if trade.RequiresLargeOrderConfirmation {
 		msg += fmt.Sprintf("\n⚠️ This order triggered high-risk protection. Send `"+tradeLargeOrderConfirmCommandEN+"` to execute, or ignore to cancel.", trade.ID)
 		return msg

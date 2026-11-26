@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"nofx/market"
 	"nofx/store"
 )
 
@@ -141,4 +142,30 @@ func TestScanTimeframe(t *testing.T) {
 
 	cfg.Indicators.Klines.PrimaryTimeframe = "1h"
 	assert.Equal(t, "1h", scanTimeframe(&cfg))
+}
+
+// 周期集合只有一份事实：调度、策略配置与 Gate 取数的周期表必须一致，不能各自漂移
+func TestRetainedTimeframesMatchGateIntervals(t *testing.T) {
+	require.Len(t, store.RetainedTimeframes, 12)
+	for _, timeframe := range store.RetainedTimeframes {
+		if _, err := market.GateIntervalDuration(timeframe); err != nil {
+			t.Errorf("store.RetainedTimeframes contains %q, which GateIntervalDuration rejects", timeframe)
+		}
+		if got := store.NormalizeTimeframe(timeframe); got != timeframe {
+			t.Errorf("NormalizeTimeframe(%q) = %q, want the same canonical value", timeframe, got)
+		}
+		if _, err := nextScanTime(utc(2026, 11, 25, 12, 0, 0), timeframe, 5*time.Second); err != nil {
+			t.Errorf("nextScanTime rejects retained timeframe %q: %v", timeframe, err)
+		}
+	}
+}
+
+// 别名与大小写归一后再调度：启动日志与首轮就按归一后的周期算
+func TestScanTimeframeNormalizesAliases(t *testing.T) {
+	cfg := store.GetDefaultStrategyConfig("en")
+	cfg.Indicators.Klines.PrimaryTimeframe = "1小时"
+	cfg.Indicators.Klines.SelectedTimeframes = nil
+	assert.Equal(t, "1h", scanTimeframe(&cfg))
+	cfg.Indicators.Klines.PrimaryTimeframe = "4H"
+	assert.Equal(t, "4h", scanTimeframe(&cfg))
 }

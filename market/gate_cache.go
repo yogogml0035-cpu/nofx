@@ -37,9 +37,9 @@ type GateRateLimitError struct {
 
 func (e *GateRateLimitError) Error() string {
 	if e.ResetAt.IsZero() {
-		return fmt.Sprintf("%v: %s", ErrGateRateLimited, e.Body)
+		return fmt.Sprintf("%v (status 429): %s", ErrGateRateLimited, e.Body)
 	}
-	return fmt.Sprintf("%v (resets at %s): %s", ErrGateRateLimited, e.ResetAt.UTC().Format(time.RFC3339), e.Body)
+	return fmt.Sprintf("%v (status 429, resets at %s): %s", ErrGateRateLimited, e.ResetAt.UTC().Format(time.RFC3339), e.Body)
 }
 
 func (e *GateRateLimitError) Unwrap() error { return ErrGateRateLimited }
@@ -151,23 +151,39 @@ func gateSweepLocked() {
 	}
 }
 
-// gateKlineCacheTTL K 线缓存时长。引擎取数（limit ≤ 100）只合并收线时刻的并发请求（2 秒），
-// 不让旧快照跨过收线边界；图表与落地页的大请求按周期缩放到 3–10 秒。
+// gateKlineCacheTTL K 线缓存时长，按周期缩放到 2–10 秒。
+// 收线后不会拿到收线前的快照：这一点由缓存 key 里的 K 线时间桶保证（见 gateKlineCacheKey），
+// TTL 只决定同一根 K 线内未收线数据的最大滞后。
 func gateKlineCacheTTL(interval string, limit int) time.Duration {
-	if limit <= 100 {
+	_ = limit
+	// 1w/30d 是自然周/月边界，不在 Unix 纪元网格上，key 不带时间桶：只用 2 秒合并并发请求
+	if interval == "1w" || interval == "30d" {
 		return 2 * time.Second
 	}
 	ttl := 10 * time.Second
 	if duration, err := GateIntervalDuration(interval); err == nil {
 		ttl = duration / 10
 	}
-	if ttl < 3*time.Second {
-		ttl = 3 * time.Second
+	if ttl < 2*time.Second {
+		ttl = 2 * time.Second
 	}
 	if ttl > 10*time.Second {
 		ttl = 10 * time.Second
 	}
 	return ttl
+}
+
+// gateKlineCacheKey K 线缓存键。带当前 K 线的时间桶（now / 周期时长）：收线后的请求落入新的桶，
+// 永远不会与收线前的快照共用缓存——否则主周期 ≥5m 时，助手快照、试运行或图表在收线前几秒
+// 写入的同一组 (合约, 周期, limit) 会让引擎在收线时刻读到缺了刚收那根的旧数据。
+// 1w/30d 的边界是自然周/月而不是纪元网格，不带时间桶（TTL 只有 2 秒）。
+func gateKlineCacheKey(contract, interval string, limit int) string {
+	key := fmt.Sprintf("klines|%s|%s|%d", contract, interval, limit)
+	duration, err := GateIntervalDuration(interval)
+	if err != nil || interval == "1w" || interval == "30d" {
+		return key
+	}
+	return fmt.Sprintf("%s|%d", key, gateNow().Unix()/int64(duration/time.Second))
 }
 
 // classifyGateError 把上游的非 200 响应归一成可判定的错误：429 是限频，

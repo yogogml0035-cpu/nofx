@@ -8,14 +8,30 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
+// gateCacheDefaultOn 记录生产默认值（init 里先读再关），供「生产默认开启」的用例断言。
+var gateCacheDefaultOn bool
+
 func init() {
+	// 其余行情测试按「每次调用都打到本地 HTTP 服务」编写，所以本测试包默认关闭缓存；
+	// 只有缓存用例在用例内打开。生产默认开启这一事实由 TestGateCacheDefaultOn 钉住。
+	gateCacheDefaultOn = gateCacheOn.Load()
 	gateCacheOn.Store(false)
+}
+
+func TestGateCacheDefaultOn(t *testing.T) {
+	if !gateCacheDefaultOn {
+		t.Fatal("the Gate market cache must be enabled by default in production (init)")
+	}
+	if gateCacheOn.Load() {
+		t.Fatal("this test package must keep the cache off so the other market tests hit their local servers")
+	}
 }
 
 func withGateCache(t *testing.T) {
@@ -24,30 +40,40 @@ func withGateCache(t *testing.T) {
 	t.Cleanup(restore)
 }
 
+// 领先者先进入 fetch 并阻塞，其余请求必须在它返回前到达：它们拿到的只能是同一个进行中的结果，
+// 而不是缓存。这样删掉「进行中请求的合并」后用例会失败。
 func TestGateCachedDedupesConcurrentFetches(t *testing.T) {
 	withGateCache(t)
 	var calls atomic.Int32
+	entered := make(chan struct{}, 8)
 	release := make(chan struct{})
-	started := make(chan struct{}, 8)
 	fetch := func() (any, error) {
-		if calls.Add(1) == 1 {
-			close(release)
-		}
-		started <- struct{}{}
+		calls.Add(1)
+		entered <- struct{}{}
 		<-release
 		return "v", nil
 	}
+	leaderDone := make(chan struct{})
+	go func() {
+		defer close(leaderDone)
+		if v, err := gateCached("k", time.Minute, fetch); err != nil || v != "v" {
+			t.Errorf("leader: gateCached = %v, %v", v, err)
+		}
+	}()
+	<-entered // 领先者已进入 fetch 并阻塞
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 7; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			value, err := gateCached("k", time.Minute, fetch)
-			if err != nil || value != "v" {
-				t.Errorf("gateCached = %v, %v", value, err)
+			if v, err := gateCached("k", time.Minute, fetch); err != nil || v != "v" {
+				t.Errorf("follower: gateCached = %v, %v", v, err)
 			}
 		}()
 	}
+	time.Sleep(200 * time.Millisecond)
+	close(release)
+	<-leaderDone
 	wg.Wait()
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("fetch ran %d times, want 1 (concurrent callers must share one upstream request)", got)
@@ -100,12 +126,13 @@ func TestGateKlineCacheTTL(t *testing.T) {
 		limit    int
 		want     time.Duration
 	}{
-		{"1m", 30, 2 * time.Second},   // 引擎取数：只合并收线时刻的并发请求
-		{"5m", 100, 2 * time.Second},  // 边界
-		{"10s", 500, 3 * time.Second}, // 下限 3 秒
+		{"10s", 30, 2 * time.Second},  // 下限 2 秒
+		{"10s", 500, 2 * time.Second}, // 与 limit 无关
+		{"1m", 200, 6 * time.Second},  // 引擎取数的形状：周期 / 10
 		{"5m", 1500, 10 * time.Second},
-		{"1m", 1500, 6 * time.Second},
 		{"1h", 2000, 10 * time.Second}, // 上限 10 秒
+		{"1w", 500, 2 * time.Second},   // 自然周边界不在纪元网格：key 不带时间桶，只合并并发
+		{"30d", 500, 2 * time.Second},
 	} {
 		if got := gateKlineCacheTTL(tc.interval, tc.limit); got != tc.want {
 			t.Errorf("gateKlineCacheTTL(%s, %d) = %v, want %v", tc.interval, tc.limit, got, tc.want)
@@ -179,5 +206,106 @@ func TestGateRateLimitErrorRetryAfter(t *testing.T) {
 	}
 	if got := (&GateRateLimitError{ResetAt: now.Add(-time.Hour)}).RetryAfter(now); got != time.Second {
 		t.Fatalf("RetryAfter in the past = %v, want the 1s floor", got)
+	}
+}
+
+func TestGateCacheRespectsMaxEntries(t *testing.T) {
+	withGateCache(t)
+	for i := 0; i < gateMaxEntries+25; i++ {
+		if _, err := gateCached(fmt.Sprintf("k%d", i), time.Minute, func() (any, error) { return i, nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gateCacheMu.Lock()
+	size := len(gateCache)
+	gateCacheMu.Unlock()
+	if size > gateMaxEntries {
+		t.Fatalf("cache holds %d entries, want at most %d", size, gateMaxEntries)
+	}
+}
+
+func TestClassifyGateErrorParsesResetTimestamp(t *testing.T) {
+	reset := time.Unix(1_700_000_077, 0)
+	header := http.Header{}
+	header.Set("X-Gate-RateLimit-Reset-Timestamp", "1700000077")
+	err := classifyGateError(http.StatusTooManyRequests, header, []byte(`{"label":"TOO_MANY_REQUESTS","message":"slow down"}`))
+	var limitErr *GateRateLimitError
+	if !errors.As(err, &limitErr) {
+		t.Fatalf("classifyGateError = %v, want a *GateRateLimitError", err)
+	}
+	if !limitErr.ResetAt.Equal(reset) {
+		t.Fatalf("ResetAt = %v, want %v", limitErr.ResetAt, reset)
+	}
+	if !strings.Contains(err.Error(), "status 429") {
+		t.Fatalf("error = %q, want the HTTP status in the message", err)
+	}
+	// 头缺失或不可解析时不 panic，按零值处理
+	err = classifyGateError(http.StatusTooManyRequests, http.Header{}, []byte(`{}`))
+	if !errors.Is(err, ErrGateRateLimited) {
+		t.Fatalf("classifyGateError without header = %v, want ErrGateRateLimited", err)
+	}
+}
+
+// 三个行情入口都走缓存：ticker、全量 tickers、合约指标（含 contract_stats）两轮只打一次上游。
+func TestGateMarketEntriesUseCache(t *testing.T) {
+	withGateCache(t)
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/futures/usdt/tickers":
+			if r.URL.Query().Get("contract") != "" {
+				fmt.Fprint(w, `[{"contract":"DOGE_USDT","last":"0.1","change_percentage":"1","volume_24h_quote":"1000","high_24h":"0.2","low_24h":"0.05"}]`)
+				return
+			}
+			fmt.Fprint(w, `[{"contract":"DOGE_USDT","last":"0.1","change_percentage":"1","volume_24h_quote":"1000","high_24h":"0.2","low_24h":"0.05"}]`)
+		case "/futures/usdt/contracts/DOGE_USDT":
+			fmt.Fprint(w, `{"mark_price":"0.1","index_price":"0.1","funding_rate":"0.0001","funding_next_apply":1700000000}`)
+		case "/futures/usdt/contract_stats":
+			fmt.Fprint(w, `[{"time":1700000000,"open_interest_usd":"20000000","last_funding_rate":"0.0001"}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	previous := gateFuturesBaseURL
+	gateFuturesBaseURL = server.URL
+	t.Cleanup(func() { gateFuturesBaseURL = previous })
+
+	for round := 0; round < 2; round++ {
+		if _, err := GetGateTicker("DOGE_USDT"); err != nil {
+			t.Fatalf("GetGateTicker: %v", err)
+		}
+		if _, err := ListGateTickers(); err != nil {
+			t.Fatalf("ListGateTickers: %v", err)
+		}
+		if _, err := GetGateContractMetrics("DOGE_USDT"); err != nil {
+			t.Fatalf("GetGateContractMetrics: %v", err)
+		}
+	}
+	// ticker 1 + tickers 1 + contracts 1 + contract_stats 1；第二轮全部命中缓存
+	if got := hits.Load(); got != 4 {
+		t.Fatalf("upstream hits = %d, want 4 (every entry point cached across two rounds)", got)
+	}
+}
+
+func TestGateKlineCacheKeyUsesCandleBucket(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0) // 1m 桶的边界
+	gateNow = func() time.Time { return now }
+	t.Cleanup(func() { gateNow = time.Now })
+	a := gateKlineCacheKey("DOGE_USDT", "1m", 200)
+	now = now.Add(30 * time.Second)
+	b := gateKlineCacheKey("DOGE_USDT", "1m", 200)
+	now = now.Add(31 * time.Second) // 跨过下一根 K 线
+	c := gateKlineCacheKey("DOGE_USDT", "1m", 200)
+	if a != b {
+		t.Fatalf("same candle must share a key: %q vs %q", a, b)
+	}
+	if a == c {
+		t.Fatalf("a new candle must get a new key (a request after the close must not read the pre-close snapshot): %q", a)
+	}
+	if week := gateKlineCacheKey("DOGE_USDT", "1w", 200); week != "klines|DOGE_USDT|1w|200" {
+		t.Fatalf("1w key = %q, want no bucket (calendar week boundary)", week)
 	}
 }

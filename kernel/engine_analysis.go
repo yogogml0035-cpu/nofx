@@ -86,6 +86,18 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	}
 	pruneCandidateCoinsWithoutMarketData(ctx)
 
+	// 没有任何可决策的数据（行情源不可用、限频，或流动性全部不达标）且没有仓位要管：不调用模型。
+	// 以前会带着空数据调用，模型只能凭空输出 wait/hold——白付一次调用，限频时还加重上游压力。
+	// 有仓位时仍然调用：平仓与改保护不依赖候选币的行情。
+	if decisionSkippable(ctx) {
+		logger.Warnf("⚠️ No market data and no positions to manage; skipping the AI call this cycle")
+		return &FullDecision{
+			Decisions:     []Decision{},
+			Timestamp:     time.Now(),
+			SkippedReason: "no market data and no positions to manage",
+		}, nil
+	}
+
 	// 2. Build System Prompt using strategy engine.
 	//    The notional shown in the prompt is principal × position_percent — the
 	//    same code-enforced amount the decisions are sized with below.
@@ -127,6 +139,11 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	}
 
 	return decision, nil
+}
+
+// decisionSkippable 没有任何可决策的数据且没有仓位要管：这一轮不需要调用模型
+func decisionSkippable(ctx *Context) bool {
+	return len(ctx.MarketDataMap) == 0 && len(ctx.Positions) == 0
 }
 
 // ============================================================================

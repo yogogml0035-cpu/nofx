@@ -136,7 +136,8 @@ func (at *AutoTrader) executeProtectionUpdateWithRecord(decision *kernel.Decisio
 	if err != nil {
 		return err
 	}
-	_, side, posSymbol, err := at.findOpenPosition(decision.Symbol)
+	// 方向由动作隐含（update_* 不带方向）；归属断言（D40）：不是本 trader 开出的持仓不改保护
+	posSymbol, side, err := at.findOpenPositionOwned(decision.Symbol)
 	if err != nil {
 		return err
 	}
@@ -219,31 +220,61 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 	}
 }
 
-// prepareOpen 汇集开仓前的仓位、余额与风控检查，返回通过校验的名义价值。
-// 交易判断集中在这里；换算与提交由适配器完成。
-func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, error) {
+// prepareOpen 汇集开仓前的仓位、余额与风控检查，返回通过校验的名义价值与账户本金
+// （本金交给适配器在提交前按最坏成交价复核亏损上限，D34）。交易判断集中在这里；换算与提交由适配器完成。
+func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, float64, error) {
 	// ⚠️ Get current positions for multiple checks
 	positions, err := at.trader.GetPositions()
 	if err != nil {
-		return 0, fmt.Errorf("failed to get positions: %w", err)
+		return 0, 0, fmt.Errorf("failed to get positions: %w", err)
 	}
 
-	// [CODE ENFORCED] Check max positions limit
-	if err := at.enforceMaxPositions(len(positions)); err != nil {
-		return 0, err
-	}
-
-	// Check if there's already a position in the same symbol and direction
+	// 只数本 trader 开出的仓位（D40）；同一合约上只要有仓位就不开：
+	// 不是本 trader 的仓位 → 归属不了，开进去会与它净额合并（拒绝）；自己的同向仓位 → 先平；
+	// 自己的反向仓位 → 单向持仓模式下反向开仓是净额减仓，随单保护的语义没有验证过（拒绝）。
+	wantSide := decisionSide(decision.Action)
+	ownPositions := 0
+	key := positionSymbolKey(decision.Symbol)
+	base := positionSymbolBaseKey(decision.Symbol)
 	for _, pos := range positions {
-		if pos["symbol"] == decision.Symbol && pos["side"] == decisionSide(decision.Action) {
-			return 0, fmt.Errorf("❌ %s already has %s position, close it first", decision.Symbol, decisionSide(decision.Action))
+		posSymbol, _ := pos["symbol"].(string)
+		posSide, _ := pos["side"].(string)
+		if !at.isOwnPosition(posSymbol, posSide) {
+			continue
 		}
+		ownPositions++
+		if posSymbol != decision.Symbol && (key == "" || positionSymbolKey(posSymbol) != key) &&
+			(base == "" || positionSymbolBaseKey(posSymbol) != base) {
+			continue
+		}
+		if posSide == wantSide {
+			return 0, 0, fmt.Errorf("❌ %s already has %s position, close it first", decision.Symbol, wantSide)
+		}
+		return 0, 0, fmt.Errorf("❌ %s has an opposite %s position; close it before opening %s (netting mode)",
+			decision.Symbol, posSide, wantSide)
+	}
+	// 同一合约上存在不是本 trader 开出的仓位：开进去会与它合并，之后无法归属
+	for _, pos := range positions {
+		posSymbol, _ := pos["symbol"].(string)
+		posSide, _ := pos["side"].(string)
+		if at.isOwnPosition(posSymbol, posSide) {
+			continue
+		}
+		if posSymbol == decision.Symbol || (key != "" && positionSymbolKey(posSymbol) == key) ||
+			(base != "" && positionSymbolBaseKey(posSymbol) == base) {
+			return 0, 0, fmt.Errorf("❌ %s has a position not opened by this trader; refusing to open on it (D40)", decision.Symbol)
+		}
+	}
+
+	// [CODE ENFORCED] Check max positions limit (own positions only, D40)
+	if err := at.enforceMaxPositions(ownPositions); err != nil {
+		return 0, 0, err
 	}
 
 	// Get balance (needed for margin checks)
 	account, err := types.ReadAccountBalance(at.trader)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	availableBalance := account.Available
 
@@ -251,7 +282,7 @@ func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, error) {
 	// position_percent (D22/D24); the model never supplies an amount.
 	positionSize := decision.NotionalUSD
 	if positionSize <= 0 {
-		return 0, fmt.Errorf("decision for %s has no code-computed open notional", decision.Symbol)
+		return 0, 0, fmt.Errorf("decision for %s has no code-computed open notional", decision.Symbol)
 	}
 
 	// ⚠️ Auto-adjust position size if insufficient margin
@@ -268,9 +299,9 @@ func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, error) {
 
 	// [CODE ENFORCED] Minimum position size check
 	if err := at.enforceMinPositionSize(positionSize); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return positionSize, nil
+	return positionSize, account.Principal, nil
 }
 
 // decisionSide 决策动作对应的持仓方向
@@ -286,7 +317,7 @@ func decisionSide(action string) string {
 func (at *AutoTrader) executeProtectedOpen(decision *kernel.Decision, actionRecord *store.DecisionAction, side string) error {
 	logger.Infof("  📈 Open %s: %s", side, decision.Symbol)
 
-	positionSize, err := at.prepareOpen(decision)
+	positionSize, principal, err := at.prepareOpen(decision)
 	if err != nil {
 		return err
 	}
@@ -306,6 +337,9 @@ func (at *AutoTrader) executeProtectedOpen(decision *kernel.Decision, actionReco
 		TakeProfit:    decision.TakeProfit,
 		MinNotional:   at.minOrderNotional(),
 		SlipRatio:     marketOrderSlipRatio,
+		// 提交前按最坏成交价复核「到止损价的亏损 ≤ 本金 2%」（D34）：决策校验用的是取数时刻的收盘价
+		Principal:      principal,
+		MaxLossPercent: kernel.MaxLossPercentOfPrincipal,
 	}
 	var result types.ProtectedOpenResult
 	if side == "SHORT" {
@@ -314,8 +348,13 @@ func (at *AutoTrader) executeProtectedOpen(decision *kernel.Decision, actionReco
 		result, err = opener.OpenLongProtected(req)
 	}
 	if err != nil {
-		return err
+		// 请求可能超时但订单已成交（或部分成交）：仓位此刻没有核对过保护。
+		// prepareOpen 已保证这个合约上原先没有仓位，所以现在出现的仓位一定来自这次下单——立即平掉。
+		return at.closePositionOpenedByFailedOpen(decision.Symbol, err)
 	}
+
+	// 成交即登记归属：Gate 的持仓记录要等 OrderSync 落库，这段时间模型仍必须看得到、管得了这个仓位
+	at.markSelfOpened(decision.Symbol, strings.ToLower(side))
 
 	actionRecord.OrderID, err = strconv.ParseInt(result.OrderID, 10, 64)
 	if err != nil {
@@ -392,6 +431,11 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  🔄 Close long: %s", decision.Symbol)
 
+	// 方向与归属断言（D40）：不是本 trader 开出的持仓不平
+	if _, err := at.requireOwnOpenPosition(decision.Symbol, "long"); err != nil {
+		return err
+	}
+
 	// Get current price（适配器自己的最新价，D26）
 	price, err := at.trader.GetMarketPrice(decision.Symbol)
 	if err != nil {
@@ -453,6 +497,11 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 // executeCloseShortWithRecord executes close short position and records detailed information
 func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  🔄 Close short: %s", decision.Symbol)
+
+	// 方向与归属断言（D40）：不是本 trader 开出的持仓不平
+	if _, err := at.requireOwnOpenPosition(decision.Symbol, "short"); err != nil {
+		return err
+	}
 
 	// Get current price（适配器自己的最新价，D26）
 	price, err := at.trader.GetMarketPrice(decision.Symbol)
@@ -519,6 +568,11 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *kernel.Decision, a
 
 	closer, err := at.partialCloser()
 	if err != nil {
+		return err
+	}
+
+	// 方向与归属断言（D40）：不是本 trader 开出的持仓不分批平
+	if _, err := at.requireOwnOpenPosition(decision.Symbol, strings.ToLower(side)); err != nil {
 		return err
 	}
 
