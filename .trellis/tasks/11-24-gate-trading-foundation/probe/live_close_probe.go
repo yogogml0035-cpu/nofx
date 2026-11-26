@@ -33,6 +33,20 @@ func main() {
 	gt := nofxgate.NewGateTrader(key, secret)
 
 	switch os.Args[1] {
+	case "open":
+		// 受控开 2 张 BTC 多头（随单 SL/TP，备注 t-nofx-ai），用于验证带修复的分批平仓。
+		price, err := gt.GetMarketPrice("BTC_USDT")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "price:", err)
+			os.Exit(1)
+		}
+		result, err := gt.OpenLongProtected(types.ProtectedOpenRequest{
+			Symbol: "BTC_USDT", NotionalUSD: 12.4, Leverage: 5, IsCrossMargin: true,
+			StopLoss: price * 0.90, TakeProfit: price * 1.10,
+			MinNotional: 10, SlipRatio: 0.01,
+			Principal: 107.36, MaxLossPercent: 2,
+		})
+		fmt.Printf("open_protected result=%+v err=%v price=%.2f\n", result, err, price)
 	case "partial":
 		res, err := gt.ClosePartial(types.PartialCloseRequest{Symbol: "BTC_USDT", Side: "long", Percent: 50})
 		fmt.Printf("partial_close result=%+v err=%v\n", res, err)
