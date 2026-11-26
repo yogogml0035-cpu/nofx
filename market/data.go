@@ -8,6 +8,23 @@ import (
 	"time"
 )
 
+// klineLookbackFloorBars 指标回看下限：配置根数更小时仍多取，EMA50/MACD/1h/4h 涨跌
+// 等计算需要比展示根数更长的历史（沿用既有 200 根取数行为）。
+const klineLookbackFloorBars = 200
+
+// klineFetchBars 把提示词展示根数换算成实际取数根数：
+//   - 不低于指标回看下限；
+//   - 不超过 Gate candlesticks 单次查询上限（文档与实测均为 2000 点，且不做分页拼接）。
+func klineFetchBars(count int) int {
+	if count < klineLookbackFloorBars {
+		count = klineLookbackFloorBars
+	}
+	if count > gateKlineMaxLimit {
+		count = gateKlineMaxLimit
+	}
+	return count
+}
+
 // GetWithTimeframes retrieves market data for specified multiple timeframes
 // timeframes: list of timeframes, e.g. ["5m", "15m", "1h", "4h"]
 // primaryTimeframe: primary timeframe (used for calculating current indicators), defaults to timeframes[0]
@@ -39,6 +56,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	// Store data for all timeframes
 	timeframeData := make(map[string]*TimeframeSeriesData)
 	var primaryKlines []Kline
+	fetchBars := klineFetchBars(count)
 
 	// Get K-line data for each timeframe
 	for _, tf := range timeframes {
@@ -46,7 +64,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		var err error
 
 		// 决策 K 线只走 Gate（D1/D6）：成交量是 USDT 成交额，周期为 D25 保留集合
-		klines, err = GetGateKlines(symbol, tf, 200)
+		klines, err = GetGateKlines(symbol, tf, fetchBars)
 		if err != nil {
 			logger.Infof("⚠️ Failed to get %s %s K-line from Gate: %v", symbol, tf, err)
 			continue

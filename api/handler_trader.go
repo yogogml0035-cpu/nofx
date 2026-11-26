@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -329,6 +330,29 @@ func formatTraderStartError(reason, nextStep string) string {
 		return fmt.Sprintf("这次未能启动机器人：%s。", reason)
 	}
 	return fmt.Sprintf("这次未能启动机器人：%s。%s。", reason, nextStep)
+}
+
+// strategyTokenBlocker returns a user-facing reason when the trader's AI strategy
+// cannot fit the context window of its bound model. Prechecking at start keeps a
+// too-large config from starting and then failing every cycle in safe mode.
+func strategyTokenBlocker(fullCfg *store.TraderFullConfig) (string, bool) {
+	if fullCfg == nil || fullCfg.Strategy == nil || fullCfg.AIModel == nil {
+		return "", false
+	}
+	var cfg store.StrategyConfig
+	if err := json.Unmarshal([]byte(fullCfg.Strategy.Config), &cfg); err != nil {
+		return "", false
+	}
+	cfg.ClampLimits()
+	if !strategyRequiresAIPrompt(&cfg) {
+		return "", false
+	}
+	estimate := cfg.EstimateTokens()
+	limit := store.GetContextLimitForClient(fullCfg.AIModel.Provider, fullCfg.AIModel.CustomModelName)
+	if estimate.Total <= limit {
+		return "", false
+	}
+	return fmt.Sprintf("策略配置估算 %d tokens，超过模型「%s」的上下文上限 %d", estimate.Total, fullCfg.AIModel.Name, limit), true
 }
 
 // handleCreateTrader Create new AI trader
@@ -790,6 +814,15 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	traderName := traderID
 	if fullCfg != nil && fullCfg.Trader != nil && fullCfg.Trader.Name != "" {
 		traderName = fullCfg.Trader.Name
+	}
+
+	if reason, blocked := strategyTokenBlocker(fullCfg); blocked {
+		SafeBadRequestWithDetails(c,
+			formatTraderStartError(reason, "请降低 K 线根数、币种数量或时间周期后再启动"),
+			"trader.start.token_over_limit",
+			mapStringPairs("trader_name", traderName),
+		)
+		return
 	}
 
 	// Check if trader exists in memory and if it's running
