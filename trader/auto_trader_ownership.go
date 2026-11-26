@@ -127,6 +127,7 @@ func (at *AutoTrader) enforceProtectionInvariant(positions []kernel.PositionInfo
 			if errors.Is(err, types.ErrPositionNotFound) {
 				// 两次读数之间仓位已被止损/止盈单平掉：问题已解决
 				logger.Infof("  ✅ [%s] %s %s was already closed on the exchange", at.name, strings.ToUpper(position.Side), position.Symbol)
+				at.ClearPeakPnLCache(position.Symbol, position.Side)
 				closed++
 				continue
 			}
@@ -136,6 +137,7 @@ func (at *AutoTrader) enforceProtectionInvariant(positions []kernel.PositionInfo
 			remaining = append(remaining, position)
 			continue
 		}
+		at.ClearPeakPnLCache(position.Symbol, position.Side)
 		closed++
 	}
 	return remaining, closed, failures
@@ -200,4 +202,92 @@ func (at *AutoTrader) closePositionOpenedByFailedOpen(symbol string, openErr err
 		}
 	}
 	return openErr
+}
+
+// reconcileOpenPositionRecords 把本地 OPEN 持仓记录与交易所对账（D40/F63）。
+// 停机期间被平掉的仓位，如果平仓成交落在同步窗口之外（停机超过 24 小时，或 24 小时内成交超过 100 笔），
+// 记录会永久残留；之后同合约同向再出现一个不是本 trader 开出的仓位时，旧记录会把它「收养」成自己的，
+// 模型能看到它，每轮保护兜底还可能把它市价平掉。因此每次成功读到持仓后：
+//   - 交易所上已经没有这个仓位 → 关闭记录；
+//   - 仓位在、但入场价与记录显著不符（被别人的加减仓摊平过）→ 视为不可归属，关闭记录（宁可不管，不可误平）；
+//   - 仓位在、入场价一致、只有数量不同（错过了部分平仓成交）→ 把记录数量对齐到交易所读数。
+//
+// 只在持仓读取成功时执行；读取失败不会删除任何记录。
+func (at *AutoTrader) reconcileOpenPositionRecords(exchangePositions []map[string]interface{}) {
+	if at.store == nil {
+		return
+	}
+	type livePosition struct {
+		quantity float64
+		entry    float64
+	}
+	live := make(map[string]livePosition, len(exchangePositions))
+	for _, pos := range exchangePositions {
+		symbol, _ := pos["symbol"].(string)
+		side, _ := pos["side"].(string)
+		quantity, _ := pos["positionAmt"].(float64)
+		if quantity < 0 {
+			quantity = -quantity
+		}
+		if quantity == 0 {
+			continue
+		}
+		entry, _ := pos["entryPrice"].(float64)
+		live[ownPositionKey(symbol, side)] = livePosition{quantity: quantity, entry: entry}
+	}
+	records, err := at.store.Position().GetOpenPositions(at.id)
+	if err != nil {
+		at.logWarnf("⚠️ Position reconciliation skipped: %v", err)
+		return
+	}
+	for _, record := range records {
+		key := ownPositionKey(record.Symbol, record.Side)
+		current, exists := live[key]
+		if !exists {
+			at.logWarnf("🧹 %s: closing stale OPEN record %s %s (%s): no such position on the exchange",
+				at.name, record.Side, record.Symbol, record.CloseReason)
+			if err := at.store.Position().ClosePosition(record.ID, 0, "", 0, 0,
+				"reconciled: position no longer exists on the exchange"); err != nil {
+				at.logWarnf("⚠️ Failed to close stale record %d: %v", record.ID, err)
+			}
+			continue
+		}
+		if !entryPricesMatch(record.EntryPrice, current.entry) {
+			at.logWarnf("🧹 %s: closing OPEN record %s %s: entry price %.10g does not match the exchange position %.10g; treating it as not this trader's",
+				at.name, record.Side, record.Symbol, record.EntryPrice, current.entry)
+			if err := at.store.Position().ClosePosition(record.ID, 0, "", 0, 0,
+				"reconciled: exchange position entry price differs from this record"); err != nil {
+				at.logWarnf("⚠️ Failed to close mismatched record %d: %v", record.ID, err)
+			}
+			continue
+		}
+		if !quantitiesMatch(record.Quantity, current.quantity) {
+			at.logWarnf("🧹 %s: aligning OPEN record %s %s quantity %.10g -> %.10g with the exchange",
+				at.name, record.Side, record.Symbol, record.Quantity, current.quantity)
+			if err := at.store.Position().SyncPositionSnapshot(record.ID, current.quantity, current.entry); err != nil {
+				at.logWarnf("⚠️ Failed to align record %d: %v", record.ID, err)
+			}
+		}
+	}
+}
+
+// entryPricesMatch 交易所入场价与记录入场价是否可视为同一个仓位（0.5% 容差，覆盖各交易所的舍入）
+func entryPricesMatch(record, exchange float64) bool {
+	if record <= 0 || exchange <= 0 {
+		return false
+	}
+	diff := record - exchange
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= exchange*0.005
+}
+
+// quantitiesMatch 记录数量与交易所数量是否一致（0.5% 容差）
+func quantitiesMatch(record, exchange float64) bool {
+	diff := record - exchange
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= exchange*0.005
 }

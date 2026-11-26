@@ -145,3 +145,6 @@ scratch/
 
 # Local deployment state (compose, candidate DB, secrets) and scratch evidence
 .nofx-local/
+
+# 串联冒烟的证据目录（脚本按 SHA 生成，不随仓库提交）
+probe/smoke-*/

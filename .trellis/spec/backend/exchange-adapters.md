@@ -95,7 +95,23 @@ leverage and returns an error wrapping `ErrNoPositionSettings` when there is no 
 - Bad: 100x on a contract whose maximum is 75; the exchange answers `LEVERAGE_EXCEEDED` (`limit [1, 75]`);
   the call returns an error, no order is placed, the entry is unchanged.
 
-### 6. Tests Required
+### 6. Reconciling stale position records
+
+An OPEN record can outlive its exchange position when the closing fills fall outside the sync window
+(the trader was stopped for more than 24 hours, or the account produced more than 100 fills in 24 hours).
+Such a record must never adopt a later position on the same contract and side, because the trader would
+then manage or even market-close a position somebody else opened.
+
+- After every successful position read, `reconcileOpenPositionRecords` runs (never on a failed read):
+  - no position on the exchange -> the record is closed;
+  - position exists but its entry price differs from the record by more than 0.5% -> the record is closed
+    and the position is treated as not the trader's (never manage what cannot be attributed);
+  - entry price matches and only the quantity differs (a partial close was missed) -> the record quantity
+    is aligned to the exchange (`store.SyncPositionSnapshot`).
+- Grid traders do not start the order sync: they do not consume `trader_positions` and their ownership is
+  decided by the grid symbol, so syncing would only file the AI trader's fills under the grid trader.
+
+### 7. Tests Required
 
 - `trader/gate/margin_settings_test.go`: request path and query per mode, every branch of the
   fallback-to-entry table (response error / unreadable / mismatch, entry equal or not), the exchange error
@@ -635,4 +651,5 @@ must stay invisible to the model and must never be closed by it.
 ### 6. Tests Required
 
 `trader/gate/order_sync_ownership_test.go` covers the four rules above; `trader/auto_trader_ownership_test.go`
-covers the trader-side visibility and the ownership assertions before close, partial close and protection updates.
+covers the trader-side visibility and the ownership assertions before close, partial close and protection updates;
+`trader/auto_trader_reconcile_test.go` covers the reconciliation matrix.

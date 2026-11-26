@@ -183,6 +183,9 @@ def run_smoke(compose, BACKEND, FRONTEND):
     record("images built", True, {"backend": f"{BACKEND}:{SHA}", "frontend": f"{FRONTEND}:{SHA}",
                                   "log": str(build_log.relative_to(ROOT))})
 
+    # 固定 project/卷：重跑前先清掉上次失败留下的栈与数据卷（注册要求空库）
+    subprocess.run(compose + ["down", "-v", "--remove-orphans"], cwd=ROOT,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     up = subprocess.run(compose + ["up", "-d"], cwd=ROOT, text=True,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if up.returncode != 0:
@@ -207,9 +210,12 @@ def run_smoke(compose, BACKEND, FRONTEND):
         time.sleep(2)
     record("container health (image HEALTHCHECK)", all(v == "healthy" for v in states.values()), states)
 
-    status, reg, _ = http("POST", "/api/register",
-                          {"email": "smoke@example.com", "password": "SmokePass12345!", "lang": "en"},
-                          expect=200)
+    try:
+        http("POST", "/api/register",
+             {"email": "smoke@example.com", "password": "SmokePass12345!", "lang": "en"}, expect=200)
+    except AssertionError:
+        # 重跑时用户已存在（固定数据卷未清干净）：直接登录
+        pass
     _, login, _ = http("POST", "/api/login",
                        {"email": "smoke@example.com", "password": "SmokePass12345!"})
     token = login["token"]

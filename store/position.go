@@ -299,6 +299,17 @@ func (s *PositionStore) UpdatePositionExchangeInfo(id int64, exchangeID, exchang
 
 // ClosePositionFully marks position as fully closed
 // exitTimeMs is Unix milliseconds UTC
+// SyncPositionSnapshot aligns an OPEN record with the current exchange position (same entry price,
+// stale quantity because the close fills were outside the sync window). Used by the trader's startup
+// reconciliation; it never changes the record's entry price.
+func (s *PositionStore) SyncPositionSnapshot(id int64, quantity, entryPrice float64) error {
+	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"quantity":    quantity,
+		"entry_price": entryPrice,
+		"updated_at":  time.Now().UTC().UnixMilli(),
+	}).Error
+}
+
 func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrderID string, exitTimeMs int64, totalRealizedPnL float64, totalFee float64, closeReason string) error {
 	var pos TraderPosition
 	if err := s.db.First(&pos, id).Error; err != nil {

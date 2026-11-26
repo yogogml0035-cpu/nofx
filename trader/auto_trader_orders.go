@@ -175,6 +175,7 @@ func (at *AutoTrader) executeProtectionUpdateWithRecord(decision *kernel.Decisio
 			if closeErr != nil {
 				return fmt.Errorf("protection update lost protection (%v) and emergency close FAILED: %w", err, closeErr)
 			}
+			at.ClearPeakPnLCache(posSymbol, side)
 			return fmt.Errorf("protection update lost protection, closed immediately: %w", err)
 		}
 		return err
@@ -397,6 +398,7 @@ func (at *AutoTrader) executeProtectedOpen(decision *kernel.Decision, actionReco
 			// 两条信息都必须保留：核对为什么失败、平仓为什么失败（仓位此刻仍无保护留在交易所）
 			return fmt.Errorf("opened without protection (%v) and emergency close FAILED: %w", err, closeErr)
 		}
+		at.ClearPeakPnLCache(decision.Symbol, strings.ToLower(side))
 		return fmt.Errorf("opened without protection, closed immediately: %w", err)
 	}
 
@@ -492,6 +494,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 
 	// Record order to database and poll for confirmation
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, price, 0, entryPrice)
+	at.ClearPeakPnLCache(decision.Symbol, "long")
 
 	logger.Infof("  ✓ Position closed successfully")
 	return nil
@@ -559,6 +562,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 
 	// Record order to database and poll for confirmation
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, price, 0, entryPrice)
+	at.ClearPeakPnLCache(decision.Symbol, "short")
 
 	logger.Infof("  ✓ Position closed successfully")
 	return nil

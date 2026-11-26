@@ -451,7 +451,9 @@ func (at *AutoTrader) Run() error {
 
 	// Start Gate order sync if using Gate exchange
 	if at.exchange == "gate" {
-		if gateTrader, ok := at.trader.(*gate.GateTrader); ok && at.store != nil {
+		if gateTrader, ok := at.trader.(*gate.GateTrader); ok && at.store != nil && !at.IsGridStrategy() {
+			// 网格不消费 trader_positions，也不按备注区分下单入口：开启同步会把同一个账户上
+			// AI trader 的成交记到网格名下（污染记录）。网格的仓位归属按网格品种判定（D40）。
 			gateTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second, at.stopMonitorCh)
 			at.logInfof("🔄 Gate order+position sync enabled (every 30s)")
 		}

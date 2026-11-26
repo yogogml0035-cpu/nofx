@@ -33,6 +33,7 @@ func (at *AutoTrader) runCycle() error {
 	at.isRunningMutex.RUnlock()
 	if !running {
 		at.logInfof("⏹ Trader is stopped, aborting cycle #%d", at.callCount)
+		at.noteRejectedDecisions(nil)
 		return nil
 	}
 
@@ -52,6 +53,7 @@ func (at *AutoTrader) runCycle() error {
 		if err := at.saveDecision(record); err != nil {
 			at.logWarnf("⚠ Failed to save decision record: %v", err)
 		}
+		at.noteRejectedDecisions(nil)
 		return nil
 	}
 
@@ -71,6 +73,7 @@ func (at *AutoTrader) runCycle() error {
 		if saveErr := at.saveDecision(record); saveErr != nil {
 			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
 		}
+		at.noteRejectedDecisions(nil)
 		return fmt.Errorf("failed to build trading context: %w", err)
 	}
 
@@ -111,6 +114,7 @@ func (at *AutoTrader) runCycle() error {
 		if err := at.saveDecision(record); err != nil {
 			at.logWarnf("⚠ Failed to save decision record: %v", err)
 		}
+		at.noteRejectedDecisions(nil)
 		return nil
 	}
 
@@ -133,6 +137,7 @@ func (at *AutoTrader) runCycle() error {
 		if saveErr := at.saveDecision(record); saveErr != nil {
 			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
 		}
+		at.noteRejectedDecisions(nil)
 		return nil
 	}
 
@@ -209,6 +214,7 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		// In safe mode, don't return error — keep the loop running to retry next cycle
+		at.noteRejectedDecisions(nil)
 		if at.safeMode {
 			at.logWarnf("🛡️ Safe mode: skipping this cycle, will retry at the next scheduled scan")
 			return nil
@@ -478,6 +484,9 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
+
+	// 对账：交易所读取成功时清掉已经不存在（或已被别人的仓位取代）的 OPEN 记录（F63）
+	at.reconcileOpenPositionRecords(positions)
 
 	var positionInfos []kernel.PositionInfo
 	totalMarginUsed := 0.0
