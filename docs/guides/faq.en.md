@@ -54,7 +54,7 @@ Common reasons:
 - See detailed diagnostics in [Troubleshooting Guide](TROUBLESHOOTING.md#-ai-always-says-wait--hold)
 
 ### How often does the AI make decisions?
-The AI decides once per candle of the **strategy's primary timeframe** (5 seconds after each close). Set that timeframe in the strategy: `10s`/`1m` call the model every few seconds to about a minute (higher fees, more noise), `15m`–`1h` suit swing trading. The trader's scan interval is only a fallback used when the strategy has no valid timeframe.
+The AI decides once per candle of the **strategy's primary timeframe** (5 seconds after each close). Set that timeframe in the strategy: `10s`/`1m` call the model every few seconds to about a minute (higher fees, more noise), `15m`–`1h` suit swing trading. The trader's scan interval is only a fallback: it applies when every configured timeframe is invalid; when no timeframe is configured at all the 5m grid is used.
 
 ### Can I customize the trading strategy?
 Yes! You can:

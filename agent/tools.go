@@ -3391,12 +3391,9 @@ func (a *Agent) resolveStockSymbol(sym string) bool {
 // USDT perpetual. It is consulted only when at least one non-Alpaca trader exists, and it
 // reuses the assistant ticker seam (one cached list request, not a per-symbol lookup).
 func (a *Agent) gateContractExists(base string) bool {
-	if a == nil || a.traderManager == nil {
-		return false
-	}
 	hasCryptoTrader := false
-	for _, t := range a.traderManager.GetAllTraders() {
-		if t.GetExchange() != "alpaca" {
+	for _, exchange := range configuredTraderExchanges(a) {
+		if exchange != "alpaca" {
 			hasCryptoTrader = true
 			break
 		}
@@ -3409,6 +3406,19 @@ func (a *Agent) gateContractExists(base string) bool {
 		return false
 	}
 	return gateContractInList(base, tickers)
+}
+
+// configuredTraderExchanges 返回已配置 trader 的交易所类型（没有 trader manager 时为空）。
+// 包级变量是测试缝：TraderManager 没有导出的登记接口，接线用例直接注入交易所列表。
+var configuredTraderExchanges = func(a *Agent) []string {
+	if a == nil || a.traderManager == nil {
+		return nil
+	}
+	exchanges := make([]string, 0)
+	for _, t := range a.traderManager.GetAllTraders() {
+		exchanges = append(exchanges, t.GetExchange())
+	}
+	return exchanges
 }
 
 // gateContractInList reports whether base names a Gate USDT perpetual present in tickers.

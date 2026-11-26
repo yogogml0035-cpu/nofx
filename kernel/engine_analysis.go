@@ -80,7 +80,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 
 	// 1. Fetch market data using strategy config
 	if len(ctx.MarketDataMap) == 0 {
-		if err := fetchMarketDataWithStrategy(ctx, engine); err != nil {
+		if err := fetchMarketDataForDecision(ctx, engine); err != nil {
 			return nil, fmt.Errorf("failed to fetch market data: %w", err)
 		}
 	}
@@ -140,6 +140,9 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 
 	return decision, nil
 }
+
+// fetchMarketDataForDecision 决策前的行情取数（测试缝：接线用例替换它，不访问网络）
+var fetchMarketDataForDecision = fetchMarketDataWithStrategy
 
 // decisionSkippable 没有任何可决策的数据且没有仓位要管：这一轮不需要调用模型
 func decisionSkippable(ctx *Context) bool {

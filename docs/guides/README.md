@@ -69,7 +69,7 @@ sudo apt-get install libta-lib0-dev
 **3. Configuration**
 - Test on testnet first
 - Gradually increase trading amounts
-- Decisions run 5s after each close of the strategy's primary timeframe; pick that timeframe in the strategy (the trader's scan interval is only a fallback when no valid timeframe is configured)
+- Decisions run 5s after each close of the strategy's primary timeframe; pick that timeframe in the strategy (the trader's scan interval is only a fallback when every configured timeframe is invalid (5m is used when no timeframe is configured at all))
 - Use default coin list for beginners
 
 ---

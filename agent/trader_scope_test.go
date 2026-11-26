@@ -2048,3 +2048,70 @@ func TestBrainUserPromptIncludesActiveAllowedFieldSchema(t *testing.T) {
 		t.Fatalf("expected brain prompt to expose canonical field schema, got:\n%s", prompt)
 	}
 }
+
+// 模板已完整但上一步有值被拒绝：最终确认阶段必须把原因带回给用户，而不是静默丢弃后直接创建
+func TestStrategyCreateSurfacesRejectedPatchAtFinalConfirmation(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-create-rejected-patch.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	patch := map[string]any{
+		"strategy_type": "grid_trading",
+		"grid_config": map[string]any{
+			"symbol": "BTCUSDT", "grid_count": 20, "total_investment": 200, "leverage": 2,
+			"use_atr_bounds": true, "atr_multiplier": 2, "distribution": "uniform",
+			"max_drawdown_pct": 15, "stop_loss_pct": 8, "daily_loss_limit_pct": 6,
+			"use_maker_only": true, "enable_direction_adjust": false,
+		},
+	}
+	rawPatch, _ := json.Marshal(patch)
+	session := skillSession{
+		Name:   "strategy_management",
+		Action: "create",
+		Fields: map[string]string{
+			"name":                         "被拒值测试",
+			"strategy_type":                "grid_trading",
+			strategyCreateConfigPatchField: string(rawPatch),
+			strategyConfigPatchErrorField:  `主周期 "3m" 不在支持范围`,
+		},
+	}
+
+	reply := a.handleStrategyCreateSkill("default", 1, "zh", "确认创建", session)
+	if !strings.Contains(reply, "上一个值没有被接受") || !strings.Contains(reply, "3m") {
+		t.Fatalf("expected the rejected value to be surfaced before creating, got: %s", reply)
+	}
+	if _, exists := session.Fields[strategyConfigPatchErrorField]; exists {
+		t.Fatal("the rejected-value note must be cleared after it is surfaced once")
+	}
+	strategies, err := st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	for _, strategy := range strategies {
+		if strategy.Name == "被拒值测试" {
+			t.Fatal("the strategy must not be created while a rejected value is pending")
+		}
+	}
+
+	// 再次确认（错误已清）：正常创建
+	reply = a.handleStrategyCreateSkill("default", 1, "zh", "确认创建", session)
+	if strings.Contains(reply, "上一个值没有被接受") {
+		t.Fatalf("second confirmation must not repeat the rejected value, got: %s", reply)
+	}
+	strategies, err = st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	found := false
+	for _, strategy := range strategies {
+		if strategy.Name == "被拒值测试" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("strategy should be created after the rejected value was surfaced; reply: %s", reply)
+	}
+}

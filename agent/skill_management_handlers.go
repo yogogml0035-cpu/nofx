@@ -423,6 +423,8 @@ func filterLegacyStrategyCreateFieldsForType(session *skillSession, strategyType
 		"strategy_type",
 		strategyCreateDraftConfigField,
 		strategyCreateConfigPatchField,
+		// 上一步被拒绝的值的原因：要活到「模板已完整」的分支，才能带回给用户（见 prefixStrategyPatchError）
+		strategyConfigPatchErrorField,
 		skillDAGStepField,
 		"awaiting_final_confirmation",
 	} {
@@ -2306,6 +2308,14 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 			return prefixStrategyPatchError(lang, patchErr, reply)
 		}
 		return prefixStrategyPatchError(lang, patchErr, formatStrategyCreateConfigNeeded(lang, missingKind))
+	}
+	// 模板已完整，但上一步有值被拒绝（例如把主周期改成 3m）：不能静默丢弃，先把原因告诉用户，
+	// 让他决定换成什么值；清掉字段后再次确认才会创建。
+	if patchErr := fieldValue(session, strategyConfigPatchErrorField); patchErr != "" {
+		setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))
+		delete(session.Fields, strategyConfigPatchErrorField)
+		a.saveSkillSession(userID, session)
+		return prefixStrategyPatchError(lang, patchErr, formatStrategyCreateFinalConfirmation(lang, session, cfg))
 	}
 	if !strategyCreateConfirmationReply(text) && !strategyCreateFinalConfirmationReady(session) {
 		setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))

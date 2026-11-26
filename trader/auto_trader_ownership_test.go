@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,41 @@ type ownershipStub struct {
 	// protection / protectionErr：PositionProtection 的返回（nil 表示默认的「止损止盈都在」）
 	protection    *types.PositionProtection
 	protectionErr error
+	// 随单保护开仓（ProtectedOpener）：记录调用并按 openErr 返回
+	openLongs  []types.ProtectedOpenRequest
+	openShorts []types.ProtectedOpenRequest
+	openErr    error
+	// positionsOnOpenError 模拟「请求报错但订单已成交」：开仓返回错误时把这些仓位放到交易所上
+	positionsOnOpenError []map[string]interface{}
+}
+
+func (s *ownershipStub) OpenLongProtected(req types.ProtectedOpenRequest) (types.ProtectedOpenResult, error) {
+	s.openLongs = append(s.openLongs, req)
+	if s.openErr != nil {
+		if s.positionsOnOpenError != nil {
+			s.positions = s.positionsOnOpenError
+		}
+		return types.ProtectedOpenResult{}, s.openErr
+	}
+	return completedOpenResult(req), nil
+}
+
+func (s *ownershipStub) OpenShortProtected(req types.ProtectedOpenRequest) (types.ProtectedOpenResult, error) {
+	s.openShorts = append(s.openShorts, req)
+	if s.openErr != nil {
+		return types.ProtectedOpenResult{}, s.openErr
+	}
+	return completedOpenResult(req), nil
+}
+
+func (s *ownershipStub) VerifyOrderProtection(symbol, orderID string) error { return nil }
+
+// completedOpenResult 一次已成交的随单保护开仓
+func completedOpenResult(req types.ProtectedOpenRequest) types.ProtectedOpenResult {
+	return types.ProtectedOpenResult{
+		OrderID: "99123", Contracts: "2", Notional: req.NotionalUSD, FillPrice: 1000,
+		Quantity: req.NotionalUSD / 1000, StopLoss: req.StopLoss, TakeProfit: req.TakeProfit,
+	}
 }
 
 func (s *ownershipStub) PartialCloseStatus(symbol, side string) (types.PartialCloseStatus, error) {
@@ -83,10 +119,14 @@ func ownPosition(symbol, side string, amount float64) map[string]interface{} {
 
 func newOwnershipTrader(stub *ownershipStub) *AutoTrader {
 	cfg := store.GetDefaultStrategyConfig("en")
+	cfg.RiskControl.MaxPositions = 3
+	cfg.CoinSource.StaticCoins = []string{"BTCUSDT"}
 	return &AutoTrader{
 		id: "test-trader", name: "ownership-test", exchange: "gate", trader: stub,
+		config:         AutoTraderConfig{StrategyConfig: &cfg},
 		strategyEngine: kernel.NewStrategyEngine(&cfg), initialBalance: 1000,
 		positionFirstSeenTime: map[string]int64{}, peakPnLCache: map[string]float64{},
+		isRunning: true, startTime: time.Now(), lastResetTime: time.Now(),
 	}
 }
 
@@ -168,6 +208,18 @@ func TestPrepareOpenOwnershipRules(t *testing.T) {
 		_, _, err := at.prepareOpen(decision("open_short"))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "opposite")
+	})
+	t.Run("own positions at the limit block opening", func(t *testing.T) {
+		stub := &ownershipStub{positions: []map[string]interface{}{
+			ownPosition("BTC_USDT", "long", 1), ownPosition("ETH_USDT", "long", 1), ownPosition("SOL_USDT", "long", 1),
+		}}
+		at := newOwnershipTrader(stub)
+		for _, symbol := range []string{"BTC_USDT", "ETH_USDT", "SOL_USDT"} {
+			at.markSelfOpened(symbol, "long")
+		}
+		_, _, err := at.prepareOpen(decision("open_long"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max positions (3/3)")
 	})
 	t.Run("foreign positions do not count towards the max positions limit", func(t *testing.T) {
 		stub := &ownershipStub{positions: []map[string]interface{}{

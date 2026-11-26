@@ -251,3 +251,22 @@ func TestCalculatePriceChangeByBarsWindows(t *testing.T) {
 		t.Errorf("unsupported timeframe change = %v, want 0", got)
 	}
 }
+
+// 末根不新鲜（行情源返回旧快照）时主周期取数必须失败，而不是用旧数据喂模型
+func TestGetWithTimeframesRejectsStaleLastBar(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/futures/usdt/candlesticks" {
+			http.NotFound(w, r)
+			return
+		}
+		stale := time.Now().Add(-2 * time.Hour).Unix()
+		json.NewEncoder(w).Encode([]map[string]interface{}{{
+			"t": stale, "v": "1", "o": "100", "h": "101", "l": "99", "c": "100", "sum": "1",
+		}})
+	}))
+	overrideGateBaseURL(t, server)
+	_, err := GetWithTimeframes("DOGEUSDT", []string{"5m"}, "5m", 5)
+	if err == nil {
+		t.Fatal("a stale last bar must fail the primary timeframe fetch")
+	}
+}

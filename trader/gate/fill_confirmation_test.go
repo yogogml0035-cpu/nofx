@@ -11,6 +11,8 @@ import (
 	"github.com/gate/gateapi-go/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"nofx/trader/types"
 )
 
 func TestOrderFilled(t *testing.T) {
@@ -184,6 +186,10 @@ func TestCloseAllAcceptsAlreadyClosedPosition(t *testing.T) {
 
 	_, err := gt.CloseLong("DOGE_USDT", 0)
 	require.NoError(t, err)
+	mock.mu.Lock()
+	count := len(mock.orderBodies)
+	mock.mu.Unlock()
+	assert.Equal(t, 1, count, "持仓已不在时不能再提交第二次平仓单")
 }
 
 // 成交后持仓读数有延迟：核对要重试读持仓，不能读不到就通过
@@ -262,4 +268,56 @@ func TestOpenProtectedClearsPositionCacheOnRequestError(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "positions must be re-read after the failed request")
+}
+
+// 普通市价开仓部分成交（有成交价但未全部成交）同样要报错：仓位已部分开出且没有保护
+func TestOpenMarketPartialFillWithPriceRejected(t *testing.T) {
+	mock := newGateMock()
+	mock.orderResponses = []map[string]interface{}{{"finish_as": "ioc", "left": "8", "fill_price": "0.55"}}
+	gt := newLocalGateTrader(t, mock.handler)
+
+	_, err := gt.OpenLong("DOGE_USDT", 170, 10)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not fully filled")
+}
+
+// 按数量部分平仓只允许一次成交完
+func TestCloseByQuantityNotFullyFilled(t *testing.T) {
+	mock := newGateMock()
+	mock.positions = []map[string]interface{}{livePosition("DOGE_USDT", "17", "0.55")}
+	mock.orderResponses = []map[string]interface{}{{"finish_as": "ioc", "left": "2", "fill_price": "0.55"}}
+	gt := newLocalGateTrader(t, mock.handler)
+
+	_, err := gt.CloseLong("DOGE_USDT", 50)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not fully filled")
+	mock.mu.Lock()
+	count := len(mock.orderBodies)
+	mock.mu.Unlock()
+	assert.Equal(t, 1, count, "数量部分平仓不重试（避免重复平仓）")
+}
+
+// 分批平仓的成交确认：IOC 未全部成交时报错，不能按计划张数记账
+func TestPartialCloseRejectsUnfilledOrder(t *testing.T) {
+	mock := newGateMock()
+	mock.positions = []map[string]interface{}{livePosition("DOGE_USDT", "17", "0.55")}
+	mock.orderResponses = []map[string]interface{}{{"finish_as": "ioc", "left": "3", "fill_price": "0.55"}}
+	gt := newLocalGateTrader(t, mock.handler)
+
+	_, err := gt.ClosePartial(types.PartialCloseRequest{Symbol: "DOGE_USDT", Side: "LONG", Percent: 50})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not fully filled")
+}
+
+// 亏损上限恰好等于上限时允许（D34：不超过即允许）
+func TestOpenProtectedLossExactlyAtCapIsAllowed(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+
+	req := longRequest(95.5)
+	// 最坏成交价 0.5656 下 17 张的亏损 = 17 × 10 × (0.5656 − 0.48) = 14.552；本金 727.6 × 2% = 14.552
+	req.Principal, req.MaxLossPercent = 727.6, 2
+	res, err := gt.OpenLongProtected(req)
+	require.NoError(t, err)
+	assert.Equal(t, "17", res.Contracts, "等于上限时必须允许，不能收缩")
 }

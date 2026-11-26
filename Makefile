@@ -106,7 +106,7 @@ run-frontend:
 # Format Go code
 fmt:
 	@echo "🎨 Formatting Go code..."
-	go fmt ./...
+	$(GO) fmt ./...
 	@echo "✅ Code formatted"
 
 # Lint Go code (requires golangci-lint)
@@ -124,7 +124,7 @@ clean:
 	rm -f nofx
 	rm -f coverage.out coverage.html
 	rm -rf web/dist
-	go clean -testcache
+	$(GO) clean -testcache
 	@echo "✅ Cleaned"
 
 # =============================================================================

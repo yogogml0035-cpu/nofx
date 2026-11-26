@@ -13,6 +13,12 @@ import (
 	"time"
 )
 
+// 测试缝：决策入口与决策记录的保存钩子（runCycle 的接线用例替换它们，不调用真实模型、不写库）
+var (
+	requestFullDecision = kernel.GetFullDecisionWithStrategy
+	decisionSavedHook   func(at *AutoTrader, record *store.DecisionRecord)
+)
+
 // runCycle runs one trading cycle (using AI full decision-making)
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
@@ -118,7 +124,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 5. Use strategy engine to call AI for decision
 	at.logInfof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
-	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
+	aiDecision, err := requestFullDecision(ctx, at.mcpClient, at.strategyEngine, "balanced")
 
 	if aiDecision != nil && aiDecision.SkippedReason != "" {
 		at.logWarnf("⏭️ AI decision skipped: %s", aiDecision.SkippedReason)

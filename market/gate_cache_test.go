@@ -309,3 +309,76 @@ func TestGateKlineCacheKeyUsesCandleBucket(t *testing.T) {
 		t.Fatalf("1w key = %q, want no bucket (calendar week boundary)", week)
 	}
 }
+
+// 收线后即使 TTL 还没到也必须重取：缓存 key 带当前 K 线的时间桶
+func TestKlineCacheRefetchesWhenCandleRollsOver(t *testing.T) {
+	withGateCache(t)
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[{"t":1699999800,"v":1,"o":"1","h":"2","l":"0.5","c":"1.5","sum":"10"}]`)
+	}))
+	t.Cleanup(server.Close)
+	previousURL, previousNow := gateFuturesBaseURL, gateNow
+	gateFuturesBaseURL = server.URL
+	// 5m 周期，TTL 10 秒；桶边界在 1700000100。第一次取数在边界前 2 秒，第二次在边界后 2 秒——
+	// 相隔只有 4 秒（TTL 未过期），但已经换了 K 线：必须重取，否则引擎会拿到收线前的快照
+	now := time.Unix(1700000095, 0)
+	gateNow = func() time.Time { return now }
+	t.Cleanup(func() { gateFuturesBaseURL, gateNow = previousURL, previousNow })
+
+	if _, err := GetGateKlines("DOGE_USDT", "5m", 500); err != nil {
+		t.Fatal(err)
+	}
+	now = time.Unix(1700000098, 0) // 同一根 K 线内、TTL（首次取数起 10 秒）内 → 命中缓存
+	if _, err := GetGateKlines("DOGE_USDT", "5m", 500); err != nil {
+		t.Fatal(err)
+	}
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("hits = %d, want 1 within the same candle and TTL", got)
+	}
+	now = time.Unix(1700000102, 0) // 跨过 K 线边界（距首次取数才 7 秒，TTL 未到）：必须重取
+	if _, err := GetGateKlines("DOGE_USDT", "5m", 500); err != nil {
+		t.Fatal(err)
+	}
+	if got := hits.Load(); got != 2 {
+		t.Fatalf("hits = %d, want 2 after the candle rolled over", got)
+	}
+}
+
+// TTL 过期后各入口重新取数（contract_stats 的 TTL 也不能写成常量 1 小时）
+func TestGateMarketEntriesExpire(t *testing.T) {
+	withGateCache(t)
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/futures/usdt/contracts/DOGE_USDT":
+			fmt.Fprint(w, `{"mark_price":"0.1","index_price":"0.1","funding_rate":"0.0001","funding_next_apply":1700000000}`)
+		case "/futures/usdt/contract_stats":
+			fmt.Fprint(w, `[{"time":1700000000,"open_interest_usd":"20000000","last_funding_rate":"0.0001"}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	previousURL, previousNow := gateFuturesBaseURL, gateNow
+	gateFuturesBaseURL = server.URL
+	now := time.Unix(1_700_000_000, 0)
+	gateNow = func() time.Time { return now }
+	t.Cleanup(func() { gateFuturesBaseURL, gateNow = previousURL, previousNow })
+
+	if _, err := GetGateContractMetrics("DOGE_USDT"); err != nil {
+		t.Fatal(err)
+	}
+	before := hits.Load()
+	now = now.Add(11 * time.Second) // 超过 10 秒 TTL
+	if _, err := GetGateContractMetrics("DOGE_USDT"); err != nil {
+		t.Fatal(err)
+	}
+	if got := hits.Load() - before; got != 2 {
+		t.Fatalf("after the TTL the metrics request fetched %d times, want 2 (contract + contract_stats)", got)
+	}
+}

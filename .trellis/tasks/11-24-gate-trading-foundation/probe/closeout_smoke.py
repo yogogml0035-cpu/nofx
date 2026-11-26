@@ -106,6 +106,11 @@ def main():
 
     if not (ROOT / ".env").exists():
         raise SystemExit(f"missing {ROOT / '.env'} (worktree env for RSA key / JWT)")
+    # 镜像从工作区构建而证据按 HEAD 命名：工作区必须干净，否则证据对不上提交
+    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, text=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if dirty.returncode != 0 or dirty.stdout.strip():
+        raise SystemExit("worktree is not clean (or git status failed); commit first so the evidence matches HEAD")
     if shutil.which("docker") is None:
         raise SystemExit("docker not found")
 
@@ -168,10 +173,20 @@ volumes:
 def run_smoke(compose, BACKEND, FRONTEND):
     global PORT, SHA, out_dir
     print(f"building candidate {SHA} into isolated project {PROJECT} ...", flush=True)
-    sh(compose + ["build", "--build-arg", f"GOPROXY={GOPROXY}"], check=True, capture=False)
-    record("images built", True, {"backend": f"{BACKEND}:{SHA}", "frontend": f"{FRONTEND}:{SHA}"})
+    out_dir.mkdir(parents=True, exist_ok=True)
+    build_log = out_dir / "build.log"
+    with build_log.open("w") as log:
+        proc = subprocess.run(compose + ["build", "--build-arg", f"GOPROXY={GOPROXY}"], cwd=ROOT,
+                              stdout=log, stderr=subprocess.STDOUT, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"image build failed ({proc.returncode}); last output:\n{build_log.read_text(errors='replace')[-2000:]}")
+    record("images built", True, {"backend": f"{BACKEND}:{SHA}", "frontend": f"{FRONTEND}:{SHA}",
+                                  "log": str(build_log.relative_to(ROOT))})
 
-    sh(compose + ["up", "-d"], check=True, capture=False)
+    up = subprocess.run(compose + ["up", "-d"], cwd=ROOT, text=True,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if up.returncode != 0:
+        raise RuntimeError(f"compose up failed ({up.returncode}):\n{up.stdout[-2000:]}")
     deadline = time.time() + 180
     http_ok = False
     while time.time() < deadline:
@@ -271,10 +286,17 @@ def run_smoke(compose, BACKEND, FRONTEND):
                          {"config": saved, "account_principal": 1000, "prompt_variant": "balanced"},
                          token=token)
     prompt = preview.get("system_prompt", "")
-    ok = "Volume(USDT)" in prompt and "1h" in prompt \
+    # 系统提示词里的成交量口径（数据字典）与主周期行；金额字段是已删除的旧契约，不得再出现
+    ok = "USDT quote volume" in prompt and "Gate contract candlestick" in prompt \
+        and "1h price series" in prompt \
+        and preview.get("config_summary", {}).get("primary_tf") == "1h" \
         and "position_size_usd" not in prompt and "risk_usd" not in prompt \
         and "position_size_value_multiplier" not in prompt
-    record("preview prompt (Gate data, no amount fields)", ok, {"chars": len(prompt)})
+    record("preview prompt (Gate data, no amount fields)", ok, {
+        "chars": len(prompt), "primary_tf": preview.get("config_summary", {}).get("primary_tf"),
+        "has_quote_volume": "USDT quote volume" in prompt,
+        "has_candlestick": "Gate contract candlestick" in prompt,
+        "has_series": "1h price series" in prompt})
 
     # 不启动 trader：没有 trader、没有自动拉起
     _, my_traders, _ = http("GET", "/api/my-traders", token=token)

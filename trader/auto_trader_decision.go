@@ -35,6 +35,9 @@ func (at *AutoTrader) saveEquitySnapshot(ctx *kernel.Context) {
 
 // saveDecision saves AI decision log to database (only records AI input/output, for debugging)
 func (at *AutoTrader) saveDecision(record *store.DecisionRecord) error {
+	if decisionSavedHook != nil {
+		decisionSavedHook(at, record)
+	}
 	if at.store == nil {
 		return nil
 	}
