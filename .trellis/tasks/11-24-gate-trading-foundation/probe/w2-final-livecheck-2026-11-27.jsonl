@@ -1,0 +1,8 @@
+{"available":"107.37448","open_orders":0,"open_price_orders":0,"result":"PASS","step":"preflight idle","ts":"2026-11-26T07:23:33Z"}
+{"count":59,"result":"PASS","step":"preflight my_trades","ts":"2026-11-26T07:23:33Z"}
+{"contracts":"16","fill_price":0.05658,"notional":9.0528,"order_id":"56013526833151996","price":0.05657,"result":"PASS","sl":0.05092,"step":"1 open protected","tp":0.06223,"ts":"2026-11-26T07:23:34Z"}
+{"error":"","result":"PASS","step":"2 verify protection","ts":"2026-11-26T07:23:34Z"}
+{"order_id":"56013526833151996","result":"PASS","size":"16","step":"3 my_trades text == t-nofx-ai","text":"t-nofx-ai","trade_id":237951294,"ts":"2026-11-26T07:23:35Z"}
+{"result":"PASS","step":"4 close all","ts":"2026-11-26T07:23:35Z"}
+{"available_after":"107.36383","available_before":"107.37448","available_diff":"-0.01065000","open_orders":0,"open_positions":0,"open_price_orders":0,"result":"PASS","step":"5 final state","ts":"2026-11-26T07:23:37Z"}
+LIVECHECK_PASS

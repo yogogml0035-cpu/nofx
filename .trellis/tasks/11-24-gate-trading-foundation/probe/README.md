@@ -60,3 +60,21 @@ GATE_KEY=… GATE_SECRET=… /tmp/w5livecheck -out w5-livecheck-2026-11-26.jsonl
 `t-nofxe2e` 2（e2e 探针）、`app` 3、`app-auto-trail-p-s8qc` 1、`ao-2125517580666933248` 1。
 账户里确有其他入口的成交，所以归属必须按备注区分；AI trader 的开仓此后使用专属备注 `t-nofx-ai`。
 不下单、不改任何设置；凭据经环境变量传入，编译产物不入库。
+
+## 最终候选的真实随单保护开平（2026-11-27，W2 授权范围）
+
+- `w2_final_livecheck.go` — 最终候选上的随单保护开平验证：预检账户空闲 → 经适配器 `OpenLongProtected`
+  开 16 张 DOGE（名义 9.05 USDT，随单 SL/TP ±10%）→ `VerifyOrderProtection` 核对条件单 →
+  在 `my_trades` 中按下单 ID 核对开仓成交的 `text` → `CloseLong(0)` 全平 → 终态核对。
+- `w2-final-livecheck-2026-11-27.jsonl` — `LIVECHECK_PASS`；开仓成交 `trade_id=237951294`、
+  `order_id=56013526833151996`、`text="t-nofx-ai"`；终态 `open_positions=0 open_orders=0 open_price_orders=0`，
+  可用余额 107.37448 → 107.36383（差 −0.01065，即双边 taker 手续费）。
+- `w2-final-livecheck.adapter-log.txt` — 同次运行的适配器日志。
+
+结算层归属（同步只认 `t-nofx-ai` 的开仓、平仓只作用于已有 OPEN 记录、持仓写入失败回滚）由
+`trader/gate/order_sync_ownership_test.go` 覆盖：宿主机没有 cgo，darwin 交叉编译下 store/sqlite 不可用，
+这一层无法在宿主探针里跑真实库；探针改为只验证真实交易所侧的备注与执行路径。
+
+运行方式：Docker 内 `CGO_ENABLED=0 GOOS=darwin GOARCH=arm64` 交叉编译，宿主机运行（出口在白名单内）；
+凭据经 `GATE_KEY` / `GATE_SECRET` 环境变量传入，不落盘、不打印。`w2_cleanup.go` 是失败时的立即平仓工具
+（读持仓→全平→打印最近成交），本轮第一次失败后用它平掉了残留仓位。

@@ -1,0 +1,7 @@
+11-26 15:23:34 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 10x
+11-26 15:23:34 [INFO] gate/protected_open.go:152   [Gate] OpenProtected: side=LONG, contract=DOGE_USDT, size=16, sl=0.05092, tp=0.06223, slip=0.010000
+11-26 15:23:34 [INFO] gate/protected_open.go:208   [Gate] Opened LONG position with attached TP/SL: orderId=56013526833151996, contracts=16, fillPrice=0.056580, sl=0.05092, tp=0.06223
+11-26 15:23:34 [INFO] gate/protected_open.go:240   [Gate] Order 56013526833151996 carries tpsl fields sl=0.05092 tp=0.06223 (corroboration only)
+11-26 15:23:34 [INFO] gate/protected_open.go:305   [Gate] Protection verified via trigger orders: DOGE_USDT side=LONG has 2 open trigger orders (SL+TP)
+11-26 15:23:35 [INFO] gate/trader_orders.go:166   [Gate] CloseAllLONG: symbol=DOGE_USDT (close=true, size=0)
+11-26 15:23:35 [INFO] gate/trader_orders.go:201   [Gate] Closed LONG position: orderId=56013526833152013, fillPrice=0.0566
