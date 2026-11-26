@@ -415,9 +415,9 @@ API v4 文档站的根页与 Futures 分页、Agent 文档页、官方 Go SDK �
 1. [x] 逐项对照本文件做对抗式审查并修正。W5 已实测 `LIVECHECK_PASS`（`probe/README.md`）；四视角审查 B、C、A、D 与最终独立复核均已回传并修复（F48–F66）；最后一轮独立检查（2026-11-27）已回传，P1/P2 与可修的 P3 已修复（F68），修复后 `make test`、`make build`、`make ci-local` 与串联冒烟（smoke-cb171385，SMOKE_PASS）在候选 aa98e6d6 上复跑通过。送测清单（F67 已在最终候选上完成真实随单保护开平：`t-nofx-ai`、成交确认、零残留）；启动 trader 后核对日志中是否有残留 OPEN 记录被对账清理；确认 `probe/closeout_smoke.py` 首跑与重跑均可通过。
 2. [x] 串联全部子任务做端到端验收与完整项目门禁（`make ci-local`、`probe/closeout_smoke.py`）：候选 aa98e6d6 全过，冒烟 24 项 SMOKE_PASS。
 3. [x] 合入 dev-offline 并重建送测栈；真实下单实测已执行（用户授权按最低金额试仓）：AI 开 BTC 2 张 + ETH 0.8 张、随单保护与 `t-nofx-ai` 均通过；同步连跑两次幂等；实测发现并修复小数量分批平仓误判（F69），修复后在停用 AI 的受控仓位上证明确实保持 OPEN/只关闭一次，终态零持仓；策略配置已恢复。
-4. [ ] 合入 main，重建主栈并核对没有 trader 被自动拉起。
-5. [ ] 改写主栈两个 K哥策略的提示词（数据语义、仓位、持仓管理动作、盈亏比表述）。
-6. [ ] 删除未使用镜像，归档证据。
+4. [x] 合入 main（merge cd21a5ab）并重建主栈：`make main-stack` 通过三段 D20（traders.is_running=0）、容器 healthy、无自动拉起；主栈 127.0.0.1:8888。
+5. [x] 改写主栈两个 K哥策略提示词（波段 b0d9d935、短线 01a66a75）：删除头仓/加仓/后端硬校验盈亏比旧语义，改为一次决策一个仓位、名义由系统按本金×比例计算、update_stop_loss 推保护、close_*_partial 分批止盈、止损亏损≤本金 2% 为代码硬约束；配置 JSON 校验通过，后端重启 healthy。
+6. [x] 删除未使用镜像（旧 nofx-dev-offline/nofx-local tag、nofx-golang、上游预览镜像与容器），只保留主栈 cd21a5ab 与送测栈 39f895fc；父任务归档到 `.trellis/tasks/archive/2026-11/11-24-gate-trading-foundation/`。
 
 ### 10.5 实施进度
 
