@@ -89,3 +89,27 @@ GATE_KEY=… GATE_SECRET=… /tmp/w5livecheck -out w5-livecheck-2026-11-26.jsonl
 - 复验：`trader/gate/order_sync_ownership_test.go` 新增「连跑两次不重复」「RECONCILED 不进历史/统计」
   「迟到平仓回填」用例；全量 `make test`、`make build` 通过；隔离冒烟 `smoke-cb171385/` `SMOKE_PASS`
   （24 项，与首跑 `smoke-6e04f795/` 的 PASS 一起构成首跑+重跑证据，两份 `summary.json` 入库）。
+
+## 人工真实下单测试与分批平仓修复复验（2026-11-26，用户授权「按最低金额试仓」）
+
+测试在 dev-offline 送测栈（`127.0.0.1:1188`，交易员 DeepSeek，Gate 子账户）上由主会话执行；
+为让 10% 本金（≈10.7U）能开出真实订单，临时把策略最小仓位 12→10、仓位比例 10%→13%，
+测完已恢复（min 12 / percent 10）。
+
+- AI 真实交易：模型先 `wait`，第二轮开 BTC 2 张（`order 36028841385881417`，随单 SL/TP，
+  保护核对 2 个条件单通过），下一轮再开 ETH 0.8 张（小数张，`order 63894861922056703`）；
+  `my_trades` 开仓备注均为 `t-nofx-ai`。
+- 首次同步只记新成交，30 秒后的重复同步 `0 new trades`，开仓记录数量/手续费不变。
+- **现场发现缺陷（F69）**：BTC 记录 0.0002 BTC 分批平掉一半（0.0001）时，固定的 0.0001 数量容差
+  把「剩一半」当成零，记录被误关、交易所剩余 1 张脱离 OPEN 记录。已改为按持仓规模缩放的相对容差
+  （0.01%，绝对下限 1e-9），并补单测。
+- 修复后复验（dev-offline `d277f0d7`，交易员停用，用 `sync_probe` 按需同步）：
+  受控开 2 张（`order 36028841388027215`）→ 分批平 50%（`order 36028841388140768`）→ 同步后记录
+  `OPEN 0.0001 / entry_quantity 0.0002`（正确保留）；再同步 `0 new trades` 数据不变；
+  全平剩余 1 张（`order 36028841388422213`）→ 同步后 `CLOSED 0.0002`、加权出场价 60903.3、
+  第二次同步 `0 new trades`。证据：`live-partial-close-2026-11-26.txt`。
+- 终态：交易员 `is_running=0`，`OPEN`/`RECONCILED` 0 条，交易所无持仓；可用余额 107.33652 USDT。
+- 工具：`live_close_probe.go`（open/partial/full 三种受控动作，宿主运行）、
+  `sync_probe.go`（容器内按需同步 SQLite + Gate 适配器，不启动 AI/不下单）。
+- 历史遗留：该交易员 `initial_balance` 为 3.46e-09（旧数据），页面总收益率显示异常大；
+  不影响开仓（仓位按账户本金计算），记录为已知数据遗留。
