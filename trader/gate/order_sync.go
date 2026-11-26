@@ -2,6 +2,7 @@ package gate
 
 import (
 	"fmt"
+	"math/big"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
@@ -12,7 +13,7 @@ import (
 	"time"
 
 	"github.com/antihax/optional"
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 )
 
 // GateTrade represents a trade record from Gate fill history
@@ -29,6 +30,7 @@ type GateTrade struct {
 	ProfitLoss  float64
 	OrderType   string
 	OrderAction string // open_long, open_short, close_long, close_short
+	OrderText   string // 订单备注原样带回（下单入口的区分依据，见 order_texts.go）
 }
 
 // GetTrades retrieves trade/fill records from Gate
@@ -67,22 +69,26 @@ func (t *GateTrader) GetTrades(startTime time.Time, limit int) ([]GateTrade, err
 				trade.Id, trade.Price, fillPrice, err)
 		}
 
-		// Get quanto_multiplier for this contract to convert size to base currency
-		quantoMultiplier := 1.0
-		contract, err := t.getContract(trade.Contract)
-		if err == nil && contract != nil {
-			qm, _ := strconv.ParseFloat(contract.QuantoMultiplier, 64)
-			if qm > 0 {
-				quantoMultiplier = qm
-			}
+		// 张数换算为标的币数量：元数据经 GetContractSpec 精确解析，失败即报错
+		spec, err := t.GetContractSpec(trade.Contract)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get contract info for %s: %w", trade.Contract, err)
 		}
 
 		// Convert contract size to actual quantity
-		absSize := trade.Size
-		if absSize < 0 {
-			absSize = -absSize
+		size, err := parseRequiredSize("trade size", trade.Size)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse trade %d: %w", trade.Id, err)
 		}
-		fillQty := float64(absSize) * quantoMultiplier
+		closeSize, err := parseOptionalSize("trade close_size", trade.CloseSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse trade %d: %w", trade.Id, err)
+		}
+		sizeRat, err := parseDecimal("trade size", trade.Size)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse trade %d: %w", trade.Id, err)
+		}
+		fillQty := spec.contractQuantity(new(big.Rat).Abs(sizeRat))
 
 		// Determine side and order action based on size and close_size
 		// Gate close_size field determines if trade is opening or closing:
@@ -93,18 +99,18 @@ func (t *GateTrader) GetTrades(startTime time.Time, limit int) ([]GateTrade, err
 		side := "BUY"
 		orderAction := "open_long"
 
-		if trade.Size > 0 {
+		if size > 0 {
 			side = "BUY"
-			if trade.CloseSize > 0 {
+			if closeSize > 0 {
 				// Closing short position
 				orderAction = "close_short"
 			} else {
 				// Opening long position
 				orderAction = "open_long"
 			}
-		} else if trade.Size < 0 {
+		} else if size < 0 {
 			side = "SELL"
-			if trade.CloseSize < 0 {
+			if closeSize < 0 {
 				// Closing long position
 				orderAction = "close_long"
 			} else {
@@ -139,6 +145,7 @@ func (t *GateTrader) GetTrades(startTime time.Time, limit int) ([]GateTrade, err
 			ProfitLoss:  pnl,
 			OrderType:   "MARKET",
 			OrderAction: orderAction,
+			OrderText:   trade.Text,
 		}
 
 		result = append(result, gateTrade)
@@ -191,6 +198,23 @@ func (t *GateTrader) SyncOrdersFromGate(traderID string, exchangeID string, exch
 		}
 
 		execTimeMs := trade.ExecTime.UTC().UnixMilli()
+		isOpening := trade.OrderAction == "open_long" || trade.OrderAction == "open_short"
+
+		// 仓位归属（计划文档 D40）：同一个账户上可能有多个下单入口（助手、网格、用户在 App 或其他工具里
+		// 下单）。只有带 AI trader 专属备注的开仓成交才是本 trader 开出的仓位，才记到它名下；
+		// 其余开仓成交不属于任何 trader（它们自带或不带保护都由下单的人自己负责）。
+		if isOpening && trade.OrderText != aiTraderOpenText {
+			logger.Debugf("  ⏭️ Skip %s %s trade %s: opened outside this trader (text=%q)", trade.OrderAction, symbol, trade.TradeID, trade.OrderText)
+			continue
+		}
+		// 平仓成交只作用于本 trader 已有持仓记录的仓位：别的入口开的仓被平掉，与本 trader 无关，
+		// 不记到它的成交历史与盈亏统计里。
+		if !isOpening {
+			if openPos, err := positionStore.GetOpenPositionBySymbol(traderID, symbol, positionSide); err == nil && openPos == nil {
+				logger.Debugf("  ⏭️ Skip %s %s trade %s: no open position of this trader to close", trade.OrderAction, symbol, trade.TradeID)
+				continue
+			}
+		}
 
 		// Check if trade already exists (use exchangeID which is UUID, not exchange type)
 		existing, err := orderStore.GetOrderByExchangeID(exchangeID, trade.TradeID)
@@ -266,19 +290,25 @@ func (t *GateTrader) SyncOrdersFromGate(traderID string, exchangeID string, exch
 		}
 
 		// Create/update position record using PositionBuilder
-		// Debug: Log the price being passed to ensure it's not 0
+		positionUpdated := false
 		if trade.FillPrice <= 0 {
 			logger.Infof("  ⚠️ WARNING: trade %s has FillPrice=%.10f (invalid), skipping position update", trade.TradeID, trade.FillPrice)
+		} else if err := posBuilder.ProcessTrade(
+			traderID, exchangeID, exchangeType,
+			symbol, positionSide, trade.OrderAction,
+			trade.FillQty, trade.FillPrice, trade.Fee, trade.ProfitLoss,
+			execTimeMs, trade.TradeID,
+		); err != nil {
+			logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
 		} else {
-			if err := posBuilder.ProcessTrade(
-				traderID, exchangeID, exchangeType,
-				symbol, positionSide, trade.OrderAction,
-				trade.FillQty, trade.FillPrice, trade.Fee, trade.ProfitLoss,
-				execTimeMs, trade.TradeID,
-			); err != nil {
-				logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
-			} else {
-				logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f, price: %.10f)", trade.TradeID, trade.OrderAction, trade.FillQty, trade.FillPrice)
+			positionUpdated = true
+			logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f, price: %.10f)", trade.TradeID, trade.OrderAction, trade.FillQty, trade.FillPrice)
+		}
+		if isOpening && !positionUpdated {
+			// 本 trader 的开仓成交没写进持仓记录：把刚建的订单行与成交行删掉，下一次同步从头重放这笔成交。
+			// 否则订单行已存在会让后续同步跳过开仓成交，这个仓位就永远不属于本 trader（重启后无人管理）。
+			if delErr := orderStore.DeleteSyncedTrade(exchangeID, trade.TradeID); delErr != nil {
+				logger.Warnf("  ⚠️ Failed to roll back synced trade %s: %v", trade.TradeID, delErr)
 			}
 		}
 

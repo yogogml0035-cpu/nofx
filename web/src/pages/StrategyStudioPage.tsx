@@ -705,7 +705,7 @@ export function StrategyStudioPage() {
           },
           body: JSON.stringify({
             config: editingConfig,
-            account_equity: 1000,
+            account_principal: 1000,
             prompt_variant: selectedVariant,
           }),
         }

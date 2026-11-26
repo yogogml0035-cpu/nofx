@@ -325,35 +325,20 @@ export const riskControl = {
     en: 'Exchange leverage for opening positions',
     es: 'Apalancamiento del exchange',
   },
-  positionValueRatio: {
-    zh: '仓位价值比例（代码强制）',
-    en: 'Position Value Ratio (CODE ENFORCED)',
-    es: 'Ratio de Valor (CÓDIGO)',
+  positionPercent: {
+    zh: '仓位百分比',
+    en: 'Position Percent',
+    es: 'Porcentaje de Posición',
   },
-  positionValueRatioDesc: {
-    zh: '单仓位名义价值 / 账户净值，由代码强制执行',
-    en: 'Position notional value / equity, enforced by code',
-    es: 'Valor nominal / equity',
+  positionPercentDesc: {
+    zh: '开仓名义价值 = 本金 × 该百分比（1%-20%，默认 10%）',
+    en: 'Open notional = principal × percent (1%-20%, default 10%)',
+    es: 'Notional = principal × porcentaje (1%-20%, 10% por defecto)',
   },
-  btcEthPositionValueRatio: {
-    zh: 'BTC/ETH 仓位价值比例',
-    en: 'BTC/ETH Position Value Ratio',
-    es: 'BTC/ETH Ratio de Valor',
-  },
-  btcEthPositionValueRatioDesc: {
-    zh: '单仓最大名义价值 = 净值 × 此值（代码强制）',
-    en: 'Max position value = equity × this ratio (CODE ENFORCED)',
-    es: 'Valor máximo = equity × ratio',
-  },
-  altcoinPositionValueRatio: {
-    zh: '山寨币仓位价值比例',
-    en: 'Altcoin Position Value Ratio',
-    es: 'Altcoin Ratio de Valor',
-  },
-  altcoinPositionValueRatioDesc: {
-    zh: '单仓最大名义价值 = 净值 × 此值（代码强制）',
-    en: 'Max position value = equity × this ratio (CODE ENFORCED)',
-    es: 'Valor máximo = equity × ratio',
+  positionPercentInput: {
+    zh: '开仓金额百分比',
+    en: 'Open Position Percent',
+    es: 'Porcentaje de Apertura',
   },
   riskParameters: {
     zh: '风险参数',
@@ -391,9 +376,9 @@ export const riskControl = {
     es: 'Tamaño Mínimo',
   },
   minPositionSizeDesc: {
-    zh: 'USDT 最小名义价值',
-    en: 'Minimum notional value in USDT',
-    es: 'Valor mínimo en USDT',
+    zh: '每笔开仓的最小名义价值（USDT，默认 10，可调整）',
+    en: 'Minimum notional per trade in USDT (default 10, editable)',
+    es: 'Valor mínimo por operación (por defecto 10, editable)',
   },
   minConfidence: {
     zh: '最小信心度',

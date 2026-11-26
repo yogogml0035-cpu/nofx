@@ -7,6 +7,7 @@ export interface Kline {
   low: number
   close: number
   volume?: number
+  quoteVolume?: number
 }
 
 // 简单移动平均线 (SMA)

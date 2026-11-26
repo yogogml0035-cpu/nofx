@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import { isRetainedTimeframe } from '../../constants/timeframes'
 import type { AIModel, Exchange, CreateTraderRequest, Strategy, TraderConfigData } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
 import { httpClient } from '../../lib/httpClient'
 import { NofxSelect } from '../ui/select'
+import { parseInitialBalance } from './traderUpdateRequest'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -41,6 +43,8 @@ interface FormState {
   is_cross_margin: boolean
   show_in_competition: boolean
   scan_interval_minutes: number
+  // 初始余额按输入的原文保存，输入过程中不被强制改写；保存时再解析
+  initial_balance: string
 }
 
 interface TraderConfigModalProps {
@@ -71,6 +75,7 @@ export function TraderConfigModal({
     is_cross_margin: true,
     show_in_competition: true,
     scan_interval_minutes: 3,
+    initial_balance: '',
   })
   const [isSaving, setIsSaving] = useState(false)
   const [strategies, setStrategies] = useState<Strategy[]>([])
@@ -107,6 +112,7 @@ export function TraderConfigModal({
       setFormData({
         ...traderData,
         strategy_id: traderData.strategy_id || '',
+        initial_balance: String(traderData.initial_balance ?? ''),
       })
     } else if (!isEditMode) {
       setFormData({
@@ -117,6 +123,7 @@ export function TraderConfigModal({
         is_cross_margin: true,
         show_in_competition: true,
         scan_interval_minutes: 3,
+        initial_balance: '',
       })
     }
   }, [traderData, isEditMode, availableModels, availableExchanges])
@@ -131,8 +138,20 @@ export function TraderConfigModal({
     setFormData((prev) => ({ ...prev, exchange_id: exchangeId }))
   }
 
+  // 初始余额只在编辑时可改：为空、不是十进制数字或不大于 0 都不能保存
+  const parsedInitialBalance = parseInitialBalance(formData.initial_balance)
+  const initialBalanceValid = parsedInitialBalance !== null
+  // 用户没有改过初始余额时不发送这个字段。后端把「正值」当作明确给出，
+  // 换绑交易所时要靠「没有给出」把旧账户的初始余额重置掉
+  const initialBalanceChanged =
+    isEditMode &&
+    parsedInitialBalance !== null &&
+    parsedInitialBalance !== traderData?.initial_balance
+
   const handleSave = async () => {
     if (!onSave) return
+    // 保存按钮已按同样的条件禁用；这里再拦一次，别的入口触发保存时也绕不过校验
+    if (isEditMode && !initialBalanceValid) return
 
     setIsSaving(true)
     try {
@@ -145,6 +164,9 @@ export function TraderConfigModal({
         show_in_competition: formData.show_in_competition,
         scan_interval_minutes: formData.scan_interval_minutes,
       }
+      if (initialBalanceChanged) {
+        saveData.initial_balance = parsedInitialBalance
+      }
 
       await onSave(saveData)
     } catch (error) {
@@ -155,6 +177,12 @@ export function TraderConfigModal({
   }
 
   const selectedStrategy = strategies.find(s => s.id === formData.strategy_id)
+  // 决策按策略主周期收线后 5 秒触发（D17）；扫描间隔只在主周期无效时回退生效。
+  // 存量策略可能存着已废弃的周期（如 3m）：不在保留集合内时不显示「实际节奏」，避免给出错误信息。
+  const candidateTimeframe = selectedStrategy?.config?.indicators?.klines?.primary_timeframe
+    || selectedStrategy?.config?.indicators?.klines?.selected_timeframes?.[0]
+    || ''
+  const cadenceTimeframe = isRetainedTimeframe(candidateTimeframe) ? candidateTimeframe : ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
@@ -410,6 +438,16 @@ export function TraderConfigModal({
                   <p className="text-xs text-gray-500 mt-1">
                     {t('scanIntervalRecommend', language)}
                   </p>
+                  {cadenceTimeframe && (
+                    <p className="text-xs text-[#F0B90B] mt-1" data-testid="trader-scan-cadence">
+                      {t('scanCadence', language, { timeframe: cadenceTimeframe })}
+                    </p>
+                  )}
+                  {cadenceTimeframe && ['10s', '1m'].includes(cadenceTimeframe) && (
+                    <p className="text-xs text-amber-400 mt-1">
+                      {t('scanCadenceCost', language)}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -447,25 +485,69 @@ export function TraderConfigModal({
                 </p>
               </div>
 
-              <div className="p-3 bg-[#1E2329] border border-[#2B3139] rounded flex items-center gap-2">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-4 h-4 text-[#F0B90B]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" x2="12" y1="8" y2="12" />
-                  <line x1="12" x2="12.01" y1="16" y2="16" />
-                </svg>
-                <span className="text-sm text-[#848E9C]">
-                  {t('autoFetchBalanceInfo', language)}
-                </span>
-              </div>
+              {/* 初始余额：创建时由后端取交易所账户的当前本金（只提示）；编辑时可改，必须大于 0 */}
+              {isEditMode ? (
+                <div>
+                  <label
+                    htmlFor="trader-initial-balance"
+                    className="text-sm text-[#EAECEF] block mb-2"
+                  >
+                    {t('initialBalanceLabel', language)}
+                  </label>
+                  <input
+                    id="trader-initial-balance"
+                    type="number"
+                    value={formData.initial_balance}
+                    onChange={(e) =>
+                      handleInputChange('initial_balance', e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
+                    min="0.01"
+                    step="0.01"
+                    aria-invalid={!initialBalanceValid}
+                    aria-describedby={
+                      initialBalanceValid
+                        ? 'trader-initial-balance-hint'
+                        : 'trader-initial-balance-hint trader-initial-balance-error'
+                    }
+                  />
+                  <p
+                    id="trader-initial-balance-hint"
+                    className="text-xs text-[#848E9C] mt-1"
+                  >
+                    {t('balanceUpdateHint', language)}
+                  </p>
+                  {!initialBalanceValid && (
+                    <p
+                      id="trader-initial-balance-error"
+                      className="text-xs text-red-400 mt-1"
+                      role="alert"
+                    >
+                      {t('initialBalanceInvalid', language)}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-[#1E2329] border border-[#2B3139] rounded flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4 text-[#F0B90B]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" x2="12" y1="8" y2="12" />
+                    <line x1="12" x2="12.01" y1="16" y2="16" />
+                  </svg>
+                  <span className="text-sm text-[#848E9C]">
+                    {t('autoFetchBalanceInfo', language)}
+                  </span>
+                </div>
+              )}
 
             </div>
           </div>
@@ -487,7 +569,8 @@ export function TraderConfigModal({
                 isSaving ||
                 !formData.trader_name ||
                 !formData.ai_model ||
-                !formData.exchange_id
+                !formData.exchange_id ||
+                (isEditMode && !initialBalanceValid)
               }
               className="px-8 py-3 bg-gradient-to-r from-[#F0B90B] to-[#E1A706] text-black rounded-lg hover:from-[#E1A706] hover:to-[#D4951E] transition-all duration-200 disabled:bg-[#848E9C] disabled:cursor-not-allowed font-medium shadow-lg"
             >

@@ -174,7 +174,7 @@ export function MarketTicker() {
                   {label}
                 </div>
                 <div style={{ fontSize: 10, color: '#4c4c62' }}>
-                  Vol {formatVolume(t.volume)}
+                  Vol(USDT) {formatVolume(t.volume)}
                 </div>
               </div>
             </div>

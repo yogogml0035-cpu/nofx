@@ -89,10 +89,6 @@ export const translations = {
     // TradingView Chart
     marketChart: 'Market Chart',
     viewChart: 'Click to view chart',
-    enterSymbol: 'Enter symbol...',
-    popularSymbols: 'Popular Symbols',
-    fullscreen: 'Fullscreen',
-    exitFullscreen: 'Exit Fullscreen',
 
     // Competition Page
     aiCompetition: 'AI Competition',
@@ -147,8 +143,10 @@ export const translations = {
     create: 'Create',
     configureAIModels: 'Configure AI Models',
     configureExchanges: 'Configure Exchanges',
-    aiScanInterval: 'AI Scan Decision Interval (minutes)',
-    scanIntervalRecommend: 'Recommended: 3-10 minutes',
+    aiScanInterval: 'Fallback scan interval (minutes)',
+    scanIntervalRecommend: 'Fallback only: decisions run 5s after each close of the primary timeframe (or the first selected timeframe; 5m when neither is configured). This interval applies only when both are configured but unusable.',
+    scanCadence: 'Effective cadence: 5s after each {timeframe} candle close',
+    scanCadenceCost: 'A primary timeframe of 1m or shorter calls the model about once a minute or more often.',
     useTestnet: 'Use Testnet',
     enabled: 'Enabled',
     save: 'Save',
@@ -197,7 +195,8 @@ export const translations = {
     balanceUpdateHint:
       'Used to manually update the initial balance baseline (e.g., after deposit/withdrawal)',
     autoFetchBalanceInfo:
-      'The system will automatically fetch your account equity as the initial balance',
+      "The exchange account's current principal (balance excluding unrealized P&L) is recorded as the initial balance at creation; you can change it later when editing the trader",
+    initialBalanceInvalid: 'Initial balance must be greater than 0',
     fetchingBalance: 'Fetching balance...',
     editTrader: 'Save Changes',
     createTraderButton: 'Create Trader',
@@ -712,7 +711,7 @@ export const translations = {
 
     faqDecisionFrequency: 'How often does the AI make decisions?',
     faqDecisionFrequencyAnswer:
-      'Configurable per trader, default is 3-5 minutes. Considerations: Too frequent (1-2 min) = overtrading, high fees; Too slow (30+ min) = missed opportunities. Recommended: 5 minutes for active trading, 15-30 minutes for swing trading. The AI may decide to "hold" (no action) in many cycles.',
+      'The AI decides once per candle of the strategy primary timeframe (5 seconds after each close). Set that timeframe in the strategy: 10s/1m call the model every few seconds to about a minute (higher fees, more noise), 15m-1h suit swing trading. The AI may decide to "hold" (no action) in many cycles. The scan interval on the trader is only a fallback used when the strategy has no valid timeframe.',
 
     faqNoTradesExecuting: "Why isn't my trader executing any trades?",
     faqNoTradesExecutingAnswer:
@@ -1121,15 +1120,6 @@ export const translations = {
       orderMarkers: 'Order Markers',
       technicalIndicators: 'Technical Indicators',
       clickToToggle: 'Click to toggle indicators',
-      units: 'units',
-    },
-
-    // Chart With Orders
-    chartWithOrders: {
-      failedToLoad: 'Failed to load chart data',
-      loading: 'Loading...',
-      buy: 'BUY',
-      sell: 'SELL',
     },
 
     // Comparison Chart
@@ -1331,7 +1321,7 @@ export const translations = {
       crossMargin: 'Cross',
       isolatedMargin: 'Isolated',
       scanInterval: '{minutes} minutes',
-      scanIntervalLabel: 'Scan Interval',
+      scanIntervalLabel: 'Fallback Scan Interval',
       strategyUsed: 'Strategy Used',
       strategyName: 'Strategy Name',
       close: 'Close',
@@ -1427,10 +1417,6 @@ export const translations = {
     // TradingView Chart
     marketChart: '行情图表',
     viewChart: '点击查看图表',
-    enterSymbol: '输入币种...',
-    popularSymbols: '热门币种',
-    fullscreen: '全屏',
-    exitFullscreen: '退出全屏',
 
     // Competition Page
     aiCompetition: 'AI竞赛',
@@ -1484,8 +1470,10 @@ export const translations = {
     create: '创建',
     configureAIModels: '配置AI模型',
     configureExchanges: '配置交易所',
-    aiScanInterval: 'AI 扫描决策间隔 (分钟)',
-    scanIntervalRecommend: '建议: 3-10分钟',
+    aiScanInterval: '回退扫描间隔（分钟）',
+    scanIntervalRecommend: '回退值：正常按主周期（缺失时取多周期的第一个，再缺省 5m）收线后 5 秒触发决策；只有主周期与多周期第一个都已配置但都不可用时才按这个间隔运行。',
+    scanCadence: '实际节奏：每根 {timeframe} K 线收线后 5 秒',
+    scanCadenceCost: '主周期为 1m 及更短时，约每分钟或更频繁调用一次模型。',
     useTestnet: '使用测试网',
     enabled: '启用',
     save: '保存',
@@ -1529,7 +1517,9 @@ export const translations = {
     fetching: '获取中...',
     fetchCurrentBalance: '获取当前余额',
     balanceUpdateHint: '用于手动更新初始余额基准（例如充值/提现后）',
-    autoFetchBalanceInfo: '系统将自动获取您的账户净值作为初始余额',
+    autoFetchBalanceInfo:
+      '创建时自动把交易所账户的当前本金（不含浮动盈亏）记为初始余额，之后可在编辑中修改',
+    initialBalanceInvalid: '初始余额必须大于 0',
     fetchingBalance: '正在获取余额…',
     editTrader: '保存修改',
     createTraderButton: '创建交易员',
@@ -2009,7 +1999,7 @@ export const translations = {
 
     faqDecisionFrequency: 'AI 多久做一次决策？',
     faqDecisionFrequencyAnswer:
-      '每个交易员可单独配置，默认 3-5 分钟。考虑因素：太频繁（1-2 分钟）= 过度交易、手续费高；太慢（30+ 分钟）= 错过机会。建议：活跃交易 5 分钟，波段交易 15-30 分钟。AI 在很多周期可能决定"持有"（不操作）。',
+      'AI 按策略主周期每根 K 线决策一次（收线后 5 秒）。节奏在策略的主周期里设置：10s/1m 约每几秒到一分钟调用一次模型（费用高、噪声多），15m-1h 适合波段。AI 在很多周期可能决定"持有"（不操作）。交易员上的扫描间隔只是回退值，仅在策略没有有效主周期时生效。',
 
     faqNoTradesExecuting: '为什么交易员不执行任何交易？',
     faqNoTradesExecutingAnswer:
@@ -2033,7 +2023,7 @@ export const translations = {
 
     faqAICosts: 'AI API 调用费用是多少？',
     faqAICostsAnswer:
-      '每个交易员每天大约费用（5 分钟间隔）：DeepSeek：$0.10-0.50；Qwen：$0.20-0.80；OpenAI：$2-5；Claude：$1-3。费用取决于提示词长度和响应 token 数。DeepSeek 性价比最高。更长的决策间隔可降低费用。',
+      '每个交易员每天大约费用（策略主周期 5m）：DeepSeek：$0.10-0.50；Qwen：$0.20-0.80；OpenAI：$2-5；Claude：$1-3。费用取决于提示词长度和响应 token 数。DeepSeek 性价比最高。策略主周期越长，调用越少、费用越低。',
 
     // ===== 技术问题 =====
     faqPortInUse: '端口 8080 或 3000 被占用',
@@ -2409,15 +2399,6 @@ export const translations = {
       orderMarkers: '订单标记',
       technicalIndicators: '技术指标',
       clickToToggle: '点击选择需要显示的指标',
-      units: '个',
-    },
-
-    // Chart With Orders
-    chartWithOrders: {
-      failedToLoad: '加载图表数据失败',
-      loading: '加载中...',
-      buy: 'BUY (买入)',
-      sell: 'SELL (卖出)',
     },
 
     // Comparison Chart
@@ -2607,7 +2588,7 @@ export const translations = {
       crossMargin: '全仓',
       isolatedMargin: '逐仓',
       scanInterval: '{minutes} 分钟',
-      scanIntervalLabel: '扫描间隔',
+      scanIntervalLabel: '回退扫描间隔',
       strategyUsed: '使用策略',
       strategyName: '策略名称',
       close: '关闭',
@@ -2704,10 +2685,6 @@ export const translations = {
     // TradingView Chart
     marketChart: 'Grafik Pasar',
     viewChart: 'Klik untuk melihat grafik',
-    enterSymbol: 'Masukkan simbol...',
-    popularSymbols: 'Simbol Populer',
-    fullscreen: 'Layar Penuh',
-    exitFullscreen: 'Keluar Layar Penuh',
 
     // Competition Page
     aiCompetition: 'Kompetisi AI',
@@ -2762,8 +2739,10 @@ export const translations = {
     create: 'Buat',
     configureAIModels: 'Konfigurasi Model AI',
     configureExchanges: 'Konfigurasi Bursa',
-    aiScanInterval: 'Interval Keputusan AI (menit)',
-    scanIntervalRecommend: 'Disarankan: 3-10 menit',
+    aiScanInterval: 'Interval pemindaian cadangan (menit)',
+    scanIntervalRecommend: 'Nilai cadangan: keputusan berjalan 5 detik setelah penutupan timeframe utama (atau timeframe terpilih pertama; 5m bila keduanya tidak disetel). Interval ini hanya dipakai bila keduanya disetel tetapi tidak bisa dipakai.',
+    scanCadence: 'Irama efektif: 5 detik setelah penutupan candle {timeframe}',
+    scanCadenceCost: 'Timeframe utama 1m atau lebih pendek memanggil model sekitar sekali per menit atau lebih sering.',
     useTestnet: 'Gunakan Testnet',
     enabled: 'Aktif',
     save: 'Simpan',
@@ -2813,7 +2792,8 @@ export const translations = {
     balanceUpdateHint:
       'Digunakan untuk memperbarui saldo awal secara manual (misal setelah deposit/withdraw)',
     autoFetchBalanceInfo:
-      'Sistem akan otomatis mengambil ekuitas akun Anda sebagai saldo awal',
+      'Prinsipal akun exchange saat ini (saldo tanpa PnL belum terealisasi) dicatat sebagai saldo awal saat pembuatan; dapat diubah nanti saat mengedit trader',
+    initialBalanceInvalid: 'Saldo awal harus lebih besar dari 0',
     fetchingBalance: 'Mengambil saldo...',
     editTrader: 'Simpan Perubahan',
     createTraderButton: 'Buat Trader',
@@ -3276,7 +3256,7 @@ export const translations = {
       'AI menggunakan penalaran Chain of Thought (CoT) dalam 4 langkah: 1) Analisis Posisi; 2) Penilaian Risiko; 3) Evaluasi Peluang; 4) Keputusan Akhir.',
     faqDecisionFrequency: 'Seberapa sering AI membuat keputusan?',
     faqDecisionFrequencyAnswer:
-      'Dapat dikonfigurasi per trader, default 3-5 menit. Disarankan: 5 menit untuk trading aktif, 15-30 menit untuk swing trading.',
+      'AI mengambil keputusan sekali per candle timeframe utama strategi (5 detik setelah penutupan). Atur timeframe itu di strategi: 10s/1m memanggil model setiap beberapa detik hingga sekitar satu menit (biaya lebih tinggi, noise lebih banyak), 15m-1h cocok untuk swing trading. Interval pemindaian di trader hanyalah nilai cadangan saat strategi tidak punya timeframe yang valid.',
     faqNoTradesExecuting: 'Mengapa trader saya tidak mengeksekusi trading?',
     faqNoTradesExecutingAnswer:
       'Penyebab umum: 1) AI memutuskan menunggu; 2) Saldo tidak cukup; 3) Batas posisi maks tercapai; 4) Masalah API bursa; 5) Batasan strategi terlalu ketat.',
@@ -3639,15 +3619,6 @@ export const translations = {
       orderMarkers: 'Penanda Order',
       technicalIndicators: 'Indikator Teknikal',
       clickToToggle: 'Klik untuk beralih indikator',
-      units: 'unit',
-    },
-
-    // Chart With Orders
-    chartWithOrders: {
-      failedToLoad: 'Gagal memuat data grafik',
-      loading: 'Memuat...',
-      buy: 'BELI',
-      sell: 'JUAL',
     },
 
     // Comparison Chart
@@ -3843,7 +3814,7 @@ export const translations = {
       crossMargin: 'Cross',
       isolatedMargin: 'Isolated',
       scanInterval: '{minutes} menit',
-      scanIntervalLabel: 'Interval Scan',
+      scanIntervalLabel: 'Interval Cadangan',
       strategyUsed: 'Strategi Digunakan',
       strategyName: 'Nama Strategi',
       close: 'Tutup',

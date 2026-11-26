@@ -5,15 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"nofx/kernel"
+	"nofx/market"
 	"nofx/mcp"
 	"nofx/safe"
 	"nofx/security"
@@ -28,14 +27,13 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/trader/types"
 )
 
 // cachedTools holds the static tool definitions (built once, reused per message).
 var cachedTools = buildAgentTools()
 
 var (
-	binanceFuturesAPIBaseURL    = "https://fapi.binance.com"
-	marketDataHTTPClient        = http.DefaultClient
 	traderInitialBalanceFetcher = defaultTraderInitialBalanceFetcher
 )
 
@@ -320,12 +318,12 @@ func strategyConfigSchema() map[string]any {
 							"klines": map[string]any{
 								"type": "object",
 								"properties": map[string]any{
-									"primary_timeframe":      map[string]any{"type": "string", "enum": []string{"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"}},
+									"primary_timeframe":      map[string]any{"type": "string", "enum": []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"}},
 									"primary_count":          map[string]any{"type": "number", "minimum": 10, "maximum": 30, "description": "Manual page range 10-30."},
 									"longer_timeframe":       map[string]any{"type": "string"},
 									"longer_count":           map[string]any{"type": "number"},
 									"enable_multi_timeframe": map[string]any{"type": "boolean"},
-									"selected_timeframes":    stringArraySchema("Selected analysis timeframes. Allowed values: 1m,3m,5m,15m,30m,1h,2h,4h,6h,8h,12h,1d,3d,1w. Manual page allows at most 4."),
+									"selected_timeframes":    stringArraySchema("Selected analysis timeframes. Allowed values: 10s, 1m, 5m, 15m, 30m, 1h, 4h, 8h, 1d, 7d, 1w, 30d. Manual page allows at most 4."),
 								},
 							},
 							"enable_raw_klines":   map[string]any{"type": "boolean"},
@@ -464,7 +462,7 @@ func traderConfigFieldsSchema() map[string]any {
 		"ai_model_id":           map[string]any{"type": "string", "description": "Bound AI model id."},
 		"exchange_id":           map[string]any{"type": "string", "description": "Bound exchange id."},
 		"strategy_id":           map[string]any{"type": "string", "description": "Bound strategy id."},
-		"scan_interval_minutes": map[string]any{"type": "number", "description": "Trading scan interval in minutes."},
+		"scan_interval_minutes": map[string]any{"type": "number", "description": "Fallback scan interval in minutes. Decisions run 5s after each close of the strategy's primary timeframe; this interval only applies when the strategy has no valid timeframe."},
 		"is_cross_margin":       map[string]any{"type": "boolean", "description": "Whether cross margin is enabled."},
 		"show_in_competition":   map[string]any{"type": "boolean", "description": "Whether to show this trader in competition views."},
 	}
@@ -758,7 +756,8 @@ func buildAgentTools() []mcp.Tool {
 						},
 						"interval": map[string]any{
 							"type":        "string",
-							"description": "Kline interval for the structure snapshot, for example 5m, 15m, 1h, or 4h. Defaults to 15m.",
+							"enum":        []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"},
+							"description": "Kline interval for the structure snapshot (Gate contract candles). Defaults to 15m. Volume is USDT turnover and open interest is USD.",
 						},
 						"limit": map[string]any{
 							"type":        "number",
@@ -783,7 +782,8 @@ func buildAgentTools() []mcp.Tool {
 						},
 						"interval": map[string]any{
 							"type":        "string",
-							"description": "Kline interval, for example 1m, 5m, 15m, 1h, 4h, or 1d. Defaults to 15m.",
+							"enum":        []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"},
+							"description": "Kline interval (Gate contract candles). Defaults to 15m; volume is USDT turnover.",
 						},
 						"limit": map[string]any{
 							"type":        "number",
@@ -1033,22 +1033,21 @@ func safeExchangeForTool(ex *store.Exchange) safeExchangeToolConfig {
 	}
 }
 
-func defaultTraderInitialBalanceFetcher(exchangeCfg *store.Exchange, userID string) (float64, bool, error) {
+// defaultTraderInitialBalanceFetcher 读交易所账户的当前本金，作为新建 trader 的初始资金（计划文档第 5 节）。
+// 读不到账户读数，或账户本金不为正，都返回错误（本金是盈亏统计的基准，必须大于 0）
+func defaultTraderInitialBalanceFetcher(exchangeCfg *store.Exchange, userID string) (float64, error) {
 	if exchangeCfg == nil {
-		return 0, false, fmt.Errorf("exchange config not found")
+		return 0, fmt.Errorf("exchange config not found")
 	}
 	probe, err := buildTraderExchangeProbe(exchangeCfg, userID)
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
-	balanceInfo, err := probe.GetBalance()
-	if err != nil {
-		return 0, false, err
-	}
-	return extractTraderInitialBalance(balanceInfo)
+	return types.ReadInitialBalance(probe)
 }
 
-func buildTraderExchangeProbe(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
+// buildTraderExchangeProbe 按交易所配置构造探测用的适配器。是变量：单元测试里换成不连交易所的桩。
+var buildTraderExchangeProbe = func(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
 	switch exchangeCfg.ExchangeType {
 	case "binance":
 		return binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID), nil
@@ -1080,33 +1079,6 @@ func buildTraderExchangeProbe(exchangeCfg *store.Exchange, userID string) (trade
 	default:
 		return nil, fmt.Errorf("unsupported exchange type: %s", exchangeCfg.ExchangeType)
 	}
-}
-
-func extractTraderInitialBalance(balanceInfo map[string]interface{}) (float64, bool, error) {
-	for _, key := range []string{"total_equity", "totalEquity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"} {
-		raw, ok := balanceInfo[key]
-		if !ok {
-			continue
-		}
-		switch v := raw.(type) {
-		case float64:
-			return v, true, nil
-		case float32:
-			return float64(v), true, nil
-		case int:
-			return float64(v), true, nil
-		case int64:
-			return float64(v), true, nil
-		case int32:
-			return float64(v), true, nil
-		case string:
-			parsed, err := strconv.ParseFloat(v, 64)
-			if err == nil {
-				return parsed, true, nil
-			}
-		}
-	}
-	return 0, false, fmt.Errorf("initial balance not set and unable to fetch balance from exchange")
 }
 
 func safeModelForTool(model *store.AIModel) safeModelToolConfig {
@@ -1898,14 +1870,14 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		return `{"error":"store unavailable"}`
 	}
 	var args struct {
-		Action        string         `json:"action"`
-		StrategyID    string         `json:"strategy_id"`
-		Name          string         `json:"name"`
-		Description   string         `json:"description"`
-		Lang          string         `json:"lang"`
-		AllowClamped  bool           `json:"allow_clamped_update"`
-		Confirmed     bool           `json:"confirmed"`
-		Config        map[string]any `json:"config"`
+		Action       string         `json:"action"`
+		StrategyID   string         `json:"strategy_id"`
+		Name         string         `json:"name"`
+		Description  string         `json:"description"`
+		Lang         string         `json:"lang"`
+		AllowClamped bool           `json:"allow_clamped_update"`
+		Confirmed    bool           `json:"confirmed"`
+		Config       map[string]any `json:"config"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err)
@@ -2265,12 +2237,9 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 			scanInterval = 3
 		}
 	}
-	initialBalance, found, err := traderInitialBalanceFetcher(exchangeCfg, storeUserID)
+	initialBalance, err := traderInitialBalanceFetcher(exchangeCfg, storeUserID)
 	if err != nil {
 		return fmt.Sprintf(`{"error":"failed to auto-read trader initial balance from exchange: %s"}`, err)
-	}
-	if !found {
-		return `{"error":"failed to auto-read trader initial balance from exchange"}`
 	}
 	isCrossMargin := true
 	if args.IsCrossMargin != nil {
@@ -2393,6 +2362,14 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 	if err := a.store.Trader().Update(record); err != nil {
 		return fmt.Sprintf(`{"error":"failed to update trader: %s"}`, err)
 	}
+	exchangeRebound := exchangeID != existing.ExchangeID
+	if exchangeRebound {
+		// 换绑交易所：旧初始余额属于原来那个账户。与页面编辑一致，重置后在加载时以新账户的本金重建
+		record.InitialBalance = 0
+		if err := a.store.Trader().UpdateInitialBalance(storeUserID, record.ID, 0); err != nil {
+			return fmt.Sprintf(`{"error":"failed to reset the trader initial balance after rebinding the exchange: %s"}`, err)
+		}
+	}
 	if a.traderManager != nil {
 		a.traderManager.RemoveTrader(record.ID)
 		_ = a.traderManager.LoadUserTradersFromStore(a.store, storeUserID)
@@ -2401,6 +2378,8 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 		"status": "ok",
 		"action": "update",
 		"trader": safeTraderForTool(record, record.IsRunning),
+		// 换绑交易所时初始余额被重置：技能层据此告诉用户
+		"initial_balance_reset": exchangeRebound,
 	})
 	return string(result)
 }
@@ -2643,10 +2622,10 @@ func (a *Agent) toolExecuteTrade(ctx context.Context, userID int64, lang, argsJS
 		return fmt.Sprintf(`{"error": "invalid arguments: %s"}`, err)
 	}
 
-	// Normalize symbol
+	// Normalize symbol. Gate-first routing: a base symbol that is a listed Gate USDT
+	// perpetual is crypto even when the letter heuristic would call it a stock ticker.
 	sym := strings.ToUpper(args.Symbol)
-	// Only append USDT for crypto symbols; stock tickers (e.g. AAPL, TSLA) stay as-is
-	if !isStockSymbol(sym) && !strings.HasSuffix(sym, "USDT") {
+	if !a.resolveStockSymbol(sym) && !strings.HasSuffix(sym, "USDT") {
 		sym += "USDT"
 	}
 
@@ -2840,15 +2819,14 @@ func (a *Agent) toolGetMarketPrice(argsJSON string) string {
 	}
 
 	sym := strings.ToUpper(args.Symbol)
-	if !isStockSymbol(sym) && !strings.HasSuffix(sym, "USDT") {
+	wantStock := a.resolveStockSymbol(sym)
+	if !wantStock && !strings.HasSuffix(sym, "USDT") {
 		sym += "USDT"
 	}
 
 	if a.traderManager == nil {
 		return `{"error": "no trader manager configured"}`
 	}
-
-	wantStock := isStockSymbol(sym)
 	for _, t := range a.traderManager.GetAllTraders() {
 		underlying := t.GetUnderlyingTrader()
 		if underlying == nil {
@@ -2889,26 +2867,6 @@ func (a *Agent) toolGetMarketPrice(argsJSON string) string {
 	return fmt.Sprintf(`{"error": "could not get price for %s"}`, sym)
 }
 
-func binanceFuturesGET(path string, out any) error {
-	req, err := http.NewRequest(http.MethodGet, binanceFuturesAPIBaseURL+path, nil)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	resp, err := marketDataHTTPClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("source returned status %d", resp.StatusCode)
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
-}
-
 func (a *Agent) toolGetMarketSnapshot(argsJSON string) string {
 	var args struct {
 		Symbol   string `json:"symbol"`
@@ -2919,16 +2877,11 @@ func (a *Agent) toolGetMarketSnapshot(argsJSON string) string {
 		return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err)
 	}
 
-	symbol := strings.ToUpper(strings.TrimSpace(args.Symbol))
-	if symbol == "" {
+	raw := strings.ToUpper(strings.TrimSpace(args.Symbol))
+	if raw == "" {
 		return `{"error":"symbol is required"}`
 	}
-	if isStockSymbol(symbol) {
-		return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
-	}
-	if !strings.HasSuffix(symbol, "USDT") {
-		symbol += "USDT"
-	}
+	symbol := assistantCryptoSymbol(raw)
 
 	interval := strings.TrimSpace(strings.ToLower(args.Interval))
 	if interval == "" {
@@ -2946,158 +2899,31 @@ func (a *Agent) toolGetMarketSnapshot(argsJSON string) string {
 		limit = 100
 	}
 
-	var ticker24h struct {
-		Symbol             string `json:"symbol"`
-		LastPrice          string `json:"lastPrice"`
-		PriceChange        string `json:"priceChange"`
-		PriceChangePercent string `json:"priceChangePercent"`
-		HighPrice          string `json:"highPrice"`
-		LowPrice           string `json:"lowPrice"`
-		Volume             string `json:"volume"`
-		QuoteVolume        string `json:"quoteVolume"`
-		Count              int64  `json:"count"`
-	}
-	if err := binanceFuturesGET("/fapi/v1/ticker/24hr?symbol="+symbol, &ticker24h); err != nil {
+	ticker, err := assistantGetTicker(symbol)
+	if err != nil {
+		if isStockSymbol(raw) {
+			return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
+		}
 		return fmt.Sprintf(`{"error":"failed to fetch 24h ticker for %s: %s"}`, symbol, err)
 	}
-
-	var premiumIndex struct {
-		Symbol          string `json:"symbol"`
-		MarkPrice       string `json:"markPrice"`
-		IndexPrice      string `json:"indexPrice"`
-		LastFundingRate string `json:"lastFundingRate"`
-		NextFundingTime int64  `json:"nextFundingTime"`
-		Time            int64  `json:"time"`
+	metrics, err := assistantGetMetrics(symbol)
+	if err != nil {
+		if isStockSymbol(raw) {
+			return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
+		}
+		return fmt.Sprintf(`{"error":"failed to fetch perp metrics for %s: %s"}`, symbol, err)
 	}
-	if err := binanceFuturesGET("/fapi/v1/premiumIndex?symbol="+symbol, &premiumIndex); err != nil {
-		return fmt.Sprintf(`{"error":"failed to fetch funding data for %s: %s"}`, symbol, err)
-	}
-
-	var openInterest struct {
-		OpenInterest string `json:"openInterest"`
-		Symbol       string `json:"symbol"`
-		Time         int64  `json:"time"`
-	}
-	if err := binanceFuturesGET("/fapi/v1/openInterest?symbol="+symbol, &openInterest); err != nil {
-		return fmt.Sprintf(`{"error":"failed to fetch open interest for %s: %s"}`, symbol, err)
-	}
-
-	var rawKlines [][]any
-	if err := binanceFuturesGET(fmt.Sprintf("/fapi/v1/klines?symbol=%s&interval=%s&limit=%d", symbol, interval, limit), &rawKlines); err != nil {
+	klines, err := assistantGetKlines(symbol, interval, limit)
+	if err != nil {
+		if isStockSymbol(raw) {
+			return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
+		}
 		return fmt.Sprintf(`{"error":"failed to fetch kline for %s: %s"}`, symbol, err)
 	}
-	if len(rawKlines) == 0 {
+	if len(klines) == 0 {
 		return fmt.Sprintf(`{"error":"empty kline response for %s"}`, symbol)
 	}
-
-	klines := make([]map[string]any, 0, len(rawKlines))
-	highestHigh := 0.0
-	lowestLow := 0.0
-	firstClose := 0.0
-	lastClose := 0.0
-	totalVolume := 0.0
-	for i, row := range rawKlines {
-		if len(row) < 7 {
-			continue
-		}
-		openVal := toSnapshotFloat(row[1])
-		highVal := toSnapshotFloat(row[2])
-		lowVal := toSnapshotFloat(row[3])
-		closeVal := toSnapshotFloat(row[4])
-		volumeVal := toSnapshotFloat(row[5])
-		if i == 0 {
-			firstClose = closeVal
-			highestHigh = highVal
-			lowestLow = lowVal
-		}
-		if highVal > highestHigh {
-			highestHigh = highVal
-		}
-		if lowestLow == 0 || (lowVal > 0 && lowVal < lowestLow) {
-			lowestLow = lowVal
-		}
-		lastClose = closeVal
-		totalVolume += volumeVal
-		klines = append(klines, map[string]any{
-			"open_time":  row[0],
-			"open":       openVal,
-			"high":       highVal,
-			"low":        lowVal,
-			"close":      closeVal,
-			"volume":     volumeVal,
-			"close_time": row[6],
-		})
-	}
-
-	periodChangePercent := 0.0
-	if firstClose > 0 && lastClose > 0 {
-		periodChangePercent = ((lastClose - firstClose) / firstClose) * 100
-	}
-
-	tickerLastPrice, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.LastPrice), 64)
-	tickerPriceChange, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.PriceChange), 64)
-	tickerPriceChangePercent, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.PriceChangePercent), 64)
-	tickerHighPrice, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.HighPrice), 64)
-	tickerLowPrice, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.LowPrice), 64)
-	tickerVolume, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.Volume), 64)
-	tickerQuoteVolume, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.QuoteVolume), 64)
-	markPrice, _ := strconv.ParseFloat(strings.TrimSpace(premiumIndex.MarkPrice), 64)
-	indexPrice, _ := strconv.ParseFloat(strings.TrimSpace(premiumIndex.IndexPrice), 64)
-	fundingRate, _ := strconv.ParseFloat(strings.TrimSpace(premiumIndex.LastFundingRate), 64)
-	oiValue, _ := strconv.ParseFloat(strings.TrimSpace(openInterest.OpenInterest), 64)
-
-	out, _ := json.Marshal(map[string]any{
-		"symbol": symbol,
-		"price":  tickerLastPrice,
-		"ticker_24h": map[string]any{
-			"price_change":         tickerPriceChange,
-			"price_change_percent": tickerPriceChangePercent,
-			"high_price":           tickerHighPrice,
-			"low_price":            tickerLowPrice,
-			"volume":               tickerVolume,
-			"quote_volume":         tickerQuoteVolume,
-			"trade_count":          ticker24h.Count,
-		},
-		"perp_metrics": map[string]any{
-			"mark_price":        markPrice,
-			"index_price":       indexPrice,
-			"funding_rate":      fundingRate,
-			"next_funding_time": premiumIndex.NextFundingTime,
-			"open_interest":     oiValue,
-		},
-		"kline_snapshot": map[string]any{
-			"interval":              interval,
-			"limit":                 len(klines),
-			"period_change_percent": periodChangePercent,
-			"highest_high":          highestHigh,
-			"lowest_low":            lowestLow,
-			"average_volume":        totalVolume / float64(maxInt(len(klines), 1)),
-			"recent_klines":         klines,
-		},
-	})
-	return string(out)
-}
-
-func toSnapshotFloat(value any) float64 {
-	switch v := value.(type) {
-	case string:
-		f, _ := strconv.ParseFloat(strings.TrimSpace(v), 64)
-		return f
-	case float64:
-		return v
-	case json.Number:
-		f, _ := v.Float64()
-		return f
-	default:
-		return 0
-	}
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	return buildMarketSnapshot(symbol, interval, ticker, metrics, klines)
 }
 
 func strategyLockedFieldError(lang, field string) string {
@@ -3107,26 +2933,11 @@ func strategyLockedFieldError(lang, field string) string {
 			return "最大持仓数是 System enforced 字段，策略编辑页不提供普通输入控件，Agent 不能修改。"
 		}
 		return "Max positions is System enforced in the strategy editor and cannot be changed by the agent."
-	case "btceth_max_position_value_ratio":
-		if lang == "zh" {
-			return "BTC/ETH 单币仓位上限是 System enforced 字段，策略编辑页不提供普通输入控件，Agent 不能修改。"
-		}
-		return "BTC/ETH position value ratio is System enforced in the strategy editor and cannot be changed by the agent."
-	case "altcoin_max_position_value_ratio":
-		if lang == "zh" {
-			return "山寨币单币仓位上限是 System enforced 字段，策略编辑页不提供普通输入控件，Agent 不能修改。"
-		}
-		return "Altcoin position value ratio is System enforced in the strategy editor and cannot be changed by the agent."
 	case "max_margin_usage":
 		if lang == "zh" {
 			return "最大保证金使用率是 System enforced 字段，策略编辑页不提供普通输入控件，Agent 不能修改。"
 		}
 		return "Max margin usage is System enforced in the strategy editor and cannot be changed by the agent."
-	case "min_position_size":
-		if lang == "zh" {
-			return "最小开仓金额是系统固定值 12 USDT，手动面板里也是 System enforced，Agent 不能修改。"
-		}
-		return "The minimum position size is a fixed system value of 12 USDT. It is System enforced in the manual panel and cannot be changed by the agent."
 	default:
 		if lang == "zh" {
 			return "这个字段是系统固定项，Agent 不能修改。"
@@ -3139,11 +2950,8 @@ func strategyConfigContainsLockedField(config map[string]any) (string, bool) {
 	if len(config) == 0 {
 		return "", false
 	}
-	if _, ok := config["min_position_size"]; ok {
-		return "min_position_size", true
-	}
 	if risk, ok := config["risk_control"].(map[string]any); ok {
-		for _, field := range []string{"max_positions", "btc_eth_max_position_value_ratio", "btceth_max_position_value_ratio", "altcoin_max_position_value_ratio", "max_margin_usage", "min_position_size"} {
+		for _, field := range []string{"max_positions", "max_margin_usage"} {
 			if _, ok := risk[field]; ok {
 				return field, true
 			}
@@ -3151,7 +2959,7 @@ func strategyConfigContainsLockedField(config map[string]any) (string, bool) {
 	}
 	if aiConfig, ok := config["ai_config"].(map[string]any); ok {
 		if risk, ok := aiConfig["risk_control"].(map[string]any); ok {
-			for _, field := range []string{"max_positions", "btc_eth_max_position_value_ratio", "btceth_max_position_value_ratio", "altcoin_max_position_value_ratio", "max_margin_usage", "min_position_size"} {
+			for _, field := range []string{"max_positions", "max_margin_usage"} {
 				if _, ok := risk[field]; ok {
 					return field, true
 				}
@@ -3161,9 +2969,10 @@ func strategyConfigContainsLockedField(config map[string]any) (string, bool) {
 	return "", false
 }
 
+// validKlineInterval 只接受 D25 保留周期（与 market.GetGateKlines 一致）。
 func validKlineInterval(interval string) bool {
 	switch strings.TrimSpace(strings.ToLower(interval)) {
-	case "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1mo":
+	case "10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d":
 		return true
 	default:
 		return false
@@ -3180,13 +2989,11 @@ func (a *Agent) toolGetKline(argsJSON string) string {
 		return fmt.Sprintf(`{"error": "invalid arguments: %s"}`, err)
 	}
 
-	symbol := strings.ToUpper(strings.TrimSpace(args.Symbol))
-	if symbol == "" {
+	raw := strings.ToUpper(strings.TrimSpace(args.Symbol))
+	if raw == "" {
 		return `{"error": "symbol is required"}`
 	}
-	if !strings.HasSuffix(symbol, "USDT") {
-		symbol += "USDT"
-	}
+	symbol := assistantCryptoSymbol(raw)
 
 	interval := strings.TrimSpace(strings.ToLower(args.Interval))
 	if interval == "" {
@@ -3204,50 +3011,33 @@ func (a *Agent) toolGetKline(argsJSON string) string {
 		limit = 300
 	}
 
-	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/klines?symbol=%s&interval=%s&limit=%d", symbol, interval, limit)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	klines, err := assistantGetKlines(symbol, interval, limit)
 	if err != nil {
-		return fmt.Sprintf(`{"error":"failed to create request: %s"}`, err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
+		if isStockSymbol(raw) {
+			return `{"error":"get_kline currently supports crypto symbols only"}`
+		}
 		return fmt.Sprintf(`{"error":"failed to fetch kline for %s: %s"}`, symbol, err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Sprintf(`{"error":"kline source returned status %d for %s"}`, resp.StatusCode, symbol)
-	}
 
-	var raw [][]any
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return fmt.Sprintf(`{"error":"failed to parse kline response: %s"}`, err)
-	}
-
-	candles := make([]map[string]any, 0, len(raw))
-	for _, row := range raw {
-		if len(row) < 7 {
-			continue
-		}
+	candles := make([]map[string]any, 0, len(klines))
+	for _, k := range klines {
 		candles = append(candles, map[string]any{
-			"open_time":  row[0],
-			"open":       row[1],
-			"high":       row[2],
-			"low":        row[3],
-			"close":      row[4],
-			"volume":     row[5],
-			"close_time": row[6],
+			"open_time":  k.OpenTime,
+			"open":       k.Open,
+			"high":       k.High,
+			"low":        k.Low,
+			"close":      k.Close,
+			"volume":     k.Volume, // USDT 成交额
+			"close_time": k.CloseTime,
 		})
 	}
 
 	out, _ := json.Marshal(map[string]any{
-		"symbol":   symbol,
-		"interval": interval,
-		"limit":    limit,
-		"klines":   candles,
+		"symbol":      symbol,
+		"interval":    interval,
+		"limit":       len(candles),
+		"volume_unit": "USDT",
+		"klines":      candles,
 	})
 	return string(out)
 }
@@ -3582,6 +3372,64 @@ var knownCryptoSymbols = map[string]bool{
 	"GMT": true, "APE": true, "GALA": true, "IMX": true, "BLUR": true,
 	"STRK": true, "ZK": true, "W": true, "IO": true, "ZRO": true,
 	"BONK": true, "FLOKI": true, "ORDI": true, "STX": true, "RUNE": true,
+}
+
+// resolveStockSymbol decides whether a symbol must be routed to a stock (Alpaca) trader.
+// Gate-first: when a crypto trader is configured and the base symbol is a listed Gate USDT
+// perpetual, it is crypto even if the base symbol is missing from knownCryptoSymbols
+// (HYPE, ZEC, GT, ...). The letter heuristic only applies when no Gate contract matches,
+// so stock-only setups never call Gate.
+func (a *Agent) resolveStockSymbol(sym string) bool {
+	sym = strings.ToUpper(strings.TrimSpace(sym))
+	if strings.HasSuffix(sym, "USDT") || !isStockSymbol(sym) {
+		return false
+	}
+	return !a.gateContractExists(sym)
+}
+
+// gateContractExists reports whether base (BTC, ZEC, BTC_USDT, ...) names a listed Gate
+// USDT perpetual. It is consulted only when at least one non-Alpaca trader exists, and it
+// reuses the assistant ticker seam (one cached list request, not a per-symbol lookup).
+func (a *Agent) gateContractExists(base string) bool {
+	hasCryptoTrader := false
+	for _, exchange := range configuredTraderExchanges(a) {
+		if exchange != "alpaca" {
+			hasCryptoTrader = true
+			break
+		}
+	}
+	if !hasCryptoTrader {
+		return false
+	}
+	tickers, err := assistantListTickers()
+	if err != nil {
+		return false
+	}
+	return gateContractInList(base, tickers)
+}
+
+// configuredTraderExchanges 返回已配置 trader 的交易所类型（没有 trader manager 时为空）。
+// 包级变量是测试缝：TraderManager 没有导出的登记接口，接线用例直接注入交易所列表。
+var configuredTraderExchanges = func(a *Agent) []string {
+	if a == nil || a.traderManager == nil {
+		return nil
+	}
+	exchanges := make([]string, 0)
+	for _, t := range a.traderManager.GetAllTraders() {
+		exchanges = append(exchanges, t.GetExchange())
+	}
+	return exchanges
+}
+
+// gateContractInList reports whether base names a Gate USDT perpetual present in tickers.
+func gateContractInList(base string, tickers []market.GateTicker) bool {
+	symbol := assistantCryptoSymbol(base)
+	for _, ticker := range tickers {
+		if ticker.Symbol == symbol {
+			return true
+		}
+	}
+	return false
 }
 
 // isStockSymbol heuristically determines if a symbol is a stock ticker (not crypto).

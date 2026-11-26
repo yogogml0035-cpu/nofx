@@ -127,58 +127,43 @@ export function RiskControlEditor({
           </div>
         </div>
 
-        {/* Position Value Ratio (Risk Control - CODE ENFORCED) */}
+        {/* Position Percent (open notional = principal × percent, D23) */}
         <div className="mb-2">
           <p className="text-xs font-medium" style={{ color: '#0ECB81' }}>
-            {ts(riskControl.positionValueRatio, language)}
+            {ts(riskControl.positionPercent, language)}
           </p>
           <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
-            {ts(riskControl.positionValueRatioDesc, language)}
+            {ts(riskControl.positionPercentDesc, language)}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div
             className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
+            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {ts(riskControl.btcEthPositionValueRatio, language)}
+              {ts(riskControl.positionPercentInput, language)}
             </label>
-            <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {ts(riskControl.btcEthPositionValueRatioDesc, language)}
-            </p>
-            <div className="flex items-center gap-2">
-              <span
-                className="w-12 text-center font-mono"
-                style={{ color: '#0ECB81' }}
-              >
-                {config.btc_eth_max_position_value_ratio ?? 5}x
-              </span>
-              <span className="text-xs" style={{ color: '#848E9C' }}>
-                System enforced
-              </span>
-            </div>
-          </div>
-
-          <div
-            className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
-          >
-            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {ts(riskControl.altcoinPositionValueRatio, language)}
-            </label>
-            <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {ts(riskControl.altcoinPositionValueRatioDesc, language)}
-            </p>
-            <div className="flex items-center gap-2">
-              <span
-                className="w-12 text-center font-mono"
-                style={{ color: '#0ECB81' }}
-              >
-                {config.altcoin_max_position_value_ratio ?? 1}x
-              </span>
-              <span className="text-xs" style={{ color: '#848E9C' }}>
-                System enforced
+            <div className="flex items-center">
+              <input
+                type="number"
+                value={config.position_percent ?? 10}
+                onChange={(e) =>
+                  updateField('position_percent', parseFloat(e.target.value) || 10)
+                }
+                disabled={disabled}
+                min={1}
+                max={20}
+                step={0.1}
+                className="w-20 px-3 py-2 rounded"
+                style={{
+                  background: '#1E2329',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
+              <span className="ml-2" style={{ color: '#848E9C' }}>
+                %
               </span>
             </div>
           </div>
@@ -261,7 +246,7 @@ export function RiskControlEditor({
         <div className="grid grid-cols-2 gap-4">
           <div
             className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
+            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
               {ts(riskControl.minPositionSize, language)}
@@ -269,15 +254,26 @@ export function RiskControlEditor({
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
               {ts(riskControl.minPositionSizeDesc, language)}
             </p>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-lg" style={{ color: '#0ECB81' }}>
-                {config.min_position_size ?? 12}
-              </span>
+            <div className="flex items-center">
+              <input
+                type="number"
+                value={config.min_position_size ?? 10}
+                onChange={(e) =>
+                  // 服务端下限是 10 USDT（store.MinPositionSize），界面同口径，避免保存后被静默夹回
+                  updateField('min_position_size', Math.max(10, parseFloat(e.target.value) || 10))
+                }
+                disabled={disabled}
+                min={10}
+                step={1}
+                className="w-20 px-3 py-2 rounded"
+                style={{
+                  background: '#1E2329',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
               <span className="ml-2" style={{ color: '#848E9C' }}>
                 USDT
-              </span>
-              <span className="text-xs" style={{ color: '#848E9C' }}>
-                System enforced
               </span>
             </div>
           </div>

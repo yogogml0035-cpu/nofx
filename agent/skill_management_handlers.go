@@ -423,6 +423,8 @@ func filterLegacyStrategyCreateFieldsForType(session *skillSession, strategyType
 		"strategy_type",
 		strategyCreateDraftConfigField,
 		strategyCreateConfigPatchField,
+		// 上一步被拒绝的值的原因：要活到「模板已完整」的分支，才能带回给用户（见 prefixStrategyPatchError）
+		strategyConfigPatchErrorField,
 		skillDAGStepField,
 		"awaiting_final_confirmation",
 	} {
@@ -528,11 +530,7 @@ func removeLockedStrategyCreateFields(configMap map[string]any) {
 
 func removeLockedAIRiskFields(risk map[string]any) {
 	delete(risk, "max_positions")
-	delete(risk, "btc_eth_max_position_value_ratio")
-	delete(risk, "btceth_max_position_value_ratio")
-	delete(risk, "altcoin_max_position_value_ratio")
 	delete(risk, "max_margin_usage")
-	delete(risk, "min_position_size")
 }
 
 func strategyCreateConfirmationReply(text string) bool {
@@ -752,6 +750,20 @@ func strategyCreatePatchHasPath(value any, path ...string) bool {
 	return true
 }
 
+// strategyConfigPatchErrorField 暂存上一步被拒绝的配置值的原因，随下一条「模板还没填完整」的回复带回给用户
+const strategyConfigPatchErrorField = "config_patch_error"
+
+// prefixStrategyPatchError 有被拒绝的值时，在追问前说明原因
+func prefixStrategyPatchError(lang, patchErr, reply string) string {
+	if patchErr == "" {
+		return reply
+	}
+	if lang == "zh" {
+		return "上一个值没有被接受：" + patchErr + "。请换一个值。\n\n" + reply
+	}
+	return "The last value was not accepted: " + patchErr + ". Please choose another value.\n\n" + reply
+}
+
 func formatStrategyCreateConfigNeeded(lang, missingKind string) string {
 	if lang == "zh" {
 		if missingKind == "strategy_type" {
@@ -799,7 +811,7 @@ func strategyCreateFieldInlineHint(lang, field string) string {
 		case "static_coins":
 			return "Static coins: up to 10 Gate USDT perpetual symbols, e.g. BTCUSDT, ETHUSDT"
 		case "primary_timeframe":
-			return "Primary timeframe: 1m / 3m / 5m / 15m / 30m / 1h / 2h / 4h / 6h / 8h / 12h / 1d / 3d / 1w"
+			return "Primary timeframe: 10s / 1m / 5m / 15m / 30m / 1h / 4h / 8h / 1d / 7d / 1w / 30d"
 		case "selected_timeframes":
 			return "Multi-timeframes: up to 4, e.g. 5m,15m,1h"
 		case "btceth_max_leverage", "altcoin_max_leverage":
@@ -837,7 +849,7 @@ func strategyCreateFieldInlineHint(lang, field string) string {
 	case "static_coins":
 		return "静态币种：最多 10 个 Gate USDT 永续符号，例如 BTCUSDT、ETHUSDT"
 	case "primary_timeframe":
-		return "主周期：1m / 3m / 5m / 15m / 30m / 1h / 2h / 4h / 6h / 8h / 12h / 1d / 3d / 1w"
+		return "主周期：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d"
 	case "selected_timeframes":
 		return "多周期时间框架：最多 4 个，例如 5m,15m,1h"
 	case "btceth_max_leverage":
@@ -889,7 +901,7 @@ func formatStrategyCreateFieldOptionsReply(lang, text, missingKind string) strin
 		case "static_coins":
 			return "Coin source is a static list: give me up to 10 Gate USDT perpetual symbols (e.g. BTCUSDT, ETHUSDT) and I will keep filling the AI strategy template."
 		case "primary_timeframe", "selected_timeframes":
-			return "Timeframe options: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w."
+			return "Timeframe options: 10s, 1m, 5m, 15m, 30m, 1h, 4h, 8h, 1d, 7d, 1w, 30d."
 		}
 		return "For " + strategyCreateFieldDisplayName(lang, field) + ", tell me the value you want and I will keep filling the selected strategy template."
 	}
@@ -899,9 +911,9 @@ func formatStrategyCreateFieldOptionsReply(lang, text, missingKind string) strin
 	case "static_coins":
 		return "币源就是静态清单：直接给我最多 10 个 Gate USDT 永续符号（例如 BTCUSDT、ETHUSDT），我继续填模板。"
 	case "primary_timeframe":
-		return "主周期可选：1m、3m、5m、15m、30m、1h、2h、4h、6h、8h、12h、1d、3d、1w。高频一般偏 1m/3m/5m，稳健一点可以用 15m/1h。"
+		return "主周期可选：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d。高频一般偏 10s/1m/5m，稳健一点可以用 15m/1h/4h。决策按主周期收线后 5 秒触发，周期越短调用模型越频繁。"
 	case "selected_timeframes":
-		return "多周期最多选 4 个，可选：1m、3m、5m、15m、30m、1h、2h、4h、6h、8h、12h、1d、3d、1w。常见组合比如 5m,15m,1h。"
+		return "多周期最多选 4 个，可选：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d。常见组合比如 5m,15m,1h。"
 	case "btceth_max_leverage", "altcoin_max_leverage":
 		return strategyCreateFieldDisplayName(lang, field) + "范围是 1～20 倍。数值越高风险越大。"
 	case "min_confidence":
@@ -1133,10 +1145,9 @@ func formatStrategyCreateFinalConfirmation(lang string, session skillSession, cf
 				fmt.Sprintf("- 最小置信度：%d", cfg.RiskControl.MinConfidence),
 				fmt.Sprintf("- 最小盈亏比：%.2f", cfg.RiskControl.MinRiskRewardRatio),
 				fmt.Sprintf("- 最大持仓数（System enforced）：%d", cfg.RiskControl.MaxPositions),
-				fmt.Sprintf("- BTC/ETH 单币仓位上限（System enforced）：账户权益 %.2f 倍", cfg.RiskControl.BTCETHMaxPositionValueRatio),
-				fmt.Sprintf("- 山寨币单币仓位上限（System enforced）：账户权益 %.2f 倍", cfg.RiskControl.AltcoinMaxPositionValueRatio),
+				fmt.Sprintf("- 开仓金额百分比：%.1f%%（开仓名义价值 = 本金 × 该百分比）", cfg.RiskControl.PositionPercent),
 				fmt.Sprintf("- 最大保证金使用率（System enforced）：%.0f%%", cfg.RiskControl.MaxMarginUsage*100),
-				fmt.Sprintf("- 最小开仓金额（System enforced）：%.2f USDT", cfg.RiskControl.MinPositionSize),
+				fmt.Sprintf("- 最小开仓金额：%.2f USDT", cfg.RiskControl.MinPositionSize),
 				fmt.Sprintf("- 角色定义：%s", compactSummaryText(cfg.PromptSections.RoleDefinition)),
 				fmt.Sprintf("- 交易频率规则：%s", compactSummaryText(cfg.PromptSections.TradingFrequency)),
 				fmt.Sprintf("- 开仓标准：%s", compactSummaryText(cfg.PromptSections.EntryStandards)),
@@ -1424,7 +1435,7 @@ func formatTraderCreateDraftSummary(lang string, session skillSession) string {
 			fmt.Sprintf("- 模型：%s", traderCreateModelNameOrID(session)),
 			fmt.Sprintf("- 策略：%s", traderCreateStrategyNameOrID(session)),
 			fmt.Sprintf("- 扫描间隔：%d 分钟（未指定时默认 3）", scanInterval),
-			"- 初始余额：创建时由系统自动读取绑定交易所账户净值",
+			"- 初始余额：创建时由系统自动读取绑定交易所账户的本金（不含浮动盈亏）",
 			fmt.Sprintf("- 全仓模式：%t（未指定时默认 true）", isCrossMargin),
 			fmt.Sprintf("- 竞技场显示：%t（未指定时默认 true）", showInCompetition),
 		}
@@ -1455,7 +1466,7 @@ func formatTraderCreateDraftSummary(lang string, session skillSession) string {
 		fmt.Sprintf("- Model: %s", traderCreateModelNameOrID(session)),
 		fmt.Sprintf("- Strategy: %s", traderCreateStrategyNameOrID(session)),
 		fmt.Sprintf("- Scan interval: %d minutes (defaults to 3)", scanInterval),
-		"- Initial balance: auto-read from the bound exchange account equity at creation time",
+		"- Initial balance: recorded at creation from the bound exchange account's principal (balance excluding unrealized P&L)",
 		fmt.Sprintf("- Cross margin: %t (defaults to true)", isCrossMargin),
 		fmt.Sprintf("- Show in competition: %t (defaults to true)", showInCompetition),
 	}
@@ -1674,8 +1685,8 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 		}
 		lines = append(lines, fmt.Sprintf("- 仓位风险：最多持仓 %d，BTC/ETH 最大杠杆 %d，山寨最大杠杆 %d，最低置信度 %d",
 			cfg.RiskControl.MaxPositions, cfg.RiskControl.BTCETHMaxLeverage, cfg.RiskControl.AltcoinMaxLeverage, cfg.RiskControl.MinConfidence))
-		lines = append(lines, fmt.Sprintf("- 风控阈值：最小盈亏比 %.2f；最大保证金使用率 %.2f；最小开仓金额 %.2f",
-			cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.MinPositionSize))
+		lines = append(lines, fmt.Sprintf("- 风控阈值：最小盈亏比 %.2f；最大保证金使用率 %.2f；最小开仓金额 %.2f；开仓金额百分比 %.1f%%",
+			cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.MinPositionSize, cfg.RiskControl.PositionPercent))
 		if len(indicatorBits) > 0 {
 			lines = append(lines, "- 已启用指标："+strings.Join(indicatorBits, "、"))
 		}
@@ -1720,8 +1731,8 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 	}
 	lines = append(lines, fmt.Sprintf("- Risk: max positions %d, BTC/ETH max leverage %d, alt max leverage %d, min confidence %d",
 		cfg.RiskControl.MaxPositions, cfg.RiskControl.BTCETHMaxLeverage, cfg.RiskControl.AltcoinMaxLeverage, cfg.RiskControl.MinConfidence))
-	lines = append(lines, fmt.Sprintf("- Risk thresholds: min RR %.2f, max margin usage %.2f, min position size %.2f",
-		cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.MinPositionSize))
+	lines = append(lines, fmt.Sprintf("- Risk thresholds: min RR %.2f, max margin usage %.2f, min position size %.2f, position percent %.1f%%",
+		cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.MinPositionSize, cfg.RiskControl.PositionPercent))
 	if len(indicatorBits) > 0 {
 		lines = append(lines, "- Enabled indicators: "+strings.Join(indicatorBits, ", "))
 	}
@@ -2289,11 +2300,22 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))
 		setSkillDAGStep(&session, "collect_config")
 		session.Phase = "collecting"
+		// 上一步被拒绝的值只提示一次：取出后清掉，再保存会话
+		patchErr := fieldValue(session, strategyConfigPatchErrorField)
+		delete(session.Fields, strategyConfigPatchErrorField)
 		a.saveSkillSession(userID, session)
 		if reply := formatStrategyCreateFieldOptionsReply(lang, text, missingKind); reply != "" {
-			return reply
+			return prefixStrategyPatchError(lang, patchErr, reply)
 		}
-		return formatStrategyCreateConfigNeeded(lang, missingKind)
+		return prefixStrategyPatchError(lang, patchErr, formatStrategyCreateConfigNeeded(lang, missingKind))
+	}
+	// 模板已完整，但上一步有值被拒绝（例如把主周期改成 3m）：不能静默丢弃，先把原因告诉用户，
+	// 让他决定换成什么值；清掉字段后再次确认才会创建。
+	if patchErr := fieldValue(session, strategyConfigPatchErrorField); patchErr != "" {
+		setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))
+		delete(session.Fields, strategyConfigPatchErrorField)
+		a.saveSkillSession(userID, session)
+		return prefixStrategyPatchError(lang, patchErr, formatStrategyCreateFinalConfirmation(lang, session, cfg))
 	}
 	if !strategyCreateConfirmationReply(text) && !strategyCreateFinalConfirmationReady(session) {
 		setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))

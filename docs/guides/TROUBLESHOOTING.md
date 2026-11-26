@@ -91,7 +91,7 @@ Before reporting a bug, please check:
    cat decision_logs/your_trader_id/latest_file.json
    ```
    - Look for AI decision: was it "wait", "hold", or actual trade?
-   - Check if position_size_usd is within limits
+   - Check the open notional the system computed (principal × position percent) against the minimum order size
 
 ---
 
@@ -124,14 +124,14 @@ Look at the AI's Chain-of-Thought reasoning section.
 **Remember:** AI trading is experimental and not guaranteed to be profitable.
 
 **Things to Check:**
-1. **Decision Interval**: Is it too short? (Recommended: 3-5 minutes)
+1. **Decision cadence**: follows the strategy's primary timeframe (5s after each candle close). Is that timeframe too short?
 2. **Leverage Settings**: Too aggressive?
 3. **Historical Feedback**: Check performance logs to see if AI is learning
 4. **Market Volatility**: High volatility = higher risk
 
 **Adjustments:**
 - Reduce leverage for more conservative trading
-- Increase decision interval to reduce over-trading
+- Use a longer primary timeframe in the strategy to reduce over-trading
 - Use smaller initial balance for testing
 
 ---
@@ -338,7 +338,7 @@ Binance has strict API rate limits:
 
 - **Requests per minute limit**
 - Reduce number of traders
-- Increase decision interval (e.g., from 1min to 3-5min)
+- Use a longer primary timeframe in the strategy (e.g., 1m → 15m or 1h)
 
 **Related Issue:** [#60](https://github.com/NoFxAiOS/nofx/issues/60)
 

@@ -3,13 +3,15 @@ package gate
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"net/http"
 	"nofx/trader/types"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/gateio/gateapi-go/v6"
+	"github.com/gate/gateapi-go/v7"
 )
 
 // GateTrader implements types.Trader interface for Gate.io Futures
@@ -26,9 +28,33 @@ type GateTrader struct {
 	cachedPositions     []map[string]interface{}
 	positionsCacheTime  time.Time
 	positionsCacheMutex sync.RWMutex
-	contractsCache      map[string]*gateapi.Contract
-	contractsCacheMutex sync.RWMutex
 	cacheDuration       time.Duration
+	contractSpecs       contractSpecCache
+}
+
+// parseRequiredSize 解析 Gate 必然返回的数量字段（SDK 以字符串给出，小数张合约带小数部分）
+func parseRequiredSize(field, raw string) (float64, error) {
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q: %w", field, raw, err)
+	}
+	return v, nil
+}
+
+// parseOptionalSize 解析 Gate 在数值为 0 时不返回的数量字段，缺省按 0 计
+func parseOptionalSize(field, raw string) (float64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	return parseRequiredSize(field, raw)
+}
+
+// parseOptionalRat 同 parseOptionalSize，但保留精确十进制值
+func parseOptionalRat(field, raw string) (*big.Rat, error) {
+	if raw == "" {
+		return big.NewRat(0, 1), nil
+	}
+	return parseDecimal(field, raw)
 }
 
 // NewGateTrader creates a new Gate trader instance
@@ -49,12 +75,11 @@ func NewGateTrader(apiKey, secretKey string) *GateTrader {
 	)
 
 	return &GateTrader{
-		apiKey:         apiKey,
-		secretKey:      secretKey,
-		client:         client,
-		ctx:            ctx,
-		contractsCache: make(map[string]*gateapi.Contract),
-		cacheDuration:  15 * time.Second,
+		apiKey:        apiKey,
+		secretKey:     secretKey,
+		client:        client,
+		ctx:           ctx,
+		cacheDuration: 15 * time.Second,
 	}
 }
 
@@ -77,32 +102,6 @@ func (t *GateTrader) revertSymbol(symbol string) string {
 	return strings.ReplaceAll(symbol, "_", "")
 }
 
-// getContract fetches contract info with caching
-func (t *GateTrader) getContract(symbol string) (*gateapi.Contract, error) {
-	symbol = t.convertSymbol(symbol)
-
-	// Check cache
-	t.contractsCacheMutex.RLock()
-	if contract, ok := t.contractsCache[symbol]; ok {
-		t.contractsCacheMutex.RUnlock()
-		return contract, nil
-	}
-	t.contractsCacheMutex.RUnlock()
-
-	// Fetch from API
-	contract, _, err := t.client.FuturesApi.GetFuturesContract(t.ctx, "usdt", symbol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get contract info: %w", err)
-	}
-
-	// Update cache
-	t.contractsCacheMutex.Lock()
-	t.contractsCache[symbol] = &contract
-	t.contractsCacheMutex.Unlock()
-
-	return &contract, nil
-}
-
 // clearCache clears all caches
 func (t *GateTrader) clearCache() {
 	t.balanceCacheMutex.Lock()
@@ -116,3 +115,6 @@ func (t *GateTrader) clearCache() {
 
 // Ensure GateTrader implements Trader interface
 var _ types.Trader = (*GateTrader)(nil)
+
+// 能力接口漂移必须在编译期暴露，不能静默退化为“不可分批”
+var _ types.PartialCloser = (*GateTrader)(nil)

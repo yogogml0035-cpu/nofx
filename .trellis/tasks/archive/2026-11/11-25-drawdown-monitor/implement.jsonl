@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "适配器契约：MarginSettings 读回的 lever/旧字段语义与 fail-closed 规则，GetPositions 杠杆解析须与之一致而不越界"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "禁止模式：浮点除法换算、解析失败回落猜测值、htptest 必须先设 JSON Content-Type"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "父任务计划文档：3.6 回撤监控语义、D37/D40 决策、F12/F19/F20/F22、10.2 第 6 行验收、10.3 W 授权约束"}
+{"file": ".trellis/tasks/archive/2026-11/11-24-unified-trading-params/research/gate-leverage-margin-docs.md", "reason": "官方文档摘录：lever/leverage/cross_leverage_limit/pos_margin_mode 字段语义"}

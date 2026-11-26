@@ -93,6 +93,8 @@ export interface CreateTraderRequest {
   scan_interval_minutes?: number
   is_cross_margin?: boolean
   show_in_competition?: boolean // 是否在竞技场显示
+  // 初始余额（盈亏统计的基准）。只在更新时发送且必须大于 0；创建时由后端取交易所账户的当前本金
+  initial_balance?: number
   // 以下字段为向后兼容保留，新版使用策略配置
   btc_eth_leverage?: number
   altcoin_leverage?: number

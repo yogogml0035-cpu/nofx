@@ -12,24 +12,25 @@ import (
 
 // Hard limits to prevent token explosion in AI requests
 const (
-	MaxCandidateCoins = 10
-	MaxPositions      = 3
-	MaxTimeframes     = 4
-	MinKlineCount     = 10
-	MaxKlineCount     = 30
-	MinLeverage       = 1
-	MaxBTCETHLeverage = 20
-	MaxAltLeverage    = 20
-	MinPositionRatio  = 0.5
-	MaxPositionRatio  = 10.0
-	MinRiskReward     = 1.0
-	MaxRiskReward     = 10.0
-	MinMarginUsage    = 0.1
-	MaxMarginUsage    = 1.0
-	MinPositionSize   = 10.0
-	MaxPositionSize   = 1000.0
-	MinConfidence     = 50
-	MaxConfidence     = 100
+	MaxCandidateCoins      = 10
+	MaxPositions           = 3
+	MaxTimeframes          = 4
+	MinKlineCount          = 10
+	MaxKlineCount          = 30
+	MinLeverage            = 1
+	MaxBTCETHLeverage      = 20
+	MaxAltLeverage         = 20
+	MinPositionPercent     = 1.0
+	MaxPositionPercent     = 20.0
+	DefaultPositionPercent = 10.0
+	MinRiskReward          = 1.0
+	MaxRiskReward          = 10.0
+	MinMarginUsage         = 0.1
+	MaxMarginUsage         = 1.0
+	MinPositionSize        = 10.0
+	MaxPositionSize        = 1000.0
+	MinConfidence          = 50
+	MaxConfidence          = 100
 )
 
 // ClampLimits enforces product-level limits on strategy config to prevent token overflow.
@@ -79,18 +80,16 @@ func (c *StrategyConfig) ClampLimits() {
 		c.RiskControl.AltcoinMaxLeverage = MaxAltLeverage
 	}
 
-	// Clamp position value ratio limits.
-	if c.RiskControl.BTCETHMaxPositionValueRatio < MinPositionRatio {
-		c.RiskControl.BTCETHMaxPositionValueRatio = MinPositionRatio
+	// Clamp open-position amount percent (D23: 1%-20%, default 10%). Missing
+	// values (legacy configs without the field) fall back to the default.
+	if c.RiskControl.PositionPercent <= 0 {
+		c.RiskControl.PositionPercent = DefaultPositionPercent
 	}
-	if c.RiskControl.BTCETHMaxPositionValueRatio > MaxPositionRatio {
-		c.RiskControl.BTCETHMaxPositionValueRatio = MaxPositionRatio
+	if c.RiskControl.PositionPercent < MinPositionPercent {
+		c.RiskControl.PositionPercent = MinPositionPercent
 	}
-	if c.RiskControl.AltcoinMaxPositionValueRatio < MinPositionRatio {
-		c.RiskControl.AltcoinMaxPositionValueRatio = MinPositionRatio
-	}
-	if c.RiskControl.AltcoinMaxPositionValueRatio > MaxPositionRatio {
-		c.RiskControl.AltcoinMaxPositionValueRatio = MaxPositionRatio
+	if c.RiskControl.PositionPercent > MaxPositionPercent {
+		c.RiskControl.PositionPercent = MaxPositionPercent
 	}
 
 	// Clamp risk parameters and entry requirements.
@@ -220,33 +219,54 @@ func normalizeTimeframe(value string) string {
 		return ""
 	}
 	aliases := map[string]string{
+		"10秒":  "10s",
 		"1分钟":  "1m",
-		"3分钟":  "3m",
 		"5分钟":  "5m",
 		"15分钟": "15m",
 		"30分钟": "30m",
 		"1小时":  "1h",
-		"2小时":  "2h",
 		"4小时":  "4h",
-		"6小时":  "6h",
 		"8小时":  "8h",
-		"12小时": "12h",
 		"1天":   "1d",
-		"3天":   "3d",
+		"7天":   "7d",
 		"1周":   "1w",
+		"30天":  "30d",
+		"1个月":  "30d",
 	}
 	if alias, ok := aliases[value]; ok {
 		return alias
 	}
+	// D25: strategy timeframe options are exactly the intervals listed in the
+	// Gate candlestick doc enum plus 1w and 30d (see plan §3.3 archive).
 	allowed := map[string]bool{
-		"1m": true, "3m": true, "5m": true, "15m": true, "30m": true,
-		"1h": true, "2h": true, "4h": true, "6h": true, "8h": true, "12h": true,
-		"1d": true, "3d": true, "1w": true,
+		"10s": true, "1m": true, "5m": true, "15m": true, "30m": true,
+		"1h": true, "4h": true, "8h": true, "1d": true,
+		"7d": true, "1w": true, "30d": true,
 	}
 	if !allowed[value] {
 		return ""
 	}
 	return value
+}
+
+// RetainedTimeframes 策略可选的 K 线周期（D25）：Gate 合约 K 线文档枚举加 1w 与 30d。
+// 决策按主周期收线后固定延迟触发，周期越短调用模型越频繁。
+var RetainedTimeframes = []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"}
+
+// NormalizeTimeframe 把周期归一成 D25 集合内的值（别名 1小时→1h、大小写与首尾空白）；
+// 不在集合内的值返回空串。
+func NormalizeTimeframe(value string) string {
+	return normalizeTimeframe(value)
+}
+
+// IsValidTimeframe 判断周期是否可用：保留集合内的值或其别名（1小时→1h）都算可用。
+func IsValidTimeframe(value string) bool {
+	return normalizeTimeframe(value) != ""
+}
+
+// RetainedTimeframeList 供错误与告警文案使用的周期清单。
+func RetainedTimeframeList() string {
+	return strings.Join(RetainedTimeframes, " / ")
 }
 
 // MergeStrategyConfig applies a partial JSON-style patch onto a full strategy config.
@@ -398,12 +418,37 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 	appendInt("最大持仓数", "max_positions", before.RiskControl.MaxPositions, after.RiskControl.MaxPositions)
 	appendInt("BTC/ETH 最大杠杆", "btc_eth_max_leverage", before.RiskControl.BTCETHMaxLeverage, after.RiskControl.BTCETHMaxLeverage)
 	appendInt("山寨币最大杠杆", "altcoin_max_leverage", before.RiskControl.AltcoinMaxLeverage, after.RiskControl.AltcoinMaxLeverage)
-	appendFloat("BTC/ETH 最大仓位价值倍数", "btc_eth_max_position_value_ratio", before.RiskControl.BTCETHMaxPositionValueRatio, after.RiskControl.BTCETHMaxPositionValueRatio)
-	appendFloat("山寨币最大仓位价值倍数", "altcoin_max_position_value_ratio", before.RiskControl.AltcoinMaxPositionValueRatio, after.RiskControl.AltcoinMaxPositionValueRatio)
+	appendFloat("开仓金额百分比", "position_percent", before.RiskControl.PositionPercent, after.RiskControl.PositionPercent)
 	appendFloat("最小盈亏比", "min_risk_reward_ratio", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
 	appendFloat("最大保证金使用率", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
 	appendFloat("最小开仓金额", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
 	appendInt("最低置信度", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
+
+	// 周期：别名归一（1小时→1h）或不在保留集合的值被清空时给出提示（D25）
+	beforeTF, afterTF := before.Indicators.Klines.PrimaryTimeframe, after.Indicators.Klines.PrimaryTimeframe
+	if beforeTF != afterTF {
+		if lang == "zh" {
+			if afterTF == "" {
+				warnings = append(warnings, fmt.Sprintf("主周期 %q 不在支持范围（%s），已清空：运行时改用多周期的第一个周期（都没有则 5m）", beforeTF, strings.Join(RetainedTimeframes, "、")))
+			} else {
+				warnings = append(warnings, fmt.Sprintf("主周期已从 %q 调整为 %q", beforeTF, afterTF))
+			}
+		} else {
+			if afterTF == "" {
+				warnings = append(warnings, fmt.Sprintf("primary timeframe %q is not supported (%s) and was cleared: the first selected timeframe is used instead (5m when none)", beforeTF, strings.Join(RetainedTimeframes, ", ")))
+			} else {
+				warnings = append(warnings, fmt.Sprintf("primary timeframe adjusted from %q to %q", beforeTF, afterTF))
+			}
+		}
+	}
+	beforeSelected, afterSelected := before.Indicators.Klines.SelectedTimeframes, after.Indicators.Klines.SelectedTimeframes
+	if strings.Join(beforeSelected, ",") != strings.Join(afterSelected, ",") {
+		if lang == "zh" {
+			warnings = append(warnings, fmt.Sprintf("多周期已按支持范围调整为 [%s]", strings.Join(afterSelected, ", ")))
+		} else {
+			warnings = append(warnings, fmt.Sprintf("selected timeframes adjusted to the supported set: [%s]", strings.Join(afterSelected, ", ")))
+		}
+	}
 	return warnings
 }
 
@@ -517,7 +562,7 @@ func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
 		CoinSource     *CoinSourceConfig     `json:"coin_source"`
 		Indicators     *IndicatorConfig      `json:"indicators"`
 		CustomPrompt   *string               `json:"custom_prompt"`
-		RiskControl    *RiskControlConfig     `json:"risk_control"`
+		RiskControl    *RiskControlConfig    `json:"risk_control"`
 		PromptSections *PromptSectionsConfig `json:"prompt_sections"`
 	}
 
@@ -644,7 +689,7 @@ type IndicatorConfig struct {
 
 // KlineConfig K-line configuration
 type KlineConfig struct {
-	// primary timeframe: "1m", "3m", "5m", "15m", "1h", "4h"
+	// primary timeframe: Gate candlestick intervals (D25), e.g. "10s", "1m", "5m", "15m", "1h", "4h", "1d", "7d", "1w", "30d"
 	PrimaryTimeframe string `json:"primary_timeframe"`
 	// primary timeframe K-line count
 	PrimaryCount int `json:"primary_count"`
@@ -679,14 +724,14 @@ type RiskControlConfig struct {
 	// Altcoin exchange leverage for opening positions (AI guided)
 	AltcoinMaxLeverage int `json:"altcoin_max_leverage"`
 
-	// BTC/ETH single position max value = equity × this ratio (CODE ENFORCED, default: 5)
-	BTCETHMaxPositionValueRatio float64 `json:"btc_eth_max_position_value_ratio"`
-	// Altcoin single position max value = equity × this ratio (CODE ENFORCED, default: 1)
-	AltcoinMaxPositionValueRatio float64 `json:"altcoin_max_position_value_ratio"`
+	// Open position notional = principal × this percent (D23: 1-20, step 0.1,
+	// default 10). The kernel computes and enforces the amount; the AI decision
+	// contract carries no amount field.
+	PositionPercent float64 `json:"position_percent"`
 
 	// Max margin utilization (e.g. 0.9 = 90%) (CODE ENFORCED)
 	MaxMarginUsage float64 `json:"max_margin_usage"`
-	// Min position size in USDT (CODE ENFORCED)
+	// Min position size in USDT (user configurable, default 10; D19)
 	MinPositionSize float64 `json:"min_position_size"`
 
 	// Min take_profit / stop_loss ratio (AI guided)
@@ -745,15 +790,14 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			BOLLPeriods:       []int{20},
 		},
 		RiskControl: RiskControlConfig{
-			MaxPositions:                 3,   // Max 3 coins simultaneously (CODE ENFORCED)
-			BTCETHMaxLeverage:            5,   // BTC/ETH exchange leverage (AI guided)
-			AltcoinMaxLeverage:           5,   // Altcoin exchange leverage (AI guided)
-			BTCETHMaxPositionValueRatio:  5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
-			AltcoinMaxPositionValueRatio: 1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
-			MaxMarginUsage:               0.9, // Max 90% margin usage (CODE ENFORCED)
-			MinPositionSize:              12,  // Min 12 USDT per position (CODE ENFORCED)
-			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
-			MinConfidence:                75,  // Min 75% confidence (AI guided)
+			MaxPositions:       3,   // Max 3 coins simultaneously (CODE ENFORCED)
+			BTCETHMaxLeverage:  5,   // BTC/ETH exchange leverage (AI guided)
+			AltcoinMaxLeverage: 5,   // Altcoin exchange leverage (AI guided)
+			PositionPercent:    10,  // Notional = principal × 10% (D23)
+			MaxMarginUsage:     0.9, // Max 90% margin usage (CODE ENFORCED)
+			MinPositionSize:    10,  // Min 10 USDT per position (user configurable, D19)
+			MinRiskRewardRatio: 3.0, // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:      75,  // Min 75% confidence (AI guided)
 		},
 	}
 

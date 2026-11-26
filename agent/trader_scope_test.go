@@ -98,17 +98,17 @@ func TestGetDecisionsToolReturnsRecentTraderDecisionEvidence(t *testing.T) {
 		CycleNumber:         151,
 		Timestamp:           time.Now(),
 		Success:             false,
-		ErrorMessage:        "Failed to get AI decision: failed to parse AI response: decision validation failed: decision #1 validation failed: BTCUSDT opening amount too small (28.00 USDT), must be ≥60.00 USDT",
+		ErrorMessage:        "Failed to execute open_short: ❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
 		AIRequestDurationMs: 25878,
 		CandidateCoins:      []string{"BTCUSDT"},
 		ExecutionLog:        []string{"AI call duration: 25878 ms"},
-		DecisionJSON:        `[{"symbol":"BTCUSDT","action":"open_short","position_size_usd":28}]`,
+		DecisionJSON:        `[{"symbol":"BTCUSDT","action":"open_short","leverage":5,"stop_loss":99000,"take_profit":95000,"confidence":80}]`,
 	}); err != nil {
 		t.Fatalf("seed rejected decision: %v", err)
 	}
 
 	raw := a.toolGetDecisions("default", `{"trader_name":"alpha","limit":2}`)
-	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "opening amount too small", "must be ≥60.00 USDT"} {
+	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "below minimum", "20.00 USDT"} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("expected decision evidence %q in tool response, got: %s", want, raw)
 		}
@@ -190,17 +190,17 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 		CycleNumber:         2,
 		Timestamp:           time.Now(),
 		Success:             false,
-		ErrorMessage:        "Failed to get AI decision: failed to parse AI response: decision validation failed: decision #1 validation failed: BTCUSDT opening amount too small (28.00 USDT), must be ≥60.00 USDT",
+		ErrorMessage:        "Failed to execute open_short: ❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
 		AIRequestDurationMs: 25878,
 		CandidateCoins:      []string{"BTCUSDT"},
 		ExecutionLog:        []string{"AI call duration: 25878 ms"},
-		DecisionJSON:        `[{"symbol":"BTCUSDT","action":"open_short","position_size_usd":28}]`,
+		DecisionJSON:        `[{"symbol":"BTCUSDT","action":"open_short","leverage":5,"stop_loss":99000,"take_profit":95000,"confidence":80}]`,
 	}); err != nil {
 		t.Fatalf("seed decision: %v", err)
 	}
 
 	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
-	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 28.00 USDT", "最小下单要求 60.00 USDT", "增加账户资金", "不能手动修改"} {
+	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 10.75 USDT", "最小下单要求 20.00 USDT", "增加账户资金", "调高策略里的开仓金额百分比", "最小开仓金额（默认 10 USDT）"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected diagnosis to include %q, got: %s", want, reply)
 		}
@@ -239,9 +239,9 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		CycleNumber:    3,
 		Timestamp:      time.Now(),
 		Success:        false,
-		ErrorMessage:   "BTCUSDT opening amount too small (28.00 USDT), must be ≥60.00 USDT",
+		ErrorMessage:   "❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
 		CandidateCoins: []string{"BTCUSDT"},
-		DecisionJSON:   `[{"symbol":"BTCUSDT","action":"open_short","position_size_usd":28}]`,
+		DecisionJSON:   `[{"symbol":"BTCUSDT","action":"open_short","leverage":5,"stop_loss":99000,"take_profit":95000,"confidence":80}]`,
 	}); err != nil {
 		t.Fatalf("seed decision: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		t.Fatalf("expected LLM request to be captured")
 	}
 	prompt := llm.lastRequest.Messages[1].Content
-	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "opening amount too small", "decision_json"} {
+	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "below minimum", "decision_json"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("expected LLM evidence prompt to include %q, got: %s", want, prompt)
 		}
@@ -610,10 +610,10 @@ func TestStrategyUpdateDoesNotInferTargetFromCurrentReference(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	if err := st.Strategy().Create(&store.Strategy{
-		ID:      "strategy-short",
-		UserID:  "default",
-		Name:    "BTC趋势做空",
-		Config:  string(rawCfg),
+		ID:     "strategy-short",
+		UserID: "default",
+		Name:   "BTC趋势做空",
+		Config: string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -669,10 +669,10 @@ func TestBulkStrategyDeleteRequiresConfirmationBeforeDeleting(t *testing.T) {
 		t.Fatalf("marshal strategy config: %v", err)
 	}
 	if err := st.Strategy().Create(&store.Strategy{
-		ID:      "strategy-custom",
-		UserID:  "default",
-		Name:    "自定义策略",
-		Config:  string(rawCfg),
+		ID:     "strategy-custom",
+		UserID: "default",
+		Name:   "自定义策略",
+		Config: string(rawCfg),
 	}); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
@@ -896,7 +896,7 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 		},
 	}
 	reply := formatStrategyCreateFinalConfirmation("zh", session, cfg)
-	for _, want := range []string{"最大持仓数（System enforced）", "BTC/ETH 单币仓位上限（System enforced）", "最大保证金使用率（System enforced）", "最小开仓金额（System enforced）"} {
+	for _, want := range []string{"最大持仓数（System enforced）", "开仓金额百分比：10.0%", "最大保证金使用率（System enforced）", "最小开仓金额：10.00 USDT"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected final summary to display %q, got: %s", want, reply)
 		}
@@ -905,6 +905,47 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 	resp := applyStrategyConfigPatch(&cfg, "max_margin_usage", "0.5")
 	if resp == nil || !strings.Contains(resp.Error(), "System enforced") {
 		t.Fatalf("expected system enforced edit to be rejected, got: %v", resp)
+	}
+
+	// 最小开仓金额与开仓金额百分比现在是可编辑策略项
+	if err := applyStrategyConfigPatch(&cfg, "min_position_size", "30"); err != nil {
+		t.Fatalf("expected min_position_size edit to be accepted, got: %v", err)
+	}
+	if cfg.RiskControl.MinPositionSize != 30 {
+		t.Fatalf("expected stored min_position_size 30, got %v", cfg.RiskControl.MinPositionSize)
+	}
+	if err := applyStrategyConfigPatch(&cfg, "position_percent", "15"); err != nil {
+		t.Fatalf("expected position_percent edit to be accepted, got: %v", err)
+	}
+	if cfg.RiskControl.PositionPercent != 15 {
+		t.Fatalf("expected stored position_percent 15, got %v", cfg.RiskControl.PositionPercent)
+	}
+}
+
+func TestApplyStrategyConfigPatchRejectsUnsupportedTimeframes(t *testing.T) {
+	cfg := store.GetDefaultStrategyConfig("zh")
+
+	// 已废弃的周期必须被拒绝并带出 D25 清单，不能静默写入后被归一化成空串
+	if err := applyStrategyConfigPatch(&cfg, "primary_timeframe", "3m"); err == nil {
+		t.Fatal("expected primary_timeframe 3m to be rejected")
+	} else if !strings.Contains(err.Error(), "10s") || !strings.Contains(err.Error(), "30d") {
+		t.Fatalf("expected the retained timeframe list in the error, got: %v", err)
+	}
+	if err := applyStrategyConfigPatch(&cfg, "selected_timeframes", "5m,3m"); err == nil {
+		t.Fatal("expected selected_timeframes containing 3m to be rejected")
+	}
+
+	// 保留集合内的值与别名可用
+	for _, value := range []string{"10s", "7d", "30d", "1小时"} {
+		if err := applyStrategyConfigPatch(&cfg, "primary_timeframe", value); err != nil {
+			t.Fatalf("expected primary_timeframe %s to be accepted, got: %v", value, err)
+		}
+	}
+	if err := applyStrategyConfigPatch(&cfg, "selected_timeframes", "5m, 15m, 1h, 4h"); err != nil {
+		t.Fatalf("expected retained selected_timeframes to be accepted, got: %v", err)
+	}
+	if got := strings.Join(cfg.Indicators.Klines.SelectedTimeframes, ","); got != "5m,15m,1h,4h" {
+		t.Fatalf("expected trimmed selected_timeframes, got %q", got)
 	}
 }
 
@@ -1345,8 +1386,8 @@ func TestStrategyCreateConfirmationForcesExecutionWithoutPriorPromptPhrase(t *te
 			},
 			"indicators": map[string]any{
 				"klines": map[string]any{
-					"primary_timeframe":   "3m",
-					"selected_timeframes": []any{"3m", "5m", "15m"},
+					"primary_timeframe":   "5m",
+					"selected_timeframes": []any{"5m", "15m", "1h"},
 				},
 			},
 			"risk_control": map[string]any{
@@ -1620,7 +1661,7 @@ func TestStrategyCreateConfigPatchReplyUsesStructuredMissingFields(t *testing.T)
 		t.Fatalf("create store: %v", err)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
-	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"我建议按高频但稳健来填：主周期 3m，多周期 3m/5m/15m，BTC/ETH 3倍，山寨币 2倍。确认的话我会继续整理完整模板。","extracted_data":{"config_patch":{"strategy_type":"ai_trading","ai_config":{"indicators":{"klines":{"primary_timeframe":"3m","selected_timeframes":["3m","5m","15m"]}}}}}}`})
+	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"我建议按高频但稳健来填：主周期 5m，多周期 5m/15m/1h，BTC/ETH 3倍，山寨币 2倍。确认的话我会继续整理完整模板。","extracted_data":{"config_patch":{"strategy_type":"ai_trading","ai_config":{"indicators":{"klines":{"primary_timeframe":"5m","selected_timeframes":["5m","15m","1h"]}}}}}}`})
 
 	session := ActiveSkillSession{
 		UserID:     42,
@@ -1665,7 +1706,7 @@ func TestStrategyCreateFirstStageConfigProgressUsesStructuredMissingFields(t *te
 		t.Fatalf("create store: %v", err)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
-	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"收到，静态币种和最低置信度 80 是你指定的；其他我建议按高频稳健来定：主周期 3m，多周期 3m/5m/15m，BTC/ETH 3倍，山寨币 2倍，最小盈亏比 2。","extracted_data":{}}`})
+	a.SetAIClient(&staticAIClient{response: `{"route":"ask_user","reply":"收到，静态币种和最低置信度 80 是你指定的；其他我建议按高频稳健来定：主周期 5m，多周期 5m/15m/1h，BTC/ETH 3倍，山寨币 2倍，最小盈亏比 2。","extracted_data":{}}`})
 
 	session := ActiveSkillSession{
 		UserID:     42,
@@ -2005,5 +2046,72 @@ func TestBrainUserPromptIncludesActiveAllowedFieldSchema(t *testing.T) {
 	)
 	if !strings.Contains(prompt, "allowed_field_spec_json") || !strings.Contains(prompt, `"secret_key"`) {
 		t.Fatalf("expected brain prompt to expose canonical field schema, got:\n%s", prompt)
+	}
+}
+
+// 模板已完整但上一步有值被拒绝：最终确认阶段必须把原因带回给用户，而不是静默丢弃后直接创建
+func TestStrategyCreateSurfacesRejectedPatchAtFinalConfirmation(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-create-rejected-patch.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	patch := map[string]any{
+		"strategy_type": "grid_trading",
+		"grid_config": map[string]any{
+			"symbol": "BTCUSDT", "grid_count": 20, "total_investment": 200, "leverage": 2,
+			"use_atr_bounds": true, "atr_multiplier": 2, "distribution": "uniform",
+			"max_drawdown_pct": 15, "stop_loss_pct": 8, "daily_loss_limit_pct": 6,
+			"use_maker_only": true, "enable_direction_adjust": false,
+		},
+	}
+	rawPatch, _ := json.Marshal(patch)
+	session := skillSession{
+		Name:   "strategy_management",
+		Action: "create",
+		Fields: map[string]string{
+			"name":                         "被拒值测试",
+			"strategy_type":                "grid_trading",
+			strategyCreateConfigPatchField: string(rawPatch),
+			strategyConfigPatchErrorField:  `主周期 "3m" 不在支持范围`,
+		},
+	}
+
+	reply := a.handleStrategyCreateSkill("default", 1, "zh", "确认创建", session)
+	if !strings.Contains(reply, "上一个值没有被接受") || !strings.Contains(reply, "3m") {
+		t.Fatalf("expected the rejected value to be surfaced before creating, got: %s", reply)
+	}
+	if _, exists := session.Fields[strategyConfigPatchErrorField]; exists {
+		t.Fatal("the rejected-value note must be cleared after it is surfaced once")
+	}
+	strategies, err := st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	for _, strategy := range strategies {
+		if strategy.Name == "被拒值测试" {
+			t.Fatal("the strategy must not be created while a rejected value is pending")
+		}
+	}
+
+	// 再次确认（错误已清）：正常创建
+	reply = a.handleStrategyCreateSkill("default", 1, "zh", "确认创建", session)
+	if strings.Contains(reply, "上一个值没有被接受") {
+		t.Fatalf("second confirmation must not repeat the rejected value, got: %s", reply)
+	}
+	strategies, err = st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	found := false
+	for _, strategy := range strategies {
+		if strategy.Name == "被拒值测试" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("strategy should be created after the rejected value was surfaced; reply: %s", reply)
 	}
 }

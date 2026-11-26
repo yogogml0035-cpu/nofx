@@ -101,18 +101,27 @@ for _, symbol := range e.config.CoinSource.StaticCoins {
 
 ### 2.1 账户数据
 
+账户读数（本金、未实现盈亏、可用于合约的额度、权益）只有一处定义，在 `trader/types/balance.go`。
+调用方不直接读 `GetBalance()` 返回映射里的键：
+
 ```go
-// trader/auto_trader.go:565-583
-balance, err := at.trader.GetBalance()
-equity := balance["total_equity"].(float64)
-available := balance["available_balance"].(float64)
-unrealizedPnL := balance["total_pnl"].(float64)
+// trader/auto_trader_loop.go, buildTradingContext()
+account, err := types.ReadAccountBalance(at.trader)
+if err != nil {
+    return nil, err // 本轮终止；不回落到别的余额字段
+}
+totalEquity := account.Equity
+availableBalance := account.Available
+totalUnrealizedProfit := account.UnrealizedPnL
 ```
 
-**提取字段:**
-- `total_equity` - 账户总权益
-- `available_balance` - 可用余额
-- `total_pnl` - 未实现盈亏
+**字段：**
+- `Principal` - 不含未实现盈亏、含已实现盈亏的余额；也是初始资金
+- `UnrealizedPnL` - 未实现盈亏
+- `Available` - 可用于合约的保证金
+- `Equity` - 适配器直接报告时用它，否则 `Principal + UnrealizedPnL`
+
+各读数的含义见 `docs/pnl.md`，契约见 `.trellis/spec/backend/exchange-adapters.md`。
 
 ### 2.2 持仓数据
 
@@ -159,7 +168,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 | **MACD** | `EnableMACD` | `calculateMACD(klines)` - 12/26/9 |
 | **RSI** | `EnableRSI`, `RSIPeriods` | `calculateRSI(klines, period)` |
 | **ATR** | `EnableATR`, `ATRPeriods` | `calculateATR(klines, period)` |
-| **Volume** | `EnableVolume` | 原始成交量数据 |
+| **Volume** | `EnableVolume` | 成交量数据（USDT 成交额，Gate `sum`） |
 | **OI** | `EnableOI` | 持仓量数据 |
 | **Funding Rate** | `EnableFundingRate` | 资金费率 |
 
@@ -169,7 +178,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 
 **核心文件:** `decision/engine.go:700-818`
 
-**入口方法:** `StrategyEngine.BuildSystemPrompt(accountEquity, variant)`
+**入口方法:** `StrategyEngine.BuildSystemPrompt(principal, variant)`（principal = 本金，开仓金额按本金 × position_percent）
 
 ### 3.1 提示词结构 (8个部分)
 
@@ -209,10 +218,11 @@ if roleDefinition == "" {
 ```go
 // decision/engine.go:725-749
 maxPositions := config.RiskControl.MaxPositions           // 默认: 3
-altcoinMaxRatio := config.RiskControl.AltcoinMaxPositionValueRatio  // 默认: 1.0
-btcethMaxRatio := config.RiskControl.BTCETHMaxPositionValueRatio    // 默认: 5.0
+positionPercent := config.RiskControl.PositionPercent     // 默认: 10%（开仓名义价值 = 本金 × 该百分比）
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // 默认: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // 默认: 12 USDT
+minPositionSize := config.RiskControl.MinPositionSize     // 默认: 10 USDT（用户可配置，按合约步长取整后校验）
+// 价格到止损价的亏损 ≤ 本金的 2%（D34）；开仓名义价值、张数换算与亏损上限都由代码计算，
+// AI 决策 JSON 不含金额字段（D12/D22/D24）
 ```
 
 **AI引导 (建议值):**
@@ -238,11 +248,9 @@ minConfidence := config.RiskControl.MinConfidence            // 默认: 75
     "symbol": "BTCUSDT",
     "action": "open_long",
     "leverage": 5,
-    "position_size_usd": 100.00,
     "stop_loss": 65000.00,
     "take_profit": 72000.00,
     "confidence": 85,
-    "risk_usd": 20.00,
     "reasoning": "..."
   }
 ]
@@ -354,7 +362,7 @@ RetryDelay: 2 seconds (exponential backoff)
 
 **核心文件:** `decision/engine.go:1303-1604`
 
-**入口方法:** `parseFullDecisionResponse(response, accountEquity, leverage, ratio)`
+**入口方法:** `parseFullDecisionResponse(response, DecisionSizing)`（金额、止损方向与 2% 亏损上限在这里校验）
 
 ### 6.1 解析流程
 
@@ -431,24 +439,34 @@ func fixMissingQuotes(s string) string {
 ### 6.5 决策验证
 
 ```go
-// decision/engine.go:1480-1602
-func validateDecisions(decisions []Decision, equity, leverage, ratio float64) error {
+// kernel/engine_position.go
+func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. 验证action类型
-        validActions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait"}
+        validActions := []string{"open_long", "open_short", "close_long", "close_short",
+            "close_long_partial", "close_short_partial", "update_stop_loss", "update_take_profit",
+            "hold", "wait"}
 
         // 2. 开仓验证
         if isOpenAction(d.Action) {
-            // 杠杆范围检查
-            // 仓位大小检查
-            // 止损止盈检查
-            // 风险回报比检查
-            // 置信度检查
+            // 杠杆上限：超过自动回落到配置上限
+            // 开仓名义价值 = 本金 × position_percent（代码计算并写入 NotionalUSD）
+            // 止损止盈 > 0，且分居现价两侧（多：SL < 现价 < TP；空相反）
+            // 价格到止损价的亏损 ≤ 本金 2%（D34），超过即拒绝
         }
 
         // 3. 平仓验证
         if isCloseAction(d.Action) {
             // Symbol必须存在
+            // 分批平仓：close_percent 取 (0,100)，100% 是全平，必须用 close_long / close_short
+        }
+
+        // 4. 修改止损止盈验证
+        if isProtectionUpdate(d.Action) {
+            // 持仓必须存在，且当前止损止盈可读
+            // update_stop_loss 只读 stop_loss，update_take_profit 只读 take_profit（另一字段忽略）
+            // 新价格位于现价正确一侧（多：SL < 现价 < TP；空相反）
+            // 移动止损：到新止损价的亏损 ≤ 本金 2%（持仓数量 × |入场价 − 止损价|）
         }
     }
 }
@@ -459,15 +477,17 @@ func validateDecisions(decisions []Decision, equity, leverage, ratio float64) er
 ```go
 // decision/engine.go:128-143
 type Decision struct {
-    Symbol          string   // 交易对: "BTCUSDT"
-    Action          string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
-    Leverage        int      // 杠杆倍数
-    PositionSizeUSD float64  // 仓位价值 (USDT)
-    StopLoss        float64  // 止损价格
-    TakeProfit      float64  // 止盈价格
-    Confidence      int      // 置信度 0-100
-    RiskUSD         float64  // 最大风险 (USDT)
-    Reasoning       string   // 决策理由
+    Symbol      string   // 交易对: "BTCUSDT"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "close_long_partial", "close_short_partial", "update_stop_loss", "update_take_profit", "hold", "wait"
+    ClosePercent float64 // 分批平仓比例 (0 < pct < 100)，仅 close_*_partial 动作
+    Leverage    int      // 杠杆倍数
+    StopLoss    float64  // 止损价格（update_stop_loss 时是新止损价）
+    TakeProfit  float64  // 止盈价格（update_take_profit 时是新止盈价）
+    Confidence  int      // 置信度 0-100
+    Reasoning   string   // 决策理由
+
+    // 由代码按本金 × position_percent 计算并写入，模型不输出（json:"-"）
+    NotionalUSD float64
 }
 ```
 
@@ -484,8 +504,10 @@ type Decision struct {
 sort.SliceStable(decisions, func(i, j int) bool {
     priority := map[string]int{
         "close_long": 1, "close_short": 1,  // 最高优先级
-        "open_long": 2, "open_short": 2,    // 次优先级
-        "hold": 3, "wait": 3,               // 最低优先级
+        "close_long_partial": 1, "close_short_partial": 1,
+        "update_stop_loss": 2, "update_take_profit": 2, // 先调整已有仓位的保护
+        "open_long": 3, "open_short": 3,    // 最后开新仓
+        "hold": 4, "wait": 4,               // 最低优先级
     }
     return priority[decisions[i].Action] < priority[decisions[j].Action]
 })
@@ -498,7 +520,6 @@ sort.SliceStable(decisions, func(i, j int) bool {
 | 检查项 | 方法 | 动作 |
 |--------|------|------|
 | 最大持仓数 | `enforceMaxPositions()` | 拒绝新开仓 |
-| 仓位价值上限 | `enforcePositionValueRatio()` | 自动缩减仓位 |
 | 最小仓位 | `enforceMinPositionSize()` | 拒绝过小订单 |
 | 保证金调整 | 自动计算 | 根据可用余额调整 |
 
@@ -525,6 +546,17 @@ func (at *AutoTrader) recordAndConfirmOrder(orderID, symbol, side, action string
     at.store.Position().SaveOrder(...)
 }
 ```
+
+### 7.3.1 止损止盈修改（撤旧建新）
+
+交易所的条件单改单接口不可用（新路径线上未部署：404；旧路径对 API 创建的触价单返回 code 1077），
+修改止损止盈只能撤旧建新：挂新的仓位级条件单并核对它出现在未触发列表 → 撤销同类型的旧单 →
+核对旧单不存在。任一步失败都撤销新单、保留原保护；保护已无法确认时调用方立即平仓
+（`types.ErrPositionUnprotected`）。
+
+触发价必须是合约 `order_price_round` 的整数倍。不对齐的价格会被交易所接受在委托的 `tpsl_*` 字段里，
+但不创建条件单（2026-11-25 实测），仓位会在没有保护的情况下开出；适配器对所有触发价做对齐
+（止损只会更紧、止盈不会更近），并以未触发条件单列表作为保护核对的依据，而不是开仓委托的字段。
 
 ### 7.4 决策日志保存
 
@@ -565,7 +597,7 @@ at.store.Decision().LogDecision(record)
 | **思维链提取** | `decision/engine.go:1327-1345` | `extractCoTTrace()` |
 | **JSON提取** | `decision/engine.go:1347-1408` | `extractDecisions()` |
 | **决策验证** | `decision/engine.go:1480-1602` | `validateDecisions()` |
-| **风控执行** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforcePositionValueRatio()` |
+| **风控执行** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforceMinPositionSize()` |
 | **策略配置** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
 
 ---
@@ -608,8 +640,7 @@ type StrategyConfig struct {
         MaxPositions               int     // 最大持仓数
         BTCETHMaxLeverage          int     // BTC/ETH最大杠杆
         AltcoinMaxLeverage         int     // 山寨币最大杠杆
-        BTCETHMaxPositionValueRatio float64 // BTC/ETH仓位比例上限
-        AltcoinMaxPositionValueRatio float64 // 山寨币仓位比例上限
+        PositionPercent            float64 // 开仓名义价值 = 本金 × 该百分比（1-20，默认 10）
         MaxMarginUsage             float64 // 最大保证金使用率
         MinPositionSize            float64 // 最小仓位
         MinRiskRewardRatio         float64 // 最小风险回报比

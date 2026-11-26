@@ -218,7 +218,10 @@ func (a *Agent) resolveTradeExecutionContext(trade *TradeAction) (bool, tradeSel
 		return false, nil, nil, fmt.Errorf("no traders configured")
 	}
 
-	wantStock := isStockSymbol(trade.Symbol)
+	wantStock := a.resolveStockSymbol(trade.Symbol)
+	if !wantStock && !strings.HasSuffix(strings.ToUpper(trade.Symbol), "USDT") {
+		trade.Symbol += "USDT"
+	}
 	for _, t := range traders {
 		s := t.GetStatus()
 		running, _ := s["is_running"].(bool)
@@ -327,10 +330,8 @@ func validateTradeAction(
 	riskControl := cfg.RiskControl
 
 	maxLeverage := riskControl.AltcoinMaxLeverage
-	maxPositionValueRatio := riskControl.AltcoinMaxPositionValueRatio
 	if isMajorTradeSymbol(trade.Symbol) {
 		maxLeverage = riskControl.BTCETHMaxLeverage
-		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
 	}
 	if maxLeverage <= 0 {
 		maxLeverage = 5
@@ -344,29 +345,13 @@ func validateTradeAction(
 
 	minPositionSize := riskControl.MinPositionSize
 	if minPositionSize <= 0 {
-		minPositionSize = 12
+		minPositionSize = 10
 	}
 	if positionValue < minPositionSize {
 		return fmt.Errorf("position value %.2f USDT is below configured minimum %.2f USDT", positionValue, minPositionSize)
 	}
 
-	if maxPositionValueRatio <= 0 {
-		if isBTCETHSymbol(trade.Symbol) {
-			maxPositionValueRatio = 5.0
-		} else {
-			maxPositionValueRatio = 1.0
-		}
-	}
-	maxPositionValue := equity * maxPositionValueRatio
-	if positionValue > maxPositionValue {
-		return fmt.Errorf(
-			"position value %.2f USDT exceeds configured limit %.2f USDT (equity %.2f x %.2f)",
-			positionValue,
-			maxPositionValue,
-			equity,
-			maxPositionValueRatio,
-		)
-	}
+	// 仓位金额由策略的 position_percent（本金 × 百分比）决定，助手下单只检查不低于最小开仓金额。
 	return nil
 }
 
@@ -375,11 +360,22 @@ func isBTCETHSymbol(symbol string) bool {
 	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
 }
 
-// isMajorTradeSymbol mirrors trader/auto_trader_risk.isMajorAsset for the
-// chat-execute path: BTC/ETH crypto perps get the higher BTC/ETH risk tier —
-// their per-position caps should not be clamped to the 1x altcoin tier.
+// isMajorTradeSymbol marks BTC/ETH crypto perps as the higher leverage tier
+// for the chat-execute path.
 func isMajorTradeSymbol(symbol string) bool {
 	return isBTCETHSymbol(symbol)
+}
+
+// manualTradeRiskNotice 助手手动开仓的风险说明：这是不带保护的普通市价单——没有止损止盈，
+// 不受 AI 自动开仓的本金 2% 亏损上限与开仓金额百分比约束，也不会被任何 trader 管理（计划文档 D40/F48）。
+// 用户必须在下单前看到这一点。
+func manualTradeRiskNotice(lang string) string {
+	if lang == "zh" {
+		return "\n⚠️ 这是普通市价单：**不附带止损止盈**，不受 AI 自动开仓的亏损上限与开仓金额百分比约束，" +
+			"也不会由任何 trader 管理。仓位需要你自行平仓，或另行下单平仓。\n"
+	}
+	return "\n⚠️ This is a plain market order: **no stop loss or take profit is attached**, the automated " +
+		"loss cap and position percent do not apply, and no trader will manage it. You close it yourself.\n"
 }
 
 // formatTradeConfirmation creates a confirmation message for a pending trade.
@@ -413,6 +409,9 @@ func formatTradeConfirmation(trade *TradeAction, lang string) string {
 		if trade.EstimatedNotional > 0 {
 			msg += fmt.Sprintf("估算仓位价值: %.2f USDT\n", trade.EstimatedNotional)
 		}
+		if strings.HasPrefix(trade.Action, "open_") {
+			msg += manualTradeRiskNotice(lang)
+		}
 		if trade.RequiresLargeOrderConfirmation {
 			msg += fmt.Sprintf("\n⚠️ 该订单已触发大额风控，请发送 `"+tradeLargeOrderConfirmCommandZH+"` 执行交易，或忽略取消。", trade.ID)
 			return msg
@@ -432,6 +431,9 @@ func formatTradeConfirmation(trade *TradeAction, lang string) string {
 	}
 	if trade.EstimatedNotional > 0 {
 		msg += fmt.Sprintf("Estimated notional: %.2f USDT\n", trade.EstimatedNotional)
+	}
+	if strings.HasPrefix(trade.Action, "open_") {
+		msg += manualTradeRiskNotice(lang)
 	}
 	if trade.RequiresLargeOrderConfirmation {
 		msg += fmt.Sprintf("\n⚠️ This order triggered high-risk protection. Send `"+tradeLargeOrderConfirmCommandEN+"` to execute, or ignore to cancel.", trade.ID)

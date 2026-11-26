@@ -8,8 +8,15 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/trader/types"
 	"strings"
 	"time"
+)
+
+// 测试缝：决策入口与决策记录的保存钩子（runCycle 的接线用例替换它们，不调用真实模型、不写库）
+var (
+	requestFullDecision = kernel.GetFullDecisionWithStrategy
+	decisionSavedHook   func(at *AutoTrader, record *store.DecisionRecord)
 )
 
 // runCycle runs one trading cycle (using AI full decision-making)
@@ -26,6 +33,7 @@ func (at *AutoTrader) runCycle() error {
 	at.isRunningMutex.RUnlock()
 	if !running {
 		at.logInfof("⏹ Trader is stopped, aborting cycle #%d", at.callCount)
+		at.noteRejectedDecisions(nil)
 		return nil
 	}
 
@@ -34,6 +42,7 @@ func (at *AutoTrader) runCycle() error {
 		ExecutionLog: []string{},
 		Success:      true,
 	}
+	at.openBlockReason = ""
 
 	// 1. Check if trading needs to be stopped
 	if time.Now().Before(at.stopUntil) {
@@ -44,6 +53,7 @@ func (at *AutoTrader) runCycle() error {
 		if err := at.saveDecision(record); err != nil {
 			at.logWarnf("⚠ Failed to save decision record: %v", err)
 		}
+		at.noteRejectedDecisions(nil)
 		return nil
 	}
 
@@ -63,12 +73,31 @@ func (at *AutoTrader) runCycle() error {
 		if saveErr := at.saveDecision(record); saveErr != nil {
 			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
 		}
+		at.noteRejectedDecisions(nil)
 		return fmt.Errorf("failed to build trading context: %w", err)
 	}
 
 	// Save equity snapshot independently (decoupled from AI decision, used for drawing profit curve)
 	// NOTE: Must be called BEFORE candidate coins check to ensure equity is always recorded
 	at.saveEquitySnapshot(ctx)
+
+	// 保护不变量（每轮）：本 trader 的持仓在交易所上确认没有止损 → 立即平仓。
+	// 只处理确定性的「读到了条件单列表且止损不在」；读不到保护时不据此平仓（见 enforceProtectionInvariant）。
+	remaining, closed, failures := at.enforceProtectionInvariant(ctx.Positions)
+	if closed > 0 {
+		record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf(
+			"PROTECTION LOST: %d position(s) had no stop loss on the exchange and were closed immediately", closed))
+		ctx.Positions = remaining
+		ctx.Account.PositionCount = len(remaining)
+	}
+	if len(failures) > 0 {
+		// 平不掉的仓位仍留在 ctx.Positions 里交给模型；本轮禁止开仓，其余动作照常
+		at.openBlockReason = "a position lost its stop loss and could not be closed"
+		for _, failure := range failures {
+			at.logErrorf("🚨 %v", failure)
+			record.ExecutionLog = append(record.ExecutionLog, "PROTECTION LOST: "+failure.Error())
+		}
+	}
 
 	// If no candidate coins available, log but do not error
 	if len(ctx.CandidateCoins) == 0 {
@@ -85,6 +114,7 @@ func (at *AutoTrader) runCycle() error {
 		if err := at.saveDecision(record); err != nil {
 			at.logWarnf("⚠ Failed to save decision record: %v", err)
 		}
+		at.noteRejectedDecisions(nil)
 		return nil
 	}
 
@@ -98,7 +128,29 @@ func (at *AutoTrader) runCycle() error {
 
 	// 5. Use strategy engine to call AI for decision
 	at.logInfof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
-	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
+	aiDecision, err := requestFullDecision(ctx, at.mcpClient, at.strategyEngine, "balanced")
+
+	if aiDecision != nil && aiDecision.SkippedReason != "" {
+		at.logWarnf("⏭️ AI decision skipped: %s", aiDecision.SkippedReason)
+		record.Success = true
+		record.ExecutionLog = append(record.ExecutionLog, "AI call skipped: "+aiDecision.SkippedReason)
+		if saveErr := at.saveDecision(record); saveErr != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
+		}
+		at.noteRejectedDecisions(nil)
+		return nil
+	}
+
+	if aiDecision != nil {
+		// 被校验丢弃的决策必须进决策记录（助手诊断的证据优先级：决策记录 > 日志）；
+		// 没有被拒决策的轮次要把「连续被拒」计数归零，所以无条件调用
+		for _, rejected := range aiDecision.Rejected {
+			line := fmt.Sprintf("REJECTED decision #%d (%s %s): %s", rejected.Index, rejected.Action, rejected.Symbol, rejected.Reason)
+			record.ExecutionLog = append(record.ExecutionLog, line)
+			at.logWarnf("⚠️ %s", line)
+		}
+		at.noteRejectedDecisions(aiDecision.Rejected)
+	}
 
 	if aiDecision != nil && aiDecision.AIRequestDurationMs > 0 {
 		record.AIRequestDurationMs = aiDecision.AIRequestDurationMs
@@ -162,8 +214,9 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		// In safe mode, don't return error — keep the loop running to retry next cycle
+		at.noteRejectedDecisions(nil)
 		if at.safeMode {
-			at.logWarnf("🛡️ Safe mode: skipping this cycle, will retry in %v", at.config.ScanInterval)
+			at.logWarnf("🛡️ Safe mode: skipping this cycle, will retry at the next scheduled scan")
 			return nil
 		}
 
@@ -201,7 +254,7 @@ func (at *AutoTrader) runCycle() error {
 	//     logger.Infof("  [%d] %s: %s - %s", i+1, d.Symbol, d.Action, d.Reasoning)
 	//     if d.Action == "open_long" || d.Action == "open_short" {
 	//        logger.Infof("      Leverage: %dx | Position: %.2f USDT | Stop loss: %.4f | Take profit: %.4f",
-	//           d.Leverage, d.PositionSizeUSD, d.StopLoss, d.TakeProfit)
+	//           d.Leverage, d.NotionalUSD, d.StopLoss, d.TakeProfit)
 	//     }
 	// }
 	logger.Info()
@@ -211,7 +264,9 @@ func (at *AutoTrader) runCycle() error {
 
 	// 8. Sort decisions: ensure close positions first, then open positions (prevent position stacking overflow)
 	sortedDecisions := sortDecisionsByPriority(aiDecision.Decisions)
-	sortedDecisions = at.filterDecisionsToStrategyUniverse(sortedDecisions, ctx)
+	sortedDecisions = at.filterDecisionsToStrategyUniverseWithLog(sortedDecisions, ctx, func(line string) {
+		record.ExecutionLog = append(record.ExecutionLog, line)
+	})
 
 	logger.Info("🔄 Execution order (optimized): Close positions first → Open positions later")
 	for i, d := range sortedDecisions {
@@ -234,6 +289,8 @@ func (at *AutoTrader) runCycle() error {
 		for _, d := range sortedDecisions {
 			if d.Action == "open_long" || d.Action == "open_short" {
 				at.logWarnf("🛡️ Safe mode: BLOCKED %s %s (no new positions allowed)", d.Action, d.Symbol)
+				record.ExecutionLog = append(record.ExecutionLog,
+					fmt.Sprintf("🛡️ Safe mode blocked %s %s (no new positions allowed)", d.Action, d.Symbol))
 				continue
 			}
 			filtered = append(filtered, d)
@@ -256,17 +313,18 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		actionRecord := store.DecisionAction{
-			Action:     d.Action,
-			Symbol:     d.Symbol,
-			Quantity:   0,
-			Leverage:   d.Leverage,
-			Price:      0,
-			StopLoss:   d.StopLoss,
-			TakeProfit: d.TakeProfit,
-			Confidence: d.Confidence,
-			Reasoning:  d.Reasoning,
-			Timestamp:  time.Now().UTC(),
-			Success:    false,
+			Action:       d.Action,
+			Symbol:       d.Symbol,
+			Quantity:     0,
+			Leverage:     d.Leverage,
+			Price:        0,
+			StopLoss:     d.StopLoss,
+			TakeProfit:   d.TakeProfit,
+			ClosePercent: d.ClosePercent,
+			Confidence:   d.Confidence,
+			Reasoning:    d.Reasoning,
+			Timestamp:    time.Now().UTC(),
+			Success:      false,
 		}
 
 		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
@@ -321,6 +379,12 @@ func isOpenDecision(action string) bool {
 }
 
 func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decision, ctx *kernel.Context) []kernel.Decision {
+	return at.filterDecisionsToStrategyUniverseWithLog(decisions, ctx, nil)
+}
+
+// filterDecisionsToStrategyUniverseWithLog 同 filterDecisionsToStrategyUniverse，丢弃的决策另外通过
+// onDrop 回调（调用方用来写进决策记录）。
+func (at *AutoTrader) filterDecisionsToStrategyUniverseWithLog(decisions []kernel.Decision, ctx *kernel.Context, onDrop func(string)) []kernel.Decision {
 	if ctx == nil || len(decisions) == 0 {
 		return decisions
 	}
@@ -371,8 +435,14 @@ func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decis
 
 		if isOpenDecision(d.Action) {
 			at.logWarnf("🚫 Blocked AI %s for %s: symbol is outside strategy candidate universe", d.Action, d.Symbol)
+			if onDrop != nil {
+				onDrop(fmt.Sprintf("🚫 Blocked %s %s: symbol is outside strategy candidate universe", d.Action, d.Symbol))
+			}
 		} else {
 			at.logWarnf("🚫 Dropped AI decision for %s: symbol is outside strategy candidate universe", d.Symbol)
+			if onDrop != nil {
+				onDrop(fmt.Sprintf("🚫 Dropped %s %s: symbol is outside strategy candidate universe", d.Symbol, d.Action))
+			}
 		}
 	}
 	return filtered
@@ -398,34 +468,16 @@ func canonicalUniverseSymbolForBase(ctx *kernel.Context, base string) string {
 // buildTradingContext builds trading context
 func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	// 1. Get account information
-	balance, err := at.trader.GetBalance()
+	account, err := types.ReadAccountBalance(at.trader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get account balance: %w", err)
+		return nil, err
 	}
-
-	// Get account fields
-	totalWalletBalance := 0.0
-	totalUnrealizedProfit := 0.0
-	availableBalance := 0.0
-	totalEquity := 0.0
-
-	if wallet, ok := balance["totalWalletBalance"].(float64); ok {
-		totalWalletBalance = wallet
-	}
-	if unrealized, ok := balance["totalUnrealizedProfit"].(float64); ok {
-		totalUnrealizedProfit = unrealized
-	}
-	if avail, ok := balance["availableBalance"].(float64); ok {
-		availableBalance = avail
-	}
-
-	// Use totalEquity directly if provided by trader (more accurate)
-	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
-		totalEquity = eq
-	} else {
-		// Fallback: Total Equity = Wallet balance + Unrealized profit
-		totalEquity = totalWalletBalance + totalUnrealizedProfit
-	}
+	totalEquity := account.Equity
+	totalUnrealizedProfit := account.UnrealizedPnL
+	availableBalance := account.Available
+	// The engine sizes open positions from the principal (D22: principal ×
+	// position_percent), not from the equity.
+	principal := account.Principal
 
 	// 2. Get position information
 	positions, err := at.trader.GetPositions()
@@ -433,11 +485,16 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
 
+	// 对账：交易所读取成功时清掉已经不存在（或已被别人的仓位取代）的 OPEN 记录（F63）
+	at.reconcileOpenPositionRecords(positions)
+
 	var positionInfos []kernel.PositionInfo
 	totalMarginUsed := 0.0
 
 	// Current position key set (for cleaning up closed position records)
 	currentPositionKeys := make(map[string]bool)
+	// 交易所里仍存在的仓位（归一化键），用于清理本进程的自开仓位登记
+	openPositionKeys := make(map[string]bool)
 
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
@@ -451,6 +508,14 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 		// Skip closed positions (quantity = 0), prevent "ghost positions" from being passed to AI
 		if quantity == 0 {
+			continue
+		}
+		openPositionKeys[ownPositionKey(symbol, side)] = true
+
+		// 只把本 trader 开出的仓位交给模型（计划文档 D40）：不是本 trader 开出的持仓对模型
+		// 不可见、不管理、不平仓。归属判定见 isOwnPosition（网格品种 / DB 的 OPEN 记录 / 本进程刚开出）。
+		if !at.isOwnPosition(symbol, side) {
+			logger.Infof("🙈 [%s] Ignoring %s %s position not opened by this trader (D40)", at.name, side, symbol)
 			continue
 		}
 
@@ -500,19 +565,59 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
+		canPartialClose := false
+		partialCloseReason := "adapter does not support partial close"
+		if closer, ok := at.trader.(types.PartialCloser); ok {
+			status, err := closer.PartialCloseStatus(symbol, side)
+			if err != nil {
+				at.logWarnf("⚠️ Partial-close status unavailable for %s %s: %v", symbol, side, err)
+				partialCloseReason = "status unavailable: " + err.Error()
+			} else {
+				canPartialClose = status.Supported
+				partialCloseReason = status.Reason
+			}
+		}
+
+		// 当前止损止盈：每轮从交易所的未触发条件单读取（F9：不落库）；读不到时明确标注，
+		// 模型不得修改该持仓的保护（旧单无法枚举时不能保证被替换）。
+		var stopLoss, takeProfit float64
+		protectionReason := "adapter does not support protective order management"
+		protectionConfirmed := false
+		if manager, ok := at.trader.(types.ProtectiveOrderManager); ok {
+			protectionReason = ""
+			protection, err := manager.PositionProtection(symbol, side)
+			if err != nil {
+				at.logWarnf("⚠️ Protection status unavailable for %s %s: %v", symbol, side, err)
+				protectionReason = "status unavailable: " + err.Error()
+			} else {
+				// 条件单列表读取成功：此时 StopLoss==0 就是「确认没有止损」（见 enforceProtectionInvariant）
+				protectionConfirmed = true
+				stopLoss, takeProfit = protection.StopLoss, protection.TakeProfit
+				if !protection.Known {
+					protectionReason = protection.Reason
+				}
+			}
+		}
+
 		positionInfos = append(positionInfos, kernel.PositionInfo{
-			Symbol:           symbol,
-			Side:             side,
-			EntryPrice:       entryPrice,
-			MarkPrice:        markPrice,
-			Quantity:         quantity,
-			Leverage:         leverage,
-			UnrealizedPnL:    unrealizedPnl,
-			UnrealizedPnLPct: pnlPct,
-			PeakPnLPct:       peakPnlPct,
-			LiquidationPrice: liquidationPrice,
-			MarginUsed:       marginUsed,
-			UpdateTime:       updateTime,
+			Symbol:                        symbol,
+			Side:                          side,
+			EntryPrice:                    entryPrice,
+			MarkPrice:                     markPrice,
+			Quantity:                      quantity,
+			Leverage:                      leverage,
+			UnrealizedPnL:                 unrealizedPnl,
+			UnrealizedPnLPct:              pnlPct,
+			PeakPnLPct:                    peakPnlPct,
+			LiquidationPrice:              liquidationPrice,
+			MarginUsed:                    marginUsed,
+			UpdateTime:                    updateTime,
+			CanPartialClose:               canPartialClose,
+			PartialCloseUnavailableReason: partialCloseReason,
+			StopLoss:                      stopLoss,
+			TakeProfit:                    takeProfit,
+			ProtectionUnavailableReason:   protectionReason,
+			ProtectionConfirmed:           protectionConfirmed,
 		})
 	}
 
@@ -522,6 +627,15 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			delete(at.positionFirstSeenTime, key)
 		}
 	}
+	at.forgetClosedSelfOpened(func(key string) bool { return openPositionKeys[key] })
+	// 已平掉的仓位不再带上一笔的峰值：同一个合约同向再开仓时带着旧峰值，可能被回撤监控提前平掉
+	at.peakPnLCacheMutex.Lock()
+	for key := range at.peakPnLCache {
+		if !currentPositionKeys[key] {
+			delete(at.peakPnLCache, key)
+		}
+	}
+	at.peakPnLCacheMutex.Unlock()
 
 	// 3. Use strategy engine to get candidate coins (must have strategy engine)
 	var candidateCoins []kernel.CandidateCoin
@@ -564,6 +678,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		BTCETHLeverage:  btcEthLeverage,
 		AltcoinLeverage: altcoinLeverage,
 		Account: kernel.AccountInfo{
+			Principal:        principal,
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
 			UnrealizedPnL:    totalUnrealizedProfit,
@@ -657,12 +772,14 @@ func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 	// Define priority
 	getActionPriority := func(action string) int {
 		switch action {
-		case "close_long", "close_short":
+		case "close_long", "close_short", "close_long_partial", "close_short_partial":
 			return 1 // Highest priority: close positions first
+		case "update_stop_loss", "update_take_profit":
+			return 2 // Adjust protection on existing positions before opening new ones
 		case "open_long", "open_short":
-			return 2 // Second priority: open positions later
+			return 3 // Open positions after closes and protection updates
 		case "hold", "wait":
-			return 3 // Lowest priority: wait
+			return 4 // Lowest priority: wait
 		default:
 			return 999 // Unknown actions at the end
 		}

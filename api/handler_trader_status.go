@@ -17,6 +17,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/trader/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -64,18 +65,12 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		return
 	}
 
-	// Query actual balance
-	balanceInfo, balanceErr := tempTrader.GetBalance()
+	// The initial balance is the account principal. An unreadable account or a principal that is
+	// not positive is an error; the stored value is left alone
+	actualBalance, balanceErr := types.ReadInitialBalance(tempTrader)
 	if balanceErr != nil {
 		logger.Infof("⚠️ Failed to query exchange balance: %v", balanceErr)
 		SafeInternalError(c, "Failed to query balance", balanceErr)
-		return
-	}
-
-	// Extract total equity (for P&L calculation, we need total account value, not available balance)
-	actualBalance, found := extractExchangeTotalEquity(balanceInfo)
-	if !found {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to get total equity"})
 		return
 	}
 
@@ -83,8 +78,12 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 
 	oldBalance := traderConfig.InitialBalance
 
-	// Smart balance change detection
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	// Smart balance change detection. A stored value that is not positive (an invalid
+	// initial balance of an existing trader) has no meaningful percentage
+	changePercent := 0.0
+	if oldBalance > 0 {
+		changePercent = ((actualBalance - oldBalance) / oldBalance) * 100
+	}
 	changeType := "increase"
 	if changePercent < 0 {
 		changeType = "decrease"
