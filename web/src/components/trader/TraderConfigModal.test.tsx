@@ -219,3 +219,60 @@ describe('TraderConfigModal – initial balance', () => {
     expect(screen.getByText(new RegExp(createHint))).toBeInTheDocument()
   })
 })
+
+describe('TraderConfigModal – scan cadence', () => {
+  const strategyWithTimeframe = (timeframe: string) => ({
+    id: 'strategy-1',
+    name: 'cadence strategy',
+    description: '',
+    is_active: true,
+    is_default: false,
+    created_at: '',
+    updated_at: '',
+    config: {
+      strategy_type: 'ai_trading',
+      coin_source: { static_coins: ['BTCUSDT'] },
+      indicators: {
+        klines: {
+          primary_timeframe: timeframe,
+          primary_count: 30,
+          longer_timeframe: '',
+          longer_count: 0,
+          enable_multi_timeframe: false,
+        },
+      },
+      risk_control: { max_margin_usage: 0.9 },
+    },
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('shows the effective cadence from the selected strategy primary timeframe', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({
+      success: true,
+      data: { strategies: [strategyWithTimeframe('1h')] },
+    } as never)
+
+    await renderModal()
+
+    // 决策按策略主周期收线后 5 秒触发；扫描间隔只是回退
+    const cadence = screen.getByTestId('trader-scan-cadence')
+    expect(cadence.textContent).toContain('1h')
+    expect(cadence.textContent).toContain('5s after each')
+    expect(screen.queryByText(/calls the model about once a minute/)).toBeNull()
+  })
+
+  it('warns about model call frequency for a 1m primary timeframe', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({
+      success: true,
+      data: { strategies: [strategyWithTimeframe('1m')] },
+    } as never)
+
+    await renderModal()
+
+    expect(screen.getByTestId('trader-scan-cadence').textContent).toContain('1m')
+    expect(screen.getByText(/calls the model about once a minute/)).toBeTruthy()
+  })
+})
