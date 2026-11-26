@@ -113,8 +113,6 @@ func (pb *PositionBuilder) handleClose(
 		return nil
 	}
 
-	const QUANTITY_TOLERANCE = 0.0001
-
 	// Calculate realized PnL if not provided (some exchanges like Lighter don't return it)
 	if realizedPnL == 0 && position.EntryPrice > 0 {
 		if side == "LONG" {
@@ -126,7 +124,7 @@ func (pb *PositionBuilder) handleClose(
 		realizedPnL = math.Round(realizedPnL*100) / 100
 	}
 
-	if quantity < position.Quantity-QUANTITY_TOLERANCE {
+	if quantity < position.Quantity-positionQuantityTolerance(position.Quantity) {
 		// Partial close: reduce quantity and update weighted average exit price
 		logger.Infof("  📉 Partial close: %s %s %.6f → %.6f (closed %.6f @ %.2f, PnL: %.2f)",
 			symbol, side, position.Quantity, position.Quantity-quantity, quantity, price, realizedPnL)
@@ -172,10 +170,4 @@ func (pb *PositionBuilder) handleClose(
 			"sync",
 		)
 	}
-}
-
-// quantitiesMatch checks if two quantities are close enough (within tolerance)
-func quantitiesMatch(a, b float64) bool {
-	const QUANTITY_TOLERANCE = 0.0001
-	return math.Abs(a-b) < QUANTITY_TOLERANCE
 }

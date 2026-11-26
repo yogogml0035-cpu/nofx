@@ -148,3 +148,6 @@ scratch/
 
 # 串联冒烟的证据目录（脚本按 SHA 生成，不随仓库提交）
 **/probe/smoke-*/
+
+# Probe build artifacts (source and evidence only)
+.trellis/tasks/*/probe/*.bin

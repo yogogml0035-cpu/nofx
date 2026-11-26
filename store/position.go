@@ -141,6 +141,17 @@ const (
 	ReconciledEntryMismatch = "reconciled: exchange position entry price differs from this record"
 )
 
+// positionQuantityTolerance 把“数量视为零”的容差按持仓规模缩放（0.01%，绝对下限 1e-9）。
+// 不能用固定 0.0001：BTC 合约 2 张 = 0.0002 BTC，平掉一半后剩余 0.0001，
+// 固定容差会把“还剩一半”当成零，提前关闭记录并让剩余仓位脱离归属。
+func positionQuantityTolerance(scale float64) float64 {
+	tolerance := math.Abs(scale) * 1e-4
+	if tolerance < 1e-9 {
+		return 1e-9
+	}
+	return tolerance
+}
+
 // PositionStore position storage
 type PositionStore struct {
 	db *gorm.DB
@@ -305,9 +316,8 @@ func (s *PositionStore) BackfillReconciledClose(id int64, fillQty, fillPrice, re
 		"fee":           pos.Fee + fee,
 		"updated_at":    nowMs,
 	}
-	const quantityTolerance = 0.0001
 	remaining := pos.Quantity - closedQty
-	if remaining <= quantityTolerance {
+	if remaining <= positionQuantityTolerance(pos.EntryQuantity) {
 		finalQty := pos.EntryQuantity
 		if finalQty <= 0 {
 			finalQty = closedQty
@@ -378,9 +388,9 @@ func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exit
 
 	nowMs := time.Now().UTC().UnixMilli()
 
-	// Check if position should be fully closed (quantity reduced to ~0)
-	const QUANTITY_TOLERANCE = 0.0001
-	if newQty <= QUANTITY_TOLERANCE {
+	// Check if position should be fully closed (quantity reduced to ~0). The tolerance scales with the
+	// position size: a fixed 0.0001 would close a 0.0002 BTC record when the first half is closed.
+	if newQty <= positionQuantityTolerance(pos.EntryQuantity) {
 		// Auto-close: set status to CLOSED
 		return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"quantity":     0,
