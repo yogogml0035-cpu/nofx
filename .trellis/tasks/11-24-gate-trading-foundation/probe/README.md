@@ -78,3 +78,14 @@ GATE_KEY=… GATE_SECRET=… /tmp/w5livecheck -out w5-livecheck-2026-11-26.jsonl
 运行方式：Docker 内 `CGO_ENABLED=0 GOOS=darwin GOARCH=arm64` 交叉编译，宿主机运行（出口在白名单内）；
 凭据经 `GATE_KEY` / `GATE_SECRET` 环境变量传入，不落盘、不打印。`w2_cleanup.go` 是失败时的立即平仓工具
 （读持仓→全平→打印最近成交），本轮第一次失败后用它平掉了残留仓位。
+
+## 最后一轮独立检查与修复复验（F68，2026-11-26）
+
+- 独立检查在 5469912e/65263894 上报 P1（同步重复应用已存在的平仓成交，分批平仓后记录被误关）
+  与 P2（对账用 0 出场价造假交易；对账先于同步时迟到平仓成交被丢弃）。
+- 修复见 `cb171385`：同步按成交幂等并在持仓/成交行写入失败时回滚重放；对账新增 RECONCILED 中间态，
+  迟到成交回填出场价与盈亏后转 CLOSED；同批修复账户/成交严格解析、峰值缓存符号变体、保护核对方向未知
+  fail-closed、`sz_decimals` 小数语义、空静态币池但有持仓时继续管理、归档证据尾部空行。
+- 复验：`trader/gate/order_sync_ownership_test.go` 新增「连跑两次不重复」「RECONCILED 不进历史/统计」
+  「迟到平仓回填」用例；全量 `make test`、`make build` 通过；隔离冒烟 `smoke-cb171385/` `SMOKE_PASS`
+  （24 项，与首跑 `smoke-6e04f795/` 的 PASS 一起构成首跑+重跑证据，两份 `summary.json` 入库）。
