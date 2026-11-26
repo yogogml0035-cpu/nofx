@@ -306,7 +306,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       await mutateTraders()
     } catch (error) {
       console.error('Failed to toggle trader:', error)
-      toast.error(t('operationFailed', language))
+      const message = error instanceof Error && error.message ? error.message : t('operationFailed', language)
+      toast.error(message)
     }
   }
 

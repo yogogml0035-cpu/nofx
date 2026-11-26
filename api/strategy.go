@@ -10,6 +10,7 @@ import (
 	"nofx/mcp"
 	_ "nofx/mcp/provider"
 	"nofx/store"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,30 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 	}
 
 	return warnings
+}
+
+// strategyRequiresAIPrompt reports whether the config drives an AI prompt (and
+// therefore consumes the model context window).
+func strategyRequiresAIPrompt(config *store.StrategyConfig) bool {
+	return config.StrategyType == "" || config.StrategyType == "ai_trading"
+}
+
+// strategyTokenWarnings returns a warning when the config fits no registered
+// model, or exceeds some of them, so save responses do not silently imply the
+// config is runnable everywhere.
+func strategyTokenWarnings(estimate store.TokenEstimate, lang string) []string {
+	names := estimate.ExceededModelNames()
+	if len(names) == 0 {
+		return nil
+	}
+	if lang == "zh" {
+		return []string{fmt.Sprintf(
+			"当前配置估算 %d tokens，超过以下模型的上下文上限：%s；绑定这些模型运行时会被 token 门禁拦截",
+			estimate.Total, strings.Join(names, "、"))}
+	}
+	return []string{fmt.Sprintf(
+		"Estimated %d tokens exceeds the context limit of: %s; runs bound to these models will be blocked by the token gate",
+		estimate.Total, strings.Join(names, ", "))}
 }
 
 // handleEstimateTokens estimates token usage for a strategy config (no auth required, pure computation)
@@ -141,6 +166,17 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	beforeClamp := *req.Config
 	req.Config.ClampLimits()
 
+	// Reject configs that cannot run on any registered model before writing.
+	if strategyRequiresAIPrompt(req.Config) {
+		if estimate, exceedsAll := req.Config.ExceedsAllModelLimits(); exceedsAll {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":          fmt.Sprintf("Estimated %d tokens exceeds all known model context limits. Reduce coins, timeframes, or K-line count.", estimate.Total),
+				"token_estimate": estimate,
+			})
+			return
+		}
+	}
+
 	// Serialize configuration
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
@@ -166,6 +202,9 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	// Validate configuration and collect warnings
 	warnings := validateStrategyConfig(req.Config)
 	warnings = append(warnings, store.StrategyClampWarnings(beforeClamp, *req.Config, req.Config.Language)...)
+	if strategyRequiresAIPrompt(req.Config) {
+		warnings = append(warnings, strategyTokenWarnings(req.Config.EstimateTokens(), req.Config.Language)...)
+	}
 
 	response := gin.H{
 		"id":      strategy.ID,
@@ -236,6 +275,17 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	beforeClamp := mergedConfig
 	mergedConfig.ClampLimits()
 
+	// Token overflow check — reject before writing so a 400 never leaves the DB changed.
+	if strategyRequiresAIPrompt(&mergedConfig) {
+		if estimate, exceedsAll := mergedConfig.ExceedsAllModelLimits(); exceedsAll {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":          fmt.Sprintf("Estimated %d tokens exceeds all known model context limits. Reduce coins, timeframes, or K-line count.", estimate.Total),
+				"token_estimate": estimate,
+			})
+			return
+		}
+	}
+
 	// Preserve existing name/description when not supplied
 	name := req.Name
 	if name == "" {
@@ -265,28 +315,12 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		return
 	}
 
-	// Token overflow check — block save if all models exceed context limits
-	if mergedConfig.StrategyType == "" || mergedConfig.StrategyType == "ai_trading" {
-		estimate := mergedConfig.EstimateTokens()
-		allExceed := true
-		for _, ml := range estimate.ModelLimits {
-			if ml.UsagePct <= 100 {
-				allExceed = false
-				break
-			}
-		}
-		if allExceed && len(estimate.ModelLimits) > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":          fmt.Sprintf("Estimated %d tokens exceeds all known model context limits. Reduce coins, timeframes, or K-line count.", estimate.Total),
-				"token_estimate": estimate,
-			})
-			return
-		}
-	}
-
 	// Validate merged configuration and collect warnings
 	warnings := validateStrategyConfig(&mergedConfig)
 	warnings = append(warnings, store.StrategyClampWarnings(beforeClamp, mergedConfig, mergedConfig.Language)...)
+	if strategyRequiresAIPrompt(&mergedConfig) {
+		warnings = append(warnings, strategyTokenWarnings(mergedConfig.EstimateTokens(), mergedConfig.Language)...)
+	}
 
 	response := gin.H{"message": "Strategy updated successfully"}
 	if len(warnings) > 0 {
@@ -486,6 +520,24 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	// Match the runtime path: clamp the strategy before rendering the prompt.
 	req.Config.ClampLimits()
 
+	// 试运行同样受模型上下文约束：先估算再取行情/构建提示词，避免发起注定失败的大请求。
+	if strategyRequiresAIPrompt(&req.Config) {
+		estimate := req.Config.EstimateTokens()
+		contextLimit := 131072 // safe default matching kernel.GetFullDecisionWithStrategy
+		if req.AIModelID != "" && s.store != nil {
+			if model, modelErr := s.store.AIModel().Get(userID, req.AIModelID); modelErr == nil {
+				contextLimit = store.GetContextLimitForClient(model.Provider, model.CustomModelName)
+			}
+		}
+		if estimate.Total > contextLimit {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":          fmt.Sprintf("Estimated %d tokens exceeds model context limit of %d. Reduce coins, timeframes, or K-line count.", estimate.Total, contextLimit),
+				"token_estimate": estimate,
+			})
+			return
+		}
+	}
+
 	// Create strategy engine to build prompt
 	engine := kernel.NewStrategyEngine(&req.Config)
 
@@ -519,9 +571,6 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	}
 	if primaryTimeframe == "" {
 		primaryTimeframe = timeframes[0]
-	}
-	if klineCount <= 0 {
-		klineCount = 30
 	}
 
 	fmt.Printf("📊 Using timeframes: %v, primary: %s, kline count: %d\n", timeframes, primaryTimeframe, klineCount)

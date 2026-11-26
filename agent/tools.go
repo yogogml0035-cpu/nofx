@@ -319,7 +319,7 @@ func strategyConfigSchema() map[string]any {
 								"type": "object",
 								"properties": map[string]any{
 									"primary_timeframe":      map[string]any{"type": "string", "enum": []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"}},
-									"primary_count":          map[string]any{"type": "number", "minimum": 10, "maximum": 30, "description": "Manual page range 10-30."},
+									"primary_count":          map[string]any{"type": "number", "minimum": 10, "maximum": 2000, "description": "Manual page range 10-2000 (Gate candlesticks per-query ceiling)."},
 									"longer_timeframe":       map[string]any{"type": "string"},
 									"longer_count":           map[string]any{"type": "number"},
 									"enable_multi_timeframe": map[string]any{"type": "boolean"},
@@ -1926,6 +1926,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			if len(warnings) > 0 && !args.AllowClamped {
 				return fmt.Sprintf(`{"error":"%s"}`, formatRiskControlRefusalPrompt(merged.Language, warnings, "确认应用"))
 			}
+			if estimate, exceedsAll := merged.ExceedsAllModelLimits(); exceedsAll {
+				return fmt.Sprintf(`{"error":"strategy config estimates %d tokens and exceeds every known model context limit; reduce coins, timeframes, or K-line count","token_estimate":%d}`, estimate.Total, estimate.Total)
+			}
 			cfg = merged
 		}
 		configJSON, err := json.Marshal(cfg)
@@ -1997,6 +2000,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			warnings = store.StrategyClampWarnings(before, merged, merged.Language)
 			if len(warnings) > 0 && !args.AllowClamped {
 				return fmt.Sprintf(`{"error":"%s"}`, formatRiskControlRefusalPrompt(merged.Language, warnings, "确认应用"))
+			}
+			if estimate, exceedsAll := merged.ExceedsAllModelLimits(); exceedsAll {
+				return fmt.Sprintf(`{"error":"strategy config estimates %d tokens and exceeds every known model context limit; reduce coins, timeframes, or K-line count","token_estimate":%d}`, estimate.Total, estimate.Total)
 			}
 			normalized, err := json.Marshal(merged)
 			if err != nil {

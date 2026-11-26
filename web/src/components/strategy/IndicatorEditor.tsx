@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Activity, BarChart2, Clock, Info, Lock, TrendingUp } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
 
@@ -9,6 +10,17 @@ interface IndicatorEditorProps {
 }
 
 const t = (language: string, zh: string, en: string) => (language === 'zh' ? zh : en)
+
+// Mirror the backend kline limits (store.MinKlineCount / store.MaxKlineCount).
+// MaxKlineCount is the Gate candlesticks per-query ceiling: 2000 points.
+const PRIMARY_COUNT_MIN = 10
+const PRIMARY_COUNT_MAX = 2000
+const DEFAULT_PRIMARY_COUNT = 20
+
+const normalizePrimaryCount = (raw: number): number => {
+  if (!Number.isFinite(raw)) return DEFAULT_PRIMARY_COUNT
+  return Math.min(PRIMARY_COUNT_MAX, Math.max(PRIMARY_COUNT_MIN, Math.round(raw)))
+}
 
 const timeframes = [
   { value: '10s', label: '10s', group: 'scalp' },
@@ -48,6 +60,12 @@ const marketContextCards = [
 
 export function IndicatorEditor({ config, onChange, disabled, language }: IndicatorEditorProps) {
   const selectedTimeframes = config.klines.selected_timeframes || [config.klines.primary_timeframe || '5m']
+  // 输入中的草稿保留原样（允许空串/多位输入），失焦时才归一，避免清空后继续输入被拼成 20xxxx。
+  const [primaryCountDraft, setPrimaryCountDraft] = useState<string | null>(null)
+
+  useEffect(() => {
+    setPrimaryCountDraft(null)
+  }, [config.klines.primary_count])
 
   const update = (patch: Partial<IndicatorConfig>) => {
     if (disabled) return
@@ -57,6 +75,21 @@ export function IndicatorEditor({ config, onChange, disabled, language }: Indica
       ...patch,
       enable_raw_klines: true,
     })
+  }
+
+  const commitPrimaryCount = () => {
+    const raw = primaryCountDraft
+    setPrimaryCountDraft(null)
+    if (raw === null) return
+    const trimmed = raw.trim()
+    // 清空后失焦恢复已保存值，不把空输入静默改成默认值。
+    if (trimmed === '') return
+    const parsed = Number(trimmed)
+    if (!Number.isFinite(parsed)) return
+    const next = normalizePrimaryCount(parsed)
+    if (next !== config.klines.primary_count) {
+      update({ klines: { ...config.klines, primary_count: next } })
+    }
   }
 
   const toggleTimeframe = (tf: string) => {
@@ -120,12 +153,21 @@ export function IndicatorEditor({ config, onChange, disabled, language }: Indica
             {t(language, '根数', 'Bars')}
             <input
               type="number"
-              min={10}
-              max={60}
-              value={config.klines.primary_count || 20}
+              min={PRIMARY_COUNT_MIN}
+              max={PRIMARY_COUNT_MAX}
+              step={1}
+              inputMode="numeric"
+              aria-label={t(language, 'K 线根数', 'K-line count')}
+              title={t(
+                language,
+                '10–2000；2000 是 Gate 单次取数上限，实际可用根数受模型上下文限制',
+                '10-2000; 2000 is the Gate per-query ceiling; usable bars depend on the model context limit'
+              )}
+              value={primaryCountDraft ?? String(config.klines.primary_count || DEFAULT_PRIMARY_COUNT)}
               disabled={disabled}
-              onChange={(e) => update({ klines: { ...config.klines, primary_count: Number(e.target.value) || 20 } })}
-              className="w-16 rounded-lg border border-white/10 bg-nofx-bg px-2 py-1 text-center text-nofx-text"
+              onChange={(e) => setPrimaryCountDraft(e.target.value)}
+              onBlur={commitPrimaryCount}
+              className="w-20 rounded-lg border border-white/10 bg-nofx-bg px-2 py-1 text-center text-nofx-text"
             />
           </div>
         </div>

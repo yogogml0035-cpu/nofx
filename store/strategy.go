@@ -10,13 +10,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// Hard limits to prevent token explosion in AI requests
+// Product-level limits for AI requests. Candidate/timeframe caps bound the
+// prompt shape; MaxKlineCount follows the Gate fetch contract (2000 points per
+// query). The authoritative token budget is enforced by EstimateTokens gates
+// against the bound model's context limit.
 const (
-	MaxCandidateCoins      = 10
-	MaxPositions           = 3
-	MaxTimeframes          = 4
-	MinKlineCount          = 10
-	MaxKlineCount          = 30
+	MaxCandidateCoins = 10
+	MaxPositions      = 3
+	MaxTimeframes     = 4
+	MinKlineCount     = 10
+	// MaxKlineCount is the Gate candlesticks per-query ceiling: the official API
+	// returns at most 2000 points in one query (limit=2001 is rejected with
+	// INVALID_PARAM_VALUE; verified 2026-11-26 across all retained intervals).
+	// Keep in sync with market.gateKlineMaxLimit.
+	MaxKlineCount          = 2000
 	MinLeverage            = 1
 	MaxBTCETHLeverage      = 20
 	MaxAltLeverage         = 20
@@ -423,6 +430,7 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 	appendFloat("最大保证金使用率", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
 	appendFloat("最小开仓金额", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
 	appendInt("最低置信度", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
+	appendInt("K 线数量", "K-line count", before.Indicators.Klines.PrimaryCount, after.Indicators.Klines.PrimaryCount)
 
 	// 周期：别名归一（1小时→1h）或不在保留集合的值被清空时给出提示（D25）
 	beforeTF, afterTF := before.Indicators.Klines.PrimaryTimeframe, after.Indicators.Klines.PrimaryTimeframe
@@ -1088,7 +1096,7 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 	numTimeframes := c.getEffectiveTimeframeCount()
 	klineCount := c.Indicators.Klines.PrimaryCount
 	if klineCount <= 0 {
-		klineCount = 20
+		klineCount = MinKlineCount
 	}
 
 	// Per coin per timeframe: kline OHLCV rows
@@ -1178,8 +1186,10 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 			savedPerCoin := (numTimeframes * klineCount * (80 + indicatorCharsPerLine)) / 4 * 115 / 100
 			suggestions = append(suggestions, fmt.Sprintf("Reduce 1 coin to save ~%d tokens", savedPerCoin))
 		}
-		if klineCount > 15 {
-			suggestions = append(suggestions, "Reduce K-line count to 15 to save tokens")
+		if klineCount > MinKlineCount {
+			suggestions = append(suggestions, fmt.Sprintf(
+				"Reduce K-line count (currently %d) to fit the strictest model context limit (%d tokens)",
+				klineCount, minLimit))
 		}
 	}
 
@@ -1191,19 +1201,70 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 	}
 }
 
-// getEffectiveCoinCount returns the estimated number of coins that will be analyzed
+// ExceedsAllModelLimits reports whether the estimated prompt exceeds every
+// known model context limit — such a config cannot run on any registered model.
+func (c *StrategyConfig) ExceedsAllModelLimits() (TokenEstimate, bool) {
+	estimate := c.EstimateTokens()
+	if len(estimate.ModelLimits) == 0 {
+		return estimate, false
+	}
+	for _, limit := range estimate.ModelLimits {
+		if limit.UsagePct <= 100 {
+			return estimate, false
+		}
+	}
+	return estimate, true
+}
+
+// ExceededModelNames returns the models whose context limit the estimate exceeds,
+// ordered from the worst overflow to the mildest (same order as ModelLimits).
+func (e TokenEstimate) ExceededModelNames() []string {
+	names := make([]string, 0, len(e.ModelLimits))
+	for _, limit := range e.ModelLimits {
+		if limit.UsagePct > 100 {
+			names = append(names, limit.Name)
+		}
+	}
+	return names
+}
+
+// getEffectiveCoinCount returns the estimated number of coins that will be analyzed.
+// Excluded coins never reach the prompt, so they do not count towards the estimate.
 func (c *StrategyConfig) getEffectiveCoinCount() int {
-	count := len(c.CoinSource.StaticCoins)
+	excluded := make(map[string]struct{}, len(c.CoinSource.ExcludedCoins))
+	for _, symbol := range c.CoinSource.ExcludedCoins {
+		if key := strings.ToUpper(strings.TrimSpace(symbol)); key != "" {
+			excluded[key] = struct{}{}
+		}
+	}
+	count := 0
+	for _, symbol := range c.CoinSource.StaticCoins {
+		if _, skip := excluded[strings.ToUpper(strings.TrimSpace(symbol))]; !skip {
+			count++
+		}
+	}
 	if count <= 0 {
-		count = 3
+		count = 3 // no static selection: the engine falls back to the dynamic candidate list
 	}
 	return count
 }
 
-// getEffectiveTimeframeCount returns the number of timeframes that will be used
+// getEffectiveTimeframeCount returns the number of timeframes that will be fetched and rendered.
+// GetWithTimeframes prepends the primary timeframe when it is missing from the selection.
 func (c *StrategyConfig) getEffectiveTimeframeCount() int {
-	if len(c.Indicators.Klines.SelectedTimeframes) > 0 {
-		return len(c.Indicators.Klines.SelectedTimeframes)
+	selected := c.Indicators.Klines.SelectedTimeframes
+	primary := c.Indicators.Klines.PrimaryTimeframe
+	if len(selected) > 0 {
+		count := len(selected)
+		if primary != "" {
+			for _, tf := range selected {
+				if tf == primary {
+					return count
+				}
+			}
+			count++ // primary timeframe is fetched and rendered in addition to the selection
+		}
+		return count
 	}
 	count := 1
 	if c.Indicators.Klines.LongerTimeframe != "" {

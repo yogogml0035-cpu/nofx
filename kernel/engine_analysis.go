@@ -176,9 +176,6 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	if primaryTimeframe == "" {
 		primaryTimeframe = timeframes[0]
 	}
-	if klineCount <= 0 {
-		klineCount = 30
-	}
 
 	logger.Infof("📊 Strategy timeframes: %v, Primary: %s, Kline count: %d", timeframes, primaryTimeframe, klineCount)
 
