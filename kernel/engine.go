@@ -31,11 +31,30 @@ type PositionInfo struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
 	UpdateTime       int64   `json:"update_time"` // Position update timestamp (milliseconds)
+
+	// CanPartialClose 该持仓能否分批平仓：交易所可精确读取张数与最小步长，且持仓
+	// 张数严格大于一个最小步长。false 时模型不得发起 close_*_partial。
+	CanPartialClose bool `json:"can_partial_close"`
+	// PartialCloseUnavailableReason 不可分批的原因（仅 CanPartialClose=false 时非空）
+	PartialCloseUnavailableReason string `json:"partial_close_unavailable_reason,omitempty"`
+	// StopLoss / TakeProfit 当前生效的止损、止盈触发价（每轮从交易所未触发条件单读取，
+	// 不落库）。0 表示不可读，此时模型不得修改该持仓的保护。
+	StopLoss   float64 `json:"stop_loss"`
+	TakeProfit float64 `json:"take_profit"`
+	// ProtectionUnavailableReason 当前保护不可读的原因（StopLoss 或 TakeProfit 为 0 时非空）
+	ProtectionUnavailableReason string `json:"protection_unavailable_reason,omitempty"`
+	// ProtectionConfirmed 为 true 表示交易所的条件单列表读取成功：此时 StopLoss==0 就是「确认没有止损」，
+	// 调用方可以做确定性处置（立即平仓）；false 时缺失只是「读不到」，不得据此平仓。
+	ProtectionConfirmed bool `json:"protection_confirmed"`
 }
 
 // AccountInfo account information
 type AccountInfo struct {
-	TotalEquity      float64 `json:"total_equity"`      // Account equity
+	// Principal is the basis of open-position sizing: it excludes unrealized
+	// P&L and includes realized P&L (plan §5). Fill it through
+	// types.ReadAccountBalance; do not recompute it per call site.
+	Principal        float64 `json:"principal"`
+	TotalEquity      float64 `json:"total_equity"`      // Account equity = principal + unrealized P&L
 	AvailableBalance float64 `json:"available_balance"` // Available balance
 	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // Unrealized profit/loss
 	TotalPnL         float64 `json:"total_pnl"`         // Total profit/loss
@@ -78,34 +97,49 @@ type RecentOrder struct {
 
 // Context trading context (complete information passed to AI)
 type Context struct {
-	CurrentTime        string                             `json:"current_time"`
-	RuntimeMinutes     int                                `json:"runtime_minutes"`
-	CallCount          int                                `json:"call_count"`
-	Account            AccountInfo                        `json:"account"`
-	Positions          []PositionInfo                     `json:"positions"`
-	CandidateCoins     []CandidateCoin                    `json:"candidate_coins"`
-	PromptVariant      string                             `json:"prompt_variant,omitempty"`
-	TradingStats       *TradingStats                      `json:"trading_stats,omitempty"`
-	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
-	MarketDataMap      map[string]*market.Data            `json:"-"`
-	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
-	MarketEnv          *MarketEnvSnapshot                 `json:"-"`
-	BTCETHLeverage     int                                `json:"-"`
-	AltcoinLeverage    int                                `json:"-"`
-	Timeframes         []string                           `json:"-"`
+	CurrentTime     string                             `json:"current_time"`
+	RuntimeMinutes  int                                `json:"runtime_minutes"`
+	CallCount       int                                `json:"call_count"`
+	Account         AccountInfo                        `json:"account"`
+	Positions       []PositionInfo                     `json:"positions"`
+	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
+	PromptVariant   string                             `json:"prompt_variant,omitempty"`
+	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`
+	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`
+	MarketDataMap   map[string]*market.Data            `json:"-"`
+	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
+	MarketEnv       *MarketEnvSnapshot                 `json:"-"`
+	BTCETHLeverage  int                                `json:"-"`
+	AltcoinLeverage int                                `json:"-"`
+	Timeframes      []string                           `json:"-"`
 }
 
 // Decision AI trading decision
 type Decision struct {
 	Symbol string `json:"symbol"`
-	Action string `json:"action"` // Standard: "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+	// Standard: "open_long", "open_short", "close_long", "close_short",
+	// "close_long_partial", "close_short_partial", "update_stop_loss",
+	// "update_take_profit", "hold", "wait"
+	Action string `json:"action"`
 	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
-	// Opening position parameters
-	Leverage        int     `json:"leverage,omitempty"`
-	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
-	StopLoss        float64 `json:"stop_loss,omitempty"`
-	TakeProfit      float64 `json:"take_profit,omitempty"`
+	// ClosePercent is the partial-close ratio (0 < pct < 100), read only for
+	// close_long_partial / close_short_partial. 100% is a full close and must use
+	// close_long / close_short.
+	ClosePercent float64 `json:"close_percent,omitempty"`
+
+	// Opening position parameters. The notional is computed by the engine from
+	// principal × position_percent (D22/D24); the model supplies only direction,
+	// leverage, protection prices and confidence.
+	// StopLoss / TakeProfit also carry the new trigger price for
+	// update_stop_loss / update_take_profit (only the matching field is read).
+	Leverage   int     `json:"leverage,omitempty"`
+	StopLoss   float64 `json:"stop_loss,omitempty"`
+	TakeProfit float64 `json:"take_profit,omitempty"`
+	// NotionalUSD is the code-computed open notional (USDT), filled by
+	// validateDecision and read by the trading path. json:"-" keeps a
+	// model-supplied amount from ever reaching execution.
+	NotionalUSD float64 `json:"-"`
 
 	// Grid trading parameters
 	Price      float64 `json:"price,omitempty"`       // Limit order price (for grid)
@@ -114,9 +148,8 @@ type Decision struct {
 	OrderID    string  `json:"order_id,omitempty"`    // Order ID (for cancel)
 
 	// Common parameters
-	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
-	RiskUSD    float64 `json:"risk_usd,omitempty"`   // Maximum USD risk
-	Reasoning  string  `json:"reasoning"`
+	Confidence int    `json:"confidence,omitempty"` // Confidence level (0-100)
+	Reasoning  string `json:"reasoning"`
 }
 
 // FullDecision AI's complete decision (including chain of thought)
@@ -128,6 +161,20 @@ type FullDecision struct {
 	RawResponse         string     `json:"raw_response"`
 	Timestamp           time.Time  `json:"timestamp"`
 	AIRequestDurationMs int64      `json:"ai_request_duration_ms,omitempty"`
+	// Rejected lists decisions the validator dropped in this round (per-decision
+	// rejection): the remaining Decisions are valid and still execute.
+	Rejected []RejectedDecision `json:"rejected_decisions,omitempty"`
+	// SkippedReason is set when the engine returned without calling the model
+	// (for example no market data and no positions to manage).
+	SkippedReason string `json:"skipped_reason,omitempty"`
+}
+
+// RejectedDecision records why one model decision was dropped without failing the round.
+type RejectedDecision struct {
+	Index  int    `json:"index"`
+	Symbol string `json:"symbol"`
+	Action string `json:"action"`
+	Reason string `json:"reason"`
 }
 
 // ============================================================================
@@ -217,11 +264,6 @@ func (e *StrategyEngine) filterExcludedCoins(candidates []CandidateCoin) []Candi
 // ============================================================================
 // External Data
 // ============================================================================
-
-// FetchMarketData fetches market data based on strategy configuration
-func (e *StrategyEngine) FetchMarketData(symbol string) (*market.Data, error) {
-	return market.Get(symbol)
-}
 
 // FetchExternalData fetches external data sources
 func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {

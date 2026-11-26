@@ -32,7 +32,19 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 		var respBody interface{}
 
 		switch {
-		// Mock GetBalance - /api/v4/futures/usdt/accounts
+		// Mock GetBalance - /api/v4/wallet/total_balance（本金与未实现盈亏取自钱包总额）
+		case strings.Contains(path, "/wallet/total_balance"):
+			respBody = map[string]interface{}{
+				"total": map[string]interface{}{
+					"amount":         "10000.00",
+					"borrowed":       "0",
+					"currency":       "USDT",
+					"unrealised_pnl": "100.50",
+				},
+			}
+
+		// Mock GetBalance - /api/v4/futures/usdt/accounts（可用于合约的额度取自合约账户；
+		// 统一账户下 total ≈ 0，不作钱包余额）
 		case strings.Contains(path, "/futures/usdt/accounts"):
 			respBody = map[string]interface{}{
 				"total":          "10000.00",
@@ -41,12 +53,12 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 				"currency":       "USDT",
 			}
 
-		// Mock GetPositions - /api/v4/futures/usdt/positions
+			// GetPositions - /api/v4/futures/usdt/positions（SDK 默认带 X-Gate-Size-Decimal: 1，张数为字符串）
 		case strings.Contains(path, "/futures/usdt/positions"):
 			respBody = []map[string]interface{}{
 				{
 					"contract":       "BTC_USDT",
-					"size":           500,
+					"size":           "500",
 					"entry_price":    "50000.00",
 					"mark_price":     "50500.00",
 					"unrealised_pnl": "250.00",
@@ -100,7 +112,7 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 			respBody = map[string]interface{}{
 				"id":         123456,
 				"contract":   "BTC_USDT",
-				"size":       100,
+				"size":       "100",
 				"status":     "finished",
 				"finish_as":  "filled",
 				"fill_price": "50000.00",
@@ -115,7 +127,7 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 			respBody = map[string]interface{}{
 				"id":          123456,
 				"contract":    "BTC_USDT",
-				"size":        100,
+				"size":        "100",
 				"status":      "finished",
 				"finish_as":   "filled",
 				"fill_price":  "50000.00",
@@ -123,12 +135,6 @@ func NewGateTraderTestSuite(t *testing.T) *GateTraderTestSuite {
 				"update_time": 1234567890.0,
 				"tkfr":        "0.0005",
 				"mkfr":        "0.0002",
-			}
-
-		// Mock UpdatePositionLeverage
-		case strings.Contains(path, "/futures/usdt/positions/") && strings.Contains(path, "/leverage"):
-			respBody = map[string]interface{}{
-				"leverage": 10,
 			}
 
 		// Mock ListPriceTriggeredOrders

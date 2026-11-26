@@ -1,0 +1,11 @@
+#!/bin/sh
+# go 命令转发：宿主机有 Go 就直接用；没有（本机常态）则在 Docker 的 golang:1.25-alpine 里执行。
+# 源码目录挂到 /app，模块与构建缓存在 nofx-gocache 卷，CGO 可用（装 gcc）。
+# 用法与 go 一致：scripts/go test ./...、scripts/go build -o nofx .
+set -e
+if command -v go >/dev/null 2>&1; then
+	exec go "$@"
+fi
+exec docker run --rm -v "$PWD":/app -v nofx-gocache:/go -w /app \
+	-e GOPROXY="${GOPROXY:-https://goproxy.cn,direct}" golang:1.25-alpine \
+	sh -c 'apk add --no-cache gcc musl-dev >/dev/null || exit 1; CGO_ENABLED=1 exec go "$@"' go "$@"

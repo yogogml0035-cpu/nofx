@@ -101,18 +101,28 @@ for _, symbol := range e.config.CoinSource.StaticCoins {
 
 ### 2.1 Account Data
 
+Account readings (principal, unrealized PnL, available, equity) have one definition, in
+`trader/types/balance.go`. Callers never read the keys of the map returned by `GetBalance()` themselves:
+
 ```go
-// trader/auto_trader.go:565-583
-balance, err := at.trader.GetBalance()
-equity := balance["total_equity"].(float64)
-available := balance["available_balance"].(float64)
-unrealizedPnL := balance["total_pnl"].(float64)
+// trader/auto_trader_loop.go, buildTradingContext()
+account, err := types.ReadAccountBalance(at.trader)
+if err != nil {
+    return nil, err // the cycle stops; there is no fallback to another balance field
+}
+totalEquity := account.Equity
+availableBalance := account.Available
+totalUnrealizedProfit := account.UnrealizedPnL
 ```
 
-**Extracted Fields:**
-- `total_equity` - Total account equity
-- `available_balance` - Available balance
-- `total_pnl` - Unrealized PnL
+**Fields:**
+- `Principal` - balance excluding unrealized PnL, realized PnL included; also the initial balance
+- `UnrealizedPnL` - unrealized PnL
+- `Available` - margin available for futures
+- `Equity` - reported by the adapter when it has it, otherwise `Principal + UnrealizedPnL`
+
+See `docs/pnl.md` for what each reading means and `.trellis/spec/backend/exchange-adapters.md`
+for the contract.
 
 ### 2.2 Position Data
 
@@ -159,7 +169,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 | **MACD** | `EnableMACD` | `calculateMACD(klines)` - 12/26/9 |
 | **RSI** | `EnableRSI`, `RSIPeriods` | `calculateRSI(klines, period)` |
 | **ATR** | `EnableATR`, `ATRPeriods` | `calculateATR(klines, period)` |
-| **Volume** | `EnableVolume` | Raw volume data |
+| **Volume** | `EnableVolume` | Volume data (USDT quote volume, Gate `sum`) |
 | **OI** | `EnableOI` | Open interest data |
 | **Funding Rate** | `EnableFundingRate` | Funding rate |
 
@@ -169,7 +179,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 
 **Core File:** `decision/engine.go:700-818`
 
-**Entry Method:** `StrategyEngine.BuildSystemPrompt(accountEquity, variant)`
+**Entry Method:** `StrategyEngine.BuildSystemPrompt(principal, variant)` (principal is the account principal; open notional = principal × position_percent)
 
 ### 3.1 Prompt Structure (8 Sections)
 
@@ -209,10 +219,11 @@ if roleDefinition == "" {
 ```go
 // decision/engine.go:725-749
 maxPositions := config.RiskControl.MaxPositions           // Default: 3
-altcoinMaxRatio := config.RiskControl.AltcoinMaxPositionValueRatio  // Default: 1.0
-btcethMaxRatio := config.RiskControl.BTCETHMaxPositionValueRatio    // Default: 5.0
+positionPercent := config.RiskControl.PositionPercent     // Default: 10 (%): open notional = principal × percent
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // Default: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // Default: 12 USDT
+minPositionSize := config.RiskControl.MinPositionSize     // Default: 10 USDT (user configurable, checked after rounding to the size step)
+// Loss at the stop loss must stay ≤ 2% of the principal (D34). Open notional, contract
+// count and the loss cap are all computed by code; the decision JSON has no amount fields.
 ```
 
 **AI Guided (Suggested Values):**
@@ -238,11 +249,9 @@ minConfidence := config.RiskControl.MinConfidence            // Default: 75
     "symbol": "BTCUSDT",
     "action": "open_long",
     "leverage": 5,
-    "position_size_usd": 100.00,
     "stop_loss": 65000.00,
     "take_profit": 72000.00,
     "confidence": 85,
-    "risk_usd": 20.00,
     "reasoning": "..."
   }
 ]
@@ -354,7 +363,7 @@ RetryDelay: 2 seconds (exponential backoff)
 
 **Core File:** `decision/engine.go:1303-1604`
 
-**Entry Method:** `parseFullDecisionResponse(response, accountEquity, leverage, ratio)`
+**Entry Method:** `parseFullDecisionResponse(response, DecisionSizing)` (sizing, protection direction and the 2% loss cap are validated here)
 
 ### 6.1 Parsing Flow
 
@@ -431,24 +440,35 @@ func fixMissingQuotes(s string) string {
 ### 6.5 Decision Validation
 
 ```go
-// decision/engine.go:1480-1602
-func validateDecisions(decisions []Decision, equity, leverage, ratio float64) error {
+// kernel/engine_position.go
+func validateDecisions(decisions []Decision, sizing DecisionSizing) error {
     for _, d := range decisions {
         // 1. Validate action type
-        validActions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait"}
+        validActions := []string{"open_long", "open_short", "close_long", "close_short",
+            "close_long_partial", "close_short_partial", "update_stop_loss", "update_take_profit",
+            "hold", "wait"}
 
         // 2. Open position validation
         if isOpenAction(d.Action) {
-            // Leverage range check
-            // Position size check
-            // Stop loss/take profit check
-            // Risk/reward ratio check
-            // Confidence check
+            // Leverage cap: auto-adjusted down to the configured limit
+            // Open notional = principal × position_percent (computed by code into NotionalUSD)
+            // Stop loss / take profit > 0 and on opposite sides of the current price (long: SL < price < TP; short reversed)
+            // Loss at the stop loss ≤ 2% of principal (D34), otherwise refused
         }
 
         // 3. Close position validation
         if isCloseAction(d.Action) {
             // Symbol must exist
+            // Partial close: close_percent is in (0, 100); 100% is a full close
+            // and must use close_long / close_short
+        }
+
+        // 4. Protection update validation
+        if isProtectionUpdate(d.Action) {
+            // The position must exist and already have a readable stop loss and take profit
+            // update_stop_loss reads stop_loss, update_take_profit reads take_profit (the other field is ignored)
+            // The new price must sit on the correct side of the current price (long: SL < price < TP; short reversed)
+            // Moving the stop loss: loss at the new stop ≤ 2% of principal (position quantity × |entry − stop|)
         }
     }
 }
@@ -459,15 +479,17 @@ func validateDecisions(decisions []Decision, equity, leverage, ratio float64) er
 ```go
 // decision/engine.go:128-143
 type Decision struct {
-    Symbol          string   // Trading pair: "BTCUSDT"
-    Action          string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
-    Leverage        int      // Leverage multiplier
-    PositionSizeUSD float64  // Position value (USDT)
-    StopLoss        float64  // Stop loss price
-    TakeProfit      float64  // Take profit price
-    Confidence      int      // Confidence 0-100
-    RiskUSD         float64  // Max risk (USDT)
-    Reasoning       string   // Decision reasoning
+    Symbol      string   // Trading pair: "BTCUSDT"
+    Action      string   // "open_long", "open_short", "close_long", "close_short", "close_long_partial", "close_short_partial", "update_stop_loss", "update_take_profit", "hold", "wait"
+    ClosePercent float64 // Partial-close ratio (0 < pct < 100), only for close_*_partial
+    Leverage    int      // Leverage multiplier
+    StopLoss    float64  // Stop loss price (also the new price for update_stop_loss)
+    TakeProfit  float64  // Take profit price (also the new price for update_take_profit)
+    Confidence  int      // Confidence 0-100
+    Reasoning   string   // Decision reasoning
+
+    // Computed by the engine from principal × position_percent; never read from the model (json:"-")
+    NotionalUSD float64
 }
 ```
 
@@ -484,8 +506,10 @@ type Decision struct {
 sort.SliceStable(decisions, func(i, j int) bool {
     priority := map[string]int{
         "close_long": 1, "close_short": 1,  // Highest priority
-        "open_long": 2, "open_short": 2,    // Second priority
-        "hold": 3, "wait": 3,               // Lowest priority
+        "close_long_partial": 1, "close_short_partial": 1,
+        "update_stop_loss": 2, "update_take_profit": 2, // Adjust protection on existing positions
+        "open_long": 3, "open_short": 3,    // Open new positions last
+        "hold": 4, "wait": 4,               // Lowest priority
     }
     return priority[decisions[i].Action] < priority[decisions[j].Action]
 })
@@ -498,7 +522,6 @@ sort.SliceStable(decisions, func(i, j int) bool {
 | Check | Method | Action |
 |-------|--------|--------|
 | Max positions | `enforceMaxPositions()` | Reject new opens |
-| Position value cap | `enforcePositionValueRatio()` | Auto reduce size |
 | Min position | `enforceMinPositionSize()` | Reject small orders |
 | Margin adjustment | Auto calculate | Adjust by available balance |
 
@@ -525,6 +548,21 @@ func (at *AutoTrader) recordAndConfirmOrder(orderID, symbol, side, action string
     at.store.Position().SaveOrder(...)
 }
 ```
+
+### 7.3.1 Protective Order Update (Cancel-and-Replace)
+
+The exchange's trigger-order amend endpoint is not usable (the new path is not deployed: 404; the old
+path rejects API-created trigger orders with code 1077), so a stop loss / take profit update is a
+cancel-and-replace: place the new position-level trigger order, verify it in the open trigger-order list,
+then cancel the old order(s) of the same kind, then verify they are gone. Any failure cancels the new
+order and leaves the original protection in place; if protection cannot be confirmed at all the caller
+closes the position immediately (`types.ErrPositionUnprotected`).
+
+Trigger prices must be a multiple of the contract's `order_price_round`. A non-aligned price is accepted
+in the order's `tpsl_*` fields but the exchange does not create the trigger order (observed 2026-11-25),
+which would leave the position unprotected; the adapter aligns every trigger price (a stop only gets
+tighter, a take profit never gets closer) and verifies protection through the trigger-order list, not
+through the opening order's fields.
 
 ### 7.4 Decision Log Saving
 
@@ -565,7 +603,7 @@ at.store.Decision().LogDecision(record)
 | **CoT Extract** | `decision/engine.go:1327-1345` | `extractCoTTrace()` |
 | **JSON Extract** | `decision/engine.go:1347-1408` | `extractDecisions()` |
 | **Decision Valid** | `decision/engine.go:1480-1602` | `validateDecisions()` |
-| **Risk Enforce** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforcePositionValueRatio()` |
+| **Risk Enforce** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforceMinPositionSize()` |
 | **Strategy Config** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
 
 ---
@@ -608,10 +646,9 @@ type StrategyConfig struct {
         MaxPositions               int     // Max positions
         BTCETHMaxLeverage          int     // BTC/ETH max leverage
         AltcoinMaxLeverage         int     // Altcoin max leverage
-        BTCETHMaxPositionValueRatio float64 // BTC/ETH position ratio cap
-        AltcoinMaxPositionValueRatio float64 // Altcoin position ratio cap
+        PositionPercent            float64 // Open notional = principal × percent (1-20, default 10)
         MaxMarginUsage             float64 // Max margin usage
-        MinPositionSize            float64 // Min position size
+        MinPositionSize            float64 // Min position size (default 10 USDT)
         MinRiskRewardRatio         float64 // Min risk/reward ratio
         MinConfidence              int     // Min confidence
     }

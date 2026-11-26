@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/11-25-partial-close/prd.md", "reason": "验收标准逐条核对"}
+{"file": ".trellis/tasks/11-25-partial-close/design.md", "reason": "契约、错误矩阵与测试要求"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "精确换算、禁止猜测回落、适配器测试规范"}
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "能力接口与 fail-closed 契约"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "父任务决策 D31/D34/D36、F31/F35 与 W2 约束"}

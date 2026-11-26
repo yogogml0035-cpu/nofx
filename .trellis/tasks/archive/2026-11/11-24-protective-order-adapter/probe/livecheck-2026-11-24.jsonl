@@ -1,0 +1,16 @@
+{"step":"01_price","ok":true,"detail":"last=0.05616"}
+{"step":"02_place_position_sl","ok":true,"skipped":true,"skip_reason":"仓位级条件单无持仓被拒（实测回答研究缺口 H.1）: failed to place protective order: label: AUTO_USER_NO_LONG_POSITION, message: user not have long position"}
+11-24 15:59:29 [INFO] gate/protective_orders.go:302   [Gate] Protective order placed:  DOGE_USDT trigger=0.02808 id=2125137213204205568
+{"step":"03_place_plain","ok":true,"detail":"trigger=0.02808","order_id":"2125137213204205568"}
+{"step":"04_query_after_place","ok":true,"detail":"trigger=0.02808 rule=2 order_type=\"\" side=\"\" kind_known=false"}
+{"step":"05_amend_attempt","ok":true,"skipped":true,"skip_reason":"改单被交易所拒绝（实测回答研究缺口 H.2）: failed to amend protective order 2125137213204205568: 404 Not Found, Not Found"}
+11-24 15:59:29 [INFO] gate/protective_orders.go:417   [Gate] Protective order cancelled: id=2125137213204205568
+11-24 15:59:30 [INFO] gate/protective_orders.go:302   [Gate] Protective order placed:  DOGE_USDT trigger=0.02527 id=2125137215494295552
+{"step":"06_query_after_rebuild","ok":true,"detail":"撤旧建新生效，trigger=0.02527","order_id":"2125137215494295552"}
+11-24 15:59:30 [INFO] gate/protective_orders.go:417   [Gate] Protective order cancelled: id=2125137215494295552
+{"step":"07_query_after_cancel","ok":true,"order_id":"2125137215494295552"}
+{"step":"08_cancel_by_kind","ok":true,"skipped":true,"skip_reason":"仓位级条件单需有持仓（H.1），普通条件单无 order_type 方向未知按设计跳过；判定逻辑由单测覆盖，W2 补测"}
+attached_tpsl: order=56013526820032372 sl="0.02246" tp="0.0337"
+{"step":"09_attached_tpsl","ok":true}
+{"step":"10_final_state","ok":true,"detail":"no open trigger orders left"}
+LIVECHECK_PASS steps=10

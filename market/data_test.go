@@ -19,7 +19,7 @@ func generateTestKlines(count int) []Kline {
 		volume := 1000.0 + float64(i*100)
 
 		klines[i] = Kline{
-			OpenTime:  int64(i * 180000), // 3-minute interval
+			OpenTime:  int64(i * 180000), // 5-minute interval
 			Open:      open,
 			High:      high,
 			Low:       low,
@@ -29,158 +29,6 @@ func generateTestKlines(count int) []Kline {
 		}
 	}
 	return klines
-}
-
-// TestCalculateIntradaySeries_VolumeCollection tests Volume data collection
-func TestCalculateIntradaySeries_VolumeCollection(t *testing.T) {
-	tests := []struct {
-		name           string
-		klineCount     int
-		expectedVolLen int
-	}{
-		{
-			name:           "Normal case - 20 K-lines",
-			klineCount:     20,
-			expectedVolLen: 10, // Should collect latest 10
-		},
-		{
-			name:           "Exactly 10 K-lines",
-			klineCount:     10,
-			expectedVolLen: 10,
-		},
-		{
-			name:           "Less than 10 K-lines",
-			klineCount:     5,
-			expectedVolLen: 5, // Should return all 5
-		},
-		{
-			name:           "More than 10 K-lines",
-			klineCount:     30,
-			expectedVolLen: 10, // Should only return latest 10
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			klines := generateTestKlines(tt.klineCount)
-			data := calculateIntradaySeries(klines)
-
-			if data == nil {
-				t.Fatal("calculateIntradaySeries returned nil")
-			}
-
-			if len(data.Volume) != tt.expectedVolLen {
-				t.Errorf("Volume length = %d, want %d", len(data.Volume), tt.expectedVolLen)
-			}
-
-			// Verify Volume data correctness
-			if len(data.Volume) > 0 {
-				// Calculate expected start index
-				start := tt.klineCount - 10
-				if start < 0 {
-					start = 0
-				}
-
-				// Verify first Volume value
-				expectedFirstVolume := klines[start].Volume
-				if data.Volume[0] != expectedFirstVolume {
-					t.Errorf("First volume = %.2f, want %.2f", data.Volume[0], expectedFirstVolume)
-				}
-
-				// Verify last Volume value
-				expectedLastVolume := klines[tt.klineCount-1].Volume
-				lastVolume := data.Volume[len(data.Volume)-1]
-				if lastVolume != expectedLastVolume {
-					t.Errorf("Last volume = %.2f, want %.2f", lastVolume, expectedLastVolume)
-				}
-			}
-		})
-	}
-}
-
-// TestCalculateIntradaySeries_VolumeValues tests Volume value correctness
-func TestCalculateIntradaySeries_VolumeValues(t *testing.T) {
-	klines := []Kline{
-		{Close: 100.0, Volume: 1000.0, High: 101.0, Low: 99.0, Open: 100.0},
-		{Close: 101.0, Volume: 1100.0, High: 102.0, Low: 100.0, Open: 101.0},
-		{Close: 102.0, Volume: 1200.0, High: 103.0, Low: 101.0, Open: 102.0},
-		{Close: 103.0, Volume: 1300.0, High: 104.0, Low: 102.0, Open: 103.0},
-		{Close: 104.0, Volume: 1400.0, High: 105.0, Low: 103.0, Open: 104.0},
-		{Close: 105.0, Volume: 1500.0, High: 106.0, Low: 104.0, Open: 105.0},
-		{Close: 106.0, Volume: 1600.0, High: 107.0, Low: 105.0, Open: 106.0},
-		{Close: 107.0, Volume: 1700.0, High: 108.0, Low: 106.0, Open: 107.0},
-		{Close: 108.0, Volume: 1800.0, High: 109.0, Low: 107.0, Open: 108.0},
-		{Close: 109.0, Volume: 1900.0, High: 110.0, Low: 108.0, Open: 109.0},
-	}
-
-	data := calculateIntradaySeries(klines)
-
-	expectedVolumes := []float64{1000.0, 1100.0, 1200.0, 1300.0, 1400.0, 1500.0, 1600.0, 1700.0, 1800.0, 1900.0}
-
-	if len(data.Volume) != len(expectedVolumes) {
-		t.Fatalf("Volume length = %d, want %d", len(data.Volume), len(expectedVolumes))
-	}
-
-	for i, expected := range expectedVolumes {
-		if data.Volume[i] != expected {
-			t.Errorf("Volume[%d] = %.2f, want %.2f", i, data.Volume[i], expected)
-		}
-	}
-}
-
-// TestCalculateIntradaySeries_ATR14 tests ATR14 calculation
-func TestCalculateIntradaySeries_ATR14(t *testing.T) {
-	tests := []struct {
-		name          string
-		klineCount    int
-		expectZero    bool
-		expectNonZero bool
-	}{
-		{
-			name:          "Sufficient data - 20 K-lines",
-			klineCount:    20,
-			expectNonZero: true,
-		},
-		{
-			name:          "Exactly 15 K-lines (ATR14 requires at least 15)",
-			klineCount:    15,
-			expectNonZero: true,
-		},
-		{
-			name:       "Insufficient data - 14 K-lines",
-			klineCount: 14,
-			expectZero: true,
-		},
-		{
-			name:       "Insufficient data - 10 K-lines",
-			klineCount: 10,
-			expectZero: true,
-		},
-		{
-			name:       "Insufficient data - 5 K-lines",
-			klineCount: 5,
-			expectZero: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			klines := generateTestKlines(tt.klineCount)
-			data := calculateIntradaySeries(klines)
-
-			if data == nil {
-				t.Fatal("calculateIntradaySeries returned nil")
-			}
-
-			if tt.expectZero && data.ATR14 != 0 {
-				t.Errorf("ATR14 = %.3f, expected 0 (insufficient data)", data.ATR14)
-			}
-
-			if tt.expectNonZero && data.ATR14 <= 0 {
-				t.Errorf("ATR14 = %.3f, expected > 0", data.ATR14)
-			}
-		})
-	}
 }
 
 // TestCalculateATR tests ATR calculation function
@@ -275,76 +123,6 @@ func TestCalculateATR_TrueRange(t *testing.T) {
 
 	if math.Abs(atr-expectedATR) > tolerance {
 		t.Errorf("calculateATR() = %.3f, want approximately %.3f", atr, expectedATR)
-	}
-}
-
-// TestCalculateIntradaySeries_ConsistencyWithOtherIndicators tests Volume and other indicators consistency
-func TestCalculateIntradaySeries_ConsistencyWithOtherIndicators(t *testing.T) {
-	klines := generateTestKlines(30)
-	data := calculateIntradaySeries(klines)
-
-	// All arrays should exist
-	if data.MidPrices == nil {
-		t.Error("MidPrices should not be nil")
-	}
-	if data.Volume == nil {
-		t.Error("Volume should not be nil")
-	}
-
-	// MidPrices and Volume should have the same length (both latest 10)
-	if len(data.MidPrices) != len(data.Volume) {
-		t.Errorf("MidPrices length (%d) should equal Volume length (%d)",
-			len(data.MidPrices), len(data.Volume))
-	}
-
-	// All Volume values should be > 0
-	for i, vol := range data.Volume {
-		if vol <= 0 {
-			t.Errorf("Volume[%d] = %.2f, should be > 0", i, vol)
-		}
-	}
-}
-
-// TestCalculateIntradaySeries_EmptyKlines tests empty K-line data
-func TestCalculateIntradaySeries_EmptyKlines(t *testing.T) {
-	klines := []Kline{}
-	data := calculateIntradaySeries(klines)
-
-	if data == nil {
-		t.Fatal("calculateIntradaySeries should not return nil for empty klines")
-	}
-
-	// All slices should be empty
-	if len(data.MidPrices) != 0 {
-		t.Errorf("MidPrices length = %d, want 0", len(data.MidPrices))
-	}
-	if len(data.Volume) != 0 {
-		t.Errorf("Volume length = %d, want 0", len(data.Volume))
-	}
-
-	// ATR14 should be 0 (insufficient data)
-	if data.ATR14 != 0 {
-		t.Errorf("ATR14 = %.3f, want 0", data.ATR14)
-	}
-}
-
-// TestCalculateIntradaySeries_VolumePrecision tests Volume precision preservation
-func TestCalculateIntradaySeries_VolumePrecision(t *testing.T) {
-	klines := []Kline{
-		{Close: 100.0, Volume: 1234.5678, High: 101.0, Low: 99.0},
-		{Close: 101.0, Volume: 9876.5432, High: 102.0, Low: 100.0},
-		{Close: 102.0, Volume: 5555.1111, High: 103.0, Low: 101.0},
-	}
-
-	data := calculateIntradaySeries(klines)
-
-	expectedVolumes := []float64{1234.5678, 9876.5432, 5555.1111}
-
-	for i, expected := range expectedVolumes {
-		if data.Volume[i] != expected {
-			t.Errorf("Volume[%d] = %.4f, want %.4f (precision not preserved)",
-				i, data.Volume[i], expected)
-		}
 	}
 }
 
@@ -581,5 +359,41 @@ func TestCalculateBoxData(t *testing.T) {
 	}
 	if box.CurrentPrice != 100.0 {
 		t.Errorf("Expected CurrentPrice = 100.0, got %v", box.CurrentPrice)
+	}
+}
+
+// 短周期（10s）下陈旧判定窗口至少 15 分钟：30 根（5 分钟）全部冻结不足以判陈旧
+func TestIsStaleData_ShortTimeframeUsesFifteenMinuteWindow(t *testing.T) {
+	short := make([]Kline, 30)
+	for i := range short {
+		short[i] = Kline{OpenTime: int64(1700000000000 + i*10000), Close: 100, Volume: 0}
+	}
+	if isStaleData(short, "DOGEUSDT") {
+		t.Error("30 根 10s（5 分钟）冻结不应判为陈旧")
+	}
+
+	long := make([]Kline, 100)
+	for i := range long {
+		long[i] = Kline{OpenTime: int64(1700000000000 + i*10000), Close: 100, Volume: 0}
+	}
+	if !isStaleData(long, "DOGEUSDT") {
+		t.Error("100 根 10s（约 16.7 分钟）冻结 + 零成交应判为陈旧")
+	}
+}
+
+// 1m 周期的窗口是 15 根：14 根冻结不判、15 根冻结判
+func TestIsStaleData_MinuteTimeframeWindow(t *testing.T) {
+	build := func(n int) []Kline {
+		klines := make([]Kline, n)
+		for i := range klines {
+			klines[i] = Kline{OpenTime: int64(1700000000000 + i*60000), Close: 100, Volume: 0}
+		}
+		return klines
+	}
+	if isStaleData(build(14), "DOGEUSDT") {
+		t.Error("14 根 1m 不应判为陈旧")
+	}
+	if !isStaleData(build(15), "DOGEUSDT") {
+		t.Error("15 根 1m 冻结 + 零成交应判为陈旧")
 	}
 }

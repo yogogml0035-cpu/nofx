@@ -369,10 +369,10 @@ func buildSkillForbiddenSummary(lang string, skillNames []string) string {
 		case "trader_management":
 			if lang == "zh" {
 				lines = append(lines, "- trader_management 不能直接设计赚钱/不亏钱方案；那类目标应交给 planner。")
-				lines = append(lines, "- trader_management 不能让用户手动设置、充值或修改交易员余额；交易员初始余额应由系统自动读取绑定交易所净值。")
+				lines = append(lines, "- trader_management 不替用户设置或修改交易员初始余额；它由系统在创建时自动读取绑定交易所账户的本金（不含浮动盈亏），修改入口在网页的交易员编辑页。")
 			} else {
 				lines = append(lines, "- trader_management must not invent a profit-seeking plan; those requests belong to the planner.")
-				lines = append(lines, "- trader_management must not let the user set, top up, or manually edit trader balance; trader initial balance should be auto-read from the bound exchange equity.")
+				lines = append(lines, "- trader_management must not set or edit the trader initial balance on the user's behalf; it is recorded at creation from the bound exchange account's principal (excluding unrealized P&L) and is edited on the trader edit page.")
 			}
 		case "exchange_management":
 			if lang == "zh" {

@@ -2,123 +2,409 @@ package kernel
 
 import (
 	"fmt"
+	"math"
+	"math/big"
+	"strconv"
+	"strings"
+
 	"nofx/logger"
+	"nofx/market"
+	"nofx/store"
 )
 
 // ============================================================================
-// Decision Validation
+// Decision Validation & Position Sizing
 // ============================================================================
 
-func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
-	for i := range decisions {
-		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
-			return fmt.Errorf("decision #%d validation failed: %w", i+1, err)
-		}
-	}
-	return nil
+// MaxLossPercentOfPrincipal 价格到止损价时的亏损上限（本金的百分比，D34）。
+// 开仓与每次修改止损共用这一上限。
+const MaxLossPercentOfPrincipal = 2.0
+
+// DecisionSizing 一次决策的金额与价格输入。
+// Principal/PositionPercent 决定开仓名义价值；Prices 用于校验止损止盈方向与亏损上限，
+// 取模型在同一轮提示词里看到的现价；Positions 是本轮提示词里的持仓快照，
+// 修改止损止盈时用它定位目标持仓、入场价与当前保护。
+type DecisionSizing struct {
+	Principal       float64
+	PositionPercent float64
+	BTCETHLeverage  int
+	AltcoinLeverage int
+	Prices          map[string]float64 // symbol → 当前价
+	Positions       []PositionInfo     // 本轮持仓快照
 }
 
-func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
+// validateDecision 校验一条 AI 决策。开仓的名义价值由代码按本金 × 百分比计算并写入
+// Decision.NotionalUSD（D22/D24）；模型给出的任何金额字段都不参与。
+// 校验包含随单保护的两项硬约束：止损止盈分居现价两侧（否则交易所条件单方向非法）、
+// 价格到止损价的亏损不超过本金的 2%（D34）。修改止损止盈的动作只读取对应字段，
+// 目标持仓必须存在且当前保护可读。
+func validateDecision(d *Decision, sizing DecisionSizing) error {
 	validActions := map[string]bool{
-		"open_long":   true,
-		"open_short":  true,
-		"close_long":  true,
-		"close_short": true,
-		"hold":        true,
-		"wait":        true,
+		"open_long":           true,
+		"open_short":          true,
+		"close_long":          true,
+		"close_short":         true,
+		"close_long_partial":  true,
+		"close_short_partial": true,
+		"update_stop_loss":    true,
+		"update_take_profit":  true,
+		"hold":                true,
+		"wait":                true,
 	}
 
 	if !validActions[d.Action] {
 		return fmt.Errorf("invalid action: %s", d.Action)
 	}
 
-	if d.Action == "open_long" || d.Action == "open_short" {
-		// Asset tiering for validation:
-		//   - BTC/ETH crypto perps use the BTC/ETH tier (typically 5x equity).
-		//   - Everything else is altcoin (1x equity by default).
-		maxLeverage := altcoinLeverage
-		posRatio := altcoinPosRatio
-		maxPositionValue := accountEquity * posRatio
-		isMajor := d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT"
-		if isMajor {
-			maxLeverage = btcEthLeverage
-			posRatio = btcEthPosRatio
-			maxPositionValue = accountEquity * posRatio
+	if d.Action == "close_long_partial" || d.Action == "close_short_partial" {
+		if math.IsNaN(d.ClosePercent) || math.IsInf(d.ClosePercent, 0) {
+			return fmt.Errorf("close_percent must be a finite number, got %v", d.ClosePercent)
 		}
+		if d.ClosePercent == 100 {
+			return fmt.Errorf(
+				"close_percent 100 is a full close; use %s instead",
+				strings.TrimSuffix(d.Action, "_partial"))
+		}
+		if d.ClosePercent <= 0 || d.ClosePercent >= 100 {
+			return fmt.Errorf("close_percent must be in (0, 100), got %v", d.ClosePercent)
+		}
+		return nil
+	}
 
-		if d.Leverage <= 0 {
-			return fmt.Errorf("leverage must be greater than 0: %d", d.Leverage)
-		}
-		if d.Leverage > maxLeverage {
-			logger.Infof("⚠️  [Leverage Fallback] %s leverage exceeded (%dx > %dx), auto-adjusting to limit %dx",
-				d.Symbol, d.Leverage, maxLeverage, maxLeverage)
-			d.Leverage = maxLeverage
-		}
-		if d.PositionSizeUSD <= 0 {
-			return fmt.Errorf("position size must be greater than 0: %.2f", d.PositionSizeUSD)
-		}
+	if d.Action == "update_stop_loss" || d.Action == "update_take_profit" {
+		return validateProtectionUpdate(d, sizing)
+	}
 
-		const minPositionSizeGeneral = 12.0
-		const minPositionSizeBTCETH = 60.0
+	if d.Action != "open_long" && d.Action != "open_short" {
+		return nil
+	}
 
-		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			if d.PositionSizeUSD < minPositionSizeBTCETH {
-				return fmt.Errorf("%s opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.Symbol, d.PositionSizeUSD, minPositionSizeBTCETH)
-			}
-		} else {
-			if d.PositionSizeUSD < minPositionSizeGeneral {
-				return fmt.Errorf("opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.PositionSizeUSD, minPositionSizeGeneral)
-			}
-		}
+	// Asset tiering for the leverage limit:
+	//   - BTC/ETH crypto perps use the BTC/ETH leverage tier.
+	//   - Everything else uses the altcoin tier.
+	maxLeverage := sizing.AltcoinLeverage
+	// 符号变体（BTC/USDT、BTC-USDT、只写基础币种）与规范写法落到同一档，不能因此掉进山寨档
+	switch positionBaseKey(d.Symbol) {
+	case "BTC", "ETH":
+		maxLeverage = sizing.BTCETHLeverage
+	}
 
-		tolerance := maxPositionValue * 0.01
-		if d.PositionSizeUSD > maxPositionValue+tolerance {
-			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-				return fmt.Errorf("BTC/ETH single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
-			}
-			return fmt.Errorf("altcoin single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
-		}
-		if d.StopLoss <= 0 || d.TakeProfit <= 0 {
-			return fmt.Errorf("stop loss and take profit must be greater than 0")
-		}
+	if d.Leverage <= 0 {
+		return fmt.Errorf("leverage must be greater than 0: %d", d.Leverage)
+	}
+	if d.Leverage > maxLeverage {
+		logger.Infof("⚠️  [Leverage Fallback] %s leverage exceeded (%dx > %dx), auto-adjusting to limit %dx",
+			d.Symbol, d.Leverage, maxLeverage, maxLeverage)
+		d.Leverage = maxLeverage
+	}
 
-		if d.Action == "open_long" {
-			if d.StopLoss >= d.TakeProfit {
-				return fmt.Errorf("for long positions, stop loss price must be less than take profit price")
-			}
-		} else {
-			if d.StopLoss <= d.TakeProfit {
-				return fmt.Errorf("for short positions, stop loss price must be greater than take profit price")
-			}
-		}
+	notional, err := openNotional(sizing.Principal, sizing.PositionPercent)
+	if err != nil {
+		return err
+	}
 
-		var entryPrice float64
-		if d.Action == "open_long" {
-			entryPrice = d.StopLoss + (d.TakeProfit-d.StopLoss)*0.2
-		} else {
-			entryPrice = d.StopLoss - (d.StopLoss-d.TakeProfit)*0.2
+	if !finitePositive(d.StopLoss) || !finitePositive(d.TakeProfit) {
+		return fmt.Errorf("stop loss and take profit must be greater than 0")
+	}
+	if d.Action == "open_long" {
+		if d.StopLoss >= d.TakeProfit {
+			return fmt.Errorf("for long positions, stop loss price must be less than take profit price")
 		}
-
-		var riskPercent, rewardPercent, riskRewardRatio float64
-		if d.Action == "open_long" {
-			riskPercent = (entryPrice - d.StopLoss) / entryPrice * 100
-			rewardPercent = (d.TakeProfit - entryPrice) / entryPrice * 100
-			if riskPercent > 0 {
-				riskRewardRatio = rewardPercent / riskPercent
-			}
-		} else {
-			riskPercent = (d.StopLoss - entryPrice) / entryPrice * 100
-			rewardPercent = (entryPrice - d.TakeProfit) / entryPrice * 100
-			if riskPercent > 0 {
-				riskRewardRatio = rewardPercent / riskPercent
-			}
-		}
-
-		if riskRewardRatio < 3.0 {
-			return fmt.Errorf("risk/reward ratio too low (%.2f:1), must be ≥3.0:1 [risk: %.2f%% reward: %.2f%%] [stop loss: %.2f take profit: %.2f]",
-				riskRewardRatio, riskPercent, rewardPercent, d.StopLoss, d.TakeProfit)
+	} else {
+		if d.StopLoss <= d.TakeProfit {
+			return fmt.Errorf("for short positions, stop loss price must be greater than take profit price")
 		}
 	}
 
+	// The attached protective orders are conditional orders on the exchange: a long
+	// stop must sit below the market and its take profit above it (short reversed).
+	// A wrong-side protection would be rejected by the exchange, leaving the
+	// position unprotected — refuse it before anything is sent.
+	price, ok := currentPrice(sizing.Prices, d.Symbol)
+	if !ok {
+		return fmt.Errorf("%s has no valid current price to validate stop loss and take profit", d.Symbol)
+	}
+	if d.Action == "open_long" {
+		if d.StopLoss >= price {
+			return fmt.Errorf("%s long stop loss %v must be below current price %v", d.Symbol, d.StopLoss, price)
+		}
+		if d.TakeProfit <= price {
+			return fmt.Errorf("%s long take profit %v must be above current price %v", d.Symbol, d.TakeProfit, price)
+		}
+	} else {
+		if d.StopLoss <= price {
+			return fmt.Errorf("%s short stop loss %v must be above current price %v", d.Symbol, d.StopLoss, price)
+		}
+		if d.TakeProfit >= price {
+			return fmt.Errorf("%s short take profit %v must be below current price %v", d.Symbol, d.TakeProfit, price)
+		}
+	}
+
+	if err := ValidateStopLossLoss(notional, price, d.StopLoss, sizing.Principal); err != nil {
+		return fmt.Errorf("%s refused to open: %w", d.Symbol, err)
+	}
+
+	d.NotionalUSD = notional
 	return nil
+}
+
+// openNotional 开仓名义价值 = 本金 × position_percent（D22/D24）。
+// 两个入参先按浮点的最短十进制表示转成精确有理数再相乘，避免 `principal ×
+// percent / 100` 的二进制噪声（F33：10000 × 1.13 不能变成 112.99999999999999，
+// 否则按张数取整时会少一格）。结果转回 float64 后由适配器按最短十进制表示解析。
+func openNotional(principal, percent float64) (float64, error) {
+	if !finitePositive(principal) {
+		return 0, fmt.Errorf("account principal must be a positive number to size an open position, got %v", principal)
+	}
+	if !finitePositive(percent) {
+		return 0, fmt.Errorf("position percent must be a positive number, got %v", percent)
+	}
+	if percent < store.MinPositionPercent || percent > store.MaxPositionPercent {
+		return 0, fmt.Errorf("position percent %v is outside the allowed %v%%-%v%% range",
+			percent, store.MinPositionPercent, store.MaxPositionPercent)
+	}
+
+	principalValue, err := decimalValue("account principal", principal)
+	if err != nil {
+		return 0, err
+	}
+	percentValue, err := decimalValue("position percent", percent)
+	if err != nil {
+		return 0, err
+	}
+
+	notional := new(big.Rat).Mul(principalValue, percentValue)
+	notional.Quo(notional, big.NewRat(100, 1))
+	value, _ := notional.Float64()
+	if !finitePositive(value) {
+		return 0, fmt.Errorf("open notional is not a positive number: %v", value)
+	}
+	return value, nil
+}
+
+// decimalValue 把 float64 按其最短十进制表示转成精确有理数（与适配器解析入参的方式一致）
+func decimalValue(name string, v float64) (*big.Rat, error) {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return nil, fmt.Errorf("%s is not a finite number: %v", name, v)
+	}
+	value, ok := new(big.Rat).SetString(strconv.FormatFloat(v, 'f', -1, 64))
+	if !ok {
+		return nil, fmt.Errorf("%s %v is not a parseable decimal", name, v)
+	}
+	return value, nil
+}
+
+// LossAtStop 价格到止损价时的亏损（USDT）：名义价值 × |入场价 − 止损价| ÷ 入场价。
+// 入场价不是正数时返回 +Inf，交由调用方拒绝。
+func LossAtStop(notional, entry, stop float64) float64 {
+	if !finitePositive(entry) {
+		return math.Inf(1)
+	}
+	return notional * math.Abs(entry-stop) / entry
+}
+
+// ValidateStopLossLoss 校验价格到止损价时的亏损不超过本金的 2%（D34）。
+// 开仓时入场价还不可知，用当前价（模型看到的现价）作为最接近的估计。
+// 等于上限允许；比较带极小相对容差，只吸收浮点噪声。
+func ValidateStopLossLoss(notional, entry, stop, principal float64) error {
+	if !finitePositive(notional) {
+		return fmt.Errorf("notional must be a positive number, got %v", notional)
+	}
+	if !finitePositive(entry) {
+		return fmt.Errorf("entry price must be a positive number, got %v", entry)
+	}
+	if !finitePositive(stop) {
+		return fmt.Errorf("stop loss price must be a positive number, got %v", stop)
+	}
+	if !finitePositive(principal) {
+		return fmt.Errorf("account principal must be a positive number, got %v", principal)
+	}
+
+	loss := LossAtStop(notional, entry, stop)
+	limit := principal * MaxLossPercentOfPrincipal / 100
+	if loss > limit*(1+1e-12) {
+		return fmt.Errorf(
+			"loss at stop %.4f USDT exceeds %.0f%% of principal (%.4f USDT): notional %.4f USDT, entry %.6f, stop %.6f",
+			loss, MaxLossPercentOfPrincipal, limit, notional, entry, stop)
+	}
+	return nil
+}
+
+func finitePositive(v float64) bool {
+	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+// positionMatchKey 把交易对归一成比较键：大写、去掉 "_"、"-"、"/" 分隔符。
+// 交易所原生格式（Gate "DOGE_USDT"）与模型写法（"DOGEUSDT"、"DOGE/USDT"）得到同一个键；
+// "-SWAP" 后缀不在处理范围内（保护管理当前只有 Gate 交易路径使用）。
+func positionMatchKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	s = strings.ReplaceAll(s, "_", "")
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "/", "")
+	return s
+}
+
+// positionBaseKey 去掉比较键末尾的计价币后缀（USDT/USDC/USD），用于模型只写基础币种的变体
+func positionBaseKey(symbol string) string {
+	key := positionMatchKey(symbol)
+	for _, suffix := range []string{"USDT", "USDC", "USD"} {
+		if strings.HasSuffix(key, suffix) && len(key) > len(suffix) {
+			return strings.TrimSuffix(key, suffix)
+		}
+	}
+	return key
+}
+
+// positionForSymbol 在本轮持仓快照里定位决策标的的持仓；符号变体（大小写、"DOGE/USDT"、
+// 去掉计价后缀）都归一到比较键，避免一个变体就让整批决策被拒。
+func positionForSymbol(positions []PositionInfo, symbol string) (PositionInfo, bool) {
+	key := positionMatchKey(symbol)
+	if key == "" {
+		return PositionInfo{}, false
+	}
+	for _, pos := range positions {
+		if positionMatchKey(pos.Symbol) == key {
+			return pos, true
+		}
+	}
+	base := positionBaseKey(symbol)
+	for _, pos := range positions {
+		if positionBaseKey(pos.Symbol) == base {
+			return pos, true
+		}
+	}
+	return PositionInfo{}, false
+}
+
+// LossAtPositionStop 现有持仓在止损价的亏损（USDT）：持仓数量 × 入场价到止损价的距离。
+// 止损位于盈利一侧（多单止损不低于入场价、空单止损不高于入场价）时亏损为 0——
+// 移动止损锁定利润不占用本金的亏损额度。入场价不是正数时返回 +Inf，交由调用方拒绝。
+func LossAtPositionStop(pos PositionInfo, stop float64) float64 {
+	if !finitePositive(pos.EntryPrice) || !finitePositive(stop) || !finitePositive(math.Abs(pos.Quantity)) {
+		return math.Inf(1)
+	}
+	short := strings.EqualFold(pos.Side, "short")
+	var distance float64
+	if short {
+		if stop <= pos.EntryPrice {
+			return 0
+		}
+		distance = stop - pos.EntryPrice
+	} else {
+		if stop >= pos.EntryPrice {
+			return 0
+		}
+		distance = pos.EntryPrice - stop
+	}
+	return math.Abs(pos.Quantity) * distance
+}
+
+// ValidatePositionStopLossLoss 校验把现有持仓的止损移到 stop 时的亏损不超过本金的 2%（D34）。
+// 与开仓时不同，入场价与数量来自交易所的持仓读数，不再用现价估算。
+func ValidatePositionStopLossLoss(pos PositionInfo, stop, principal float64) error {
+	if !finitePositive(principal) {
+		return fmt.Errorf("account principal must be a positive number, got %v", principal)
+	}
+	loss := LossAtPositionStop(pos, stop)
+	limit := principal * MaxLossPercentOfPrincipal / 100
+	if loss > limit*(1+1e-12) {
+		return fmt.Errorf(
+			"loss at stop %.4f USDT exceeds %.0f%% of principal (%.4f USDT): position %s %s quantity %.8f, entry %.6f, stop %.6f",
+			loss, MaxLossPercentOfPrincipal, limit, pos.Symbol, pos.Side, math.Abs(pos.Quantity), pos.EntryPrice, stop)
+	}
+	return nil
+}
+
+// validateProtectionUpdate 校验修改止损/止盈的决策：
+// 目标持仓必须存在且当前保护可读；新价格必须是有限正数、位于现价正确一侧；
+// 移动止损时按持仓入场价与数量复核 2% 亏损上限（D34）。
+func validateProtectionUpdate(d *Decision, sizing DecisionSizing) error {
+	pos, ok := positionForSymbol(sizing.Positions, d.Symbol)
+	if !ok {
+		return fmt.Errorf("%s has no open position; cannot %s", d.Symbol, d.Action)
+	}
+	if !finitePositive(pos.StopLoss) || !finitePositive(pos.TakeProfit) {
+		reason := strings.TrimSpace(pos.ProtectionUnavailableReason)
+		if reason == "" {
+			reason = "stop loss or take profit is not readable"
+		}
+		return fmt.Errorf("protection for %s is not readable (%s); refusing to modify", d.Symbol, reason)
+	}
+
+	newPrice := d.TakeProfit
+	field := "take_profit"
+	if d.Action == "update_stop_loss" {
+		newPrice, field = d.StopLoss, "stop_loss"
+	}
+	if !finitePositive(newPrice) {
+		return fmt.Errorf("%s must be greater than 0 for %s", field, d.Action)
+	}
+
+	market, ok := currentPrice(sizing.Prices, d.Symbol)
+	if !ok {
+		return fmt.Errorf("%s has no valid current price to validate the new protection", d.Symbol)
+	}
+	short := strings.EqualFold(pos.Side, "short")
+	switch d.Action {
+	case "update_stop_loss":
+		if short && newPrice <= market {
+			return fmt.Errorf("%s short stop loss %v must be above current price %v", d.Symbol, newPrice, market)
+		}
+		if !short && newPrice >= market {
+			return fmt.Errorf("%s long stop loss %v must be below current price %v", d.Symbol, newPrice, market)
+		}
+		return ValidatePositionStopLossLoss(pos, newPrice, sizing.Principal)
+	case "update_take_profit":
+		if short && newPrice >= market {
+			return fmt.Errorf("%s short take profit %v must be below current price %v", d.Symbol, newPrice, market)
+		}
+		if !short && newPrice <= market {
+			return fmt.Errorf("%s long take profit %v must be above current price %v", d.Symbol, newPrice, market)
+		}
+	}
+	return nil
+}
+
+// currentPrice 在 Prices 中找到决策标的的现价。模型偶尔把候选写成 "BTC"、
+// "BTC-USDT"、"BTC/USDT" 或小写；交易路径的 filterDecisionsToStrategyUniverse
+// 会把它们重写成候选里的规范符号后执行。校验用同一口径取价，否则一个变体就会让
+// 整批决策（包括平仓）被拒。
+func currentPrice(prices map[string]float64, symbol string) (float64, bool) {
+	if price, ok := prices[symbol]; ok && finitePositive(price) {
+		return price, true
+	}
+	trimmed := strings.TrimSpace(symbol)
+	if price, ok := prices[market.Normalize(trimmed)]; ok && finitePositive(price) {
+		return price, true
+	}
+	// market.Normalize 不处理 "/" 分隔符（"BTC/USDT"）
+	if price, ok := prices[market.Normalize(strings.ReplaceAll(trimmed, "/", ""))]; ok && finitePositive(price) {
+		return price, true
+	}
+	base := symbolBaseKey(symbol)
+	if base == "" {
+		return 0, false
+	}
+	for key, price := range prices {
+		if symbolBaseKey(key) == base && finitePositive(price) {
+			return price, true
+		}
+	}
+	return 0, false
+}
+
+// symbolBaseKey 与交易路径的 universeBaseKey 同口径：去掉常见计价后缀后的基础币种
+func symbolBaseKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	s = strings.ReplaceAll(s, "/", "")
+	if s == "" {
+		return ""
+	}
+	for _, suffix := range []string{"-USDC", "-USDT", "USDC", "USDT", "USD"} {
+		if strings.HasSuffix(s, suffix) && len(s) > len(suffix) {
+			return strings.TrimSuffix(s, suffix)
+		}
+	}
+	return s
 }

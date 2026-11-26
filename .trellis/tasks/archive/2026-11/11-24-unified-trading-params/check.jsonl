@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/11-24-gate-trading-foundation/prd.md", "reason": "父任务约束与跨子任务验收标准（全仓与逐仓按 trader 设置生效并读回一致）"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "核对实现与计划文档 3.4/5/8.1/10.2/10.3 是否一致"}
+{"file": ".trellis/tasks/11-24-gate-trading-foundation/design.md", "reason": "检查是否遵守跨子任务设计约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查 fail-closed 解析与测试约定"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "检查是否重复造轮子、是否遗漏复用 decimal.go"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端层规范入口"}
+{"file": ".trellis/tasks/archive/2026-11/11-24-unified-trading-params/research/gate-leverage-margin-docs.md", "reason": "核对实现与文档原文是否一致：接口路径、参数、字段语义、解析取字段的依据"}

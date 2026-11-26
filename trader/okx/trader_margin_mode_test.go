@@ -62,7 +62,7 @@ func (rt *recordingTransport) requestsForPath(path string) []capturedRequest {
 	return matches
 }
 
-func newTestOKXTrader(rt *recordingTransport, isCrossMargin bool) *OKXTrader {
+func newTestOKXTrader(rt http.RoundTripper, isCrossMargin bool) *OKXTrader {
 	return &OKXTrader{
 		apiKey:        "key",
 		secretKey:     "secret",

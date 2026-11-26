@@ -3,6 +3,7 @@ package trader
 import (
 	"fmt"
 	"nofx/logger"
+	"nofx/market"
 	"strings"
 	"time"
 )
@@ -42,6 +43,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
 		side := pos["side"].(string)
+
+		// 只处理本 trader 开出的仓位（计划文档 D40）：不是本 trader 开出的持仓直接无视——
+		// 不管理、不平仓、不更新峰值缓存，也不因此拒绝 trader 启动
+		if !at.isOwnPosition(symbol, side) {
+			continue
+		}
+
 		entryPrice := pos["entryPrice"].(float64)
 		markPrice := pos["markPrice"].(float64)
 		quantity := pos["positionAmt"].(float64)
@@ -56,9 +64,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		// Calculate current P&L percentage
-		leverage := 10 // Default value
-		if lev, ok := pos["leverage"].(float64); ok {
-			leverage = int(lev)
+		// 杠杆取持仓的实际值（计划文档 F12）：适配层读不到（缺失或 0）时才回落 10 倍
+		leverage := 10.0
+		if lev, ok := pos["leverage"].(float64); ok && lev > 0 {
+			leverage = lev
 		}
 
 		var currentPnLPct float64
@@ -98,7 +107,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 			// Execute close position
 			if err := at.emergencyClosePosition(symbol, side); err != nil {
-				logger.Infof("❌ Drawdown close position failed (%s %s): %v", symbol, side, err)
+				logger.Errorf("❌ Drawdown close position failed (%s %s): %v", symbol, side, err)
 			} else {
 				logger.Infof("✅ Drawdown close position succeeded: %s %s", symbol, side)
 				// Clear cache for this position after closing
@@ -110,6 +119,34 @@ func (at *AutoTrader) checkPositionDrawdown() {
 				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
 		}
 	}
+}
+
+// isOwnPosition 判断持仓是否由本 trader 开出（计划文档 D40）：
+//   - 网格 trader：网格品种上的持仓是自己的——网格由本 trader 的限价单成交建仓，不写 trader_positions；
+//   - AI trader：本地 DB 有 OPEN 持仓记录，跨重启稳定。gate 的持仓记录由 OrderSync 写入
+//     （GateTrader.StartOrderSync → store.PositionBuilder.ProcessTrade：market.Normalize 归一化
+//     符号、大写 LONG/SHORT、Status OPEN），与下面的查询同源；决策路径的 recordAndConfirmOrder
+//     对 gate 提前返回，不落持仓；
+//   - 其余（无 store、DB 查询失败、无 OPEN 记录、非网格品种）一律视为不是本 trader 的：全平是
+//     高风险动作，归属不了就不处理，宁可漏处理也不误平不可归属的仓位。
+func (at *AutoTrader) isOwnPosition(symbol, side string) bool {
+	normalized := market.Normalize(symbol)
+	if at.IsGridStrategy() &&
+		normalized == market.Normalize(at.config.StrategyConfig.GridConfig.Symbol) {
+		return true
+	}
+	if at.isSelfOpened(symbol, side) {
+		return true
+	}
+	if at.store == nil {
+		return false
+	}
+	pos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalized, strings.ToUpper(side))
+	if err != nil {
+		logger.Warnf("⚠️ Drawdown monitoring: ownership check failed for %s %s: %v", symbol, side, err)
+		return false
+	}
+	return pos != nil
 }
 
 // emergencyClosePosition emergency close position function
@@ -169,65 +206,25 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 	at.peakPnLCacheMutex.Lock()
 	defer at.peakPnLCacheMutex.Unlock()
 
-	posKey := symbol + "_" + side
-	delete(at.peakPnLCache, posKey)
+	side = strings.ToLower(strings.TrimSpace(side))
+	delete(at.peakPnLCache, symbol+"_"+side)
+	// 缓存键由交易所持仓的原始符号构成（如 DOGE_USDT_long），而决策里的 symbol 可能是
+	// DOGEUSDT。按符号比较键再清一遍，避免同轮全平后同向再开仓沿用旧峰值。
+	target := positionSymbolKey(symbol)
+	for key := range at.peakPnLCache {
+		idx := strings.LastIndex(key, "_")
+		if idx <= 0 || key[idx+1:] != side {
+			continue
+		}
+		if positionSymbolKey(key[:idx]) == target {
+			delete(at.peakPnLCache, key)
+		}
+	}
 }
 
 // ============================================================================
 // Risk Control Helpers
 // ============================================================================
-
-// isBTCETH checks if a symbol is BTC or ETH
-func isBTCETH(symbol string) bool {
-	symbol = strings.ToUpper(symbol)
-	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
-}
-
-// isMajorAsset returns true for assets that should use the BTC/ETH higher
-// position-value tier rather than the altcoin (1x equity) tier.
-func isMajorAsset(symbol string) bool {
-	return isBTCETH(symbol)
-}
-
-// enforcePositionValueRatio checks and enforces position value ratio limits (CODE ENFORCED)
-// Returns the adjusted position size (capped if necessary) and whether the position was capped
-// positionSizeUSD: the original position size in USD
-// equity: the account equity
-// symbol: the trading symbol
-func (at *AutoTrader) enforcePositionValueRatio(positionSizeUSD float64, equity float64, symbol string) (float64, bool) {
-	if at.config.StrategyConfig == nil {
-		return positionSizeUSD, false
-	}
-
-	riskControl := at.config.StrategyConfig.RiskControl
-
-	// Get the appropriate position value ratio limit. BTC/ETH uses the
-	// higher tier; pure altcoins use the lower tier.
-	var maxPositionValueRatio float64
-	if isMajorAsset(symbol) {
-		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
-		if maxPositionValueRatio <= 0 {
-			maxPositionValueRatio = 5.0 // Default: 5x for BTC/ETH
-		}
-	} else {
-		maxPositionValueRatio = riskControl.AltcoinMaxPositionValueRatio
-		if maxPositionValueRatio <= 0 {
-			maxPositionValueRatio = 1.0 // Default: 1x for altcoins
-		}
-	}
-
-	// Calculate max allowed position value = equity × ratio
-	maxPositionValue := equity * maxPositionValueRatio
-
-	// Check if position size exceeds limit
-	if positionSizeUSD > maxPositionValue {
-		logger.Infof("  ⚠️ [RISK CONTROL] Position %.2f USDT exceeds limit (equity %.2f × %.1fx = %.2f USDT max for %s), capping",
-			positionSizeUSD, equity, maxPositionValueRatio, maxPositionValue, symbol)
-		return maxPositionValue, true
-	}
-
-	return positionSizeUSD, false
-}
 
 // enforceMinPositionSize checks minimum position size (CODE ENFORCED)
 func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
@@ -237,7 +234,7 @@ func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
 
 	minSize := at.config.StrategyConfig.RiskControl.MinPositionSize
 	if minSize <= 0 {
-		minSize = 12 // Default: 12 USDT
+		minSize = 10 // Default: 10 USDT (D19)
 	}
 
 	if positionSizeUSD < minSize {

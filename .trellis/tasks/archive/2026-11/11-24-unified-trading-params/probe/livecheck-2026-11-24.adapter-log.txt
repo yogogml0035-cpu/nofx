@@ -1,0 +1,8 @@
+11-24 19:37:31 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 10x
+11-24 19:37:31 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 10x
+11-24 19:37:32 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 5x
+11-24 19:37:32 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT isolated 5x
+11-24 19:37:32 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT isolated 3x
+11-24 19:37:33 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT isolated 10x
+11-24 19:37:33 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 10x
+11-24 19:37:33 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 75x

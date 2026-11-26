@@ -51,7 +51,7 @@ func TestEstimateTokens_HighConfig(t *testing.T) {
 	config := GetDefaultStrategyConfig("en")
 	// Push config to extremes (beyond clamped limits)
 	config.CoinSource.StaticCoins = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "XRPUSDT"}
-	config.Indicators.Klines.SelectedTimeframes = []string{"1m", "3m", "5m", "15m", "1h", "4h"}
+	config.Indicators.Klines.SelectedTimeframes = []string{"1m", "30m", "5m", "15m", "1h", "4h"}
 	config.Indicators.Klines.PrimaryCount = 100
 	config.Indicators.EnableEMA = true
 	config.Indicators.EnableMACD = true

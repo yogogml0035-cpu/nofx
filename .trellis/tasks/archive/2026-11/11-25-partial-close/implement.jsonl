@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "精确十进制换算、禁止浮点截断与猜测回落；交易所适配器测试用 httptest 真实响应格式"}
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "交易路径与适配器能力接口的契约写法（类型断言、fail-closed、返回错误不落单）"}
+{"file": ".trellis/tasks/archive/2026-11/11-24-contract-math/design.md", "reason": "SizeForCloseRatio 的换算语义、F31 边界与 F35 市价单最大张数提示"}
+{"file": ".trellis/tasks/archive/2026-11/11-24-open-position-safety/probe/README.md", "reason": "随单止盈止损是委托级保护的实测结论；分批平仓不管理保护单的边界"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "D31/D36/F31/F35 与 W2 授权、子任务 10 的范围与验收"}
+{"file": "docs/architecture/STRATEGY_MODULE.zh-CN.md", "reason": "动作清单与优先级的文档同步位置"}

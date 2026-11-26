@@ -96,7 +96,7 @@ Final Prompt = Your Custom Strategy (Complete Replacement)
 
 ### How Prompts Work
 
-NoFx builds a message containing market data every 3 minutes to send to the AI:
+NoFx builds a message containing market data after each close of the strategy's primary timeframe (5 seconds after the candle close) and sends it to the AI:
 
 ```mermaid
 graph LR
@@ -150,7 +150,6 @@ BTC broke support, MACD death cross, volume increased...
     "symbol": "BTCUSDT",
     "action": "open_short",
     "leverage": 10,
-    "position_size_usd": 5000,
     "stop_loss": 97000,
     "take_profit": 91000,
     "confidence": 85
@@ -318,11 +317,11 @@ BTC as market indicator:
 ### Complete Market Data
 
 Each coin includes complete technical data:
-- Price sequence (3-minute candles)
+- Price sequence (the strategy-selected K-line timeframes, Gate contract candles)
 - EMA20 sequence
 - MACD sequence
 - RSI7/RSI14 sequences
-- Volume sequence
+- Volume sequence (USDT quote volume, Gate `sum`)
 - Open Interest (OI) sequence
 - Funding rate
 
@@ -355,7 +354,7 @@ Adjust strategy based on Sharpe Ratio:
 - Sharpe < -0.5: Stop trading, observe for at least 18 minutes
 - Sharpe -0.5~0: Only trade confidence >80
 - Sharpe 0~0.7: Maintain current strategy
-- Sharpe > 0.7: Can moderately increase position size
+- Sharpe > 0.7: Keep the current pace; the position percent is a strategy setting sized by the system (principal × percent) and is not adjusted by the AI
 ```
 
 ---
@@ -380,10 +379,10 @@ unrealized_pnl, peak_pnl_pct, margin_used, leverage
 
 ### Hard Constraints (Non-overridable Rules)
 
-The following constraints are enforced by the system. **Methods 1 & 2** automatically add them; **Method 3** requires you to include them:
+The following constraints are enforced by the system and the strategy prompt (the code-enforced parts cannot be overridden). **Methods 1 & 2** automatically add them; **Method 3** requires you to include them:
 
 #### 1. Risk-Reward Ratio
-**Requirement**: Must be ≥ 1:3 (risk 1% for 3%+ reward)
+**Requirement**: the strategy prompt requires ≥ 1:3 (risk 1% for 3%+ reward); the code no longer validates it — the prompt guides the model (D12)
 
 **Meaning**: Take-profit space must be at least 3x stop-loss space
 
@@ -399,14 +398,13 @@ The following constraints are enforced by the system. **Methods 1 & 2** automati
 **Meaning**: Diversify risk, avoid overexposure
 
 #### 3. Single Position Size
-**Requirement**:
-- Altcoins: 0.8~1.5x account equity
-- BTC/ETH: 5~10x account equity
+**Requirement**: open notional = principal × the strategy's position percent (1%-20%, step 0.1, default 10%)
 
-**Example** (Account equity 1000 USDT):
+**Note**: the amount is computed and enforced by the system; the decision JSON has no amount field. Leverage only decides how much margin is used — it does not change the notional.
+
+**Example** (principal 1000 USDT, percent 10%):
 ```
-✅ Altcoin position: 800~1500 USDT
-✅ BTC/ETH position: 5000~10000 USDT
+✅ Open notional per trade: 100 USDT (contract count is derived from the size step)
 ```
 
 #### 4. Leverage Limits
@@ -422,11 +420,9 @@ The following constraints are enforced by the system. **Methods 1 & 2** automati
 **Meaning**: Reserve 10% for liquidation protection and fees
 
 #### 6. Minimum Opening Amount
-**Requirement**:
-- General coins: ≥ 12 USDT
-- BTC/ETH: ≥ 60 USDT
+**Requirement**: ≥ 10 USDT after rounding (configurable in the strategy, default 10)
 
-**Reason**: Exchange minimum notional value + safety margin
+**Reason**: The notional is rounded down to the contract's size step; below this amount or below one size step the order is not placed. The open notional itself is computed and enforced by the system from principal × position percent (1%-20%, default 10%); the AI does not output an amount.
 
 ---
 
@@ -457,11 +453,9 @@ Your analysis...
     "symbol": "BTCUSDT",
     "action": "open_short",
     "leverage": 10,
-    "position_size_usd": 5000,
     "stop_loss": 97000,
     "take_profit": 91000,
-    "confidence": 85,
-    "risk_usd": 300
+    "confidence": 85
   }
 ]
 ```
@@ -475,21 +469,21 @@ Your analysis...
 **1. Range symbols `~`**
 ```json
 // Wrong
-{"position_size_usd": "2000~3000"}  // Must be exact value
-{"stop_loss": "95000~96000"}        // Must be single price
+{"stop_loss": "95000~96000"}   // Must be a single price
+{"confidence": "80~90"}        // Must be an exact value
 
 // Correct
-{"position_size_usd": 2500}
 {"stop_loss": 95500}
+{"confidence": 85}
 ```
 
 **2. Thousands separators `,`**
 ```json
 // Wrong
-{"position_size_usd": 98,000}  // JSON numbers don't allow commas
+{"stop_loss": 98,000}  // JSON numbers don't allow commas
 
 // Correct
-{"position_size_usd": 98000}
+{"stop_loss": 98000}
 ```
 
 **3. Chinese descriptions or comments**
@@ -538,9 +532,9 @@ Your analysis...
 
 #### Core Features
 - Entry confidence ≥ 85 (only high-certainty opportunities)
-- Risk-reward ratio ≥ 1:4 (stricter than system requirement)
+- Risk-reward ratio ≥ 1:4 (stricter than the default prompt guidance)
 - Maximum 2 positions (reduced risk exposure)
-- Small position size (0.5x account equity)
+- Small position size (position percent 5%)
 
 #### Expected Performance
 - Trading frequency: Low (possibly 1-2 trades/day)
@@ -591,7 +585,7 @@ Avoid low-quality signals:
 
 # Position Management (Conservative)
 
-Single position: 0.5x account equity (smaller than system default)
+Single position: position percent 5% (more conservative than the default 10%)
 Maximum positions: 2 coins (1 less than system default)
 Leverage usage:
 - Altcoins: 3x leverage (lower than system limit)
@@ -613,7 +607,7 @@ If P&L Amount drawdown from Peak % exceeds 40%, immediately reduce 50% position
 Sharpe < -0.5: Stop trading, observe continuously for at least 30 minutes
 Sharpe -0.5~0: Only trade confidence ≥ 90
 Sharpe 0~1: Maintain current strategy
-Sharpe > 1: Can moderately increase to 0.8x equity position
+Sharpe > 1: Keep the current pace; the position percent is a strategy setting (currently 5%) sized by the system, not adjusted by the AI
 
 # Decision Process
 
@@ -656,9 +650,9 @@ docker-compose restart
 
 #### Core Features
 - Entry confidence ≥ 75 (system default)
-- Risk-reward ratio ≥ 1:3 (system default)
+- Risk-reward ratio ≥ 1:3 (strategy default guidance)
 - Maximum 3 positions (system default)
-- Moderate position size (0.8~1.5x equity)
+- Moderate position size (position percent 10%)
 
 #### Expected Performance
 - Trading frequency: Medium (2-4 trades/day)
@@ -685,7 +679,7 @@ This means:
 - Overtrading, fee erosion → Direct losses
 - Early exits, frequent in/out → Miss major moves
 
-Key insight: System scans every 3 minutes, but doesn't mean trade every time!
+Key insight: The system decides after each close of the strategy's primary timeframe, but doesn't mean trade every time!
 Most times should be `wait` or `hold`, only enter on excellent opportunities.
 
 # Trading Philosophy & Best Practices
@@ -698,7 +692,7 @@ Discipline over emotion: Execute exit plan, don't arbitrarily move stops or targ
 
 Quality over quantity: Few high-conviction trades beat many low-conviction ones
 
-Adapt to volatility: Adjust position size based on market conditions
+Adapt to volatility: In volatile markets raise entry standards and trade less often (the position percent is a strategy setting and is not adjusted by the AI)
 
 Respect trends: Don't fight strong trends
 
@@ -730,9 +724,9 @@ If you find yourself closing positions <30 minutes → Too impatient
 Only enter on strong signals; observe when uncertain.
 
 Complete data available:
-- Raw sequences: 3-min price sequence (MidPrices array) + 4-hour candle sequence
+- Raw sequences: multi-timeframe candles (Gate contract candles; volume = USDT quote volume)
 - Technical sequences: EMA20 sequence, MACD sequence, RSI7 sequence, RSI14 sequence
-- Capital sequences: Volume sequence, Open Interest (OI) sequence, funding rate
+- Capital sequences: Volume sequence (USDT quote volume), Open Interest (OI) sequence, funding rate
 
 Analysis methods (fully autonomous):
 - Freely use sequence data, you can but not limited to trend analysis, pattern recognition, support/resistance, Fibonacci, volatility bands
@@ -766,7 +760,7 @@ Sharpe 0 ~ 0.7 (positive returns):
   → Maintain current strategy
 
 Sharpe > 0.7 (excellent performance):
-  → Can moderately increase position size
+  → Keep the current pace and wait for the next setup that meets the standards
 
 Key: Sharpe Ratio is the only metric, naturally punishes frequent trading and excessive entries/exits.
 
@@ -777,20 +771,17 @@ Key: Sharpe Ratio is the only metric, naturally punishes frequent trading and ex
 3. Find new opportunities: Any strong signals? Long/short opportunities?
 4. Output decision: Chain of thought + JSON
 
-# Position Size Calculation
+# Position Size
 
-**Important**: `position_size_usd` is **notional value** (includes leverage), not margin requirement.
+**Important**: the open notional is computed and enforced by the system from principal × the strategy's position percent (1%-20%, step 0.1, default 10%). The AI decision JSON **has no amount field**: do not output any amount field, and do not compute, scale up or scale down the amount yourself.
 
-**Calculation Steps**:
-1. **Available Margin** = Available Cash × 0.88 (reserve 12% for fees, slippage, liquidation buffer)
-2. **Notional Value** = Available Margin × Leverage
-3. **position_size_usd** = Notional Value (fill this in JSON)
-4. **Actual Coin Amount** = position_size_usd / Current Price
+The system:
+1. Computes the notional (USDT) from principal × percent
+2. Rounds it down to the contract's size step to get the order size
+3. Skips the order when the rounded amount is below the minimum order size (default 10 USDT) or below one size step
+4. Refuses the decision when the loss at the stop loss exceeds 2% of the principal
 
-**Example**: Available cash $500, leverage 5x
-- Available Margin = $500 × 0.88 = $440
-- position_size_usd = $440 × 5 = **$2,200** ← Fill this in JSON
-- Actually occupies margin = $440, remaining $60 for fees, slippage, liquidation protection
+The AI only supplies: direction, leverage, stop loss, take profit and confidence.
 
 ---
 
@@ -815,9 +806,9 @@ Same as Conservative strategy usage.
 
 #### Core Features
 - Entry confidence ≥ 70 (lower than system default)
-- Risk-reward ratio ≥ 1:3 (system minimum)
+- Risk-reward ratio ≥ 1:3 (strategy prompt requirement)
 - Maximum 3 positions
-- Large position size (near system limit 1.5x equity)
+- Large position size (position percent 18%, near the 20% cap)
 - High leverage (near system limits)
 
 #### Expected Performance
@@ -851,7 +842,7 @@ Moderate aggression: Maximize position size and leverage within risk control
 Entry conditions:
 - Confidence ≥ 70 (medium certainty acceptable)
 - At least 2 indicators support
-- Risk-reward ratio ≥ 1:3 (system minimum)
+- Risk-reward ratio ≥ 1:3 (strategy prompt requirement)
 - Follow major market trend
 
 Scenarios to try:
@@ -863,8 +854,7 @@ Scenarios to try:
 # Position Management (Aggressive)
 
 Single position:
-- Altcoins: 1.2~1.5x account equity (near limit)
-- BTC/ETH: 8~10x account equity (near limit)
+- Position percent 18% (near the 20% cap; notional = principal × percent, computed by the system)
 
 Maximum positions: 3 coins
 
@@ -886,9 +876,9 @@ P&L Amount drawdown from Peak % exceeds 60%, close all
 # Sharpe Ratio Adjustment
 
 Sharpe < -0.5: Pause trading 15 minutes
-Sharpe -0.5~0: Reduce position to 0.8x equity
+Sharpe -0.5~0: Raise entry standards and trade less often (the position percent is a strategy setting, not adjusted by the AI)
 Sharpe 0~0.7: Maintain current strategy
-Sharpe > 0.7: Stay aggressive, can full position
+Sharpe > 0.7: Stay aggressive and keep looking for entries that meet the standards (the system sizes every position from the strategy settings)
 
 # Special Strategies
 
@@ -1128,8 +1118,8 @@ Risk-reward ratio can be appropriately lowered, 2:1 is also acceptable
 ```
 
 **Error Reason**:
-- System enforces risk-reward ratio ≥ 1:3
-- Users cannot override this constraint in Modes 1 & 2
+- The strategy prompt requires risk-reward ratio ≥ 1:3 (a prompt constraint executed by the model)
+- Custom prompts in Modes 1 & 2 should not loosen this requirement
 
 **✅ Correct Rewrite**:
 ```
@@ -1204,7 +1194,7 @@ Adjust strategy based on Sharpe Ratio:
 - Sharpe < -0.5: Stop trading, observe at least 18 minutes
 - Sharpe -0.5~0: Only trade confidence >80
 - Sharpe 0~0.7: Maintain current strategy
-- Sharpe > 0.7: Can moderately increase position
+- Sharpe > 0.7: Can moderately raise the position percent
 ```
 
 **Key Takeaway**:
@@ -1353,10 +1343,10 @@ Your custom Prompt must include:
 # Hard Constraints
 1. Risk-reward ratio ≥ 1:3
 2. Maximum 3 positions
-3. Single position: Altcoin 0.8-1.5x equity, BTC/ETH 5-10x equity
+3. Single position: open notional = principal × position percent (default 10%, adjustable 1%-20% in the strategy)
 4. Leverage: Altcoin ≤5x, BTC/ETH ≤20x
 5. Margin usage ≤ 90%
-6. Minimum opening: General ≥12U, BTC/ETH ≥60U
+6. Minimum opening: ≥ 10 USDT after rounding (configurable in the strategy)
 
 # Output Format
 Use <reasoning> and <decision> tags:
@@ -1420,19 +1410,19 @@ Chain of thought analysis
 2. Check if hard constraints violated
 
 **Common Causes**:
-- Risk-reward ratio < 1:3
+- The loss at the stop loss exceeds 2% of the principal
 - Leverage exceeds limits (Altcoin >5x, BTC/ETH >20x)
-- Position size out of range
-- Opening amount too small (<12 USDT or BTC/ETH <60 USDT)
+- Stop loss / take profit on the wrong side of the current price (a long stop must sit below the market and its take profit above it; short reversed)
+- The open amount computed from principal × percent, after rounding, is below the minimum order size (default 10 USDT)
 
 **Solution**:
 - Emphasize hard constraint requirements in Prompt
 - Add self-check logic:
   ```
   Before outputting decision, self-check:
-  - Is risk-reward ratio ≥ 1:3?
+  - Is the loss from the stop loss to the current price ≤ 2% of the principal?
   - Is leverage within limits?
-  - Does position size meet requirements?
+  - Are stop loss and take profit on opposite sides of the current price?
   ```
 
 ---

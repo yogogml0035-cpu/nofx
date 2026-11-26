@@ -16,6 +16,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/trader/types"
 	"sync"
 	"time"
 )
@@ -159,12 +160,20 @@ type AutoTrader struct {
 	monitorWg             sync.WaitGroup     // Used to wait for monitoring goroutine to finish
 	peakPnLCache          map[string]float64 // Peak profit cache (symbol -> peak P&L percentage)
 	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
-	lastBalanceSyncTime   time.Time          // Last balance sync time
-	userID                string             // User ID
-	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
-	consecutiveAIFailures int                // Consecutive AI call failures
-	safeMode              bool               // Safe mode: no new positions, protect existing ones
-	safeModeReason        string             // Why safe mode was activated
+	// selfOpenedPositions 记录本进程刚开出的仓位（归一化 symbol_side），补上「开仓成交 → OrderSync
+	// 把持仓落到 DB」之间的归属空窗（D40：归属不了就不管理，这段时间仓位仍是自己的）
+	selfOpenedPositions map[string]bool
+	selfOpenedMutex     sync.RWMutex
+	// consecutiveRejectedRounds 连续出现被校验丢弃的决策的轮数（见 noteRejectedDecisions）
+	consecutiveRejectedRounds int
+	// openBlockReason 非空时本轮禁止开仓（例如有仓位失去止损且没能平掉）；每轮开始时清空
+	openBlockReason       string
+	lastBalanceSyncTime   time.Time  // Last balance sync time
+	userID                string     // User ID
+	gridState             *GridState // Grid trading state (only used when StrategyType == "grid_trading")
+	consecutiveAIFailures int        // Consecutive AI call failures
+	safeMode              bool       // Safe mode: no new positions, protect existing ones
+	safeModeReason        string     // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader
@@ -292,36 +301,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		return nil, fmt.Errorf("unsupported trading platform: %s", config.Exchange)
 	}
 
-	// Validate initial balance configuration, auto-fetch from exchange if 0
-	if config.InitialBalance <= 0 {
-		logger.Infof("📊 [%s] Initial balance not set, attempting to fetch current balance from exchange...", config.Name)
-		account, err := trader.GetBalance()
-		if err != nil {
-			return nil, fmt.Errorf("initial balance not set and unable to fetch balance from exchange: %w", err)
-		}
-		// Try multiple balance field names (different exchanges return different formats)
-		balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
-		var foundBalance float64
-		for _, key := range balanceKeys {
-			if balance, ok := account[key].(float64); ok && balance > 0 {
-				foundBalance = balance
-				break
-			}
-		}
-		if foundBalance > 0 {
-			config.InitialBalance = foundBalance
-			logger.Infof("✓ [%s] Auto-fetched initial balance: %.2f USDT", config.Name, foundBalance)
-			// Save to database so it persists across restarts
-			if st != nil {
-				if err := st.Trader().UpdateInitialBalance(userID, config.ID, foundBalance); err != nil {
-					logger.Infof("⚠️  [%s] Failed to save initial balance to database: %v", config.Name, err)
-				} else {
-					logger.Infof("✓ [%s] Initial balance saved to database", config.Name)
-				}
-			}
-		} else {
-			return nil, fmt.Errorf("initial balance must be greater than 0, please set InitialBalance in config or ensure exchange account has balance")
-		}
+	// Initial balance: keep a valid value, rebuild an invalid one from the account principal
+	if err := resolveInitialBalance(trader, st, userID, &config); err != nil {
+		return nil, fmt.Errorf("[%s] %w", config.Name, err)
 	}
 
 	// Get last cycle number (for recovery)
@@ -361,9 +343,38 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		monitorWg:             sync.WaitGroup{},
 		peakPnLCache:          make(map[string]float64),
 		peakPnLCacheMutex:     sync.RWMutex{},
+		selfOpenedPositions:   make(map[string]bool),
+		selfOpenedMutex:       sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil
+}
+
+// resolveInitialBalance 校验并补齐初始资金。配置里的初始资金大于 0 时照用；不大于 0 是无效值
+// （存量 trader 在交易所读数为 0 时被记成 0），此时读交易所账户的当前本金，以它重建、写回数据库
+// 并记录日志。读不到本金或本金不为正时返回错误：没有有效的初始资金，盈亏与开仓金额都无从计算，
+// trader 不加载。错误链里带着 types.ErrBalanceUnreadable 或 types.ErrPrincipalNotPositive，
+// 上层按类型识别原因，不靠匹配文案。
+func resolveInitialBalance(t Trader, st *store.Store, userID string, config *AutoTraderConfig) error {
+	if config.InitialBalance > 0 {
+		return nil
+	}
+	invalid := config.InitialBalance
+
+	principal, err := types.ReadInitialBalance(t)
+	if err != nil {
+		return fmt.Errorf("initial balance %.2f is not valid: %w", invalid, err)
+	}
+
+	config.InitialBalance = principal
+	logger.Warnf("⚠️ [%s] Initial balance %.2f is not valid, rebuilt from the current account principal: %.2f USDT",
+		config.Name, invalid, principal)
+	if st != nil {
+		if err := st.Trader().UpdateInitialBalance(userID, config.ID, principal); err != nil {
+			logger.Warnf("⚠️ [%s] Failed to save the rebuilt initial balance to database: %v", config.Name, err)
+		}
+	}
+	return nil
 }
 
 // Run runs the automatic trading main loop
@@ -377,7 +388,11 @@ func (at *AutoTrader) Run() error {
 
 	logger.Info("🚀 AI-driven automatic trading system started")
 	at.logInfof("💰 Initial balance: %.2f USDT", at.initialBalance)
-	at.logInfof("⚙️  Scan interval: %v", at.config.ScanInterval)
+	if cadence := scanTimeframe(at.config.StrategyConfig); cadence == "" {
+		at.logWarnf("⚙️  Primary timeframe missing/invalid; scan interval fallback: %v", at.scanFallbackInterval())
+	} else {
+		at.logInfof("⚙️  Scan aligned to %s close + %v (UTC)", cadence, scanCloseDelay)
+	}
 	logger.Info("🤖 AI will make full decisions on leverage, position size, stop loss/take profit, etc.")
 
 	at.monitorWg.Add(1)
@@ -436,7 +451,9 @@ func (at *AutoTrader) Run() error {
 
 	// Start Gate order sync if using Gate exchange
 	if at.exchange == "gate" {
-		if gateTrader, ok := at.trader.(*gate.GateTrader); ok && at.store != nil {
+		if gateTrader, ok := at.trader.(*gate.GateTrader); ok && at.store != nil && !at.IsGridStrategy() {
+			// 网格不消费 trader_positions，也不按备注区分下单入口：开启同步会把同一个账户上
+			// AI trader 的成交记到网格名下（污染记录）。网格的仓位归属按网格品种判定（D40）。
 			gateTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second, at.stopMonitorCh)
 			at.logInfof("🔄 Gate order+position sync enabled (every 30s)")
 		}
@@ -449,9 +466,6 @@ func (at *AutoTrader) Run() error {
 			at.logInfof("🔄 KuCoin order+position sync enabled (every 30s)")
 		}
 	}
-
-	ticker := time.NewTicker(at.config.ScanInterval)
-	defer ticker.Stop()
 
 	// Check if this is a grid trading strategy
 	isGridStrategy := at.IsGridStrategy()
@@ -483,8 +497,28 @@ func (at *AutoTrader) Run() error {
 			break
 		}
 
+		// 等待下一个 K 线收线边界（+ 固定延迟）；主周期缺失时回退到旧 ScanInterval。
+		// 每轮重新读取：引擎可能在首轮原地归一化周期别名（1小时→1h），下一轮起即可对齐。
+		cadence := scanTimeframe(at.config.StrategyConfig)
+		wait := at.scanFallbackInterval()
+		if cadence != "" {
+			next, err := nextScanTime(time.Now(), cadence, scanCloseDelay)
+			if err != nil {
+				at.logWarnf("⚠️ Scan schedule unavailable (%v); fallback to %v", err, wait)
+			} else {
+				wait = time.Until(next)
+				if wait < 0 {
+					wait = 0
+				}
+				at.logInfof("⏰ Next scan at %s (UTC)", next.Format(time.RFC3339))
+			}
+		}
+		if cadence == "" {
+			at.logInfof("⏰ Next scan in %v (ScanInterval fallback)", wait)
+		}
+		timer := time.NewTimer(wait)
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			if isGridStrategy {
 				if err := at.RunGridCycle(); err != nil {
 					at.logErrorf("❌ Grid execution failed: %v", err)
@@ -495,6 +529,7 @@ func (at *AutoTrader) Run() error {
 				}
 			}
 		case <-at.stopMonitorCh:
+			timer.Stop()
 			at.logInfof("⏹ Stop signal received, exiting automatic trading main loop")
 			return nil
 		}

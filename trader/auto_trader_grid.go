@@ -7,6 +7,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/trader/types"
 	"sync"
 	"time"
 )
@@ -137,19 +138,12 @@ func (at *AutoTrader) checkMaxDrawdown() (bool, float64) {
 	}
 
 	// Get current equity
-	balance, err := at.trader.GetBalance()
+	account, err := types.ReadAccountBalance(at.trader)
 	if err != nil {
+		logger.Warnf("[Grid] Drawdown not checked, account balance unavailable: %v", err)
 		return false, 0
 	}
-
-	currentEquity := 0.0
-	if equity, ok := balance["total_equity"].(float64); ok {
-		currentEquity = equity
-	} else if total, ok := balance["totalWalletBalance"].(float64); ok {
-		if unrealized, ok := balance["totalUnrealizedProfit"].(float64); ok {
-			currentEquity = total + unrealized
-		}
-	}
+	currentEquity := account.Equity
 
 	if currentEquity <= 0 {
 		return false, 0
@@ -322,30 +316,49 @@ func (at *AutoTrader) InitializeGrid() error {
 	// Initialize grid levels
 	at.initializeGridLevels(price, gridConfig)
 
+	// 保证金模式与杠杆按 trader 的设置生效；没有生效就不把网格标记为已初始化
+	if err := at.applyMarginSettings(gridConfig.Symbol, gridConfig.Leverage); err != nil {
+		return err
+	}
+
 	at.gridState.IsInitialized = true
-
-	// Keep grid orders aligned with the trader's configured cross/isolated mode.
-	if err := at.trader.SetMarginMode(gridConfig.Symbol, at.config.IsCrossMargin); err != nil {
-		logger.Warnf("[Grid] Failed to set margin mode for %s: %v", gridConfig.Symbol, err)
-	} else {
-		marginMode := "cross"
-		if !at.config.IsCrossMargin {
-			marginMode = "isolated"
-		}
-		logger.Infof("[Grid] Margin mode set to %s for %s", marginMode, gridConfig.Symbol)
-	}
-
-	// CRITICAL: Set leverage on exchange before trading
-	if err := at.trader.SetLeverage(gridConfig.Symbol, gridConfig.Leverage); err != nil {
-		logger.Warnf("[Grid] Failed to set leverage %dx on exchange: %v", gridConfig.Leverage, err)
-		// Not fatal - continue with default leverage
-	} else {
-		logger.Infof("[Grid] Leverage set to %dx for %s", gridConfig.Leverage, gridConfig.Symbol)
-	}
 
 	logger.Infof("[Grid] Initialized: %d levels, $%.2f - $%.2f, spacing $%.2f",
 		gridConfig.GridCount, at.gridState.LowerPrice, at.gridState.UpperPrice, at.gridState.GridSpacing)
 
+	return nil
+}
+
+// applyMarginSettings 网格开跑前按 trader 界面的设置生效保证金模式与杠杆（D38）。
+// 适配器能一次性生效时（MarginSettingsApplier）失败即返回错误：不显式设置时首次建仓的合约会落到
+// 全仓最大杠杆（W2/W3 实测），设置没有生效的网格不应开跑。其余适配器沿用两次调用，设置失败不阻断。
+func (at *AutoTrader) applyMarginSettings(symbol string, leverage int) error {
+	cross := at.config.IsCrossMargin
+	if applier, ok := at.trader.(types.MarginSettingsApplier); ok {
+		if err := applier.ApplyMarginSettings(symbol, cross, leverage); err != nil {
+			return fmt.Errorf("failed to apply margin settings for %s: %w", symbol, err)
+		}
+		return nil
+	}
+
+	// Keep grid orders aligned with the trader's configured cross/isolated mode.
+	if err := at.trader.SetMarginMode(symbol, cross); err != nil {
+		logger.Warnf("[Grid] Failed to set margin mode for %s: %v", symbol, err)
+	} else {
+		marginMode := "isolated"
+		if cross {
+			marginMode = "cross"
+		}
+		logger.Infof("[Grid] Margin mode set to %s for %s", marginMode, symbol)
+	}
+
+	// CRITICAL: Set leverage on exchange before trading
+	if err := at.trader.SetLeverage(symbol, leverage); err != nil {
+		logger.Warnf("[Grid] Failed to set leverage %dx on exchange: %v", leverage, err)
+		// Not fatal - continue with default leverage
+	} else {
+		logger.Infof("[Grid] Leverage set to %dx for %s", leverage, symbol)
+	}
 	return nil
 }
 
@@ -498,18 +511,7 @@ func (at *AutoTrader) buildGridContext() (*kernel.GridContext, error) {
 	at.gridState.mu.RUnlock()
 
 	// Get account info
-	balance, err := at.trader.GetBalance()
-	if err == nil {
-		if equity, ok := balance["total_equity"].(float64); ok {
-			ctx.TotalEquity = equity
-		}
-		if available, ok := balance["availableBalance"].(float64); ok {
-			ctx.AvailableBalance = available
-		}
-		if unrealized, ok := balance["totalUnrealizedProfit"].(float64); ok {
-			ctx.UnrealizedPnL = unrealized
-		}
-	}
+	at.applyGridAccount(ctx)
 
 	// Get current position
 	positions, err := at.trader.GetPositions()
@@ -524,6 +526,18 @@ func (at *AutoTrader) buildGridContext() (*kernel.GridContext, error) {
 	}
 
 	return ctx, nil
+}
+
+// applyGridAccount 把账户读数填进网格上下文。读不到时保持原样：网格上下文的失败不阻断（原有行为），
+// 回撤检查读不到时会打告警。
+func (at *AutoTrader) applyGridAccount(ctx *kernel.GridContext) {
+	account, err := types.ReadAccountBalance(at.trader)
+	if err != nil {
+		return
+	}
+	ctx.TotalEquity = account.Equity
+	ctx.AvailableBalance = account.Available
+	ctx.UnrealizedPnL = account.UnrealizedPnL
 }
 
 // executeGridDecision executes a single grid decision

@@ -1,0 +1,17 @@
+{"step":"预检","ok":true,"detail":"无持仓/无条件单/无挂单；仓位设置 cross 75x"}
+{"step":"随单保护开仓","ok":true,"detail":"orderId=56013526826388858 contracts=17 notional=9.2769 fillPrice=0.05457"}
+{"step":"开仓张数核对","ok":true,"detail":"17 张（目标 17）"}
+{"step":"开仓仓位核对","ok":true,"detail":"positionAmt=170 entry=0.05457 leverage=75"}
+{"step":"开仓保护核对","ok":true,"detail":"随单止损止盈已确认"}
+{"step":"可分批状态","ok":true,"detail":"supported=true contracts=17 step=1 reason="}
+{"step":"50% 分批平仓","ok":true,"detail":"orderId=56013526826389199 contracts=8 remaining=9 fillPrice=0.05456 notional=4.3648"}
+{"step":"分批张数核对","ok":true,"detail":"期望 平8/剩9，实际 平8/剩9"}
+{"step":"分批后仓位核对","ok":true,"detail":"positionAmt=90（期望 90 币）"}
+{"step":"分批后可分批状态","ok":true,"detail":"supported=true contracts=9 step=1"}
+{"step":"分批后保护核对","ok":true,"detail":"开仓委托的随单止损止盈仍可读回"}
+{"step":"100% 分批被拒","ok":true,"detail":"close percent 100 is a full close; use the full-close action instead of a partial close"}
+{"step":"过小比例被拒","ok":true,"detail":"partial close LONG DOGE_USDT skipped: close size below one size step: position 9 contracts, close 1%"}
+{"step":"拒绝用例无副作用","ok":true,"detail":"未缓存读数 contracts=9（期望 9）"}
+{"step":"市价全平","ok":true,"detail":"close=true, size=0"}
+{"step":"终态零残留","ok":true,"detail":""}
+{"step":"仓位设置不变","ok":true,"detail":"before=cross 75x after=cross 75x err=\u003cnil\u003e"}

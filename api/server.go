@@ -222,13 +222,14 @@ NOTE: The id field is "trader_id" (NOT "id"). Always read trader_id from this en
 				`:id = trader_id from GET /api/my-traders`,
 				s.handleGetTraderConfig)
 			s.routeWithSchema(protected, "POST", "/traders", "Create a new AI trader",
-				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3>}
-IMPORTANT: ai_model_id and exchange_id must be the full "id" value from the Account State, not the provider/type name.`,
+				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3 — fallback only: decisions run 5s after each close of the strategy primary timeframe; this interval is used only when the strategy has no valid timeframe>}
+IMPORTANT: ai_model_id and exchange_id must be the full "id" value from the Account State, not the provider/type name.
+The initial balance is not part of the body: it is recorded from the exchange account's current principal. Change it afterwards with PUT /traders/:id.`,
 				s.handleCreateTrader)
 			s.routeWithSchema(protected, "PUT", "/traders/:id", "Update trader configuration",
 				`:id = trader_id from GET /api/my-traders
-Body: {"name":"<string>","ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<EXACT id from GET /api/strategies>","scan_interval_minutes":<int, min 3>,"is_cross_margin":<bool>}
-Only include fields you want to change.`,
+Body: {"name":"<string>","ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<EXACT id from GET /api/strategies>","scan_interval_minutes":<int, min 3 — fallback only, decisions normally run 5s after each primary-timeframe close>,"is_cross_margin":<bool>,"initial_balance":<number, must be above 0; omit or send 0 to keep the current value. When exchange_id changes to another account, the initial balance is reset and rebuilt from the new account's principal when the trader loads, unless a new value is sent in the same request>}
+name, ai_model_id and exchange_id are required: send their current values when you only change other fields.`,
 				s.handleUpdateTrader)
 			s.routeWithSchema(protected, "DELETE", "/traders/:id", "Delete trader",
 				`:id = trader_id from GET /api/my-traders. Stops and permanently removes the trader and all its data.`,
@@ -243,7 +244,7 @@ Only include fields you want to change.`,
 				`Body: {"prompt":"<string — the full custom prompt text>"}`,
 				s.handleUpdateTraderPrompt)
 			s.routeWithSchema(protected, "POST", "/traders/:id/sync-balance", "Sync account balance from exchange",
-				`:id = trader_id from GET /api/my-traders. No request body needed. Refreshes initial_balance from the exchange.`,
+				`:id = trader_id from GET /api/my-traders. No request body needed. Sets initial_balance to the exchange account's current principal (the balance excluding unrealized P&L).`,
 				s.handleSyncBalance)
 			s.routeWithSchema(protected, "POST", "/traders/:id/close-position", "Force-close an open position",
 				`:id = trader_id from GET /api/my-traders.
@@ -334,7 +335,7 @@ IMPORTANT: For most use cases just POST {"name":"<name>"} — the backend fills 
 StrategyConfig fields:
   coin_source.static_coins: ["BTCUSDT","ETHUSDT"] — hand-picked Gate USDT perpetual symbols (the only coin source)
   coin_source.excluded_coins: coins to filter out from the candidate list
-  indicators.klines.primary_timeframe: "1m"|"3m"|"5m"|"15m"|"1h"|"4h" — scalping→"5m", trend/swing→"1h"/"4h"
+  indicators.klines.primary_timeframe: "10s"|"1m"|"5m"|"15m"|"30m"|"1h"|"4h"|"8h"|"1d"|"7d"|"1w"|"30d" (Gate candlestick intervals; D25) — scalping→"5m", trend/swing→"1h"/"4h"
   indicators.klines.primary_count: number of candles (20-100)
   indicators.klines.enable_multi_timeframe: true for trend/swing analysis
   indicators.klines.selected_timeframes: e.g. ["5m","15m","1h","4h"]
@@ -354,11 +355,10 @@ StrategyConfig fields:
   risk_control.max_positions: max simultaneous positions (1=single coin, 3=diversified, 5=wide)
   risk_control.btc_eth_max_leverage: BTC/ETH leverage (conservative:3-5, moderate:5-10, aggressive:10-20)
   risk_control.altcoin_max_leverage: altcoin leverage (usually lower than BTC leverage)
-  risk_control.btc_eth_max_position_value_ratio: max position size as multiple of equity (default 5)
-  risk_control.altcoin_max_position_value_ratio: default 1
+  risk_control.position_percent: open notional = principal × percent, computed and enforced by the backend (1-20, step 0.1, default 10); the AI decision JSON has no amount field
   risk_control.max_margin_usage: 0.5-0.95 (default 0.9 = use up to 90% margin)
-  risk_control.min_position_size: minimum USDT per trade (default 12)
-  risk_control.min_risk_reward_ratio: minimum profit/loss ratio required (default 3 = 3:1)
+  risk_control.min_position_size: minimum USDT per trade, checked after rounding to the contract size step (default 10, user configurable)
+  risk_control.min_risk_reward_ratio: minimum profit/loss ratio (default 3 = 3:1; AI prompt guidance only, not code-enforced)
   risk_control.min_confidence: minimum AI confidence to open position (default 75, range 60-90)
   prompt_sections.role_definition: describe the AI's trading persona and goal
   prompt_sections.trading_frequency: guidelines on how often to trade

@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/11-25-engine-klines-gate/design.md", "reason": "改动点、删除清单、权衡与边界"}
+{"file": ".trellis/tasks/11-25-market-source/design.md", "reason": "⑫ 交付的 Gate 取数契约（GetGateKlines/周期/成交量口径）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误包装与 fail-closed 约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试与质量基线"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "§8.5 行情删除清单、D6/D25、F41"}

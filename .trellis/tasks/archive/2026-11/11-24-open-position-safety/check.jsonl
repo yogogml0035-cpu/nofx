@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/archive/2026-11/11-24-open-position-safety/prd.md", "reason": "子任务验收标准"}
+{"file": ".trellis/tasks/archive/2026-11/11-24-open-position-safety/design.md", "reason": "接口形状与取舍，检查实现是否偏离"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "对照 8.1 删除清单与保护不变量逐项核对"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "禁止模式与测试要求"}

@@ -1,0 +1,204 @@
+{
+  "sha": "cb171385",
+  "project": "nofx-closeout-smoke",
+  "port": 1189,
+  "results": [
+    {
+      "step": "images built",
+      "result": "PASS",
+      "detail": {
+        "backend": "nofx-closeout-smoke-backend:cb171385",
+        "frontend": "nofx-closeout-smoke:cb171385",
+        "log": ".trellis/tasks/11-24-gate-trading-foundation/probe/smoke-cb171385/build.log"
+      }
+    },
+    {
+      "step": "http health via frontend proxy",
+      "result": "PASS",
+      "detail": {}
+    },
+    {
+      "step": "container health (image HEALTHCHECK)",
+      "result": "PASS",
+      "detail": {
+        "nofx-closeout-smoke-backend": "healthy",
+        "nofx-closeout-smoke": "healthy"
+      }
+    },
+    {
+      "step": "register + login",
+      "result": "PASS",
+      "detail": {}
+    },
+    {
+      "step": "klines 10s",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 1m",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 5m",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 15m",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 30m",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 1h",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 4h",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 8h",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 1d",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 7d",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 1w",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines 30d",
+      "result": "PASS",
+      "detail": {
+        "bars": 5,
+        "ok": true
+      }
+    },
+    {
+      "step": "klines non-retained 3m rejected",
+      "result": "PASS",
+      "detail": {
+        "body": "{\"error\":\"unsupported gate kline interval \\\"3m\\\" (supported: [10s 1m 5m 15m 30m 1h 4h 8h 1d 7d 1w 30d])\"}"
+      }
+    },
+    {
+      "step": "gate 24h tickers",
+      "result": "PASS",
+      "detail": {
+        "count": 3
+      }
+    },
+    {
+      "step": "strategy create + read back",
+      "result": "PASS",
+      "detail": {
+        "id": "470f4dbb-a617-4453-9e43-6620704cd439",
+        "position_percent": 10,
+        "min_position_size": 10
+      }
+    },
+    {
+      "step": "legacy 3m timeframe cleared with a warning",
+      "result": "PASS",
+      "detail": {
+        "saved": "",
+        "warnings": [
+          "max_positions adjusted from 0 to 1",
+          "btc_eth_max_leverage adjusted from 0 to 1",
+          "altcoin_max_leverage adjusted from 0 to 1",
+          "position_percent adjusted from 0.00 to 10.00",
+          "min_risk_reward_ratio adjusted from 0.00 to 1.00",
+          "max_margin_usage adjusted from 0.00 to 0.10",
+          "min_position_size adjusted from 0.00 to 10.00",
+          "min_confidence adjusted from 0 to 50",
+          "primary timeframe \"3m\" is not supported (10s, 1m, 5m, 15m, 30m, 1h, 4h, 8h, 1d, 7d, 1w, 30d) and was cleared: the first selected timeframe is used instead (5m when none)"
+        ]
+      }
+    },
+    {
+      "step": "preview prompt (Gate data, no amount fields)",
+      "result": "PASS",
+      "detail": {
+        "chars": 7525,
+        "primary_tf": "1h",
+        "has_quote_volume": true,
+        "has_candlestick": true,
+        "has_series": true
+      }
+    },
+    {
+      "step": "no trader created",
+      "result": "PASS",
+      "detail": {
+        "count": 0
+      }
+    },
+    {
+      "step": "no trader auto-started (db)",
+      "result": "PASS",
+      "detail": {
+        "running": "0"
+      }
+    },
+    {
+      "step": "no trader auto-started (logs)",
+      "result": "PASS",
+      "detail": {
+        "markers": []
+      }
+    }
+  ],
+  "verdict": "SMOKE_PASS"
+}

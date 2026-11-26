@@ -1,0 +1,5 @@
+11-25 12:21:53 [INFO] gate/margin_settings.go:167   [Gate] Margin settings applied: DOGE_USDT cross 75x
+11-25 12:21:53 [INFO] gate/protected_open.go:120   [Gate] OpenProtected: side=LONG, contract=DOGE_USDT, size=17, sl=0.049257, tp=0.060203000000000007, slip=0.010000
+11-25 12:21:54 [INFO] gate/protected_open.go:162   [Gate] Opened LONG position with attached TP/SL: orderId=56013526825339676, contracts=17, fillPrice=0.054720
+11-25 12:21:56 [INFO] gate/trader_orders.go:138   [Gate] CloseAllLONG: symbol=DOGE_USDT (close=true, size=0)
+11-25 12:21:56 [INFO] gate/trader_orders.go:169   [Gate] Closed LONG position: orderId=56013526825339834, fillPrice=0.0547

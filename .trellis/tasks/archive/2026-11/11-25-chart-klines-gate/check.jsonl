@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/11-25-chart-klines-gate/prd.md", "reason": "验收标准与范围"}
+{"file": ".trellis/tasks/11-25-chart-klines-gate/design.md", "reason": "应实现的后端/前端改动与删除清单"}
+{"file": ".trellis/tasks/archive/2026-11/11-25-market-source/design.md", "reason": "Gate 取数契约与成交量口径"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试与质量基线"}

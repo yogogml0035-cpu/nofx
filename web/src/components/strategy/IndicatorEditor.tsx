@@ -11,15 +11,18 @@ interface IndicatorEditorProps {
 const t = (language: string, zh: string, en: string) => (language === 'zh' ? zh : en)
 
 const timeframes = [
+  { value: '10s', label: '10s', group: 'scalp' },
   { value: '1m', label: '1m', group: 'scalp' },
-  { value: '3m', label: '3m', group: 'scalp' },
   { value: '5m', label: '5m', group: 'scalp' },
   { value: '15m', label: '15m', group: 'intraday' },
   { value: '30m', label: '30m', group: 'intraday' },
   { value: '1h', label: '1h', group: 'intraday' },
-  { value: '2h', label: '2h', group: 'swing' },
   { value: '4h', label: '4h', group: 'swing' },
+  { value: '8h', label: '8h', group: 'swing' },
   { value: '1d', label: '1D', group: 'position' },
+  { value: '7d', label: '7D', group: 'position' },
+  { value: '1w', label: '1W', group: 'position' },
+  { value: '30d', label: '30D', group: 'position' },
 ]
 
 const groupLabels: Record<string, string> = {

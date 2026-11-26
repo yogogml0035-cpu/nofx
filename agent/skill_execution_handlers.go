@@ -16,7 +16,7 @@ import (
 var (
 	firstIntegerPattern = regexp.MustCompile(`\d+`)
 	firstFloatPattern   = regexp.MustCompile(`\d+(?:\.\d+)?`)
-	timeframeTokenRE    = regexp.MustCompile(`(?i)\b\d{1,2}[mhdw]\b`)
+	timeframeTokenRE    = regexp.MustCompile(`(?i)\b\d{1,2}[mhdws]\b`)
 	coinSymbolTokenRE   = regexp.MustCompile(`(?i)^(?:xyz:)?[a-z0-9._-]{2,20}(?:usdt|usd|-usdc)?$`)
 	quotedContentRE     = regexp.MustCompile(`[“"]([^“”"]{1,200})[”"]`)
 )
@@ -306,6 +306,21 @@ func buildTraderUpdateArgsFromSession(session skillSession) traderUpdateArgs {
 		args.ShowInCompetition = &parsed
 	}
 	return args
+}
+
+// traderInitialBalanceResetNote 换绑交易所会把交易员的初始余额重置，等交易员加载时再按新账户的本金重建。
+// 这不是用户要求过的改动，要告诉用户；其余更新不附带说明
+func traderInitialBalanceResetNote(toolResult, lang string) string {
+	var result struct {
+		InitialBalanceReset bool `json:"initial_balance_reset"`
+	}
+	if err := json.Unmarshal([]byte(toolResult), &result); err != nil || !result.InitialBalanceReset {
+		return ""
+	}
+	if lang == "zh" {
+		return "\n\n绑定的交易所变了，初始余额已重置：交易员加载时会按新账户当前的本金（不含浮动盈亏）重建。想用别的数值，请在网页的交易员编辑页修改。"
+	}
+	return "\n\nThe linked exchange changed, so the initial balance was reset: when the trader loads, it is rebuilt from the new account's current principal (excluding unrealized P&L). To use a different value, edit the trader on the web page."
 }
 
 type modelUpdatePatch struct {
@@ -607,16 +622,11 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "山寨币最大杠杆"
 		}
 		return "altcoin max leverage"
-	case "btceth_max_position_value_ratio":
+	case "position_percent":
 		if lang == "zh" {
-			return "BTC/ETH 最大仓位价值倍数"
+			return "开仓金额百分比"
 		}
-		return "BTC/ETH max position value ratio"
-	case "altcoin_max_position_value_ratio":
-		if lang == "zh" {
-			return "山寨币最大仓位价值倍数"
-		}
-		return "altcoin max position value ratio"
+		return "position size percent"
 	case "max_margin_usage":
 		if lang == "zh" {
 			return "最大保证金使用率"
@@ -878,15 +888,30 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 			return fmt.Errorf("山寨币最大杠杆需要是整数")
 		}
 		cfg.RiskControl.AltcoinMaxLeverage = parsed
-	case "btceth_max_position_value_ratio":
-		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
-	case "altcoin_max_position_value_ratio":
-		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
+	case "position_percent":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("开仓金额百分比需要是数字")
+		}
+		cfg.RiskControl.PositionPercent = parsed
 	case "max_margin_usage":
 		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
 	case "min_position_size":
-		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("最小开仓金额需要是数字")
+		}
+		if parsed < store.MinPositionSize {
+			return fmt.Errorf("最小开仓金额不能低于 %.0f USDT", store.MinPositionSize)
+		}
+		if parsed > store.MaxPositionSize {
+			return fmt.Errorf("最小开仓金额不能高于 %.0f USDT", store.MaxPositionSize)
+		}
+		cfg.RiskControl.MinPositionSize = parsed
 	case "primary_timeframe":
+		if !store.IsValidTimeframe(value) {
+			return fmt.Errorf("主周期 %q 不在支持范围，可选：%s", value, store.RetainedTimeframeList())
+		}
 		cfg.Indicators.Klines.PrimaryTimeframe = value
 	case "primary_count":
 		parsed, err := strconv.Atoi(value)
@@ -896,6 +921,15 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		cfg.Indicators.Klines.PrimaryCount = parsed
 	case "selected_timeframes":
 		tfs := strings.Split(value, ",")
+		for i := range tfs {
+			tfs[i] = strings.TrimSpace(strings.Trim(tfs[i], "\"'"))
+			if tfs[i] == "" {
+				continue
+			}
+			if !store.IsValidTimeframe(tfs[i]) {
+				return fmt.Errorf("多周期 %q 不在支持范围，可选：%s", tfs[i], store.RetainedTimeframeList())
+			}
+		}
 		cfg.Indicators.Klines.SelectedTimeframes = tfs
 		cfg.Indicators.Klines.EnableMultiTimeframe = len(tfs) > 1
 	case "ema_periods":
@@ -1181,10 +1215,10 @@ func strategyFieldKeywords(field string) []string {
 		return []string{"atr周期", "atr periods"}
 	case "boll_periods":
 		return []string{"boll周期", "布林周期", "boll periods"}
-	case "btceth_max_position_value_ratio":
-		return []string{"btc/eth仓位价值倍数", "btc eth position value", "主流币仓位价值倍数"}
-	case "altcoin_max_position_value_ratio":
-		return []string{"山寨币仓位价值倍数", "altcoin position value"}
+	case "position_percent":
+		return []string{"仓位百分比", "开仓百分比", "开仓金额百分比", "开仓比例", "position percent", "position_percent"}
+	case "min_position_size":
+		return []string{"最小开仓金额", "最小下单金额", "min position size"}
 	case "max_margin_usage":
 		return []string{"最大保证金使用率", "max margin usage"}
 	default:
@@ -1244,10 +1278,10 @@ func strategyFieldExplicitlyMentioned(text, field string) bool {
 			keywords = []string{"btc/eth杠杆", "btc eth杠杆", "btc/eth leverage", "btc eth leverage", "主流币杠杆"}
 		case "altcoin_max_leverage":
 			keywords = []string{"山寨币杠杆", "altcoin leverage", "alts leverage"}
-		case "btceth_max_position_value_ratio":
-			keywords = []string{"btc/eth仓位价值倍数", "btc eth position value", "主流币仓位价值倍数"}
-		case "altcoin_max_position_value_ratio":
-			keywords = []string{"山寨币仓位价值倍数", "altcoin position value"}
+		case "position_percent":
+			keywords = []string{"仓位百分比", "开仓百分比", "开仓金额百分比", "开仓比例", "position percent", "position_percent"}
+		case "min_position_size":
+			keywords = []string{"最小开仓金额", "最小下单金额", "min position size"}
 		case "max_margin_usage":
 			keywords = []string{"最大保证金使用率", "max margin usage"}
 		case "primary_timeframe":
@@ -1523,27 +1557,28 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 				return "That change did not go through: " + errMsg
 			}
 			a.rememberReferencesFromToolResult(userID, "manage_trader", resp)
+			note := traderInitialBalanceResetNote(resp, lang)
 			if lang == "zh" {
 				switch session.Action {
 				case "configure_strategy":
-					return "已更新交易员策略。"
+					return "已更新交易员策略。" + note
 				case "configure_exchange":
-					return "已更新交易员交易所。"
+					return "已更新交易员交易所。" + note
 				case "configure_model":
-					return "已更新交易员模型。"
+					return "已更新交易员模型。" + note
 				default:
-					return "已更新交易员绑定。"
+					return "已更新交易员绑定。" + note
 				}
 			}
 			switch session.Action {
 			case "configure_strategy":
-				return "Updated the trader strategy."
+				return "Updated the trader strategy." + note
 			case "configure_exchange":
-				return "Updated the trader exchange."
+				return "Updated the trader exchange." + note
 			case "configure_model":
-				return "Updated the trader model."
+				return "Updated the trader model." + note
 			default:
-				return "Updated trader bindings."
+				return "Updated trader bindings." + note
 			}
 		}
 		if fieldValue(session, skillDAGStepField) == "" {
@@ -1583,14 +1618,15 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 				}
 				return "That change did not go through: " + errMsg
 			}
+			note := traderInitialBalanceResetNote(resp, lang)
 			if lang == "zh" {
-				reply := "已更新交易员配置。"
+				reply := "已更新交易员配置。" + note
 				if len(warnings) > 0 {
 					reply += "\n\n已按手动面板范围自动调整：\n- " + strings.Join(warnings, "\n- ")
 				}
 				return reply
 			}
-			reply := "Updated trader config."
+			reply := "Updated trader config." + note
 			if len(warnings) > 0 {
 				reply += "\n\nAdjusted to stay within the manual editor limits:\n- " + strings.Join(warnings, "\n- ")
 			}
@@ -2733,7 +2769,7 @@ Your job:
 - Do not expose evidence-package wording, tool names, raw logs, HTTP status codes, backend internals, or engineering troubleshooting unless the user explicitly asked for technical logs.
 - Do not invent subscriptions, data services, websites, missing product fields, or unsupported actions.
 - Never say "subscription expired" unless the evidence explicitly contains a confirmed subscription state.
-- If an order is blocked because the amount is too small, explain it as account size/order minimum/system limit. Do not suggest editing position_size_usd, min_position_size, max_positions, position value ratios, or other System enforced fields.
+- If an order is blocked because the amount is too small, explain it as account size/order minimum/system limit. Suggest real levers (adding funds, smaller-suitable symbols, the strategy's position_percent 1%-20%, or the editable min_position_size default 10 USDT). Do not suggest editing the open amount (the system computes it as principal × position_percent) or System enforced fields such as max_positions and max_margin_usage.
 - If the latest decision is wait/hold, explain that the trader is running and the AI chose to wait because the entry standard was not met.
 - If evidence is insufficient, say what is missing and the next concrete check.
 
@@ -2781,24 +2817,34 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 	rawDecisions, _ := json.Marshal(ev.Decisions)
 	allEvidence := strings.ToLower(string(rawDecisions))
 	latestEvidence := strings.ToLower(strings.Join(append(append([]string{}, latest.ExecutionLog...), latest.ErrorMessage, latest.DecisionJSON), "\n"))
-	hasAmountTooSmall := containsAny(allEvidence, []string{"opening amount too small", "below minimum", "must be ≥", "must be >=", "position value below minimum"})
+	hasAmountTooSmall := containsAny(allEvidence, []string{"below minimum", "position value below minimum", "open skipped", "低于最小下单金额", "最小下单门槛"})
 	latestWait := containsAny(latestEvidence, []string{"wait succeeded", `"action":"wait"`, `"action":"hold"`})
 	primarySymbol := primaryDiagnosisSymbol(latest.CandidateCoins, latest.DecisionJSON)
 	amount, minimum := openingAmountAndMinimum(string(rawDecisions))
 	totalEquity := toFloat(ev.Account["total_equity"])
+	// Open notional is sized from the account principal (本金, D22), not equity.
+	principal := toFloat(ev.Account["wallet_balance"])
+	if principal == 0 {
+		principal = totalEquity
+	}
 	available := toFloat(ev.Account["available_balance"])
 	if available == 0 {
 		available = toFloat(ev.Account["available"])
 	}
-	var maxBTCETHPositionValue float64
-	if ev.Strategy != nil && ev.Strategy.Config != nil {
+	// Expected open notional under the percent-based sizing: principal × position_percent%.
+	var expectedOpenNotional float64
+	if ev.Strategy != nil && ev.Strategy.Config != nil && principal > 0 {
+		percent := 0.0
 		if risk, ok := nestedMap(ev.Strategy.Config, "ai_config", "risk_control"); ok {
-			maxBTCETHPositionValue = totalEquity * firstPositiveFloat(risk["btc_eth_max_position_value_ratio"], risk["btceth_max_position_value_ratio"])
+			percent = firstPositiveFloat(risk["position_percent"])
 		}
-		if maxBTCETHPositionValue == 0 {
+		if percent == 0 {
 			if risk, ok := ev.Strategy.Config["risk_control"].(map[string]any); ok {
-				maxBTCETHPositionValue = totalEquity * firstPositiveFloat(risk["btc_eth_max_position_value_ratio"], risk["btceth_max_position_value_ratio"])
+				percent = firstPositiveFloat(risk["position_percent"])
 			}
+		}
+		if percent > 0 {
+			expectedOpenNotional = principal * percent / 100
 		}
 	}
 
@@ -2831,13 +2877,13 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 			}
 			summary += "，所以这笔单被拦下了。"
 			lines = append(lines, summary)
-			if totalEquity > 0 && maxBTCETHPositionValue > 0 {
-				lines = append(lines, fmt.Sprintf("当前账户权益约 %.2f USDT，按策略风控算出来的单笔仓位上限约 %.2f USDT，容易达不到最小下单金额。", totalEquity, maxBTCETHPositionValue))
+			if expectedOpenNotional > 0 {
+				lines = append(lines, fmt.Sprintf("当前账户本金约 %.2f USDT，按策略的开仓金额百分比算出来的单笔名义价值约 %.2f USDT，容易达不到最小下单金额。", principal, expectedOpenNotional))
 			}
 			if latestWait {
 				lines = append(lines, "另外，最近也有一些周期是 AI 主动选择等待，说明并不是系统完全没跑。")
 			}
-			lines = append(lines, "该怎么办：增加账户资金，或者换更适合小资金的策略/标的。AI 智能策略里的最小开仓金额是系统限制，不能手动修改。")
+			lines = append(lines, "该怎么办：增加账户资金，或者换更适合小资金的策略/标的；也可以调高策略里的开仓金额百分比（1%–20%），或在策略编辑页调整最小开仓金额（默认 10 USDT）。")
 		case latestWait:
 			lines = append(lines, fmt.Sprintf("%s 是运行的，最近 AI 决策也成功了；它不开单的原因是当前信号没有达到入场标准，所以主动选择等待。", traderName))
 			lines = append(lines, "该怎么办：如果你想让它更容易出手，可以调整产品里真实可改的策略偏好，比如降低最低置信度或最低盈亏比；如果你更重视安全，就让它继续等待更明确的机会。")
@@ -2874,7 +2920,7 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 	default:
 		lines = append(lines, fmt.Sprintf("%s has no clear rejection reason in the latest records yet.", traderName))
 	}
-	lines = append(lines, "What to do: use the real editable product settings or account actions, such as adding funds, changing to a small-account-friendly symbol/strategy, or adjusting confidence/risk-reward preferences. Do not change system-enforced fields.")
+	lines = append(lines, "What to do: use the real editable product settings or account actions, such as adding funds, changing to a small-account-friendly symbol/strategy, raising the position percent (1%-20%), adjusting the minimum order size (default 10 USDT), or tuning confidence/risk-reward preferences. Do not change system-enforced fields or the system-computed open amount (principal × position_percent).")
 	return strings.Join(lines, "\n")
 }
 
@@ -2894,15 +2940,19 @@ func primaryDiagnosisSymbol(candidates []string, decisionJSON string) string {
 func openingAmountAndMinimum(evidence string) (float64, float64) {
 	amount := 0.0
 	minimum := 0.0
-	if match := regexp.MustCompile(`(?i)opening amount too small \((\d+(?:\.\d+)?)\s*USDT\)`).FindStringSubmatch(evidence); len(match) >= 2 {
+	// 适配器跳过下单时给出换算用的名义价值：open skipped for X: 取整后低于最小下单金额
+	// (notional 10.7500 USDT, price ..., size step ...)
+	if match := regexp.MustCompile(`(?i)notional\s+(\d+(?:\.\d+)?)\s*USDT`).FindStringSubmatch(evidence); len(match) >= 2 {
 		amount, _ = strconv.ParseFloat(match[1], 64)
 	}
+	// 交易路径的最小下单早退检查同样带出被拦下的金额：Position 10.75 USDT below minimum (20.00 USDT)
 	if amount == 0 {
-		if match := regexp.MustCompile(`(?i)"position_size_usd"\s*:\s*(\d+(?:\.\d+)?)`).FindStringSubmatch(evidence); len(match) >= 2 {
+		if match := regexp.MustCompile(`(?i)position\s+(\d+(?:\.\d+)?)\s*USDT\s+below minimum`).FindStringSubmatch(evidence); len(match) >= 2 {
 			amount, _ = strconv.ParseFloat(match[1], 64)
 		}
 	}
-	if match := regexp.MustCompile(`(?:must be|must be ≥|>=|≥)\s*(\d+(?:\.\d+)?)\s*USDT`).FindStringSubmatch(evidence); len(match) >= 2 {
+	// 交易路径的最小下单早退检查：Position 10.00 USDT below minimum (20.00 USDT)
+	if match := regexp.MustCompile(`(?i)below minimum\s*\((\d+(?:\.\d+)?)\s*USDT\)`).FindStringSubmatch(evidence); len(match) >= 2 {
 		minimum, _ = strconv.ParseFloat(match[1], 64)
 	}
 	return amount, minimum

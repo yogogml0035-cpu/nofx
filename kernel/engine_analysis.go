@@ -80,15 +80,29 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 
 	// 1. Fetch market data using strategy config
 	if len(ctx.MarketDataMap) == 0 {
-		if err := fetchMarketDataWithStrategy(ctx, engine); err != nil {
+		if err := fetchMarketDataForDecision(ctx, engine); err != nil {
 			return nil, fmt.Errorf("failed to fetch market data: %w", err)
 		}
 	}
 	pruneCandidateCoinsWithoutMarketData(ctx)
 
-	// 2. Build System Prompt using strategy engine
+	// 没有任何可决策的数据（行情源不可用、限频，或流动性全部不达标）且没有仓位要管：不调用模型。
+	// 以前会带着空数据调用，模型只能凭空输出 wait/hold——白付一次调用，限频时还加重上游压力。
+	// 有仓位时仍然调用：平仓与改保护不依赖候选币的行情。
+	if decisionSkippable(ctx) {
+		logger.Warnf("⚠️ No market data and no positions to manage; skipping the AI call this cycle")
+		return &FullDecision{
+			Decisions:     []Decision{},
+			Timestamp:     time.Now(),
+			SkippedReason: "no market data and no positions to manage",
+		}, nil
+	}
+
+	// 2. Build System Prompt using strategy engine.
+	//    The notional shown in the prompt is principal × position_percent — the
+	//    same code-enforced amount the decisions are sized with below.
 	riskConfig := engine.GetRiskControlConfig()
-	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, variant)
+	systemPrompt := engine.BuildSystemPrompt(ctx.Account.Principal, variant)
 
 	// 3. Build User Prompt using strategy engine
 	userPrompt := engine.BuildUserPrompt(ctx)
@@ -101,15 +115,16 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		return nil, fmt.Errorf("AI API call failed: %w", err)
 	}
 
-	// 5. Parse AI response
-	decision, err := parseFullDecisionResponse(
-		aiResponse,
-		ctx.Account.TotalEquity,
-		riskConfig.BTCETHMaxLeverage,
-		riskConfig.AltcoinMaxLeverage,
-		riskConfig.BTCETHMaxPositionValueRatio,
-		riskConfig.AltcoinMaxPositionValueRatio,
-	)
+	// 5. Parse AI response. Open notional, protection direction and the loss cap
+	//    are validated and filled in here; the model does not supply an amount.
+	decision, err := parseFullDecisionResponse(aiResponse, DecisionSizing{
+		Principal:       ctx.Account.Principal,
+		PositionPercent: riskConfig.PositionPercent,
+		BTCETHLeverage:  riskConfig.BTCETHMaxLeverage,
+		AltcoinLeverage: riskConfig.AltcoinMaxLeverage,
+		Prices:          marketPrices(ctx),
+		Positions:       ctx.Positions,
+	})
 
 	if decision != nil {
 		decision.Timestamp = time.Now()
@@ -124,6 +139,14 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	}
 
 	return decision, nil
+}
+
+// fetchMarketDataForDecision 决策前的行情取数（测试缝：接线用例替换它，不访问网络）
+var fetchMarketDataForDecision = fetchMarketDataWithStrategy
+
+// decisionSkippable 没有任何可决策的数据且没有仓位要管：这一轮不需要调用模型
+func decisionSkippable(ctx *Context) bool {
+	return len(ctx.MarketDataMap) == 0 && len(ctx.Positions) == 0
 }
 
 // ============================================================================
@@ -144,7 +167,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		if primaryTimeframe != "" {
 			timeframes = append(timeframes, primaryTimeframe)
 		} else {
-			timeframes = append(timeframes, "3m")
+			timeframes = append(timeframes, "5m")
 		}
 		if config.Indicators.Klines.LongerTimeframe != "" {
 			timeframes = append(timeframes, config.Indicators.Klines.LongerTimeframe)
@@ -230,7 +253,7 @@ func pruneCandidateCoinsWithoutMarketData(ctx *Context) {
 // AI Response Parsing
 // ============================================================================
 
-func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) (*FullDecision, error) {
+func parseFullDecisionResponse(aiResponse string, sizing DecisionSizing) (*FullDecision, error) {
 	cotTrace := extractCoTTrace(aiResponse)
 
 	decisions, err := extractDecisions(aiResponse)
@@ -241,17 +264,48 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
-	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
+	// 逐条校验：非法决策只丢弃自己并记录原因，同批次里合法的平仓、改保护照常执行。
+	// 全部被拒时沿用整批失败语义（交给上层的重试与安全模式）。
+	kept := make([]Decision, 0, len(decisions))
+	rejected := make([]RejectedDecision, 0)
+	var firstErr error
+	for i := range decisions {
+		if err := validateDecision(&decisions[i], sizing); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("decision #%d validation failed: %w", i+1, err)
+			}
+			rejected = append(rejected, RejectedDecision{
+				Index: i + 1, Symbol: decisions[i].Symbol, Action: decisions[i].Action, Reason: err.Error(),
+			})
+			logger.Warnf("⚠️  Dropping decision #%d (%s %s): %v", i+1, decisions[i].Action, decisions[i].Symbol, err)
+			continue
+		}
+		kept = append(kept, decisions[i])
+	}
+	if len(decisions) > 0 && len(kept) == 0 {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
-		}, fmt.Errorf("decision validation failed: %w", err)
+			Rejected:  rejected,
+		}, fmt.Errorf("decision validation failed: %w", firstErr)
 	}
 
 	return &FullDecision{
 		CoTTrace:  cotTrace,
-		Decisions: decisions,
+		Decisions: kept,
+		Rejected:  rejected,
 	}, nil
+}
+
+// marketPrices 取本轮提示词里每个标的的现价，供决策校验使用（模型看到的是同一组数据）。
+func marketPrices(ctx *Context) map[string]float64 {
+	prices := make(map[string]float64, len(ctx.MarketDataMap))
+	for symbol, data := range ctx.MarketDataMap {
+		if data != nil {
+			prices[symbol] = data.CurrentPrice
+		}
+	}
+	return prices
 }
 
 func extractCoTTrace(response string) string {

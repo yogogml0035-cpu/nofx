@@ -142,3 +142,12 @@ img.png
 
 # 本地中间产物（检查点 diff、连通性脚本、DB 备份等）
 scratch/
+
+# Local deployment state (compose, candidate DB, secrets) and scratch evidence
+.nofx-local/
+
+# 串联冒烟的证据目录（脚本按 SHA 生成，不随仓库提交）
+**/probe/smoke-*/
+
+# Probe build artifacts (source and evidence only)
+.trellis/tasks/*/probe/*.bin

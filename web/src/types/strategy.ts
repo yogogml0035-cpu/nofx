@@ -157,14 +157,12 @@ export interface RiskControlConfig {
   btc_eth_max_leverage: number;    // BTC/ETH max exchange leverage
   altcoin_max_leverage: number;    // Altcoin max exchange leverage
 
-  // Position Value Ratio - single position notional value / account equity (CODE ENFORCED)
-  // Max position value = equity × this ratio
-  btc_eth_max_position_value_ratio?: number;     // default: 5 (BTC/ETH max position = 5x equity)
-  altcoin_max_position_value_ratio?: number;     // default: 1 (Altcoin max position = 1x equity)
+  // Open position notional = principal × this percent (1-20, step 0.1, default 10)
+  position_percent: number;
 
   // Risk Parameters
   max_margin_usage: number;        // Max margin utilization, e.g. 0.9 = 90% (CODE ENFORCED)
-  min_position_size: number;       // Min position size in USDT (CODE ENFORCED)
+  min_position_size: number;       // Min position size in USDT (user configurable, default 10)
   min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number;          // Min AI confidence to open position (AI guided)
 }

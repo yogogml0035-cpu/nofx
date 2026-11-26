@@ -9,7 +9,7 @@ require (
 	github.com/bybit-exchange/bybit.go.api v0.0.0-20250727214011-c9347d6804d6
 	github.com/elliottech/lighter-go v0.0.0-20251104171447-78b9b55ebc48
 	github.com/ethereum/go-ethereum v1.17.3
-	github.com/gateio/gateapi-go/v6 v6.104.3
+	github.com/gate/gateapi-go/v7 v7.2.184
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/golang-jwt/jwt/v5 v5.3.1

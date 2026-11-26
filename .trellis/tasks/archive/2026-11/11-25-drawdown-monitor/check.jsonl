@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/exchange-adapters.md", "reason": "检查适配层改动是否遵守适配器契约与读回语义"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查禁止模式（float 除法、猜测回落、htptest Content-Type）"}
+{"file": "docs/plans/2026-11-24-gate-trading-foundation.zh-CN.md", "reason": "对照父任务计划文档 3.6/10.2 第 6 行/D37/D40 验收"}
+{"file": ".trellis/tasks/archive/2026-11/11-25-drawdown-monitor/prd.md", "reason": "子任务验收标准清单"}
+{"file": ".trellis/tasks/archive/2026-11/11-25-drawdown-monitor/design.md", "reason": "子任务设计边界与理由"}

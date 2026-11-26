@@ -1,0 +1,39 @@
+== partial-close state (after sync) ==
+timeout
+-------
+   3000
+id  symbol   side  quantity  entry_quantity  entry_price  exit_price  realized_pnl      fee      status
+--  -------  ----  --------  --------------  -----------  ----------  ------------  -----------  ------
+ 6  BTCUSDT  LONG    0.0001          0.0002      60803.2     60895.7          0.01  0.009125105  OPEN
+11-26 17:41:42 [INFO] gate/trader_orders.go:166   [Gate] CloseAllLONG: symbol=BTC_USDT (close=true, size=0)
+11-26 17:41:42 [INFO] gate/trader_orders.go:201   [Gate] Closed LONG position: orderId=36028841388422213, fillPrice=60910.9000
+close_long BTC_USDT order=map[avgPrice:60910.9 fillPrice:60910.9 orderId:36028841388422213 status:FILLED symbol:BTCUSDT] err=<nil>
+trade id=897426746 order_id=36028841388422213 text="t-nofx-close" size=-1 close_size=-1 price=60910.9
+trade id=897424017 order_id=36028841388140768 text="t-nofx-partial-close" size=-1 close_size=-1 price=60895.7
+trade id=897422846 order_id=36028841388027215 text="t-nofx-ai" size=1 close_size=0 price=60803.2
+trade id=897422845 order_id=36028841388027215 text="t-nofx-ai" size=1 close_size=0 price=60803.2
+trade id=995726779 order_id=63894861922299689 text="t-nofx-close" size=-0.8 close_size=-0.8 price=1699.08
+trade id=897411629 order_id=36028841386452952 text="t-nofx-close" size=-1 close_size=-1 price=60802.2
+remaining_open_positions=0
+available=107.33652
+== sync pass 1 ==
+11-26 09:43:18 [INFO] gate/order_sync.go:352   ✅ Synced trade: 897426746 BTCUSDT SELL qty=0.000100 price=60910.900000 pnl=0.00 fee=0.003046 action=close_long
+11-26 09:43:18 [INFO] gate/order_sync.go:356 ✅ Gate order sync completed: 1 new trades synced
+SYNC_OK
+CLOSED BTCUSDT LONG qty=0.0002000000 entry=60803.2000000000 exit=60903.3000000000 pnl=0.0200 fee=0.0121706500 reason=sync
+CLOSED BTCUSDT LONG qty=0.0002000000 entry=60858.8000000000 exit=60851.0500000000 pnl=-0.0100 fee=0.0121709900 reason=sync
+== sync pass 2 ==
+11-26 09:44:59 [INFO] gate/order_sync.go:356 ✅ Gate order sync completed: 0 new trades synced
+SYNC_OK
+CLOSED BTCUSDT LONG qty=0.0002000000 entry=60803.2000000000 exit=60903.3000000000 pnl=0.0200 fee=0.0121706500 reason=sync
+CLOSED BTCUSDT LONG qty=0.0002000000 entry=60858.8000000000 exit=60851.0500000000 pnl=-0.0100 fee=0.0121709900 reason=sync
+== final state ==
+timeout
+-------
+   3000
+  name    is_running
+--------  ----------
+DeepSeek           0
+status  n
+------  -
+CLOSED  6
