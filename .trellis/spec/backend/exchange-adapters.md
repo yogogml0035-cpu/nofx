@@ -103,11 +103,15 @@ Such a record must never adopt a later position on the same contract and side, b
 then manage or even market-close a position somebody else opened.
 
 - After every successful position read, `reconcileOpenPositionRecords` runs (never on a failed read):
-  - no position on the exchange -> the record is closed;
-  - position exists but its entry price differs from the record by more than 0.5% -> the record is closed
-    and the position is treated as not the trader's (never manage what cannot be attributed);
+  - no position on the exchange -> the record becomes `RECONCILED` (not `CLOSED`: there is no exit price yet);
+    a late closing fill is backfilled into it and turns it into `CLOSED` with the real exit price and PnL;
+  - position exists but its entry price differs from the record by more than 0.5% -> the record becomes
+    `RECONCILED` with the entry-mismatch reason and is never eligible for fill backfill (never manage what
+    cannot be attributed);
   - entry price matches and only the quantity differs (a partial close was missed) -> the record quantity
     is aligned to the exchange (`store.SyncPositionSnapshot`).
+- `RECONCILED` records are bookkeeping only: they are excluded from history and every statistic (all queries
+  filter `status = 'CLOSED'`), so a reconciled record can never produce a fake `-100% × leverage` trade.
 - Grid traders do not start the order sync: they do not consume `trader_positions` and their ownership is
   decided by the grid symbol, so syncing would only file the AI trader's fills under the grid trader.
 
@@ -623,8 +627,15 @@ must stay invisible to the model and must never be closed by it.
 
 - Only **opening** fills whose text is `t-nofx-ai` create order, fill and OPEN position records.
   Opens placed by the assistant, the grid, the user or other tools are skipped.
-- **Closing** fills are applied only when the trader already has an OPEN record for that symbol and side.
-- When the position write of an opening fill fails, the just-created order and fill rows are deleted so the
+- The sync is **idempotent per fill**: an existing order row means the fill was already applied and is skipped.
+  A fill is never replayed against a still-OPEN record (a partial close leaves the record OPEN; replaying it
+  would subtract the quantity/fee/PnL on every poll until the record is wrongly closed).
+- **Closing** fills are applied to an OPEN record for that symbol and side. When that record does not exist
+  (or its entry time is later than the fill), a recently `RECONCILED` record with the position-gone reason is
+  backfilled (`store.BackfillReconciledClose`): quantity is reduced, exit price weighted, PnL/fee accumulated,
+  and the record turns `CLOSED` once the remaining quantity reaches zero. Without a backfill target the fill
+  is skipped (nothing of this trader to close).
+- When the fill row or the position write fails, the just-created order and fill rows are deleted so the
   next sync replays the trade; otherwise the existing order row would make every later sync skip it.
 - Every new entry point that is allowed to open positions for the trader must use `aiTraderOpenText`.
   Assistant and grid opens keep `t-nofx` on purpose: those positions are not the trader's.
@@ -638,8 +649,10 @@ must stay invisible to the model and must never be closed by it.
 | Opening fill, text `t-nofx-ai` | order + fill + position records under the trader |
 | Opening fill, any other text | skipped (not the trader's position) |
 | Closing fill, trader has an OPEN record for the symbol/side | applied, record reduced/closed |
-| Closing fill, no OPEN record | skipped (nothing of this trader to close) |
-| Opening fill whose position write fails | rows rolled back, replayed on the next sync |
+| Closing fill, only a recent position-gone `RECONCILED` record exists | backfilled into it (exit price/PnL preserved) |
+| Closing fill, no OPEN and no backfillable RECONCILED record | skipped (nothing of this trader to close) |
+| Fill whose fill row/position write fails | rows rolled back, replayed on the next sync |
+| Same fill returned by a later poll | skipped (order row exists — idempotent) |
 | Two AI traders on one exchange account | not distinguishable (same text) — one account, one AI trader |
 
 ### 5. Good/Base/Bad Cases
