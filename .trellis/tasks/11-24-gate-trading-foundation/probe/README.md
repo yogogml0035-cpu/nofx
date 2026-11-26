@@ -113,3 +113,5 @@ GATE_KEY=… GATE_SECRET=… /tmp/w5livecheck -out w5-livecheck-2026-11-26.jsonl
   `sync_probe.go`（容器内按需同步 SQLite + Gate 适配器，不启动 AI/不下单）。
 - 历史遗留：该交易员 `initial_balance` 为 3.46e-09（旧数据），页面总收益率显示异常大；
   不影响开仓（仓位按账户本金计算），记录为已知数据遗留。
+
+- 最终候选（f23d8267，含 F69）复核：隔离冒烟 `smoke-f23d8267/` `SMOKE_PASS`（24 项，summary 入库）。
