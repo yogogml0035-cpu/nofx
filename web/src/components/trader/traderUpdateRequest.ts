@@ -25,7 +25,8 @@ export function buildTraderUpdateRequest(data: CreateTraderRequest) {
     strategy_id: data.strategy_id,
     scan_interval_minutes: data.scan_interval_minutes,
     is_cross_margin: data.is_cross_margin,
-    show_in_competition: data.show_in_competition,
+    // 后端把缺失的字段当作「保持原值」；这里显式补成布尔值，避免 undefined 在 JSON 里被丢掉
+    show_in_competition: data.show_in_competition !== false,
     // 表单没有给出初始余额时，请求里不带这个键
     ...(data.initial_balance === undefined
       ? {}

@@ -96,7 +96,7 @@ Final Prompt = Your Custom Strategy (Complete Replacement)
 
 ### How Prompts Work
 
-NoFx builds a message containing market data after each close of the strategy's primary timeframe (5 seconds after the candle close) and sends it to the AI:
+NoFx builds a message containing market data at the trader's scan interval (5 seconds after a matching candle close) and sends it to the AI:
 
 ```mermaid
 graph LR
@@ -679,7 +679,7 @@ This means:
 - Overtrading, fee erosion → Direct losses
 - Early exits, frequent in/out → Miss major moves
 
-Key insight: The system decides after each close of the strategy's primary timeframe, but doesn't mean trade every time!
+Key insight: The system periodically decides at the trader's scan interval, but doesn't mean trade every time!
 Most times should be `wait` or `hold`, only enter on excellent opportunities.
 
 # Trading Philosophy & Best Practices

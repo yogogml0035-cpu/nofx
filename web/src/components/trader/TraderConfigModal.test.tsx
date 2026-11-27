@@ -25,8 +25,7 @@ const existingTrader: TraderConfigData = {
   is_running: false,
 }
 
-// 这两个 props 必须传稳定的引用：表单里同步表单状态的 effect 把它们列为依赖，
-// 不传时组件的默认参数每次渲染都是新数组，会无限重渲染（页面上父组件传的是 state）
+// 页面轮询时父组件会重渲染并产生新的选项数组；测试里也模拟这一点，检查表单不会被重置。
 const availableModels = [
   { id: 'model-1', name: 'demo', provider: 'openai', enabled: true },
 ]
@@ -34,11 +33,11 @@ const availableExchanges = [
   { id: 'exchange-1', name: 'gate', exchange_type: 'gate', enabled: true },
 ]
 
-async function renderModal(
+function modalElement(
+  onSave: ReturnType<typeof vi.fn>,
   overrides: Partial<React.ComponentProps<typeof TraderConfigModal>> = {}
 ) {
-  const onSave = vi.fn().mockResolvedValue(undefined)
-  render(
+  return (
     <LanguageProvider>
       <TraderConfigModal
         isOpen
@@ -52,15 +51,32 @@ async function renderModal(
       />
     </LanguageProvider>
   )
+}
+
+async function renderModal(
+  overrides: Partial<React.ComponentProps<typeof TraderConfigModal>> = {}
+) {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  const view = render(modalElement(onSave, overrides))
   // 等策略列表那次请求落定，状态更新都发生在 act 之内
   await waitFor(() => expect(httpClient.get).toHaveBeenCalledTimes(1))
   await act(async () => {})
-  return { onSave }
+  return { onSave, view }
 }
 
 function saveButton() {
   return screen.getByRole('button', { name: 'Save Changes' })
 }
+
+// 每个用例都从干净队列开始：clearAllMocks 不会清掉未消费的 mockResolvedValueOnce，
+// 上一个用例提前失败时会把策略列表泄漏到下一个用例。
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.mocked(httpClient.get).mockResolvedValue({
+    success: true,
+    data: { strategies: [] },
+  } as never)
+})
 
 describe('TraderConfigModal – initial balance', () => {
   beforeEach(() => {
@@ -240,7 +256,8 @@ describe('TraderConfigModal – scan cadence', () => {
             primary_count: 30,
             longer_timeframe: '',
             longer_count: 0,
-            enable_multi_timeframe: false,
+            enable_multi_timeframe: true,
+            selected_timeframes: ['5m', '4h', '15m', '1h'],
           },
         },
         risk_control: { max_margin_usage: 0.9 },
@@ -252,68 +269,260 @@ describe('TraderConfigModal – scan cadence', () => {
     vi.clearAllMocks()
   })
 
-  it('shows the effective cadence from the selected strategy primary timeframe', async () => {
+  it('uses the scan interval, not the strategy primary timeframe', async () => {
+    // 短线策略：primary=4h 是背景周期，实际触发在 5m。节奏必须跟着扫描间隔走。
     vi.mocked(httpClient.get).mockResolvedValueOnce({
       success: true,
-      data: { strategies: [strategyWithTimeframe('1h')] },
+      data: { strategies: [strategyWithTimeframe('4h')] },
     } as never)
 
-    await renderModal()
+    await renderModal({
+      traderData: { ...existingTrader, scan_interval_minutes: 5 },
+    })
 
-    // 决策按策略主周期收线后 5 秒触发；扫描间隔只是回退
     const cadence = screen.getByTestId('trader-scan-cadence')
-    expect(cadence.textContent).toContain('1h')
+    expect(cadence.textContent).toContain('5m')
     expect(cadence.textContent).toContain('5s after each')
-    expect(screen.queryByText(/calls the model about once a minute/)).toBeNull()
+    expect(cadence.textContent).not.toContain('4h')
   })
 
-  it('warns about model call frequency for a 1m primary timeframe', async () => {
-    vi.mocked(httpClient.get).mockResolvedValueOnce({
-      success: true,
-      data: { strategies: [strategyWithTimeframe('1m')] },
-    } as never)
+  it('updates the effective cadence when the interval changes', async () => {
+    await renderModal({
+      traderData: { ...existingTrader, scan_interval_minutes: 5 },
+    })
 
-    await renderModal()
+    const input = screen.getByLabelText('Scan interval (minutes)')
+    fireEvent.change(input, { target: { value: '60' } })
+    expect(screen.getByTestId('trader-scan-cadence').textContent).toContain('1h')
 
-    expect(screen.getByTestId('trader-scan-cadence').textContent).toContain('1m')
-    expect(screen.getByText(/calls the model about once a minute/)).toBeTruthy()
-  })
-})
-
-describe('TraderConfigModal – scan cadence validation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+    fireEvent.change(input, { target: { value: '7' } })
+    expect(screen.getByTestId('trader-scan-cadence').textContent).toContain(
+      '7 minutes after each round'
+    )
   })
 
-  it('does not show an effective cadence for a legacy timeframe outside the retained set', async () => {
+  it('shows the 5-minute cap for grid strategies', async () => {
     vi.mocked(httpClient.get).mockResolvedValueOnce({
       success: true,
       data: {
         strategies: [
           {
-            id: 'strategy-1', name: 'legacy', description: '', is_active: true, is_default: false,
-            created_at: '', updated_at: '',
+            id: 'strategy-1',
+            name: 'grid',
+            description: '',
+            is_active: true,
+            is_default: false,
+            created_at: '',
+            updated_at: '',
             config: {
-              strategy_type: 'ai_trading',
-              ai_config: {
-                coin_source: { static_coins: ['BTCUSDT'] },
-                indicators: {
-                  klines: {
-                    primary_timeframe: '3m', primary_count: 30, longer_timeframe: '', longer_count: 0,
-                    enable_multi_timeframe: false,
-                  },
-                },
-                risk_control: { max_margin_usage: 0.9 },
-              },
+              strategy_type: 'grid_trading',
+              grid_config: { symbol: 'BTCUSDT', grid_count: 10 },
             },
           },
         ],
       },
     } as never)
 
-    await renderModal()
+    await renderModal({
+      traderData: { ...existingTrader, scan_interval_minutes: 60 },
+    })
 
-    expect(screen.queryByTestId('trader-scan-cadence')).toBeNull()
-    expect(screen.getByText(/Fallback scan interval \(minutes\)/)).toBeTruthy()
+    // 网格循环含突破/回撤/日亏检查，实际节奏被后端封顶在 5 分钟
+    expect(screen.getByTestId('trader-scan-cadence').textContent).toContain(
+      '5m'
+    )
+    expect(screen.getByText(/capped at 5 minutes/)).toBeInTheDocument()
+  })
+
+  it('does not claim candle alignment for an interval without a matching period', async () => {
+    await renderModal({
+      traderData: { ...existingTrader, scan_interval_minutes: 7 },
+    })
+
+    const cadence = screen.getByTestId('trader-scan-cadence')
+    expect(cadence.textContent).toContain('7 minutes after each round')
+    expect(cadence.textContent).toContain('not aligned')
+    expect(screen.getByText(/Scan interval \(minutes\)/)).toBeTruthy()
+  })
+})
+
+describe('TraderConfigModal – competition visibility', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('keeps the user choice when the parent re-renders with new option arrays', async () => {
+    const { onSave, view } = await renderModal()
+
+    expect(screen.getByRole('button', { name: 'Show' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    expect(screen.getByRole('button', { name: 'Hide' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+
+    // 模拟页面 5 秒轮询：traderData 内容不变但对象/选项数组都是新引用
+    view.rerender(
+      modalElement(onSave, {
+        traderData: { ...existingTrader },
+        availableModels: [...availableModels],
+        availableExchanges: [...availableExchanges],
+      })
+    )
+
+    expect(screen.getByRole('button', { name: 'Hide' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(screen.getByRole('button', { name: 'Show' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+  })
+
+  it('sends the chosen visibility on save', async () => {
+    const { onSave } = await renderModal()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    const saved = onSave.mock.calls[0][0] as CreateTraderRequest
+    expect(saved.show_in_competition).toBe(false)
+  })
+
+  it('defaults a legacy config without the flag to shown', async () => {
+    const legacy: TraderConfigData = { ...existingTrader }
+    delete (legacy as Partial<TraderConfigData>).show_in_competition
+
+    await renderModal({ traderData: legacy })
+
+    expect(screen.getByRole('button', { name: 'Show' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
+  it('reloads the form when the modal switches to another trader', async () => {
+    const { onSave, view } = await renderModal()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    view.rerender(
+      modalElement(onSave, {
+        traderData: {
+          ...existingTrader,
+          trader_id: 'trader-2',
+          show_in_competition: true,
+        },
+      })
+    )
+
+    expect(screen.getByRole('button', { name: 'Show' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+})
+
+describe('TraderConfigModal – form resilience', () => {
+  it('keeps all other unsaved edits across a poll-style rerender', async () => {
+    const { onSave, view } = await renderModal()
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'renamed' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Isolated Margin' }))
+    fireEvent.change(screen.getByLabelText('Scan interval (minutes)'), {
+      target: { value: '15' },
+    })
+
+    view.rerender(
+      modalElement(onSave, {
+        traderData: { ...existingTrader },
+        availableModels: [...availableModels],
+        availableExchanges: [...availableExchanges],
+      })
+    )
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    const saved = onSave.mock.calls[0][0] as CreateTraderRequest
+    expect(saved.name).toBe('renamed')
+    expect(saved.is_cross_margin).toBe(false)
+    expect(saved.scan_interval_minutes).toBe(15)
+  })
+
+  it('rounds a decimal interval and normalizes a legacy value on load', async () => {
+    await renderModal({
+      traderData: { ...existingTrader, scan_interval_minutes: 1 },
+    })
+
+    const input = screen.getByLabelText(
+      'Scan interval (minutes)'
+    ) as HTMLInputElement
+    expect(input.value).toBe('3')
+
+    fireEvent.change(input, { target: { value: '7.5' } })
+    expect(input.value).toBe('8')
+    expect(screen.getByTestId('trader-scan-cadence').textContent).toContain(
+      '8 minutes after each round'
+    )
+  })
+})
+
+describe('TraderConfigModal – create-mode strategy race', () => {
+  it('keeps an explicit manual choice when the strategy list arrives late', async () => {
+    let resolveStrategies: ((value: unknown) => void) | undefined
+    const pending = new Promise((resolve) => {
+      resolveStrategies = resolve
+    })
+    vi.mocked(httpClient.get).mockReturnValueOnce(pending as never)
+
+    const { onSave } = await renderModal({
+      isEditMode: false,
+      traderData: null,
+    })
+
+    // 打开策略下拉并明确选择“手动配置”（空值）
+    fireEvent.click(
+      screen.getByText('-- No Strategy (Manual Configuration) --')
+    )
+    const options = screen.getAllByText(
+      '-- No Strategy (Manual Configuration) --'
+    )
+    fireEvent.click(options[options.length - 1])
+
+    // 请求此刻才返回，列表里有一个激活策略
+    await act(async () => {
+      resolveStrategies?.({
+        success: true,
+        data: {
+          strategies: [
+            {
+              id: 'strategy-active',
+              name: 'Active',
+              description: '',
+              is_active: true,
+              is_default: false,
+              created_at: '',
+              updated_at: '',
+              config: { strategy_type: 'ai_trading', ai_config: {} },
+            },
+          ],
+        },
+      })
+    })
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'manual trader' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Create Trader/i }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    const saved = onSave.mock.calls[0][0] as CreateTraderRequest
+    expect(saved.strategy_id).toBe('')
   })
 })

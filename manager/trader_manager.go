@@ -194,6 +194,15 @@ func (tm *TraderManager) GetComparisonData() (map[string]interface{}, error) {
 	return comparison, nil
 }
 
+// InvalidateCompetitionCache 让下一次 GetCompetitionData 重新计算。
+// 可见性或运行状态刚变化时调用，避免竞技场页面在 30 秒缓存内继续展示旧数据。
+func (tm *TraderManager) InvalidateCompetitionCache() {
+	tm.competitionCache.mu.Lock()
+	tm.competitionCache.data = nil
+	tm.competitionCache.timestamp = time.Time{}
+	tm.competitionCache.mu.Unlock()
+}
+
 // GetCompetitionData retrieves competition data (all traders across platform)
 func (tm *TraderManager) GetCompetitionData() (map[string]interface{}, error) {
 	// Check if cache is valid (within 30 seconds)

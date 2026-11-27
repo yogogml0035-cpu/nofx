@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { isRetainedTimeframe } from '../../constants/timeframes'
+import { useState, useEffect, useRef } from 'react'
 import type { AIModel, Exchange, CreateTraderRequest, Strategy, TraderConfigData } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -7,6 +6,12 @@ import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'luci
 import { httpClient } from '../../lib/httpClient'
 import { NofxSelect } from '../ui/select'
 import { parseInitialBalance } from './traderUpdateRequest'
+import {
+  MAX_SCAN_INTERVAL_MINUTES,
+  MIN_SCAN_INTERVAL_MINUTES,
+  normalizeScanIntervalMinutes,
+  scanTimeframeForMinutes,
+} from './scanCadence'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -57,6 +62,33 @@ interface TraderConfigModalProps {
   onSave?: (data: CreateTraderRequest) => Promise<void>
 }
 
+// formStateFromTrader 用配置接口的返回值初始化表单。存量/旧接口可能缺字段：
+// 竞技场的默认值与后端一致为 true，扫描间隔默认 3 分钟。
+function formStateFromTrader(traderData: TraderConfigData): FormState {
+  return {
+    ...traderData,
+    strategy_id: traderData.strategy_id || '',
+    show_in_competition: traderData.show_in_competition ?? true,
+    scan_interval_minutes: normalizeScanIntervalMinutes(
+      traderData.scan_interval_minutes
+    ),
+    initial_balance: String(traderData.initial_balance ?? ''),
+  }
+}
+
+function createFormState(models: AIModel[], exchanges: Exchange[]): FormState {
+  return {
+    trader_name: '',
+    ai_model: models[0]?.id || '',
+    exchange_id: exchanges[0]?.id || '',
+    strategy_id: '',
+    is_cross_margin: true,
+    show_in_competition: true,
+    scan_interval_minutes: MIN_SCAN_INTERVAL_MINUTES,
+    initial_balance: '',
+  }
+}
+
 export function TraderConfigModal({
   isOpen,
   onClose,
@@ -67,18 +99,19 @@ export function TraderConfigModal({
   onSave,
 }: TraderConfigModalProps) {
   const { language } = useLanguage()
-  const [formData, setFormData] = useState<FormState>({
-    trader_name: '',
-    ai_model: '',
-    exchange_id: '',
-    strategy_id: '',
-    is_cross_margin: true,
-    show_in_competition: true,
-    scan_interval_minutes: 3,
-    initial_balance: '',
-  })
+  // 首屏就按真实配置初始化，避免隐藏中的交易员先闪一下“显示”再被 effect 改成“隐藏”。
+  const [formData, setFormData] = useState<FormState>(() =>
+    traderData
+      ? formStateFromTrader(traderData)
+      : createFormState(availableModels, availableExchanges)
+  )
   const [isSaving, setIsSaving] = useState(false)
   const [strategies, setStrategies] = useState<Strategy[]>([])
+  // 已用哪个 trader 初始化过表单；首屏由 useState 初始化器完成，effect 只处理切换/重开。
+  const initializedTraderID = useRef<string | null>(traderData?.trader_id ?? null)
+  // 用户是否亲手选过策略（包括“手动配置”的空选项）。空值与“还没选”必须区分，
+  // 否则策略列表请求返回时会把用户明确选择的空策略覆盖成默认激活策略。
+  const strategyTouched = useRef(false)
 
   // 获取用户的策略列表
   useEffect(() => {
@@ -88,14 +121,16 @@ export function TraderConfigModal({
         if (result.success && result.data?.strategies) {
           const strategyList = result.data.strategies
           setStrategies(strategyList)
-          // 如果没有选择策略，默认选中激活的策略
-          if (!formData.strategy_id && !isEditMode) {
-            const activeStrategy = strategyList.find(s => s.is_active)
-            if (activeStrategy) {
-              setFormData(prev => ({ ...prev, strategy_id: activeStrategy.id }))
-            } else if (strategyList.length > 0) {
-              setFormData(prev => ({ ...prev, strategy_id: strategyList[0].id }))
-            }
+          // 创建模式没有选策略时默认选中激活的策略。用函数式更新并检查当前值：
+          // 请求返回前用户已经手动选过策略（包括空选项）时，不能覆盖用户的选择。
+          if (!isEditMode) {
+            setFormData(prev => {
+              if (strategyTouched.current || prev.strategy_id) return prev
+              const fallbackStrategy = strategyList.find(s => s.is_active) || strategyList[0]
+              return fallbackStrategy
+                ? { ...prev, strategy_id: fallbackStrategy.id }
+                : prev
+            })
           }
         }
       } catch (error) {
@@ -105,28 +140,39 @@ export function TraderConfigModal({
     if (isOpen) {
       fetchStrategies()
     }
+  }, [isOpen, isEditMode])
+
+  // 关闭时清空初始化标记：再次打开（即使 trader_id 相同）要按最新配置重建表单。
+  useEffect(() => {
+    if (isOpen) return
+    initializedTraderID.current = null
+    strategyTouched.current = false
   }, [isOpen])
 
+  // 只在打开弹窗或切换到另一个 trader 时重建表单。父页面每 5 秒轮询 trader 列表并重新
+  // filter 出 availableModels / availableExchanges，如果把选项数组或 traderData 对象本身列为
+  // 依赖，轮询会把用户还没保存的编辑（包括竞技场开关、扫描间隔）重置成服务端旧值。
+  const editingTraderID = traderData?.trader_id ?? ''
   useEffect(() => {
-    if (traderData) {
-      setFormData({
-        ...traderData,
-        strategy_id: traderData.strategy_id || '',
-        initial_balance: String(traderData.initial_balance ?? ''),
-      })
-    } else if (!isEditMode) {
-      setFormData({
-        trader_name: '',
-        ai_model: availableModels[0]?.id || '',
-        exchange_id: availableExchanges[0]?.id || '',
-        strategy_id: '',
-        is_cross_margin: true,
-        show_in_competition: true,
-        scan_interval_minutes: 3,
-        initial_balance: '',
-      })
-    }
-  }, [traderData, isEditMode, availableModels, availableExchanges])
+    if (!isOpen || !traderData) return
+    const nextTraderID = traderData.trader_id ?? null
+    if (initializedTraderID.current === nextTraderID) return
+    initializedTraderID.current = nextTraderID
+    setFormData(formStateFromTrader(traderData))
+  }, [isOpen, isEditMode, editingTraderID])
+
+  // 创建模式下选项可能在弹窗打开后才加载：只填充仍然空着的选择，不覆盖用户已选的值。
+  useEffect(() => {
+    if (!isOpen || isEditMode) return
+    setFormData((prev) => {
+      const aiModel = prev.ai_model || availableModels[0]?.id || ''
+      const exchangeID = prev.exchange_id || availableExchanges[0]?.id || ''
+      if (aiModel === prev.ai_model && exchangeID === prev.exchange_id) {
+        return prev
+      }
+      return { ...prev, ai_model: aiModel, exchange_id: exchangeID }
+    })
+  }, [isOpen, isEditMode, availableModels, availableExchanges])
 
   if (!isOpen) return null
 
@@ -161,7 +207,8 @@ export function TraderConfigModal({
         exchange_id: formData.exchange_id,
         strategy_id: formData.strategy_id,
         is_cross_margin: formData.is_cross_margin,
-        show_in_competition: formData.show_in_competition,
+        // 显式归一成布尔值：undefined 会在 JSON.stringify 时被丢掉，后端只能保持旧值
+        show_in_competition: formData.show_in_competition !== false,
         scan_interval_minutes: formData.scan_interval_minutes,
       }
       if (initialBalanceChanged) {
@@ -177,16 +224,17 @@ export function TraderConfigModal({
   }
 
   const selectedStrategy = strategies.find(s => s.id === formData.strategy_id)
-  // 决策按策略主周期收线后 5 秒触发（D17）；扫描间隔只在主周期无效时回退生效。
-  // 存量策略可能存着已废弃的周期（如 3m）：不在保留集合内时不显示「实际节奏」，避免给出错误信息。
-  // 策略配置的线上形状是 { strategy_type, ai_config: { indicators, risk_control, ... } }；
-  // 旧的扁平配置把 indicators 放在顶层。两种都要读，否则保存后的策略永远不显示实际节奏。
-  const selectedKlines = selectedStrategy?.config?.ai_config?.indicators?.klines
-    ?? selectedStrategy?.config?.indicators?.klines
-  const candidateTimeframe = selectedKlines?.primary_timeframe
-    || selectedKlines?.selected_timeframes?.[0]
-    || ''
-  const cadenceTimeframe = isRetainedTimeframe(candidateTimeframe) ? candidateTimeframe : ''
+  // 扫描节奏由扫描间隔决定；只有间隔正好等于某个 K 线周期时才对收线对齐。
+  // 主周期只用于分析取数，不再决定多久决策一次（2026-11-27 修订 D17）。
+  // 网格策略的循环带着突破/回撤/日亏检查，后端固定封顶 5 分钟，这里显示实际生效的节奏。
+  const isGridStrategy = selectedStrategy?.config.strategy_type === 'grid_trading'
+  const normalizedScanMinutes = normalizeScanIntervalMinutes(
+    formData.scan_interval_minutes
+  )
+  const effectiveScanMinutes = isGridStrategy
+    ? Math.min(normalizedScanMinutes, 5)
+    : normalizedScanMinutes
+  const alignedScanTimeframe = scanTimeframeForMinutes(effectiveScanMinutes)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
@@ -321,9 +369,10 @@ export function TraderConfigModal({
                 </label>
                 <NofxSelect
                   value={formData.strategy_id}
-                  onChange={(val) =>
+                  onChange={(val) => {
+                    strategyTouched.current = true
                     handleInputChange('strategy_id', val)
-                  }
+                  }}
                   className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF]"
                   options={[
                     { value: '', label: t('noStrategyManual', language) },
@@ -421,35 +470,44 @@ export function TraderConfigModal({
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm text-[#EAECEF] block mb-2">
+                  <label
+                    htmlFor="trader-scan-interval"
+                    className="text-sm text-[#EAECEF] block mb-2"
+                  >
                     {t('aiScanInterval', language)}
                   </label>
                   <input
+                    id="trader-scan-interval"
                     type="number"
                     value={formData.scan_interval_minutes}
                     onChange={(e) => {
-                      const parsedValue = Number(e.target.value)
-                      const safeValue = Number.isFinite(parsedValue)
-                        ? Math.max(3, parsedValue)
-                        : 3
-                      handleInputChange('scan_interval_minutes', safeValue)
+                      handleInputChange(
+                        'scan_interval_minutes',
+                        normalizeScanIntervalMinutes(Number(e.target.value))
+                      )
                     }}
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                    min="3"
-                    max="60"
+                    min={MIN_SCAN_INTERVAL_MINUTES}
+                    max={MAX_SCAN_INTERVAL_MINUTES}
                     step="1"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     {t('scanIntervalRecommend', language)}
                   </p>
-                  {cadenceTimeframe && (
+                  {alignedScanTimeframe ? (
                     <p className="text-xs text-[#F0B90B] mt-1" data-testid="trader-scan-cadence">
-                      {t('scanCadence', language, { timeframe: cadenceTimeframe })}
+                      {t('scanCadence', language, { timeframe: alignedScanTimeframe })}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[#848E9C] mt-1" data-testid="trader-scan-cadence">
+                      {t('scanCadenceUnaligned', language, {
+                        minutes: effectiveScanMinutes,
+                      })}
                     </p>
                   )}
-                  {cadenceTimeframe && ['10s', '1m'].includes(cadenceTimeframe) && (
+                  {isGridStrategy && normalizedScanMinutes > 5 && (
                     <p className="text-xs text-amber-400 mt-1">
-                      {t('scanCadenceCost', language)}
+                      {t('scanCadenceGridCap', language)}
                     </p>
                   )}
                 </div>
@@ -457,12 +515,20 @@ export function TraderConfigModal({
 
               {/* Competition visibility */}
               <div>
-                <label className="text-sm text-[#EAECEF] block mb-2">
+                <label
+                  id="trader-competition-display-label"
+                  className="text-sm text-[#EAECEF] block mb-2"
+                >
                   {t('competitionDisplay', language)}
                 </label>
-                <div className="flex gap-2">
+                <div
+                  role="group"
+                  aria-labelledby="trader-competition-display-label"
+                  className="flex gap-2"
+                >
                   <button
                     type="button"
+                    aria-pressed={formData.show_in_competition}
                     onClick={() => handleInputChange('show_in_competition', true)}
                     className={`flex-1 px-3 py-2 rounded text-sm ${
                       formData.show_in_competition
@@ -474,6 +540,7 @@ export function TraderConfigModal({
                   </button>
                   <button
                     type="button"
+                    aria-pressed={!formData.show_in_competition}
                     onClick={() => handleInputChange('show_in_competition', false)}
                     className={`flex-1 px-3 py-2 rounded text-sm ${
                       !formData.show_in_competition

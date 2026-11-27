@@ -47,16 +47,18 @@ func (s *Server) handleToggleCompetition(c *gin.Context) {
 	userID := c.GetString("user_id")
 
 	var req struct {
-		ShowInCompetition bool `json:"show_in_competition"`
+		// 指针接收：缺字段时不能当成 false——否则一个空 body 会把交易员静默隐藏
+		ShowInCompetition *bool `json:"show_in_competition" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil || req.ShowInCompetition == nil {
 		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
+	showInCompetition := *req.ShowInCompetition
 
 	// Update database
-	err := s.store.Trader().UpdateShowInCompetition(userID, traderID, req.ShowInCompetition)
+	err := s.store.Trader().UpdateShowInCompetition(userID, traderID, showInCompetition)
 	if err != nil {
 		SafeInternalError(c, "Update competition visibility", err)
 		return
@@ -64,16 +66,18 @@ func (s *Server) handleToggleCompetition(c *gin.Context) {
 
 	// Update in-memory trader if it exists
 	if trader, err := s.traderManager.GetTrader(traderID); err == nil {
-		trader.SetShowInCompetition(req.ShowInCompetition)
+		trader.SetShowInCompetition(showInCompetition)
 	}
+	// 竞技场数据有 30 秒缓存：可见性变化后立即失效，页面下一次刷新就能看到结果
+	s.traderManager.InvalidateCompetitionCache()
 
 	status := "shown"
-	if !req.ShowInCompetition {
+	if !showInCompetition {
 		status = "hidden"
 	}
 	logger.Infof("✓ Trader %s competition visibility updated: %s", traderID, status)
 	c.JSON(http.StatusOK, gin.H{
 		"message":             "Competition visibility updated",
-		"show_in_competition": req.ShowInCompetition,
+		"show_in_competition": showInCompetition,
 	})
 }
