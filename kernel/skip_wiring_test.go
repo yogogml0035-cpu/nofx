@@ -20,16 +20,22 @@ func (c *countingAIClient) SetAPIKey(string, string, string) {}
 func (c *countingAIClient) SetTimeout(time.Duration)         {}
 func (c *countingAIClient) CallWithMessages(string, string) (string, error) {
 	c.calls++
-	return "", nil
+	return "<decision>[]</decision>", nil
 }
-func (c *countingAIClient) CallWithRequest(*mcp.Request) (string, error) { c.calls++; return "", nil }
+func (c *countingAIClient) CallWithRequest(*mcp.Request) (string, error) {
+	c.calls++
+	return "<decision>[]</decision>", nil
+}
 func (c *countingAIClient) CallWithRequestStream(*mcp.Request, func(string)) (string, error) {
 	c.calls++
-	return "", nil
+	return "<decision>[]</decision>", nil
 }
 func (c *countingAIClient) CallWithRequestFull(*mcp.Request) (*mcp.LLMResponse, error) {
 	c.calls++
-	return &mcp.LLMResponse{}, nil
+	return &mcp.LLMResponse{
+		Content:      "<decision>[]</decision>",
+		FinishReason: "stop",
+	}, nil
 }
 
 func TestFullDecisionSkipsModelWithoutDataOrPositions(t *testing.T) {

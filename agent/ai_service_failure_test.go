@@ -126,3 +126,26 @@ func TestDeterministicCompletedPlanResponseSkipsLLMForSimpleConfirmation(t *test
 		t.Fatalf("unexpected deterministic response: %s", msg)
 	}
 }
+
+func TestAIServiceFailureHighlightsOutputBudget(t *testing.T) {
+	a := New(nil, nil, DefaultConfig(), slog.Default())
+
+	msg, err := a.aiServiceFailure("zh", errors.New("fail to parse AI server response: AI response truncated before any content (finish_reason=length); increase the output token budget"))
+	if err != nil {
+		t.Fatalf("aiServiceFailure returned error: %v", err)
+	}
+
+	for _, want := range []string{
+		"当前 AI 服务调用失败",
+		"思考 token 耗尽了输出预算",
+		"AI_MAX_TOKENS",
+		"降低输入规模",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("expected message to contain %q, got: %s", want, msg)
+		}
+	}
+	if strings.Contains(msg, "更可能是模型服务余额不足") {
+		t.Fatalf("output-budget failure must not use the generic balance/auth/timeout guidance: %s", msg)
+	}
+}

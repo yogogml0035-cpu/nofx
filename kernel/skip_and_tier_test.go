@@ -22,9 +22,11 @@ func TestLeverageTierMatchesSymbolVariants(t *testing.T) {
 		symbol string
 		want   int
 	}{
-		{"BTCUSDT", 20}, {"BTC/USDT", 20}, {"BTC-USDT", 20}, {"BTC", 20}, {"btcusdt", 20},
+		{"BTCUSDT", 20}, {"BTC/USDT", 20}, {"BTC-USDT", 20}, {"BTC_USDT", 20},
+		{"BTC-USDT-SWAP", 20}, {"BTC", 20}, {"btcusdt", 20},
 		{"ETH_USDT", 20}, {"ETH", 20},
 		{"SOLUSDT", 5}, {"DOGE_USDT", 5}, {"BTCUSDC", 20}, // 计价币不同仍是 BTC
+		{"XSWAPUSDT", 5}, // 基础币种以 SWAP 结尾不能被当成衍生品后缀剥掉
 	} {
 		t.Run(tc.symbol, func(t *testing.T) {
 			d := &Decision{Symbol: tc.symbol, Action: "open_long", Leverage: 50, StopLoss: 90, TakeProfit: 150}

@@ -19,14 +19,15 @@ type Config struct {
 	Model    string
 
 	// Behavior configuration
-	MaxTokens   int
-	MaxContext  int     // Model's max context window in tokens (0 = no limit)
-	Temperature float64
-	UseFullURL  bool
+	MaxTokens       int
+	MaxContext      int // Model's max context window in tokens (0 = no limit)
+	Temperature     float64
+	UseFullURL      bool
+	DisableThinking bool // Request no hidden reasoning (provider-specific)
 
 	// Retry configuration
-	MaxRetries     int
-	RetryWaitBase  time.Duration
+	MaxRetries      int
+	RetryWaitBase   time.Duration
 	RetryableErrors []string
 
 	// Timeout configuration
@@ -40,12 +41,16 @@ type Config struct {
 // DefaultConfig returns default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		// Default values
-		MaxTokens:      getEnvInt("AI_MAX_TOKENS", 2000),
-		Temperature:    MCPClientTemperature,
-		MaxRetries:     MaxRetryTimes,
-		RetryWaitBase:  2 * time.Second,
-		Timeout:        DefaultTimeout,
+		// Thinking models spend part of this budget on reasoning before emitting
+		// the answer, so a 2000-token cap can leave Content empty with
+		// finish_reason=length. 8000 is the value every deployment compose file
+		// already uses; keep the code default in sync so a stack that does not
+		// inject AI_MAX_TOKENS still has room for reasoning + decision.
+		MaxTokens:       getEnvInt("AI_MAX_TOKENS", 8000),
+		Temperature:     MCPClientTemperature,
+		MaxRetries:      MaxRetryTimes,
+		RetryWaitBase:   2 * time.Second,
+		Timeout:         DefaultTimeout,
 		RetryableErrors: retryableErrors,
 
 		// Default dependencies (use global logger)

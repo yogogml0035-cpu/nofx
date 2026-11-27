@@ -234,26 +234,16 @@ func finitePositive(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
-// positionMatchKey 把交易对归一成比较键：大写、去掉 "_"、"-"、"/" 分隔符。
-// 交易所原生格式（Gate "DOGE_USDT"）与模型写法（"DOGEUSDT"、"DOGE/USDT"）得到同一个键；
-// "-SWAP" 后缀不在处理范围内（保护管理当前只有 Gate 交易路径使用）。
+// positionMatchKey 把交易对归一成比较键。具体规则只在 market.MatchKey 维护一份：
+// 大写、去掉 "-SWAP" 后缀与 "_"、"-"、"/" 分隔符。Gate 原生格式（"DOGE_USDT"）、
+// 模型写法（"DOGEUSDT"、"DOGE/USDT"）和 OKX 衍生品写法都落到同一个键。
 func positionMatchKey(symbol string) string {
-	s := strings.ToUpper(strings.TrimSpace(symbol))
-	s = strings.ReplaceAll(s, "_", "")
-	s = strings.ReplaceAll(s, "-", "")
-	s = strings.ReplaceAll(s, "/", "")
-	return s
+	return market.MatchKey(symbol)
 }
 
 // positionBaseKey 去掉比较键末尾的计价币后缀（USDT/USDC/USD），用于模型只写基础币种的变体
 func positionBaseKey(symbol string) string {
-	key := positionMatchKey(symbol)
-	for _, suffix := range []string{"USDT", "USDC", "USD"} {
-		if strings.HasSuffix(key, suffix) && len(key) > len(suffix) {
-			return strings.TrimSuffix(key, suffix)
-		}
-	}
-	return key
+	return market.BaseSymbol(symbol)
 }
 
 // positionForSymbol 在本轮持仓快照里定位决策标的的持仓；符号变体（大小写、"DOGE/USDT"、
@@ -374,37 +364,22 @@ func currentPrice(prices map[string]float64, symbol string) (float64, bool) {
 	if price, ok := prices[symbol]; ok && finitePositive(price) {
 		return price, true
 	}
-	trimmed := strings.TrimSpace(symbol)
-	if price, ok := prices[market.Normalize(trimmed)]; ok && finitePositive(price) {
-		return price, true
+	key := market.MatchKey(symbol)
+	if key != "" {
+		for name, price := range prices {
+			if market.MatchKey(name) == key && finitePositive(price) {
+				return price, true
+			}
+		}
 	}
-	// market.Normalize 不处理 "/" 分隔符（"BTC/USDT"）
-	if price, ok := prices[market.Normalize(strings.ReplaceAll(trimmed, "/", ""))]; ok && finitePositive(price) {
-		return price, true
-	}
-	base := symbolBaseKey(symbol)
+	base := market.BaseSymbol(symbol)
 	if base == "" {
 		return 0, false
 	}
-	for key, price := range prices {
-		if symbolBaseKey(key) == base && finitePositive(price) {
+	for name, price := range prices {
+		if market.BaseSymbol(name) == base && finitePositive(price) {
 			return price, true
 		}
 	}
 	return 0, false
-}
-
-// symbolBaseKey 与交易路径的 universeBaseKey 同口径：去掉常见计价后缀后的基础币种
-func symbolBaseKey(symbol string) string {
-	s := strings.ToUpper(strings.TrimSpace(symbol))
-	s = strings.ReplaceAll(s, "/", "")
-	if s == "" {
-		return ""
-	}
-	for _, suffix := range []string{"-USDC", "-USDT", "USDC", "USDT", "USD"} {
-		if strings.HasSuffix(s, suffix) && len(s) > len(suffix) {
-			return strings.TrimSuffix(s, suffix)
-		}
-	}
-	return s
 }

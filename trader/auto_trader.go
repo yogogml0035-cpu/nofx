@@ -215,17 +215,17 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		}
 	}
 
-	// Create client via registry (covers all registered providers)
-	if aiModel == "custom" {
-		mcpClient = mcp.New()
-	} else if aiModel == "" {
+	// Create client via registry (covers all registered providers).
+	// Trading decisions have a structured output contract and their analysis is
+	// written into the visible <reasoning> block, so the decision client asks
+	// thinking-capable providers to skip hidden reasoning. That keeps the output
+	// budget for the actual answer instead of unbounded reasoning tokens.
+	if aiModel == "" {
 		aiModel = "deepseek"
-		mcpClient = mcp.NewAIClientByProvider(aiModel)
-	} else {
-		mcpClient = mcp.NewAIClientByProvider(aiModel)
 	}
+	mcpClient = mcp.NewAIClientByProvider(aiModel, mcp.WithDisableThinking(true))
 	if mcpClient == nil {
-		mcpClient = mcp.New()
+		mcpClient = mcp.NewClient(mcp.WithDisableThinking(true))
 	}
 
 	mcpClient.SetAPIKey(apiKey, customURL, config.CustomModelName)
