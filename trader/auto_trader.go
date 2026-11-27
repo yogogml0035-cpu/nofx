@@ -109,6 +109,7 @@ type AutoTraderConfig struct {
 	CustomAPIURL    string
 	CustomAPIKey    string
 	CustomModelName string
+	ReasoningEffort string
 
 	// Scan configuration
 	ScanInterval time.Duration // Scan interval (recommended 3 minutes)
@@ -216,16 +217,14 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	}
 
 	// Create client via registry (covers all registered providers).
-	// Trading decisions have a structured output contract and their analysis is
-	// written into the visible <reasoning> block, so the decision client asks
-	// thinking-capable providers to skip hidden reasoning. That keeps the output
-	// budget for the actual answer instead of unbounded reasoning tokens.
+	// Reasoning effort comes from the model config; an empty value leaves the
+	// provider default untouched.
 	if aiModel == "" {
 		aiModel = "deepseek"
 	}
-	mcpClient = mcp.NewAIClientByProvider(aiModel, mcp.WithDisableThinking(true))
+	mcpClient = mcp.NewAIClientByProvider(aiModel, mcp.WithReasoningEffort(config.ReasoningEffort))
 	if mcpClient == nil {
-		mcpClient = mcp.NewClient(mcp.WithDisableThinking(true))
+		mcpClient = mcp.NewClient(mcp.WithReasoningEffort(config.ReasoningEffort))
 	}
 
 	mcpClient.SetAPIKey(apiKey, customURL, config.CustomModelName)

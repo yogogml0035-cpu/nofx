@@ -92,14 +92,14 @@ func WithMaxTokens(maxTokens int) ClientOption {
 	}
 }
 
-// WithDisableThinking turns off the provider's hidden reasoning for requests
-// where the output contract is structured and the visible answer already
-// carries the analysis (e.g. trading decisions). Only providers that support
-// the "thinking" field react to it. This keeps the output budget available for
-// the actual answer instead of unbounded reasoning tokens.
-func WithDisableThinking(disabled bool) ClientOption {
+// WithReasoningEffort sets the provider's native reasoning effort. The five
+// canonical levels are low/medium/high/xhigh/max; each provider receives the
+// closest value it documents (Anthropic gets a thinking-token budget instead of
+// a reasoning_effort field). An empty or unknown value leaves the provider
+// default untouched.
+func WithReasoningEffort(effort string) ClientOption {
 	return func(c *Config) {
-		c.DisableThinking = disabled
+		c.ReasoningEffort = NormalizeReasoningEffort(effort)
 	}
 }
 

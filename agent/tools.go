@@ -417,6 +417,11 @@ func modelConfigFieldsSchema() map[string]any {
 			"type":        "string",
 			"description": "Actual upstream model name to send to the provider. Optional when the provider has a default model.",
 		},
+		"reasoning_effort": map[string]any{
+			"type":        "string",
+			"enum":        []string{"low", "medium", "high", "xhigh", "max"},
+			"description": "How long the model may think before answering. Higher levels consume more of the output-token budget.",
+		},
 	}
 }
 
@@ -602,6 +607,7 @@ func buildAgentTools() []mcp.Tool {
 						"api_key":           modelConfigFieldsSchema()["api_key"],
 						"custom_api_url":    modelConfigFieldsSchema()["custom_api_url"],
 						"custom_model_name": modelConfigFieldsSchema()["custom_model_name"],
+						"reasoning_effort":  modelConfigFieldsSchema()["reasoning_effort"],
 					},
 					"required": []string{"action"},
 				},
@@ -943,6 +949,7 @@ type safeModelToolConfig struct {
 	HasAPIKey       bool   `json:"has_api_key"`
 	CustomAPIURL    string `json:"custom_api_url,omitempty"`
 	CustomModelName string `json:"custom_model_name,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort"`
 }
 
 type safeTraderToolConfig struct {
@@ -1082,6 +1089,10 @@ var buildTraderExchangeProbe = func(exchangeCfg *store.Exchange, userID string) 
 }
 
 func safeModelForTool(model *store.AIModel) safeModelToolConfig {
+	effort := model.ReasoningEffort
+	if effort == "" {
+		effort = store.DefaultReasoningEffort
+	}
 	return safeModelToolConfig{
 		ID:              model.ID,
 		Name:            model.Name,
@@ -1090,6 +1101,7 @@ func safeModelForTool(model *store.AIModel) safeModelToolConfig {
 		HasAPIKey:       model.APIKey != "",
 		CustomAPIURL:    model.CustomAPIURL,
 		CustomModelName: model.CustomModelName,
+		ReasoningEffort: effort,
 	}
 }
 
@@ -1657,6 +1669,7 @@ func (a *Agent) toolManageModelConfig(storeUserID, argsJSON string) string {
 		APIKey          string `json:"api_key"`
 		CustomAPIURL    string `json:"custom_api_url"`
 		CustomModelName string `json:"custom_model_name"`
+		ReasoningEffort string `json:"reasoning_effort"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err)
@@ -1704,6 +1717,10 @@ func (a *Agent) toolManageModelConfig(storeUserID, argsJSON string) string {
 		if !modelProviderSupportsCustomAPIURL(provider) {
 			customAPIURL = ""
 		}
+		reasoningEffort, ok := store.NormalizeReasoningEffort(args.ReasoningEffort)
+		if !ok {
+			return `{"error":"invalid reasoning_effort: expected low, medium, high, xhigh or max"}`
+		}
 		if err := (modelConfigValidator{
 			provider:        provider,
 			enabled:         enabled,
@@ -1734,6 +1751,7 @@ func (a *Agent) toolManageModelConfig(storeUserID, argsJSON string) string {
 			strings.TrimSpace(args.APIKey),
 			customAPIURL,
 			customModelName,
+			reasoningEffort,
 		); err != nil {
 			return fmt.Sprintf(`{"error":"failed to create model config: %s"}`, err)
 		}
@@ -1779,6 +1797,17 @@ func (a *Agent) toolManageModelConfig(storeUserID, argsJSON string) string {
 		if strings.TrimSpace(args.CustomModelName) != "" {
 			customModelName = strings.TrimSpace(args.CustomModelName)
 		}
+		reasoningEffort := existing.ReasoningEffort
+		if reasoningEffort == "" {
+			reasoningEffort = store.DefaultReasoningEffort
+		}
+		if strings.TrimSpace(args.ReasoningEffort) != "" {
+			normalized, ok := store.NormalizeReasoningEffort(args.ReasoningEffort)
+			if !ok {
+				return `{"error":"invalid reasoning_effort: expected low, medium, high, xhigh or max"}`
+			}
+			reasoningEffort = normalized
+		}
 		apiKey := strings.TrimSpace(args.APIKey)
 		effectiveAPIKey := string(existing.APIKey)
 		if apiKey != "" {
@@ -1807,6 +1836,7 @@ func (a *Agent) toolManageModelConfig(storeUserID, argsJSON string) string {
 			apiKey,
 			customAPIURL,
 			customModelName,
+			reasoningEffort,
 		); err != nil {
 			return fmt.Sprintf(`{"error":"failed to update model config: %s"}`, err)
 		}

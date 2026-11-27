@@ -486,6 +486,7 @@ func (a *Agent) saveSetupAIModel(storeUserID string, state *SetupState) (string,
 		state.AIKey,
 		state.AIBaseURL,
 		state.AIModel,
+		store.DefaultReasoningEffort,
 	); err != nil {
 		return "", err
 	}

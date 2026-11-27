@@ -272,9 +272,9 @@ func newLLMClient(st *store.Store, userID string) mcp.AIClient {
 		if model, err := st.AIModel().Get(userID, tgCfg.ModelID); err == nil && model.Enabled {
 			apiKey := string(model.APIKey)
 			if apiKey != "" {
-				client := clientForProvider(model.Provider)
+				client := clientForProvider(model.Provider, model.ReasoningEffort)
 				client.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-				logger.Infof("Telegram agent: provider=%s user=%s", model.Provider, userID)
+				logger.Infof("Telegram agent: provider=%s user=%s effort=%s", model.Provider, userID, model.ReasoningEffort)
 				return client
 			}
 		}
@@ -284,9 +284,9 @@ func newLLMClient(st *store.Store, userID string) mcp.AIClient {
 	if model, err := st.AIModel().GetDefault(userID); err == nil {
 		apiKey := string(model.APIKey)
 		if apiKey != "" {
-			client := clientForProvider(model.Provider)
+			client := clientForProvider(model.Provider, model.ReasoningEffort)
 			client.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-			logger.Infof("Telegram agent: provider=%s user=%s", model.Provider, userID)
+			logger.Infof("Telegram agent: provider=%s user=%s effort=%s", model.Provider, userID, model.ReasoningEffort)
 			return client
 		}
 	}
@@ -298,7 +298,7 @@ func newLLMClient(st *store.Store, userID string) mcp.AIClient {
 		{"claude", os.Getenv("ANTHROPIC_API_KEY"), ""},
 	} {
 		if pair.key != "" {
-			client := clientForProvider(pair.provider)
+			client := clientForProvider(pair.provider, "")
 			client.SetAPIKey(pair.key, pair.url, "")
 			return client
 		}
@@ -306,10 +306,10 @@ func newLLMClient(st *store.Store, userID string) mcp.AIClient {
 	return nil
 }
 
-func clientForProvider(provider string) mcp.AIClient {
-	client := mcp.NewAIClientByProvider(provider)
+func clientForProvider(provider, effort string) mcp.AIClient {
+	client := mcp.NewAIClientByProvider(provider, mcp.WithReasoningEffort(effort))
 	if client == nil {
-		client = mcp.NewAIClientByProvider("deepseek")
+		client = mcp.NewAIClientByProvider("deepseek", mcp.WithReasoningEffort(effort))
 	}
 	return client
 }

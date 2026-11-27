@@ -8,6 +8,7 @@ import type {
   AIModel,
   Exchange,
   ExchangeAccountState,
+  ReasoningEffort,
 } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -421,6 +422,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               api_key: model.apiKey || '',
               custom_api_url: model.customApiUrl || '',
               custom_model_name: model.customModelName || '',
+              reasoning_effort: model.reasoningEffort || 'low',
             },
           ])
         ),
@@ -442,7 +444,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     modelId: string,
     apiKey: string,
     customApiUrl?: string,
-    customModelName?: string
+    customModelName?: string,
+    reasoningEffort?: ReasoningEffort
   ) => {
     try {
       const existingModel = allModels?.find((m) => m.id === modelId)
@@ -464,6 +467,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                 apiKey,
                 customApiUrl: customApiUrl || '',
                 customModelName: customModelName || '',
+                reasoningEffort: reasoningEffort || m.reasoningEffort || 'low',
                 enabled: true,
               }
               : m
@@ -474,6 +478,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           apiKey,
           customApiUrl: customApiUrl || '',
           customModelName: customModelName || '',
+          reasoningEffort: reasoningEffort || 'low',
           enabled: true,
         }
         updatedModels = [...(allModels || []), newModel]
@@ -488,6 +493,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               api_key: model.apiKey || '',
               custom_api_url: model.customApiUrl || '',
               custom_model_name: model.customModelName || '',
+              reasoning_effort: model.reasoningEffort || 'low',
             },
           ])
         ),

@@ -677,9 +677,9 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 	provider := model.Provider
 	apiKey := string(model.APIKey)
 
-	aiClient := mcp.NewAIClientByProvider(provider)
+	aiClient := mcp.NewAIClientByProvider(provider, mcp.WithReasoningEffort(model.ReasoningEffort))
 	if aiClient == nil {
-		aiClient = mcp.NewClient()
+		aiClient = mcp.NewClient(mcp.WithReasoningEffort(model.ReasoningEffort))
 	}
 
 	aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)

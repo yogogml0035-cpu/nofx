@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"nofx/crypto"
 	"nofx/logger"
+	"nofx/mcp"
 	"os"
 	"strings"
 	"time"
@@ -17,6 +18,32 @@ type AIModelStore struct {
 	db *gorm.DB
 }
 
+// Reasoning effort levels accepted by model providers. The vocabulary is owned
+// by the LLM request layer (mcp) so storage, API and the wire format cannot
+// drift apart.
+const (
+	ReasoningEffortLow    = mcp.ReasoningEffortLow
+	ReasoningEffortMedium = mcp.ReasoningEffortMedium
+	ReasoningEffortHigh   = mcp.ReasoningEffortHigh
+	ReasoningEffortXHigh  = mcp.ReasoningEffortXHigh
+	ReasoningEffortMax    = mcp.ReasoningEffortMax
+
+	DefaultReasoningEffort = ReasoningEffortLow
+)
+
+// NormalizeReasoningEffort validates and canonicalizes a user-supplied effort.
+// An empty value means "use the default" so create paths stay terse.
+func NormalizeReasoningEffort(value string) (string, bool) {
+	if strings.TrimSpace(value) == "" {
+		return DefaultReasoningEffort, true
+	}
+	normalized := mcp.NormalizeReasoningEffort(value)
+	if normalized == "" {
+		return "", false
+	}
+	return normalized, true
+}
+
 // AIModel AI model configuration
 type AIModel struct {
 	ID              string                 `gorm:"primaryKey" json:"id"`
@@ -27,6 +54,7 @@ type AIModel struct {
 	APIKey          crypto.EncryptedString `gorm:"column:api_key;default:''" json:"apiKey"`
 	CustomAPIURL    string                 `gorm:"column:custom_api_url;default:''" json:"customApiUrl"`
 	CustomModelName string                 `gorm:"column:custom_model_name;default:''" json:"customModelName"`
+	ReasoningEffort string                 `gorm:"column:reasoning_effort;not null;default:low" json:"reasoningEffort"`
 	CreatedAt       time.Time              `json:"created_at"`
 	UpdatedAt       time.Time              `json:"updated_at"`
 }
@@ -39,15 +67,33 @@ func NewAIModelStore(db *gorm.DB) *AIModelStore {
 }
 
 func (s *AIModelStore) initTables() error {
-	// For PostgreSQL with existing table, skip AutoMigrate
+	// For PostgreSQL with existing table, skip AutoMigrate to avoid index
+	// conflicts, but still add newly introduced columns explicitly.
 	if s.db.Dialector.Name() == "postgres" {
 		var tableExists int64
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'ai_models'`).Scan(&tableExists)
 		if tableExists > 0 {
-			return nil
+			if !s.db.Migrator().HasColumn(&AIModel{}, "ReasoningEffort") {
+				if err := s.db.Migrator().AddColumn(&AIModel{}, "ReasoningEffort"); err != nil {
+					return fmt.Errorf("failed to add ai_models.reasoning_effort: %w", err)
+				}
+			}
+			return s.backfillReasoningEffort()
 		}
 	}
-	return s.db.AutoMigrate(&AIModel{})
+	if err := s.db.AutoMigrate(&AIModel{}); err != nil {
+		return err
+	}
+	return s.backfillReasoningEffort()
+}
+
+// backfillReasoningEffort gives legacy rows the same default as new rows. The
+// column is NOT NULL with a default, but PostgreSQL deployments created before
+// this field existed need the explicit UPDATE.
+func (s *AIModelStore) backfillReasoningEffort() error {
+	return s.db.Model(&AIModel{}).
+		Where("reasoning_effort IS NULL OR reasoning_effort = ''").
+		Update("reasoning_effort", DefaultReasoningEffort).Error
 }
 
 func (s *AIModelStore) initDefaultData() error {
@@ -181,11 +227,22 @@ func hasUsableAPIKey(model AIModel) bool {
 
 // Update updates AI model, creates if not exists
 // IMPORTANT: If apiKey is empty string, the existing API key will be preserved (not overwritten)
-func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error {
-	return s.UpdateWithName(userID, id, "", enabled, apiKey, customAPIURL, customModelName)
+func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPIURL, customModelName, reasoningEffort string) error {
+	return s.UpdateWithName(userID, id, "", enabled, apiKey, customAPIURL, customModelName, reasoningEffort)
 }
 
-func (s *AIModelStore) UpdateWithName(userID, id, name string, enabled bool, apiKey, customAPIURL, customModelName string) error {
+func (s *AIModelStore) UpdateWithName(userID, id, name string, enabled bool, apiKey, customAPIURL, customModelName, reasoningEffort string) error {
+	// An empty effort preserves the stored value, mirroring how an empty API
+	// key preserves the existing secret. New rows get the default level.
+	var normalizedEffort string
+	if strings.TrimSpace(reasoningEffort) != "" {
+		normalized, ok := NormalizeReasoningEffort(reasoningEffort)
+		if !ok {
+			return fmt.Errorf("invalid reasoning_effort %q: expected low, medium, high, xhigh or max", reasoningEffort)
+		}
+		normalizedEffort = normalized
+	}
+
 	// Try exact ID match first
 	var existingModel AIModel
 	err := s.db.Where("user_id = ? AND id = ?", userID, id).First(&existingModel).Error
@@ -196,6 +253,9 @@ func (s *AIModelStore) UpdateWithName(userID, id, name string, enabled bool, api
 			"custom_api_url":    customAPIURL,
 			"custom_model_name": customModelName,
 			"updated_at":        time.Now().UTC(),
+		}
+		if normalizedEffort != "" {
+			updates["reasoning_effort"] = normalizedEffort
 		}
 		if strings.TrimSpace(name) != "" {
 			updates["name"] = strings.TrimSpace(name)
@@ -217,6 +277,9 @@ func (s *AIModelStore) UpdateWithName(userID, id, name string, enabled bool, api
 			"custom_api_url":    customAPIURL,
 			"custom_model_name": customModelName,
 			"updated_at":        time.Now().UTC(),
+		}
+		if normalizedEffort != "" {
+			updates["reasoning_effort"] = normalizedEffort
 		}
 		if strings.TrimSpace(name) != "" {
 			updates["name"] = strings.TrimSpace(name)
@@ -264,6 +327,9 @@ func (s *AIModelStore) UpdateWithName(userID, id, name string, enabled bool, api
 	}
 
 	logger.Infof("✓ Creating new AI model configuration: ID=%s, Provider=%s, Name=%s", newModelID, provider, finalName)
+	if normalizedEffort == "" {
+		normalizedEffort = DefaultReasoningEffort
+	}
 	newModel := &AIModel{
 		ID:              newModelID,
 		UserID:          userID,
@@ -273,19 +339,21 @@ func (s *AIModelStore) UpdateWithName(userID, id, name string, enabled bool, api
 		APIKey:          crypto.EncryptedString(apiKey),
 		CustomAPIURL:    customAPIURL,
 		CustomModelName: customModelName,
+		ReasoningEffort: normalizedEffort,
 	}
 	return s.db.Create(newModel).Error
 }
 
 func (s *AIModelStore) Create(userID, id, name, provider string, enabled bool, apiKey, customAPIURL string) error {
 	model := &AIModel{
-		ID:           id,
-		UserID:       userID,
-		Name:         name,
-		Provider:     provider,
-		Enabled:      enabled,
-		APIKey:       crypto.EncryptedString(apiKey),
-		CustomAPIURL: customAPIURL,
+		ID:              id,
+		UserID:          userID,
+		Name:            name,
+		Provider:        provider,
+		Enabled:         enabled,
+		APIKey:          crypto.EncryptedString(apiKey),
+		CustomAPIURL:    customAPIURL,
+		ReasoningEffort: DefaultReasoningEffort,
 	}
 	// Use FirstOrCreate to ignore if already exists
 	return s.db.Where("id = ?", id).FirstOrCreate(model).Error

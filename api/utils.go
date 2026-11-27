@@ -21,11 +21,16 @@ func MaskSensitiveString(s string) string {
 func SanitizeModelConfigForLog(models map[string]ModelConfigUpdate) map[string]interface{} {
 	safe := make(map[string]interface{})
 	for modelID, cfg := range models {
+		reasoningEffort := ""
+		if cfg.ReasoningEffort != nil {
+			reasoningEffort = *cfg.ReasoningEffort
+		}
 		safe[modelID] = map[string]interface{}{
 			"enabled":           cfg.Enabled,
 			"api_key":           MaskSensitiveString(cfg.APIKey),
 			"custom_api_url":    cfg.CustomAPIURL,
 			"custom_model_name": cfg.CustomModelName,
+			"reasoning_effort":  reasoningEffort,
 		}
 	}
 	return safe

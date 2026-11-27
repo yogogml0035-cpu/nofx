@@ -96,7 +96,7 @@ func TestToolUpdateTraderRebindingExchangeResetsInitialBalance(t *testing.T) {
 			t.Fatalf("create store: %v", err)
 		}
 		a := New(nil, st, DefaultConfig(), slog.Default())
-		if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
+		if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat", ""); err != nil {
 			t.Fatalf("seed model: %v", err)
 		}
 		firstExchange, err := st.Exchange().Create("default", "binance", "First", true, "api-test", "secret-test", "", false, "", "", "", "", "", "", 0)
@@ -192,7 +192,7 @@ func TestTraderManagementTellsUserWhenRebindingResetsInitialBalance(t *testing.T
 			t.Fatalf("create store: %v", err)
 		}
 		a := New(nil, st, DefaultConfig(), slog.Default())
-		if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
+		if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat", ""); err != nil {
 			t.Fatalf("seed model: %v", err)
 		}
 		firstExchange, err := st.Exchange().Create("default", "binance", "First", true, "api-test", "secret-test", "", false, "", "", "", "", "", "", 0)
