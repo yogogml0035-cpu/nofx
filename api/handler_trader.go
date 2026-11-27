@@ -350,7 +350,7 @@ func strategyTokenBlocker(fullCfg *store.TraderFullConfig) (string, bool) {
 		return "", false
 	}
 	estimate := cfg.EstimateTokens()
-	limit := store.GetContextLimitForClient(fullCfg.AIModel.Provider, fullCfg.AIModel.CustomModelName)
+	limit := store.GetModelCapabilities(fullCfg.AIModel.Provider, fullCfg.AIModel.CustomModelName).ContextWindow
 	if estimate.Total <= limit {
 		return "", false
 	}
