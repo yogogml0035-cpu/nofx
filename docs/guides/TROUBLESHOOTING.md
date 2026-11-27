@@ -124,14 +124,14 @@ Look at the AI's Chain-of-Thought reasoning section.
 **Remember:** AI trading is experimental and not guaranteed to be profitable.
 
 **Things to Check:**
-1. **Decision cadence**: follows the strategy's primary timeframe (5s after each candle close). Is that timeframe too short?
+1. **Decision cadence**: follows the trader's scan interval (5s after a matching candle close). Is that interval too short or too long?
 2. **Leverage Settings**: Too aggressive?
 3. **Historical Feedback**: Check performance logs to see if AI is learning
 4. **Market Volatility**: High volatility = higher risk
 
 **Adjustments:**
 - Reduce leverage for more conservative trading
-- Use a longer primary timeframe in the strategy to reduce over-trading
+- Use a longer scan interval on the trader to reduce over-trading
 - Use smaller initial balance for testing
 
 ---
@@ -338,7 +338,7 @@ Binance has strict API rate limits:
 
 - **Requests per minute limit**
 - Reduce number of traders
-- Use a longer primary timeframe in the strategy (e.g., 1m → 15m or 1h)
+- Use a longer scan interval on the trader (e.g., 3 → 15 or 60 minutes)
 
 **Related Issue:** [#60](https://github.com/NoFxAiOS/nofx/issues/60)
 

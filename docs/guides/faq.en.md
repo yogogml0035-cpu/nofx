@@ -54,13 +54,13 @@ Common reasons:
 - See detailed diagnostics in [Troubleshooting Guide](TROUBLESHOOTING.md#-ai-always-says-wait--hold)
 
 ### How often does the AI make decisions?
-The AI decides once per candle of the **strategy's primary timeframe** (5 seconds after each close). Set that timeframe in the strategy: `10s`/`1m` call the model every few seconds to about a minute (higher fees, more noise), `15m`–`1h` suit swing trading. The trader's scan interval is only a fallback: it applies when both the primary and the first selected timeframe are configured but unusable; when no timeframe is configured at all the 5m grid is used.
+The AI decides at the **trader's scan interval** (3–60 minutes). When that interval matches a K-line period (`5m`/`15m`/`30m`/`1h`), the decision starts 5 seconds after that candle closes; other intervals use a fixed timer. A shorter interval calls the model more often (higher fees, more noise), so `15`–`60` minutes suit swing trading.
 
 ### Can I customize the trading strategy?
 Yes! You can:
 - Adjust leverage settings
 - Modify coin selection pool
-- Change the primary timeframe (decision cadence)
+- Change the trader scan interval (decision cadence)
 - Customize system prompts (advanced)
 
 ### What's the maximum number of concurrent positions?
@@ -137,7 +137,7 @@ docker compose up -d
 
 ### How much do API calls cost?
 Depends on your model and decision frequency:
-- **DeepSeek**: ~$0.10-0.50 per day (1 trader, 5m primary timeframe)
+- **DeepSeek**: ~$0.10-0.50 per day (1 trader, 5-minute scan interval)
 - **Qwen**: ~$0.20-0.80 per day
 - **Custom API** (e.g., OpenAI GPT-4): ~$2-5 per day
 

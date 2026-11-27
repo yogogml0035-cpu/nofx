@@ -143,10 +143,11 @@ export const translations = {
     create: 'Create',
     configureAIModels: 'Configure AI Models',
     configureExchanges: 'Configure Exchanges',
-    aiScanInterval: 'Fallback scan interval (minutes)',
-    scanIntervalRecommend: 'Fallback only: decisions run 5s after each close of the primary timeframe (or the first selected timeframe; 5m when neither is configured). This interval applies only when both are configured but unusable.',
+    aiScanInterval: 'Scan interval (minutes)',
+    scanIntervalRecommend: 'Decisions run at this interval. When it matches a K-line period (5/15/30/60 minutes), a decision starts 5 seconds after that candle closes; otherwise the next decision waits this interval after the previous round finishes.',
     scanCadence: 'Effective cadence: 5s after each {timeframe} candle close',
-    scanCadenceCost: 'A primary timeframe of 1m or shorter calls the model about once a minute or more often.',
+    scanCadenceUnaligned: 'Effective cadence: {minutes} minutes after each round (not aligned to a candle close)',
+    scanCadenceGridCap: 'Grid cycles, including breakout, drawdown and daily-loss checks, stay capped at 5 minutes; longer intervals do not take effect.',
     useTestnet: 'Use Testnet',
     enabled: 'Enabled',
     save: 'Save',
@@ -711,7 +712,7 @@ export const translations = {
 
     faqDecisionFrequency: 'How often does the AI make decisions?',
     faqDecisionFrequencyAnswer:
-      'The AI decides once per candle of the strategy primary timeframe (5 seconds after each close). Set that timeframe in the strategy: 10s/1m call the model every few seconds to about a minute (higher fees, more noise), 15m-1h suit swing trading. The AI may decide to "hold" (no action) in many cycles. The scan interval on the trader is only a fallback used when the strategy has no valid timeframe.',
+      'The AI decides at the trader scan interval (3-60 minutes). When the interval matches a K-line period (5/15/30/60 minutes), the decision starts 5 seconds after that candle closes; other intervals use a fixed timer. A shorter interval calls the model more often (higher fees, more noise), so 15-60 minutes suit swing trading. The AI may decide to "hold" (no action) in many cycles.',
 
     faqNoTradesExecuting: "Why isn't my trader executing any trades?",
     faqNoTradesExecutingAnswer:
@@ -735,7 +736,7 @@ export const translations = {
 
     faqAICosts: 'How much do AI API calls cost?',
     faqAICostsAnswer:
-      'Approximate daily costs per trader (5-min intervals): DeepSeek: $0.10-0.50; Qwen: $0.20-0.80; OpenAI: $2-5; Claude: $1-3. Costs depend on prompt length and response tokens. DeepSeek offers the best cost/performance ratio. Longer decision intervals reduce costs.',
+      'Approximate daily costs per trader (at a 5-minute scan interval): DeepSeek: $0.10-0.50; Qwen: $0.20-0.80; OpenAI: $2-5; Claude: $1-3. Costs depend on prompt length and response tokens. DeepSeek offers the best cost/performance ratio. Longer scan intervals reduce costs.',
 
     // ===== TECHNICAL ISSUES =====
     faqPortInUse: 'Port 8080 or 3000 already in use',
@@ -1321,7 +1322,7 @@ export const translations = {
       crossMargin: 'Cross',
       isolatedMargin: 'Isolated',
       scanInterval: '{minutes} minutes',
-      scanIntervalLabel: 'Fallback Scan Interval',
+      scanIntervalLabel: 'Scan Interval',
       strategyUsed: 'Strategy Used',
       strategyName: 'Strategy Name',
       close: 'Close',
@@ -1470,10 +1471,11 @@ export const translations = {
     create: '创建',
     configureAIModels: '配置AI模型',
     configureExchanges: '配置交易所',
-    aiScanInterval: '回退扫描间隔（分钟）',
-    scanIntervalRecommend: '回退值：正常按主周期（缺失时取多周期的第一个，再缺省 5m）收线后 5 秒触发决策；只有主周期与多周期第一个都已配置但都不可用时才按这个间隔运行。',
+    aiScanInterval: '扫描间隔（分钟）',
+    scanIntervalRecommend: '决策按此间隔运行；当间隔正好是 5/15/30/60 分钟时，会在对应 K 线收线后 5 秒触发；其他间隔在上一轮结束后再等待该间隔。',
     scanCadence: '实际节奏：每根 {timeframe} K 线收线后 5 秒',
-    scanCadenceCost: '主周期为 1m 及更短时，约每分钟或更频繁调用一次模型。',
+    scanCadenceUnaligned: '实际节奏：每轮结束后 {minutes} 分钟（不对齐 K 线收线）',
+    scanCadenceGridCap: '网格循环（含突破、回撤、日亏检查）固定不超过 5 分钟，更长的扫描间隔不会生效。',
     useTestnet: '使用测试网',
     enabled: '启用',
     save: '保存',
@@ -1999,7 +2001,7 @@ export const translations = {
 
     faqDecisionFrequency: 'AI 多久做一次决策？',
     faqDecisionFrequencyAnswer:
-      'AI 按策略主周期每根 K 线决策一次（收线后 5 秒）。节奏在策略的主周期里设置：10s/1m 约每几秒到一分钟调用一次模型（费用高、噪声多），15m-1h 适合波段。AI 在很多周期可能决定"持有"（不操作）。交易员上的扫描间隔只是回退值，仅在策略没有有效主周期时生效。',
+      'AI 按交易员的扫描间隔决策（3–60 分钟）。间隔正好是 5/15/30/60 分钟时，在对应 K 线收线后 5 秒触发；其他间隔按固定计时器运行。间隔越短调用模型越频繁（费用高、噪声多），15–60 分钟更适合波段。AI 在很多周期可能决定"持有"（不操作）。',
 
     faqNoTradesExecuting: '为什么交易员不执行任何交易？',
     faqNoTradesExecutingAnswer:
@@ -2023,7 +2025,7 @@ export const translations = {
 
     faqAICosts: 'AI API 调用费用是多少？',
     faqAICostsAnswer:
-      '每个交易员每天大约费用（策略主周期 5m）：DeepSeek：$0.10-0.50；Qwen：$0.20-0.80；OpenAI：$2-5；Claude：$1-3。费用取决于提示词长度和响应 token 数。DeepSeek 性价比最高。策略主周期越长，调用越少、费用越低。',
+      '每个交易员每天大约费用（扫描间隔 5 分钟）：DeepSeek：$0.10-0.50；Qwen：$0.20-0.80；OpenAI：$2-5；Claude：$1-3。费用取决于提示词长度和响应 token 数。DeepSeek 性价比最高。扫描间隔越长，调用越少、费用越低。',
 
     // ===== 技术问题 =====
     faqPortInUse: '端口 8080 或 3000 被占用',
@@ -2588,7 +2590,7 @@ export const translations = {
       crossMargin: '全仓',
       isolatedMargin: '逐仓',
       scanInterval: '{minutes} 分钟',
-      scanIntervalLabel: '回退扫描间隔',
+      scanIntervalLabel: '扫描间隔',
       strategyUsed: '使用策略',
       strategyName: '策略名称',
       close: '关闭',
@@ -2739,10 +2741,11 @@ export const translations = {
     create: 'Buat',
     configureAIModels: 'Konfigurasi Model AI',
     configureExchanges: 'Konfigurasi Bursa',
-    aiScanInterval: 'Interval pemindaian cadangan (menit)',
-    scanIntervalRecommend: 'Nilai cadangan: keputusan berjalan 5 detik setelah penutupan timeframe utama (atau timeframe terpilih pertama; 5m bila keduanya tidak disetel). Interval ini hanya dipakai bila keduanya disetel tetapi tidak bisa dipakai.',
+    aiScanInterval: 'Interval pemindaian (menit)',
+    scanIntervalRecommend: 'Keputusan berjalan pada interval ini. Bila cocok dengan periode K-line (5/15/30/60 menit), keputusan dimulai 5 detik setelah candle tersebut ditutup; interval lain menunggu selama interval ini setelah putaran sebelumnya selesai.',
     scanCadence: 'Irama efektif: 5 detik setelah penutupan candle {timeframe}',
-    scanCadenceCost: 'Timeframe utama 1m atau lebih pendek memanggil model sekitar sekali per menit atau lebih sering.',
+    scanCadenceUnaligned: 'Irama efektif: {minutes} menit setelah setiap putaran (tidak selaras dengan penutupan candle)',
+    scanCadenceGridCap: 'Siklus grid (termasuk pemeriksaan breakout, drawdown, dan batas rugi harian) dibatasi 5 menit; interval yang lebih panjang tidak berlaku.',
     useTestnet: 'Gunakan Testnet',
     enabled: 'Aktif',
     save: 'Simpan',
@@ -3256,7 +3259,7 @@ export const translations = {
       'AI menggunakan penalaran Chain of Thought (CoT) dalam 4 langkah: 1) Analisis Posisi; 2) Penilaian Risiko; 3) Evaluasi Peluang; 4) Keputusan Akhir.',
     faqDecisionFrequency: 'Seberapa sering AI membuat keputusan?',
     faqDecisionFrequencyAnswer:
-      'AI mengambil keputusan sekali per candle timeframe utama strategi (5 detik setelah penutupan). Atur timeframe itu di strategi: 10s/1m memanggil model setiap beberapa detik hingga sekitar satu menit (biaya lebih tinggi, noise lebih banyak), 15m-1h cocok untuk swing trading. Interval pemindaian di trader hanyalah nilai cadangan saat strategi tidak punya timeframe yang valid.',
+      'AI mengambil keputusan pada interval pemindaian trader (3-60 menit). Bila interval cocok dengan periode K-line (5/15/30/60 menit), keputusan dimulai 5 detik setelah candle tersebut ditutup; interval lain memakai timer tetap. Interval lebih pendek memanggil model lebih sering (biaya dan noise lebih tinggi), sehingga 15-60 menit lebih cocok untuk swing trading. AI dapat memilih "hold" (tanpa aksi) pada banyak siklus.',
     faqNoTradesExecuting: 'Mengapa trader saya tidak mengeksekusi trading?',
     faqNoTradesExecutingAnswer:
       'Penyebab umum: 1) AI memutuskan menunggu; 2) Saldo tidak cukup; 3) Batas posisi maks tercapai; 4) Masalah API bursa; 5) Batasan strategi terlalu ketat.',
@@ -3814,7 +3817,7 @@ export const translations = {
       crossMargin: 'Cross',
       isolatedMargin: 'Isolated',
       scanInterval: '{minutes} menit',
-      scanIntervalLabel: 'Interval Cadangan',
+      scanIntervalLabel: 'Interval Pemindaian',
       strategyUsed: 'Strategi Digunakan',
       strategyName: 'Nama Strategi',
       close: 'Tutup',

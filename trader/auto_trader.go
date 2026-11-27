@@ -377,9 +377,28 @@ func resolveInitialBalance(t Trader, st *store.Store, userID string, config *Aut
 	return nil
 }
 
+// latestDecisionAt 返回最近一次已落库决策的时间；没有存储、没有记录或读取失败时返回零值。
+func (at *AutoTrader) latestDecisionAt() time.Time {
+	if at.store == nil {
+		return time.Time{}
+	}
+	records, err := at.store.Decision().GetLatestRecords(at.id, 1)
+	if err != nil || len(records) == 0 {
+		return time.Time{}
+	}
+	return records[len(records)-1].Timestamp
+}
+
 // Run runs the automatic trading main loop
 func (at *AutoTrader) Run() error {
 	at.isRunningMutex.Lock()
+	if at.isRunning {
+		at.isRunningMutex.Unlock()
+		// 更新保存时 LoadUserTradersFromStore 会按 is_running 自动拉起，handler 随后又显式 Run；
+		// 两个 goroutine 必须只有一个进入循环，否则同一个 trader 会并发决策、可能重复下单。
+		logger.Infof("⏭ Trader %s is already running; duplicate Run ignored", at.id)
+		return nil
+	}
 	at.isRunning = true
 	at.isRunningMutex.Unlock()
 
@@ -388,10 +407,14 @@ func (at *AutoTrader) Run() error {
 
 	logger.Info("🚀 AI-driven automatic trading system started")
 	at.logInfof("💰 Initial balance: %.2f USDT", at.initialBalance)
-	if cadence := scanTimeframe(at.config.StrategyConfig); cadence == "" {
-		at.logWarnf("⚙️  Primary timeframe missing/invalid; scan interval fallback: %v", at.scanFallbackInterval())
+	scanInterval := at.scanCadence()
+	if at.config.ScanInterval != scanInterval {
+		at.logWarnf("⚠️ Requested scan interval %v; effective cadence is %v (manual range 3-60m, grid capped at 5m)", at.config.ScanInterval, scanInterval)
+	}
+	if cadence := scanTimeframeForInterval(scanInterval); cadence == "" {
+		at.logInfof("⚙️  Scan every %v (not aligned to a candle close)", scanInterval)
 	} else {
-		at.logInfof("⚙️  Scan aligned to %s close + %v (UTC)", cadence, scanCloseDelay)
+		at.logInfof("⚙️  Scan every %v, aligned to %s close + %v (UTC)", scanInterval, cadence, scanCloseDelay)
 	}
 	logger.Info("🤖 AI will make full decisions on leverage, position size, stop loss/take profit, etc.")
 
@@ -473,21 +496,36 @@ func (at *AutoTrader) Run() error {
 		at.logInfof("🔲 Grid trading strategy detected, initializing grid...")
 		if err := at.InitializeGrid(); err != nil {
 			at.logErrorf("❌ Failed to initialize grid: %v", err)
+			// 已经启动的监控/同步 goroutine 要收掉，isRunning 也要复位；否则 Run 的幂等保护
+			// 会让用户之后的启动请求被当成“已在运行”直接忽略。
+			at.Stop()
 			return fmt.Errorf("grid initialization failed: %w", err)
 		}
 	}
 
-	// Execute immediately on first run
-	if isGridStrategy {
-		if err := at.RunGridCycle(); err != nil {
-			at.logErrorf("❌ Grid execution failed: %v", err)
-		}
-	} else {
-		if err := at.runCycle(); err != nil {
-			at.logErrorf("❌ Execution failed: %v", err)
+	// 启动立即跑一轮；但保存配置/进程重启会重建 AutoTrader，如果 1 分钟内已经落过决策，
+	// 这一轮会重复调用模型（甚至重复下单）。最近决策记录能跨进程看到上一轮，所以据此跳过。
+	lastDecisionAt := time.Now()
+	skipImmediate := false
+	if recent := at.latestDecisionAt(); !recent.IsZero() && time.Since(recent) < scanStartupGuard {
+		lastDecisionAt = recent
+		skipImmediate = true
+		at.logInfof("⏭ Skip immediate cycle: last decision was recorded %v ago (startup guard %v)", time.Since(recent).Round(time.Second), scanStartupGuard)
+	}
+	if !skipImmediate {
+		if isGridStrategy {
+			if err := at.RunGridCycle(); err != nil {
+				at.logErrorf("❌ Grid execution failed: %v", err)
+			}
+		} else {
+			if err := at.runCycle(); err != nil {
+				at.logErrorf("❌ Execution failed: %v", err)
+			}
 		}
 	}
 
+	// 启动后的第一次对齐等待需要防抖（跳过离立即决策太近的边界）；之后按边界推进
+	firstWait := true
 	for {
 		at.isRunningMutex.RLock()
 		running := at.isRunning
@@ -497,28 +535,32 @@ func (at *AutoTrader) Run() error {
 			break
 		}
 
-		// 等待下一个 K 线收线边界（+ 固定延迟）；主周期缺失时回退到旧 ScanInterval。
-		// 每轮重新读取：引擎可能在首轮原地归一化周期别名（1小时→1h），下一轮起即可对齐。
-		cadence := scanTimeframe(at.config.StrategyConfig)
-		wait := at.scanFallbackInterval()
-		if cadence != "" {
-			next, err := nextScanTime(time.Now(), cadence, scanCloseDelay)
+		// 等待下一次扫描：以用户配置的扫描间隔为准；间隔正好等于某个 K 线周期时对齐该周期收线
+		// + 固定延迟，否则按固定计时器运行。每轮重新读取配置，保存后重启即可生效。
+		interval := at.scanCadence()
+		wait := interval
+		trigger, aligned, err := nextScanTrigger(time.Now(), interval, scanCloseDelay, firstWait)
+		if aligned {
 			if err != nil {
 				at.logWarnf("⚠️ Scan schedule unavailable (%v); fallback to %v", err, wait)
 			} else {
-				wait = time.Until(next)
+				if !firstWait && time.Since(lastDecisionAt) > interval+scanCloseDelay {
+					at.logWarnf("⚠️ Previous cycle overran the scan interval; a scheduled boundary was skipped")
+				}
+				wait = time.Until(trigger)
 				if wait < 0 {
 					wait = 0
 				}
-				at.logInfof("⏰ Next scan at %s (UTC)", next.Format(time.RFC3339))
+				at.logInfof("⏰ Next scan at %s (UTC, %s close +%v)", trigger.Format(time.RFC3339), scanTimeframeForInterval(interval), scanCloseDelay)
 			}
-		}
-		if cadence == "" {
-			at.logInfof("⏰ Next scan in %v (ScanInterval fallback)", wait)
+		} else {
+			at.logInfof("⏰ Next scan in %v (scan interval)", wait)
 		}
 		timer := time.NewTimer(wait)
 		select {
 		case <-timer.C:
+			firstWait = false
+			lastDecisionAt = time.Now()
 			if isGridStrategy {
 				if err := at.RunGridCycle(); err != nil {
 					at.logErrorf("❌ Grid execution failed: %v", err)

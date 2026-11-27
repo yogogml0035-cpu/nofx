@@ -257,7 +257,7 @@ func normalizeTimeframe(value string) string {
 }
 
 // RetainedTimeframes 策略可选的 K 线周期（D25）：Gate 合约 K 线文档枚举加 1w 与 30d。
-// 决策按主周期收线后固定延迟触发，周期越短调用模型越频繁。
+// 周期越短，单次分析覆盖的时间窗越短；决策频率由交易员的扫描间隔决定。
 var RetainedTimeframes = []string{"10s", "1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "7d", "1w", "30d"}
 
 // NormalizeTimeframe 把周期归一成 D25 集合内的值（别名 1小时→1h、大小写与首尾空白）；

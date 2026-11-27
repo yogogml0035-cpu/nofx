@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
@@ -156,20 +156,28 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       return e.enabled
     }) || []
 
-  const enabledModels = allModels?.filter((m) => m.enabled) || []
-  const enabledExchanges =
-    allExchanges?.filter((e) => {
-      if (!e.enabled) return false
-      if (e.id === 'aster') {
-        return (
-          e.asterUser &&
-          e.asterUser.trim() !== '' &&
-          e.asterSigner &&
-          e.asterSigner.trim() !== ''
-        )
-      }
-      return true
-    }) || []
+  // 这两个数组直接传给编辑弹窗。用 useMemo 保持引用稳定：页面每 5 秒轮询 trader 列表会重渲染，
+  // 每次 filter 产生新数组会让弹窗里的选项 effect 反复执行，干扰未保存的表单状态。
+  const enabledModels = useMemo(
+    () => allModels?.filter((m) => m.enabled) || [],
+    [allModels]
+  )
+  const enabledExchanges = useMemo(
+    () =>
+      allExchanges?.filter((e) => {
+        if (!e.enabled) return false
+        if (e.id === 'aster') {
+          return (
+            e.asterUser &&
+            e.asterUser.trim() !== '' &&
+            e.asterSigner &&
+            e.asterSigner.trim() !== ''
+          )
+        }
+        return true
+      }) || [],
+    [allExchanges]
+  )
 
   const isModelInUse = (modelId: string) => {
     return traders?.some((tr) => tr.ai_model === modelId && tr.is_running)
@@ -739,6 +747,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         {/* Edit Trader Modal */}
         {showEditModal && editingTrader && (
           <TraderConfigModal
+            // 换交易员时强制重新挂载，避免同 ID 缺字段或复用实例时沿用上一个表单
+            key={editingTrader.trader_id}
             isOpen={showEditModal}
             isEditMode={true}
             traderData={editingTrader}

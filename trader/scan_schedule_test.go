@@ -4,6 +4,7 @@ package trader
 // 7d Unix 网格与回退语义。
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -113,35 +114,200 @@ func TestNextScanTimeRejectsBadInput(t *testing.T) {
 	}
 }
 
-func TestScanTimeframe(t *testing.T) {
-	base := store.GetDefaultStrategyConfig("en")
-	if got := scanTimeframe(nil); got != "" {
-		t.Errorf("nil config = %q", got)
+func TestScanCadence(t *testing.T) {
+	cases := []struct {
+		name       string
+		configured time.Duration
+		grid       bool
+		want       time.Duration
+	}{
+		{name: "用户配置的间隔优先", configured: 5 * time.Minute, want: 5 * time.Minute},
+		{name: "零值回退到下限", configured: 0, want: 3 * time.Minute},
+		{name: "负值回退到下限", configured: -time.Minute, want: 3 * time.Minute},
+		{name: "低于下限的存量值收敛到下限", configured: time.Minute, want: 3 * time.Minute},
+		{name: "高于上限的存量值收敛到上限", configured: 90 * time.Minute, want: 60 * time.Minute},
+		{name: "240 分钟收敛到上限", configured: 240 * time.Minute, want: 60 * time.Minute},
+		// 网格循环含突破/回撤/日亏检查，旧调度固定 5 分钟，不能被更长的间隔拖慢
+		{name: "网格策略封顶 5 分钟", configured: 60 * time.Minute, grid: true, want: 5 * time.Minute},
+		{name: "网格策略的短间隔保留", configured: 3 * time.Minute, grid: true, want: 3 * time.Minute},
 	}
-	// 与引擎同口径：主周期为空时取 SelectedTimeframes[0]
-	cfg := base
-	cfg.Indicators.Klines.PrimaryTimeframe = ""
-	cfg.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h"}
-	assert.Equal(t, "15m", scanTimeframe(&cfg), "主周期为空时取多周期第一个")
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			at := &AutoTrader{config: AutoTraderConfig{ScanInterval: c.configured}}
+			if c.grid {
+				at.config.StrategyConfig = &store.StrategyConfig{
+					StrategyType: "grid_trading",
+					GridConfig:   &store.GridStrategyConfig{},
+				}
+			}
+			assert.Equal(t, c.want, at.scanCadence())
+		})
+	}
+}
 
-	// 主周期与多周期都为空：引擎回退到 5m
-	cfg.Indicators.Klines.SelectedTimeframes = nil
-	assert.Equal(t, "5m", scanTimeframe(&cfg), "两者都为空时与引擎一致回退到 5m")
+func TestLatestDecisionAt(t *testing.T) {
+	st, err := store.New(filepath.Join(t.TempDir(), "scan.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = st.Close() })
+	at := &AutoTrader{id: "trader-1", store: st}
 
-	// 旧周期跳过，取下一个候选
-	cfg.Indicators.Klines.PrimaryTimeframe = "3m"
-	cfg.Indicators.Klines.SelectedTimeframes = []string{"4h", "1d"}
-	assert.Equal(t, "4h", scanTimeframe(&cfg), "旧周期跳过后取多周期第一个")
+	// 没有记录：返回零值（启动时照常立即跑一轮）
+	assert.True(t, at.latestDecisionAt().IsZero())
 
-	// 主周期与多周期都是旧周期：回退
-	cfg.Indicators.Klines.SelectedTimeframes = []string{"2h"}
-	assert.Equal(t, "", scanTimeframe(&cfg), "全部无效时必须回退")
+	recordedAt := time.Now().UTC().Add(-30 * time.Second).Truncate(time.Second)
+	require.NoError(t, st.Decision().LogDecision(&store.DecisionRecord{
+		TraderID:    at.id,
+		CycleNumber: 1,
+		Timestamp:   recordedAt,
+	}))
 
-	cfg.Indicators.Klines.PrimaryTimeframe = "30D"
-	assert.Equal(t, "30d", scanTimeframe(&cfg))
+	// 跨进程/重启也能读到上一轮决策，用于跳过 1 分钟内的重复立即决策
+	assert.WithinDuration(t, recordedAt, at.latestDecisionAt(), time.Second)
+}
 
-	cfg.Indicators.Klines.PrimaryTimeframe = "1h"
-	assert.Equal(t, "1h", scanTimeframe(&cfg))
+func TestScanCadenceIgnoresPrimaryTimeframe(t *testing.T) {
+	// 原始故障：短线策略的 primary=4h 只用于背景分析，不能把 5 分钟扫描压成 4 小时一轮。
+	cfg := store.GetDefaultStrategyConfig("en")
+	cfg.Indicators.Klines.PrimaryTimeframe = "4h"
+	cfg.Indicators.Klines.SelectedTimeframes = []string{"5m", "4h", "15m", "1h"}
+	at := &AutoTrader{config: AutoTraderConfig{
+		ScanInterval:   5 * time.Minute,
+		StrategyConfig: &cfg,
+	}}
+	assert.Equal(t, 5*time.Minute, at.scanCadence())
+}
+
+func TestScanTimeframeForInterval(t *testing.T) {
+	cases := []struct {
+		interval time.Duration
+		want     string
+	}{
+		{interval: 5 * time.Minute, want: "5m"},
+		{interval: 15 * time.Minute, want: "15m"},
+		{interval: 30 * time.Minute, want: "30m"},
+		{interval: time.Hour, want: "1h"},
+		// 没有同长度的周期：按固定计时器运行，不能擅自换挡
+		{interval: 3 * time.Minute, want: ""},
+		{interval: 7 * time.Minute, want: ""},
+		{interval: time.Minute, want: ""},
+		// 超出 3–60 分钟的手动范围，由 scanCadence 收敛，不参与对齐
+		{interval: 4 * time.Hour, want: ""},
+		{interval: 8 * time.Hour, want: ""},
+		{interval: 24 * time.Hour, want: ""},
+		// 7d 与 1w 时长相同但边界不同，无法从间隔唯一确定
+		{interval: 7 * 24 * time.Hour, want: ""},
+		{interval: 0, want: ""},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, scanTimeframeForInterval(c.interval), "interval=%v", c.interval)
+	}
+}
+
+// 本函数用周期长度作为 minGap 验证公式；生产第一次等待用 1 分钟（见 TestNextScanTriggerOnlyGuardsFirstWait）。
+func TestNextAlignedScanRespectsMinimumGap(t *testing.T) {
+	delay := 5 * time.Second
+
+	// 首轮在 10:34:30 立即执行；最近的 5m 边界 10:35:05 只隔 35 秒，跳到下一个边界。
+	last := utc(2026, 11, 25, 10, 34, 30)
+	got, err := nextAlignedScan(utc(2026, 11, 25, 10, 34, 31), "5m", delay, 5*time.Minute, last)
+	require.NoError(t, err)
+	assert.Equal(t, utc(2026, 11, 25, 10, 40, 5), got)
+
+	// 首轮在 10:30:00，最近的边界 10:35:05 间隔 5m5s，保留。
+	last = utc(2026, 11, 25, 10, 30, 0)
+	got, err = nextAlignedScan(utc(2026, 11, 25, 10, 30, 1), "5m", delay, 5*time.Minute, last)
+	require.NoError(t, err)
+	assert.Equal(t, utc(2026, 11, 25, 10, 35, 5), got)
+
+	// 1h 间隔：10:30 首轮后最近边界 11:00:05 只隔 30 分钟，跳到 12:00:05。
+	last = utc(2026, 11, 25, 10, 30, 0)
+	got, err = nextAlignedScan(utc(2026, 11, 25, 10, 30, 1), "1h", delay, time.Hour, last)
+	require.NoError(t, err)
+	assert.Equal(t, utc(2026, 11, 25, 12, 0, 5), got)
+
+	// 边界恰好等于间隔：保留（不误跳到再下一个）。
+	last = utc(2026, 11, 25, 11, 0, 5)
+	got, err = nextAlignedScan(utc(2026, 11, 25, 11, 0, 6), "1h", delay, time.Hour, last)
+	require.NoError(t, err)
+	assert.Equal(t, utc(2026, 11, 25, 12, 0, 5), got)
+
+	// minGap 非正时不做防抖，直接返回最近边界。
+	last = utc(2026, 11, 25, 10, 34, 30)
+	got, err = nextAlignedScan(utc(2026, 11, 25, 10, 34, 31), "5m", delay, 0, last)
+	require.NoError(t, err)
+	assert.Equal(t, utc(2026, 11, 25, 10, 35, 5), got)
+
+	// 墙钟回拨：lastStart 晚于 now 时不做防抖，直接返回最近边界；不能被回拨距离放大成多周期停摆。
+	last = utc(2026, 11, 25, 12, 10, 0)
+	got, err = nextAlignedScan(utc(2026, 11, 25, 12, 0, 0), "5m", delay, time.Minute, last)
+	require.NoError(t, err)
+	assert.Equal(t, utc(2026, 11, 25, 12, 0, 5), got)
+}
+
+func TestNextScanTriggerOnlyGuardsFirstWait(t *testing.T) {
+	delay := 5 * time.Second
+
+	// 启动立即跑过一轮后的第一次等待：循环顶端离边界太近时跳过一个。
+	got, aligned, err := nextScanTrigger(
+		utc(2026, 11, 25, 10, 34, 31), 5*time.Minute, delay, true,
+	)
+	require.NoError(t, err)
+	assert.True(t, aligned)
+	assert.Equal(t, utc(2026, 11, 25, 10, 40, 5), got)
+
+	// 立即轮跑了 65 秒、在边界前 1 秒结束：必须跳过边界，不能刚返回就再调用模型。
+	got, aligned, err = nextScanTrigger(
+		utc(2026, 11, 25, 12, 5, 4), 5*time.Minute, delay, true,
+	)
+	require.NoError(t, err)
+	assert.True(t, aligned)
+	assert.Equal(t, utc(2026, 11, 25, 12, 10, 5), got)
+
+	// 防抖门槛是 1 分钟而不是整个扫描间隔：隔 64 秒的边界要保留，不能拖到下下个边界。
+	got, aligned, err = nextScanTrigger(
+		utc(2026, 11, 25, 10, 34, 1), 5*time.Minute, delay, true,
+	)
+	require.NoError(t, err)
+	assert.True(t, aligned)
+	assert.Equal(t, utc(2026, 11, 25, 10, 35, 5), got)
+
+	// 1 小时策略启动在 10:30：下一次是 11:00 的收线，不是 12:00。
+	got, aligned, err = nextScanTrigger(
+		utc(2026, 11, 25, 10, 30, 1), time.Hour, delay, true,
+	)
+	require.NoError(t, err)
+	assert.True(t, aligned)
+	assert.Equal(t, utc(2026, 11, 25, 11, 0, 5), got)
+
+	// 第一次等待执行后：timer 实际触发比计划晚几毫秒，也必须只等下一个边界，不能翻倍。
+	got, aligned, err = nextScanTrigger(
+		utc(2026, 11, 25, 10, 40, 6), 5*time.Minute, delay, false,
+	)
+	require.NoError(t, err)
+	assert.True(t, aligned)
+	assert.Equal(t, utc(2026, 11, 25, 10, 45, 5), got)
+
+	got, aligned, err = nextScanTrigger(
+		utc(2026, 11, 25, 11, 0, 6), time.Hour, delay, false,
+	)
+	require.NoError(t, err)
+	assert.True(t, aligned)
+	assert.Equal(t, utc(2026, 11, 25, 12, 0, 5), got)
+
+	// 不对齐的间隔交给固定计时器，调用方不应使用 trigger。
+	trigger, aligned, err := nextScanTrigger(
+		utc(2026, 11, 25, 10, 34, 31), 3*time.Minute, delay, true,
+	)
+	require.NoError(t, err)
+	assert.False(t, aligned)
+	assert.True(t, trigger.IsZero())
+
+	// 错误要向上传，让循环回退到固定间隔。
+	_, aligned, err = nextScanTrigger(
+		utc(2026, 11, 25, 10, 34, 31), 5*time.Minute, -time.Second, false,
+	)
+	assert.True(t, aligned)
+	assert.Error(t, err)
 }
 
 // 周期集合只有一份事实：调度、策略配置与 Gate 取数的周期表必须一致，不能各自漂移
@@ -158,14 +324,4 @@ func TestRetainedTimeframesMatchGateIntervals(t *testing.T) {
 			t.Errorf("nextScanTime rejects retained timeframe %q: %v", timeframe, err)
 		}
 	}
-}
-
-// 别名与大小写归一后再调度：启动日志与首轮就按归一后的周期算
-func TestScanTimeframeNormalizesAliases(t *testing.T) {
-	cfg := store.GetDefaultStrategyConfig("en")
-	cfg.Indicators.Klines.PrimaryTimeframe = "1小时"
-	cfg.Indicators.Klines.SelectedTimeframes = nil
-	assert.Equal(t, "1h", scanTimeframe(&cfg))
-	cfg.Indicators.Klines.PrimaryTimeframe = "4H"
-	assert.Equal(t, "4h", scanTimeframe(&cfg))
 }

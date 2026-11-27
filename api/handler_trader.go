@@ -19,6 +19,8 @@ import (
 const (
 	maxManualBTCETHLeverage = 20
 	maxManualAltLeverage    = 20
+	minScanIntervalMinutes  = 3
+	maxScanIntervalMinutes  = 60
 )
 
 // AI trader management related structures
@@ -467,8 +469,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 	// Set scan interval default value
 	scanIntervalMinutes := req.ScanIntervalMinutes
-	if scanIntervalMinutes < 3 {
-		scanIntervalMinutes = 3 // Default 3 minutes, not allowed to be less than 3
+	if scanIntervalMinutes < minScanIntervalMinutes {
+		scanIntervalMinutes = minScanIntervalMinutes // Manual range is 3-60 minutes
+	}
+	if scanIntervalMinutes > maxScanIntervalMinutes {
+		scanIntervalMinutes = maxScanIntervalMinutes
 	}
 
 	// The initial balance is the account principal at creation. A failed reading does not block
@@ -566,6 +571,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		logger.Infof("⚠️ Failed to load user traders into memory: %v", err)
 		startupWarning = describeTraderCreationWarning(req.Name, err)
 	}
+	s.traderManager.InvalidateCompetitionCache()
 	logger.Infof("🔧 DEBUG: LoadUserTraders completed")
 
 	if startupWarning == "" {
@@ -655,8 +661,10 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	logger.Infof("📊 Update trader scan_interval: req=%d, existing=%d", req.ScanIntervalMinutes, existingTrader.ScanIntervalMinutes)
 	if scanIntervalMinutes <= 0 {
 		scanIntervalMinutes = existingTrader.ScanIntervalMinutes // Keep original value
-	} else if scanIntervalMinutes < 3 {
-		scanIntervalMinutes = 3
+	} else if scanIntervalMinutes < minScanIntervalMinutes {
+		scanIntervalMinutes = minScanIntervalMinutes
+	} else if scanIntervalMinutes > maxScanIntervalMinutes {
+		scanIntervalMinutes = maxScanIntervalMinutes
 	}
 	logger.Infof("📊 Final scan_interval_minutes: %d", scanIntervalMinutes)
 
@@ -749,6 +757,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	if err != nil {
 		logger.Infof("⚠️ Failed to reload user traders into memory: %v", err)
 	}
+	s.traderManager.InvalidateCompetitionCache()
 
 	// If trader was running before, restart it with new config
 	if wasRunning {

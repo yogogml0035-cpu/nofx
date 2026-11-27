@@ -80,7 +80,7 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 		"runtime_minutes": int(time.Since(at.startTime).Minutes()),
 		"call_count":      at.callCount,
 		"initial_balance": at.initialBalance,
-		"scan_interval":   at.config.ScanInterval.String(),
+		"scan_interval":   at.scanCadence().String(),
 		"stop_until":      at.stopUntil.Format(time.RFC3339),
 		"last_reset_time": at.lastResetTime.Format(time.RFC3339),
 		"ai_provider":     aiProvider,

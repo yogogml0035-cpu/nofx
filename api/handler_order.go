@@ -99,6 +99,7 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"custom_prompt":         traderConfig.CustomPrompt,
 		"override_base_prompt":  traderConfig.OverrideBasePrompt,
 		"is_cross_margin":       traderConfig.IsCrossMargin,
+		"show_in_competition":   traderConfig.ShowInCompetition,
 		"is_running":            isRunning,
 	}
 
