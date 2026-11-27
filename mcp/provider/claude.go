@@ -94,7 +94,7 @@ func (c *ClaudeClient) BuildUrl() string {
 // BuildMCPRequestBody builds the Anthropic wire format for the simple
 // CallWithMessages path (no tool support).
 func (c *ClaudeClient) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
-	return map[string]any{
+	body := map[string]any{
 		"model":      c.Model,
 		"max_tokens": c.MaxTokens,
 		"system":     systemPrompt,
@@ -102,6 +102,43 @@ func (c *ClaudeClient) BuildMCPRequestBody(systemPrompt, userPrompt string) map[
 			{"role": "user", "content": userPrompt},
 		},
 	}
+	c.applyReasoningEffort(body)
+	return body
+}
+
+// claudeThinkingBudget maps our five-level effort scale to Anthropic's
+// extended-thinking token budget. Anthropic has no reasoning_effort field, so
+// the level has to be expressed as a budget (minimum 1024).
+func claudeThinkingBudget(effort string) int {
+	switch mcp.NormalizeReasoningEffort(effort) {
+	case mcp.ReasoningEffortLow:
+		return 2048
+	case mcp.ReasoningEffortMedium:
+		return 4096
+	case mcp.ReasoningEffortHigh:
+		return 8192
+	case mcp.ReasoningEffortXHigh:
+		return 16384
+	case mcp.ReasoningEffortMax:
+		return 32768
+	default:
+		return 0
+	}
+}
+
+// applyReasoningEffort adds Anthropic's thinking block when the caller chose a
+// level. Extended thinking requires temperature=1 and leaves room for the final
+// answer beyond the thinking budget.
+func (c *ClaudeClient) applyReasoningEffort(body map[string]any) {
+	budget := claudeThinkingBudget(c.Cfg.ReasoningEffort)
+	if budget == 0 {
+		return
+	}
+	body["thinking"] = map[string]any{"type": "enabled", "budget_tokens": budget}
+	if c.MaxTokens < budget+4096 {
+		body["max_tokens"] = budget + 4096
+	}
+	body["temperature"] = 1
 }
 
 // BuildRequestBodyFromRequest converts a *Request into the Anthropic Messages
@@ -156,6 +193,8 @@ func (c *ClaudeClient) BuildRequestBodyFromRequest(req *mcp.Request) map[string]
 	if req.Temperature != nil {
 		body["temperature"] = *req.Temperature
 	}
+
+	c.applyReasoningEffort(body)
 
 	return body
 }

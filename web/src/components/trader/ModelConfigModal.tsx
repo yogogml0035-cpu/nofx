@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Trash2, Brain, ExternalLink } from 'lucide-react'
-import type { AIModel } from '../../types'
+import type { AIModel, ReasoningEffort } from '../../types'
+import { REASONING_EFFORTS } from '../../types'
 import type { Language } from '../../i18n/translations'
 import { t } from '../../i18n/translations'
 import { getModelIcon } from '../common/ModelIcons'
@@ -11,6 +12,14 @@ import {
   getShortName,
 } from './model-constants'
 
+const EFFORT_LABEL_KEYS: Record<ReasoningEffort, string> = {
+  low: 'effortLow',
+  medium: 'effortMedium',
+  high: 'effortHigh',
+  xhigh: 'effortXHigh',
+  max: 'effortMax',
+}
+
 interface ModelConfigModalProps {
   allModels: AIModel[]
   configuredModels: AIModel[]
@@ -19,7 +28,8 @@ interface ModelConfigModalProps {
     modelId: string,
     apiKey: string,
     baseUrl?: string,
-    modelName?: string
+    modelName?: string,
+    reasoningEffort?: ReasoningEffort
   ) => void
   onDelete: (modelId: string) => void
   onClose: () => void
@@ -40,20 +50,29 @@ export function ModelConfigModal({
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [modelName, setModelName] = useState('')
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('low')
 
   // Always prefer allModels (supportedModels) for provider/id lookup;
   // fall back to configuredModels for edit mode details (apiKey etc.)
+  const configuredModel = configuredModels?.find((m) => m.id === selectedModelId)
   const selectedModel =
-    allModels?.find((m) => m.id === selectedModelId) ||
-    configuredModels?.find((m) => m.id === selectedModelId)
+    allModels?.find((m) => m.id === selectedModelId) || configuredModel
+  // An existing model already has a stored key; a blank input means "keep it".
+  const hasStoredKey = !!(editingModelId && configuredModel?.has_api_key)
 
   useEffect(() => {
-    if (editingModelId && selectedModel) {
-      setApiKey(selectedModel.apiKey || '')
-      setBaseUrl(selectedModel.customApiUrl || '')
-      setModelName(selectedModel.customModelName || '')
+    if (editingModelId) {
+      // allModels is the static provider catalog and carries no per-user
+      // settings; read the configured row for the saved effort.
+      const configured = configuredModels?.find((m) => m.id === editingModelId)
+      setApiKey(selectedModel?.apiKey || '')
+      setBaseUrl(selectedModel?.customApiUrl || '')
+      setModelName(selectedModel?.customModelName || '')
+      setReasoningEffort(
+        configured?.reasoningEffort || selectedModel?.reasoningEffort || 'low'
+      )
     }
-  }, [editingModelId, selectedModel])
+  }, [editingModelId, selectedModel, configuredModels])
 
   const handleSelectModel = (modelId: string) => {
     setSelectedModelId(modelId)
@@ -71,8 +90,8 @@ export function ModelConfigModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedModelId || !apiKey.trim()) return
-    onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined, modelName.trim() || undefined)
+    if (!selectedModelId || (!apiKey.trim() && !hasStoredKey)) return
+    onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined, modelName.trim() || undefined, reasoningEffort)
   }
 
   const availableModels = allModels || []
@@ -171,10 +190,13 @@ export function ModelConfigModal({
               apiKey={apiKey}
               baseUrl={baseUrl}
               modelName={modelName}
+              reasoningEffort={reasoningEffort}
+              hasStoredKey={hasStoredKey}
               editingModelId={editingModelId}
               onApiKeyChange={setApiKey}
               onBaseUrlChange={setBaseUrl}
               onModelNameChange={setModelName}
+              onReasoningEffortChange={setReasoningEffort}
               onBack={handleBack}
               onSubmit={handleSubmit}
               language={language}
@@ -230,10 +252,13 @@ function StandardProviderConfigForm({
   apiKey,
   baseUrl,
   modelName,
+  reasoningEffort,
+  hasStoredKey,
   editingModelId,
   onApiKeyChange,
   onBaseUrlChange,
   onModelNameChange,
+  onReasoningEffortChange,
   onBack,
   onSubmit,
   language,
@@ -242,10 +267,13 @@ function StandardProviderConfigForm({
   apiKey: string
   baseUrl: string
   modelName: string
+  reasoningEffort: ReasoningEffort
+  hasStoredKey: boolean
   editingModelId: string | null
   onApiKeyChange: (value: string) => void
   onBaseUrlChange: (value: string) => void
   onModelNameChange: (value: string) => void
+  onReasoningEffortChange: (value: ReasoningEffort) => void
   onBack: () => void
   onSubmit: (e: React.FormEvent) => void
   language: Language
@@ -343,14 +371,14 @@ function StandardProviderConfigForm({
               d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
             />
           </svg>
-          API Key *
+          API Key{!hasStoredKey && ' *'}
         </label>
         <input
           type="password"
           value={apiKey}
           onChange={(e) => onApiKeyChange(e.target.value)}
           placeholder={
-            editingModelId && selectedModel.has_api_key
+            hasStoredKey
               ? '已保存，如需更换请重新输入'
               : t('enterAPIKey', language)
           }
@@ -360,7 +388,7 @@ function StandardProviderConfigForm({
             border: '1px solid #2B3139',
             color: '#EAECEF',
           }}
-          required
+          required={!hasStoredKey}
         />
       </div>
 
@@ -406,6 +434,38 @@ function StandardProviderConfigForm({
         </div>
       </div>
 
+      {/* Reasoning Effort */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+          <Brain className="w-4 h-4" style={{ color: '#A78BFA' }} />
+          {t('reasoningEffort', language)}
+        </label>
+        <div className="grid grid-cols-5 gap-2" role="group" aria-label={t('reasoningEffort', language)}>
+          {REASONING_EFFORTS.map((effort) => {
+            const selected = reasoningEffort === effort
+            return (
+              <button
+                key={effort}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onReasoningEffortChange(effort)}
+                className="px-2 py-2 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: selected ? 'rgba(139, 92, 246, 0.18)' : '#0B0E11',
+                  border: `1px solid ${selected ? '#8B5CF6' : '#2B3139'}`,
+                  color: selected ? '#C4B5FD' : '#848E9C',
+                }}
+              >
+                {t(EFFORT_LABEL_KEYS[effort], language)}
+              </button>
+            )
+          })}
+        </div>
+        <div className="text-xs" style={{ color: '#848E9C' }}>
+          {t('reasoningEffortHint', language)}
+        </div>
+      </div>
+
       {/* Info Box */}
       <div
         className="p-4 rounded-xl"
@@ -442,7 +502,7 @@ function StandardProviderConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!selectedModel || !apiKey.trim()}
+          disabled={!selectedModel || (!apiKey.trim() && !hasStoredKey)}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: '#8B5CF6', color: '#fff' }}
         >

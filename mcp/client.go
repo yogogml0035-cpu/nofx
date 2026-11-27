@@ -133,7 +133,15 @@ func NewClient(opts ...ClientOption) AIClient {
 		client.Model = DefaultDeepSeekModel
 	}
 
-	// 5. Set hooks to point to self
+	// 5. Give reasoning room inside the output budget. Reasoning tokens are
+	// billed as completion tokens and share max_tokens with the visible answer,
+	// so the configured effort sets a lower bound on the budget.
+	if floor := ReasoningEffortOutputFloor(cfg.ReasoningEffort); floor > client.MaxTokens {
+		client.MaxTokens = floor
+		cfg.MaxTokens = floor
+	}
+
+	// 6. Set hooks to point to self
 	client.Hooks = client
 
 	return client
@@ -250,12 +258,7 @@ func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[s
 	} else {
 		requestBody["max_tokens"] = client.MaxTokens
 	}
-	// DeepSeek supports explicit thinking control. Structured trading decisions
-	// carry their analysis in the visible answer, so hidden reasoning would only
-	// consume the shared output budget.
-	if client.Provider == ProviderDeepSeek && client.Cfg.DisableThinking {
-		requestBody["thinking"] = map[string]string{"type": "disabled"}
-	}
+	client.applyReasoningEffort(requestBody)
 	return requestBody
 }
 
@@ -706,9 +709,7 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 		// If not set in Request, use Client's MaxTokens
 		requestBody[tokenKey] = client.MaxTokens
 	}
-	if client.Provider == ProviderDeepSeek && client.Cfg.DisableThinking {
-		requestBody["thinking"] = map[string]string{"type": "disabled"}
-	}
+	client.applyReasoningEffort(requestBody)
 
 	if req.TopP != nil {
 		requestBody["top_p"] = *req.TopP

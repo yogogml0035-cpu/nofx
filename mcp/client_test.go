@@ -441,40 +441,77 @@ func TestDefaultConfig_ReasoningBudget(t *testing.T) {
 	}
 }
 
-func TestBuildMCPRequestBody_ThinkingDisabledForDeepSeek(t *testing.T) {
-	client := NewClient(
-		WithProvider(ProviderDeepSeek),
-		WithDisableThinking(true),
-	).(*Client)
+func TestBuildMCPRequestBody_ReasoningEffortDeepSeek(t *testing.T) {
+	for _, effort := range []string{
+		ReasoningEffortLow,
+		ReasoningEffortMedium,
+		ReasoningEffortHigh,
+		ReasoningEffortXHigh,
+		ReasoningEffortMax,
+	} {
+		client := NewClient(
+			WithProvider(ProviderDeepSeek),
+			WithReasoningEffort(effort),
+		).(*Client)
 
-	body := client.BuildMCPRequestBody("system", "user")
-	thinking, ok := body["thinking"].(map[string]string)
-	if !ok {
-		t.Fatalf("thinking field missing: %#v", body["thinking"])
-	}
-	if thinking["type"] != "disabled" {
-		t.Fatalf("thinking must be disabled, got %#v", thinking)
+		body := client.BuildMCPRequestBody("system", "user")
+		if got := body["reasoning_effort"]; got != effort {
+			t.Fatalf("effort %q: reasoning_effort=%v, want %q", effort, got, effort)
+		}
+		if _, ok := body["thinking"]; ok {
+			t.Fatalf("effort %q: thinking must be expressed through reasoning_effort, got %#v", effort, body["thinking"])
+		}
 	}
 }
 
-func TestBuildMCPRequestBody_ThinkingOmittedByDefault(t *testing.T) {
+func TestBuildMCPRequestBody_ReasoningEffortOmittedByDefault(t *testing.T) {
 	client := NewClient(WithProvider(ProviderDeepSeek)).(*Client)
 
 	body := client.BuildMCPRequestBody("system", "user")
-	if _, ok := body["thinking"]; ok {
-		t.Fatal("thinking must not be sent unless explicitly disabled")
+	if _, ok := body["reasoning_effort"]; ok {
+		t.Fatalf("reasoning_effort must not be sent without a configured effort: %#v", body["reasoning_effort"])
 	}
 }
 
-func TestBuildMCPRequestBody_ThinkingNotSentToOtherProviders(t *testing.T) {
+func TestBuildMCPRequestBody_ReasoningEffortClampedForCappedProviders(t *testing.T) {
 	client := NewClient(
 		WithProvider(ProviderOpenAI),
-		WithDisableThinking(true),
+		WithReasoningEffort(ReasoningEffortMax),
 	).(*Client)
 
 	body := client.BuildMCPRequestBody("system", "user")
-	if _, ok := body["thinking"]; ok {
-		t.Fatal("thinking is a DeepSeek-specific request field")
+	if got := body["reasoning_effort"]; got != ReasoningEffortHigh {
+		t.Fatalf("OpenAI must cap max at high, got %v", got)
+	}
+}
+
+func TestBuildRequestBodyFromRequest_ReasoningEffort(t *testing.T) {
+	client := NewClient(
+		WithProvider(ProviderDeepSeek),
+		WithReasoningEffort(ReasoningEffortHigh),
+	).(*Client)
+
+	body := client.BuildRequestBodyFromRequest(&Request{
+		Model:    "deepseek-chat",
+		Messages: []Message{NewUserMessage("hi")},
+	})
+	if got := body["reasoning_effort"]; got != ReasoningEffortHigh {
+		t.Fatalf("request path lost reasoning_effort: %#v", body)
+	}
+}
+
+func TestNewClient_ReasoningEffortRaisesOutputBudget(t *testing.T) {
+	client := NewClient(
+		WithProvider(ProviderDeepSeek),
+		WithMaxTokens(2000),
+		WithReasoningEffort(ReasoningEffortMax),
+	).(*Client)
+
+	if client.MaxTokens < ReasoningEffortOutputFloor(ReasoningEffortMax) {
+		t.Fatalf("max effort must raise the output budget, got %d", client.MaxTokens)
+	}
+	if client.Cfg.MaxTokens != client.MaxTokens {
+		t.Fatalf("config and client budgets diverged: %d vs %d", client.Cfg.MaxTokens, client.MaxTokens)
 	}
 }
 

@@ -33,6 +33,7 @@ type SafeModelConfig struct {
 	HasAPIKey       bool   `json:"has_api_key"`
 	CustomAPIURL    string `json:"customApiUrl"`    // Custom API URL (usually not sensitive)
 	CustomModelName string `json:"customModelName"` // Custom model name (not sensitive)
+	ReasoningEffort string `json:"reasoningEffort"` // low/medium/high/xhigh/max
 }
 
 // ModelConfigUpdate is a single model's update payload. It is a named type
@@ -40,10 +41,11 @@ type SafeModelConfig struct {
 // guaranteed to stay in sync with this shape — a mismatch there is what let
 // plaintext credentials reach the logs previously.
 type ModelConfigUpdate struct {
-	Enabled         bool   `json:"enabled"`
-	APIKey          string `json:"api_key"`
-	CustomAPIURL    string `json:"custom_api_url"`
-	CustomModelName string `json:"custom_model_name"`
+	Enabled         bool    `json:"enabled"`
+	APIKey          string  `json:"api_key"`
+	CustomAPIURL    string  `json:"custom_api_url"`
+	CustomModelName string  `json:"custom_model_name"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 type UpdateModelConfigRequest struct {
@@ -65,14 +67,14 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	if len(models) == 0 {
 		logger.Infof("⚠️ No AI models in database, returning defaults")
 		defaultModels := []SafeModelConfig{
-			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false, HasAPIKey: false},
-			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false, HasAPIKey: false},
-			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false, HasAPIKey: false},
-			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false, HasAPIKey: false},
-			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false, HasAPIKey: false},
-			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false, HasAPIKey: false},
-			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false, HasAPIKey: false},
-			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false, HasAPIKey: false},
+			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -94,6 +96,10 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			HasAPIKey:       model.APIKey != "",
 			CustomAPIURL:    model.CustomAPIURL,
 			CustomModelName: model.CustomModelName,
+			ReasoningEffort: model.ReasoningEffort,
+		}
+		if safeModel.ReasoningEffort == "" {
+			safeModel.ReasoningEffort = store.DefaultReasoningEffort
 		}
 
 		safeModels = append(safeModels, safeModel)
@@ -102,14 +108,14 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	if len(safeModels) == 0 {
 		logger.Infof("⚠️ No visible AI models in database, returning defaults")
 		defaultModels := []SafeModelConfig{
-			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false, HasAPIKey: false},
-			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false, HasAPIKey: false},
-			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false, HasAPIKey: false},
-			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false, HasAPIKey: false},
-			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false, HasAPIKey: false},
-			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false, HasAPIKey: false},
-			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false, HasAPIKey: false},
-			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false, HasAPIKey: false},
+			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
+			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false, HasAPIKey: false, ReasoningEffort: store.DefaultReasoningEffort},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -178,8 +184,9 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		logger.Infof("🔓 Decrypted model config data (UserID: %s)", userID)
 	}
 
-	// Update each model's configuration and track traders that need reload
-	tradersToReload := make(map[string]bool)
+	// Validate the whole payload before writing anything, so one bad model
+	// field cannot leave the other models half-updated.
+	reasoningEfforts := make(map[string]string, len(req.Models))
 	for modelID, modelData := range req.Models {
 		// SSRF protection: validate custom_api_url before storing
 		if modelData.CustomAPIURL != "" {
@@ -190,15 +197,27 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 				return
 			}
 		}
+		if modelData.ReasoningEffort != nil {
+			normalized, ok := store.NormalizeReasoningEffort(*modelData.ReasoningEffort)
+			if !ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid reasoning_effort for model %s: expected low, medium, high, xhigh or max", modelID)})
+				return
+			}
+			reasoningEfforts[modelID] = normalized
+		}
+	}
 
+	// Update each model's configuration and track traders that need reload
+	tradersToReload := make(map[string]bool)
+	for modelID, modelData := range req.Models {
 		// Find traders using this AI model BEFORE updating
 		traders, _ := s.store.Trader().ListByAIModelID(userID, modelID)
 		for _, t := range traders {
 			tradersToReload[t.ID] = true
 		}
 
-		err := s.store.AIModel().Update(userID, modelID, modelData.Enabled, modelData.APIKey, modelData.CustomAPIURL, modelData.CustomModelName)
-		if err != nil {
+		// An omitted effort preserves the stored value.
+		if err := s.store.AIModel().Update(userID, modelID, modelData.Enabled, modelData.APIKey, modelData.CustomAPIURL, modelData.CustomModelName, reasoningEfforts[modelID]); err != nil {
 			SafeInternalError(c, fmt.Sprintf("Update model %s", modelID), err)
 			return
 		}

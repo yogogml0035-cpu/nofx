@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 import { ExchangeConfigModal } from '../components/trader/ExchangeConfigModal'
 import { TelegramConfigModal } from '../components/trader/TelegramConfigModal'
 import { ModelConfigModal } from '../components/trader/ModelConfigModal'
-import type { Exchange, AIModel, ExchangeAccountState } from '../types'
+import type { Exchange, AIModel, ExchangeAccountState, ReasoningEffort } from '../types'
 
 type Tab = 'account' | 'models' | 'exchanges' | 'telegram'
 
@@ -135,7 +135,8 @@ export function SettingsPage() {
     modelId: string,
     apiKey: string,
     customApiUrl?: string,
-    customModelName?: string
+    customModelName?: string,
+    reasoningEffort?: ReasoningEffort
   ) => {
     try {
       const existingModel = configuredModels.find((m) => m.id === modelId)
@@ -147,7 +148,7 @@ export function SettingsPage() {
       if (existingModel) {
         updatedModels = configuredModels.map((m) =>
           m.id === modelId
-            ? { ...m, apiKey, customApiUrl: customApiUrl || '', customModelName: customModelName || '', enabled: true }
+            ? { ...m, apiKey, customApiUrl: customApiUrl || '', customModelName: customModelName || '', reasoningEffort: reasoningEffort || m.reasoningEffort || 'low', enabled: true }
             : m
         )
       } else {
@@ -156,6 +157,7 @@ export function SettingsPage() {
           apiKey,
           customApiUrl: customApiUrl || '',
           customModelName: customModelName || '',
+          reasoningEffort: reasoningEffort || 'low',
           enabled: true,
         }]
       }
@@ -167,6 +169,7 @@ export function SettingsPage() {
             api_key: m.apiKey || '',
             custom_api_url: m.customApiUrl || '',
             custom_model_name: m.customModelName || '',
+            reasoning_effort: m.reasoningEffort || 'low',
           }])
         ),
       }
@@ -192,6 +195,7 @@ export function SettingsPage() {
             api_key: m.apiKey || '',
             custom_api_url: m.customApiUrl || '',
             custom_model_name: m.customModelName || '',
+            reasoning_effort: m.reasoningEffort || 'low',
           }])
         ),
       }

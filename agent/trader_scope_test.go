@@ -320,7 +320,7 @@ func TestLoadEnabledModelOptionsUseConfigNameAsPrimaryLabel(t *testing.T) {
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
-	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek AI", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
+	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek AI", true, "sk-test-12345", "", "deepseek-chat", ""); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
 
@@ -344,7 +344,7 @@ func TestHydrateCreateTraderSlotReferencesNormalizesModelIDFromVisibleName(t *te
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
-	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek AI", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
+	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek AI", true, "sk-test-12345", "", "deepseek-chat", ""); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
 
@@ -730,7 +730,7 @@ func TestBuildTraderCreateMissingPromptListsAllMissingSlots(t *testing.T) {
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
-	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek AI", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
+	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek AI", true, "sk-test-12345", "", "deepseek-chat", ""); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
 	exchangeID, err := st.Exchange().Create("default", "okx", "OKX 主账户", true, "api-test", "secret-test", "pass", false, "", "", "", "", "", "", 0)

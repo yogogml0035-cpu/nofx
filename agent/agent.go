@@ -159,12 +159,12 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 
 			// Use the provider registry for providers that have their own
 			// client implementation (custom auth, non-standard endpoints, etc.).
-			if client := mcp.NewAIClientByProvider(provider); client != nil {
+			if client := mcp.NewAIClientByProvider(provider, mcp.WithReasoningEffort(model.ReasoningEffort)); client != nil {
 				if modelName == "" {
 					modelName = model.ID
 				}
 				client.SetAPIKey(apiKey, customAPIURL, modelName)
-				a.log().Info("agent AI client selected (provider registry)", "store_user_id", candidateUserID, "model_id", model.ID, "provider", provider, "model", modelName)
+				a.log().Info("agent AI client selected (provider registry)", "store_user_id", candidateUserID, "model_id", model.ID, "provider", provider, "model", modelName, "reasoning_effort", model.ReasoningEffort)
 				return client, modelName, true
 			}
 
@@ -182,9 +182,9 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 			}
 
 			httpClient := &http.Client{Timeout: 60 * time.Second}
-			client := mcp.NewClient(mcp.WithHTTPClient(httpClient))
+			client := mcp.NewClient(mcp.WithHTTPClient(httpClient), mcp.WithReasoningEffort(model.ReasoningEffort))
 			client.SetAPIKey(apiKey, customAPIURL, modelName)
-			a.log().Info("agent AI client selected", "store_user_id", candidateUserID, "model_id", model.ID, "model", modelName)
+			a.log().Info("agent AI client selected", "store_user_id", candidateUserID, "model_id", model.ID, "model", modelName, "reasoning_effort", model.ReasoningEffort)
 			return client, modelName, true
 		}
 	}
