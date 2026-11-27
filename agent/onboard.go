@@ -407,12 +407,15 @@ func (a *Agent) createTraderFromSetupForStoreUser(storeUserID string, state *Set
 		modelPart = "manual"
 	}
 	trader := &store.Trader{
-		ID:         fmt.Sprintf("%s_%s_%d", exchangeIDShort, modelPart, time.Now().UnixNano()),
-		Name:       fmt.Sprintf("NOFXi-%s", titleCaser.String(state.Exchange)),
-		UserID:     storeUserID,
-		ExchangeID: exchangeID,
-		AIModelID:  aiModelID,
-		IsRunning:  false,
+		ID:                  fmt.Sprintf("%s_%s_%d", exchangeIDShort, modelPart, time.Now().UnixNano()),
+		Name:                fmt.Sprintf("NOFXi-%s", titleCaser.String(state.Exchange)),
+		UserID:              storeUserID,
+		ExchangeID:          exchangeID,
+		AIModelID:           aiModelID,
+		ScanIntervalMinutes: 3,
+		IsRunning:           false,
+		IsCrossMargin:       true,
+		ShowInCompetition:   true,
 	}
 	if err := a.store.Trader().Create(trader); err != nil {
 		return fmt.Errorf("save trader: %w", err)

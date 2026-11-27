@@ -49,6 +49,16 @@ describe('buildTraderUpdateRequest', () => {
     expect(buildTraderUpdateRequest(data)).toEqual(data)
   })
 
+  it('defaults a missing visibility flag to shown', () => {
+    // 缺失字段在 JSON.stringify 时会被丢掉，后端只能保持旧值；默认值与后端一致为 true
+    const withoutFlag: Partial<typeof data> = { ...data }
+    delete withoutFlag.show_in_competition
+
+    expect(
+      buildTraderUpdateRequest(withoutFlag as typeof data).show_in_competition
+    ).toBe(true)
+  })
+
   it('carries the initial balance only when the form provides one', () => {
     // 后端把「正值」当作明确给出。表单没有给出时请求里不能出现这个键：
     // 否则换绑交易所时旧的初始余额会被当成明确给出的值保留下来

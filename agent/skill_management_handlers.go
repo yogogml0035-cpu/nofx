@@ -911,7 +911,7 @@ func formatStrategyCreateFieldOptionsReply(lang, text, missingKind string) strin
 	case "static_coins":
 		return "币源就是静态清单：直接给我最多 10 个 Gate USDT 永续符号（例如 BTCUSDT、ETHUSDT），我继续填模板。"
 	case "primary_timeframe":
-		return "主周期可选：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d。高频一般偏 10s/1m/5m，稳健一点可以用 15m/1h/4h。决策按主周期收线后 5 秒触发，周期越短调用模型越频繁。"
+		return "主周期可选：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d。高频一般偏 10s/1m/5m，稳健一点可以用 15m/1h/4h。主周期只决定分析取数的 K 线周期，不决定决策频率；决策节奏在交易员的扫描间隔里设置。"
 	case "selected_timeframes":
 		return "多周期最多选 4 个，可选：10s、1m、5m、15m、30m、1h、4h、8h、1d、7d、1w、30d。常见组合比如 5m,15m,1h。"
 	case "btceth_max_leverage", "altcoin_max_leverage":

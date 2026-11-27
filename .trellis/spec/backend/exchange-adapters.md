@@ -556,7 +556,7 @@ for _, old := range oldOrders { err = t.CancelProtectiveOrder(old.OrderID()) }
 // on any failure: restoreReplacement(...) keeps the position protected
 ```
 
-## Scenario: Scheduling decisions on candle close (all exchanges)
+## Scenario: Scheduling decisions on the scan interval (all exchanges)
 
 ### 1. Scope / Trigger
 
@@ -564,50 +564,93 @@ The automatic trading loop picks the next decision time. It applies to every tra
 
 ### 2. Signatures
 
-- `trader/scan_schedule.go`: `scanTimeframe(config *store.StrategyConfig) string`,
+- `trader/scan_schedule.go`: `(*AutoTrader).scanCadence() time.Duration`,
+  `scanTimeframeForInterval(interval time.Duration) string`,
+  `nextScanTrigger(now time.Time, interval, delay time.Duration, firstWait bool) (time.Time, bool, error)`,
+  `nextAlignedScan(now time.Time, timeframe string, delay, minGap time.Duration, reference time.Time) (time.Time, error)`,
   `nextScanTime(now time.Time, timeframe string, delay time.Duration) (time.Time, error)`,
-  `scanCloseDelay` (5 seconds), `(*AutoTrader).scanFallbackInterval()`.
+  `scanCloseDelay` (5 seconds), `scanFallbackInterval` (3 minutes), `scanStartupGuard` (1 minute).
 
 ### 3. Contracts
 
-- The cadence timeframe is resolved exactly like the engine's primary timeframe:
-  `PrimaryTimeframe` -> `SelectedTimeframes[0]` -> `"5m"`; a value outside the D25 set is skipped.
-  An empty result means the trader falls back to `ScanInterval` (1 minute when it is not positive).
-- Boundaries use the UTC wall clock: `1w` starts on Monday 00:00, `30d` on the first day of the month,
-  every other retained interval (including `7d`) uses the Unix-epoch grid. The trigger is the boundary
-  plus 5 seconds.
+- The user-facing `scan_interval_minutes` is the decision cadence. `PrimaryTimeframe` is analysis input
+  only and must not throttle the loop (2026-11-27 revision of D17: a 4h background timeframe used to
+  reduce a 5-minute strategy to one decision every four hours).
+- `scanCadence` returns `ScanInterval` clamped to the manual 3–60 minute range; values below 3 minutes
+  (including non-positive legacy rows) use the 3-minute minimum. Grid strategies are capped at 5 minutes
+  because the grid cycle carries the breakout, maximum-drawdown and daily-loss checks; a longer interval
+  must not slow those safety checks down.
+- A cadence is candle-aligned only on an exact period match inside that range: `5m`, `15m`, `30m`, `1h`.
+  Other intervals use a fixed timer from the end of the previous round. `7d` and `1w` share a duration
+  but not a boundary, so they are never inferred from an interval.
+- `nextScanTime` supports the full retained set on the UTC wall clock: `1w` starts on Monday 00:00, `30d`
+  on the first day of the month, every other retained interval (including `7d`) uses the Unix-epoch grid.
+  The trigger is the boundary plus 5 seconds. The cadence mapping above only reaches `5m`/`15m`/`30m`/`1h`;
+  the calendar boundaries remain for direct `nextScanTime` callers and tests.
 - `nextScanTime` returns the trigger at or after `now`; when `now` equals the trigger, the next boundary
   is returned (nothing runs twice).
-- The loop runs one round immediately on start, then waits for the next trigger; a round that overruns a
-  boundary skips it instead of catching up. `stopMonitorCh` stops the timer and returns at once.
-- `scan_interval_minutes` is a fallback only. UI copy, assistant skills and the API schema must not
-  describe it as the decision cadence.
+- `nextScanTrigger` composes the decision: aligned periods call `nextAlignedScan`, everything else
+  returns `aligned=false` for the fixed timer. The guard is applied only to the **first** aligned wait
+  and measures from the loop-top time, i.e. the end of the immediate round, not its start: a 65-second
+  immediate round must not be followed by another model call one second later. It uses
+  `scanStartupGuard` (1 minute), not the full interval, so the first regular boundary is not delayed by
+  a whole period. Later waits go straight to the next boundary. Applying a full-interval guard every
+  round would fail because the timer fires a few milliseconds after the scheduled trigger: each gap
+  would be slightly shorter than one period, the guard would skip a boundary, and the cadence would double.
+- `nextAlignedScan` advances at most one boundary and ignores the guard when the wall clock moved
+  backwards (`reference` after `now`); a clock step must not starve scans for multiple periods.
+- The loop runs one round immediately on start **unless the latest decision record is younger than
+  `scanStartupGuard`**. Saving a config restarts the trader; without this check a visibility-only save
+  would fire a second model call seconds after the previous decision. The guard spans process restarts
+  because it reads the persisted decision record, not in-memory state.
+- `AutoTrader.Run` is idempotent: a duplicate call returns immediately. An update-save reloads the user's
+  traders (which auto-starts a previously running trader) and the handler then restarts it explicitly;
+  only one loop may enter. The grid-initialization error path calls `Stop` so a failed start does not
+  leave `isRunning` stuck and block a later retry.
+- The loop waits for the next trigger; a round that overruns a boundary skips it instead of catching up
+  and logs a warning once the trigger is definitely past (`interval + scanCloseDelay`).
+  `stopMonitorCh` stops the timer and returns at once.
+- UI copy, assistant skills and the API schema describe `scan_interval_minutes` as the decision cadence;
+  candle alignment is only a bonus when the number matches a period.
+- An unaligned cadence can land inside a primary candle. The raw K-line is marked `<- current`, but the
+  single-value EMA/MACD/RSI snapshot still includes that forming bar; treat those values as provisional.
+  Aligned cadences avoid this for the matched period.
 
 ### 4. Validation & Error Matrix
 
 | Situation | Result |
 |---|---|
 | Negative `delay` | error |
-| Timeframe outside the D25 set | error from `nextScanTime`; the caller logs and falls back |
-| `ScanInterval <= 0` on the fallback path | 1 minute |
-| Primary and selected timeframes both empty | `"5m"` (same as the engine) |
+| Timeframe outside the D25 set | error from `nextScanTime`; the caller uses the fixed interval timer |
+| `ScanInterval < 3m` | 3-minute fallback (manual-config minimum) |
+| `ScanInterval > 60m` | clamped to 60 minutes |
+| Grid strategy with `ScanInterval > 5m` | capped at 5 minutes |
+| Interval without an exact retained period | fixed timer; no alignment claim |
+| `7d`/`1w` interval | fixed timer; duration alone cannot identify the boundary |
+| Latest decision record < `scanStartupGuard` old on start | immediate cycle skipped |
 
 ### 5. Good/Base/Bad Cases
 
-- Base: strategy primary `1h` -> a round at 12:00:05, 13:00:05, ... UTC.
-- Good: primary empty, selected `["15m","1h"]` -> the 15-minute grid.
-- Bad: primary `"3m"` (legacy) -> skipped; the next valid candidate is used, or the fallback interval.
+- Base: interval 60 with a non-grid strategy -> 12:00:05, 13:00:05, ... UTC.
+- Good: 4h background strategy, interval 5 -> 5m close + 5s, not every four hours.
+- Good: interval 7 -> every 7 minutes from the previous round end.
+- Good: grid strategy, interval 60 -> capped at 5 minutes (safety checks).
+- Bad: using `primary_timeframe` as the cadence -> a 4h background period starves a 5m strategy.
 
 ### 6. Tests Required
 
 `trader/scan_schedule_test.go` covers the epoch grid for every retained interval, the exact-trigger
-boundary, the `1w`/`30d` calendar boundaries, invalid input, and the `scanTimeframe` fallback chain.
+boundary, the `1w`/`30d` calendar boundaries, invalid input, the interval-to-period mapping, the
+minimum-gap advance, the clock-rollback guard, the grid cap, the primary-timeframe-ignored regression,
+and the persisted latest-decision read used by the startup guard.
 
 ### 7. Wrong vs Correct
 
-- Wrong: a fixed `time.NewTicker(ScanInterval)` — the model sees half-formed candles and the phase
-  depends on when the trader started.
-- Correct: compute the next candle close of the engine's own primary timeframe and wait for it.
+- Wrong: deriving the cadence from `PrimaryTimeframe` — analysis context becomes a throttle.
+- Wrong: a bare `time.NewTicker` for every cadence — when a matching period exists, the decision misses
+  the fresh closed bar and the phase depends on when the trader started.
+- Correct: run at the user's interval; snap to the matching candle close plus 5 seconds when possible,
+  and use the fixed timer only when no period matches.
 
 ## Scenario: Attributing exchange fills to the trader (Gate)
 

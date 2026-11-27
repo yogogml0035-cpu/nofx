@@ -462,7 +462,7 @@ func traderConfigFieldsSchema() map[string]any {
 		"ai_model_id":           map[string]any{"type": "string", "description": "Bound AI model id."},
 		"exchange_id":           map[string]any{"type": "string", "description": "Bound exchange id."},
 		"strategy_id":           map[string]any{"type": "string", "description": "Bound strategy id."},
-		"scan_interval_minutes": map[string]any{"type": "number", "description": "Fallback scan interval in minutes. Decisions run 5s after each close of the strategy's primary timeframe; this interval only applies when the strategy has no valid timeframe."},
+		"scan_interval_minutes": map[string]any{"type": "number", "description": "Decision scan interval in minutes (3-60). Decisions run at this interval; when it matches a K-line period (5/15/30/60 minutes), a decision starts 5 seconds after that candle closes. The strategy primary timeframe is analysis input only and does not throttle the cadence. Grid cycles are capped at 5 minutes."},
 		"is_cross_margin":       map[string]any{"type": "boolean", "description": "Whether cross margin is enabled."},
 		"show_in_competition":   map[string]any{"type": "boolean", "description": "Whether to show this trader in competition views."},
 	}
@@ -2236,11 +2236,14 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 	if err != nil {
 		return fmt.Sprintf(`{"error":"failed to load exchange config: %s"}`, err)
 	}
-	scanInterval := 3
+	scanInterval := manualTraderScanIntervalMin
 	if args.ScanIntervalMinutes != nil && *args.ScanIntervalMinutes > 0 {
 		scanInterval = *args.ScanIntervalMinutes
-		if scanInterval < 3 {
-			scanInterval = 3
+		if scanInterval < manualTraderScanIntervalMin {
+			scanInterval = manualTraderScanIntervalMin
+		}
+		if scanInterval > manualTraderScanIntervalMax {
+			scanInterval = manualTraderScanIntervalMax
 		}
 	}
 	initialBalance, err := traderInitialBalanceFetcher(exchangeCfg, storeUserID)
@@ -2355,8 +2358,11 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 	}
 	if args.ScanIntervalMinutes != nil && *args.ScanIntervalMinutes > 0 {
 		record.ScanIntervalMinutes = *args.ScanIntervalMinutes
-		if record.ScanIntervalMinutes < 3 {
-			record.ScanIntervalMinutes = 3
+		if record.ScanIntervalMinutes < manualTraderScanIntervalMin {
+			record.ScanIntervalMinutes = manualTraderScanIntervalMin
+		}
+		if record.ScanIntervalMinutes > manualTraderScanIntervalMax {
+			record.ScanIntervalMinutes = manualTraderScanIntervalMax
 		}
 	}
 	if args.IsCrossMargin != nil {
