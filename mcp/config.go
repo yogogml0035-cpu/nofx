@@ -23,7 +23,7 @@ type Config struct {
 	MaxContext      int // Model's max context window in tokens (0 = no limit)
 	Temperature     float64
 	UseFullURL      bool
-	DisableThinking bool // Request no hidden reasoning (provider-specific)
+	ReasoningEffort string // Canonical effort: low/medium/high/xhigh/max ("" = provider default)
 
 	// Retry configuration
 	MaxRetries      int

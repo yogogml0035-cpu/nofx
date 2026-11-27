@@ -1,3 +1,13 @@
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+export const REASONING_EFFORTS: ReasoningEffort[] = [
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]
+
 export interface AIModel {
   id: string
   name: string
@@ -7,6 +17,7 @@ export interface AIModel {
   apiKey?: string
   customApiUrl?: string
   customModelName?: string
+  reasoningEffort?: ReasoningEffort
 }
 
 export interface TelegramConfig {
@@ -111,6 +122,7 @@ export interface UpdateModelConfigRequest {
       api_key: string
       custom_api_url?: string
       custom_model_name?: string
+      reasoning_effort?: ReasoningEffort
     }
   }
 }
