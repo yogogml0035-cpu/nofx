@@ -135,11 +135,10 @@ func NewClient(opts ...ClientOption) AIClient {
 
 	// 5. Give reasoning room inside the output budget. Reasoning tokens are
 	// billed as completion tokens and share max_tokens with the visible answer,
-	// so the configured effort sets a lower bound on the budget.
-	if floor := ReasoningEffortOutputFloor(cfg.ReasoningEffort); floor > client.MaxTokens {
-		client.MaxTokens = floor
-		cfg.MaxTokens = floor
-	}
+	// so the configured effort sets a lower bound on the budget. This is the
+	// same number the start precheck and runtime budget reserve.
+	cfg.MaxTokens = RaiseToEffortFloor(cfg.MaxTokens, cfg.ReasoningEffort)
+	client.MaxTokens = cfg.MaxTokens
 
 	// 6. Set hooks to point to self
 	client.Hooks = client

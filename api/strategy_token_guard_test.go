@@ -110,3 +110,28 @@ func TestStrategyTokenBlockerRejectsTraderOverModelLimit(t *testing.T) {
 		t.Fatalf("200 bars should fit qwen, got blocked: %s", reason)
 	}
 }
+
+// 启动预检必须和运行时一样预留输出预算：否则估算刚好放下的配置会在启动后
+// 每轮被 kernel.CheckPromptBudget 拒绝，进入永久失败。
+func TestStrategyTokenBlockerReservesOutputBudget(t *testing.T) {
+	cfg := store.GetDefaultStrategyConfig("zh")
+	cfg.CoinSource.StaticCoins = []string{"BTCUSDT"}
+	cfg.Indicators.Klines.SelectedTimeframes = []string{"5m", "15m", "1h"}
+	cfg.Indicators.Klines.PrimaryTimeframe = "5m"
+	cfg.Indicators.Klines.PrimaryCount = 900
+	raw, err := json.Marshal(cfg)
+	require.NoError(t, err)
+
+	fullCfg := &store.TraderFullConfig{
+		Strategy: &store.Strategy{Config: string(raw)},
+		AIModel:  &store.AIModel{Name: "qwen", Provider: "qwen", ReasoningEffort: store.DefaultReasoningEffort},
+	}
+	if reason, blocked := strategyTokenBlocker(fullCfg); blocked {
+		t.Fatalf("default output budget must fit qwen, got blocked: %s", reason)
+	}
+
+	fullCfg.AIModel.ReasoningEffort = store.ReasoningEffortMax
+	reason, blocked := strategyTokenBlocker(fullCfg)
+	require.True(t, blocked, "max effort reserves 32K output and must not start")
+	require.Contains(t, reason, "输出预算 32000")
+}

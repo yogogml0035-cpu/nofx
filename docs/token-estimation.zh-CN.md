@@ -152,7 +152,7 @@ required = input + client.MaxTokens
 ## 🔒 校验点与失败语义
 
 1. **保存策略**：`ExceedsAllModelLimits()` 只在配置估算超过**所有**已知模型时返回 400；否则允许保存并给出警告。警告中的 provider 上限是保守参考，不代表已绑定模型。
-2. **启动 trader**：`strategyTokenBlocker()` 按绑定模型的 `CustomModelName` 解析真实上下文；未知模型回退到 provider 默认。
+2. **启动 trader**：`strategyTokenBlocker()` 按绑定模型的 `CustomModelName` 解析真实上下文与最大输出，并把客户端 `max_tokens`（由思考强度决定）一起算进预算；未知模型回退到 provider 默认。
 3. **运行时决策**：`GetFullDecisionWithStrategy()` 取数、渲染 system/user prompt 后调用 `kernel.CheckPromptBudget()`；超限在调用点失败，错误中包含真实估算、输出预算和模型上下文。
 4. **AI 试运行**：只提前拒绝所有已知模型都放不下的配置；真正调用前同样经过 `CheckPromptBudget()`。
 5. **不静默截断**：任何一层都不会删除币种、周期、K 线或指标来“塞进”上下文；超限就是超限，由用户调整配置或换模型。
