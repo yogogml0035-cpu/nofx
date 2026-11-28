@@ -515,6 +515,20 @@ func TestNewClient_ReasoningEffortRaisesOutputBudget(t *testing.T) {
 	}
 }
 
+// OutputTokenBudget is the planning number for the model window split; it must
+// equal what a client built without an explicit cap actually sends.
+func TestOutputTokenBudgetMatchesClientDefault(t *testing.T) {
+	for _, effort := range []string{
+		"", ReasoningEffortLow, ReasoningEffortMedium,
+		ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax,
+	} {
+		client := NewClient(WithProvider(ProviderDeepSeek), WithReasoningEffort(effort)).(*Client)
+		if got, want := OutputTokenBudget(effort), client.MaxTokens; got != want {
+			t.Fatalf("effort %q: OutputTokenBudget = %d, client sends %d", effort, got, want)
+		}
+	}
+}
+
 func TestParseMCPResponse_TruncatedResponseIsError(t *testing.T) {
 	client := NewClient(WithMaxTokens(2000), WithProvider(ProviderDeepSeek)).(*Client)
 	body := []byte(`{
