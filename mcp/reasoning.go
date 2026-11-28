@@ -95,6 +95,24 @@ func ReasoningEffortOutputFloor(effort string) int {
 	}
 }
 
+// OutputTokenBudget is the output cap the request layer sends for one effort
+// level when no explicit cap is configured: the environment default raised to
+// the effort floor. Callers that plan a prompt against the model window (start
+// precheck, runtime budget) must use this same number, otherwise their
+// arithmetic and the actual request disagree.
+func OutputTokenBudget(effort string) int {
+	return RaiseToEffortFloor(getEnvInt("AI_MAX_TOKENS", 8000), effort)
+}
+
+// RaiseToEffortFloor returns budget unless the effort level requires a larger
+// one. Explicit per-call caps (small summarization requests) stay untouched.
+func RaiseToEffortFloor(budget int, effort string) int {
+	if floor := ReasoningEffortOutputFloor(effort); floor > budget {
+		return floor
+	}
+	return budget
+}
+
 // applyReasoningEffort writes the provider-native fields into an
 // OpenAI-compatible request body. Anthropic overrides this in its own client.
 func (client *Client) applyReasoningEffort(body map[string]any) {

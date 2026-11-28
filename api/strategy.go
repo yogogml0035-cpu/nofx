@@ -520,18 +520,13 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	// Match the runtime path: clamp the strategy before rendering the prompt.
 	req.Config.ClampLimits()
 
-	// 试运行同样受模型上下文约束：先估算再取行情/构建提示词，避免发起注定失败的大请求。
+	// 试运行只提前拒绝所有已知模型都放不下的配置，避免取数和构建注定失败的
+	// 超大提示词；绑定模型的精确预算在真正调用前由 kernel.CheckPromptBudget
+	// 按渲染后的提示词校验，不能用配置级估算替代真实请求口径。
 	if strategyRequiresAIPrompt(&req.Config) {
-		estimate := req.Config.EstimateTokens()
-		contextLimit := 131072 // safe default matching kernel.GetFullDecisionWithStrategy
-		if req.AIModelID != "" && s.store != nil {
-			if model, modelErr := s.store.AIModel().Get(userID, req.AIModelID); modelErr == nil {
-				contextLimit = store.GetContextLimitForClient(model.Provider, model.CustomModelName)
-			}
-		}
-		if estimate.Total > contextLimit {
+		if estimate, exceedsAll := req.Config.ExceedsAllModelLimits(); exceedsAll {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":          fmt.Sprintf("Estimated %d tokens exceeds model context limit of %d. Reduce coins, timeframes, or K-line count.", estimate.Total, contextLimit),
+				"error":          fmt.Sprintf("Estimated %d tokens exceeds every known model context limit. Reduce coins, timeframes, or K-line count.", estimate.Total),
 				"token_estimate": estimate,
 			})
 			return
@@ -683,6 +678,13 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 	}
 
 	aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
+
+	budget, err := kernel.CheckPromptBudget(aiClient, systemPrompt, userPrompt)
+	if err != nil {
+		return "", err
+	}
+	logger.Infof("🧮 AI test prompt budget: %d input + %d output / %d context (%d%%) — %s/%s",
+		budget.InputTokens, budget.OutputBudget, budget.ContextWindow, budget.UsagePercent(), budget.Provider, budget.Model)
 
 	// Call AI API
 	response, err := aiClient.CallWithMessages(systemPrompt, userPrompt)

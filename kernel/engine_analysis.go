@@ -55,35 +55,6 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	engineConfig := engine.GetConfig()
 	engineConfig.ClampLimits()
 
-	// Token estimation check — block if exceeding the specific model's context limit
-	estimate := engineConfig.EstimateTokens()
-
-	// Determine context limit for the specific model being used
-	contextLimit := 131072 // safe default (strictest common limit)
-	var providerName string
-	outputBudget := 0
-	if embedder, ok := mcpClient.(mcp.ClientEmbedder); ok {
-		base := embedder.BaseClient()
-		providerName = base.Provider
-		contextLimit = store.GetContextLimitForClient(base.Provider, base.Model)
-		outputBudget = base.MaxTokens
-	}
-
-	// The model context limit covers prompt + completion. Reserve the configured
-	// output budget too; otherwise a prompt that just fits the input estimate can
-	// still fail upstream once the reasoning tokens are added.
-	required := estimate.Total + outputBudget
-	if required > contextLimit {
-		logger.Errorf("🚫 Token estimate %d + output budget %d exceeds %s context limit %d — blocking analysis",
-			estimate.Total, outputBudget, providerName, contextLimit)
-		return nil, fmt.Errorf("estimated %d input tokens + %d output budget exceeds model context limit of %d; reduce coins, timeframes, K-line count, or output budget",
-			estimate.Total, outputBudget, contextLimit)
-	}
-	if required*100/contextLimit >= 80 {
-		logger.Infof("⚠️  Token estimate %d + output budget %d — approaching %s context limit %d",
-			estimate.Total, outputBudget, providerName, contextLimit)
-	}
-
 	// 1. Fetch market data using strategy config
 	if len(ctx.MarketDataMap) == 0 {
 		if err := fetchMarketDataForDecision(ctx, engine); err != nil {
@@ -113,7 +84,24 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	// 3. Build User Prompt using strategy engine
 	userPrompt := engine.BuildUserPrompt(ctx)
 
-	// 4. Call AI API
+	// 4. Enforce the model budget against the prompt that will actually be sent.
+	//    The config-level estimate used at save/start cannot see the fetched
+	//    candles or the rendered indicator arrays; checking the rendered text is
+	//    the only way to tell a real overflow from a stale provider default.
+	budget, err := CheckPromptBudget(mcpClient, systemPrompt, userPrompt)
+	if err != nil {
+		logger.Errorf("🚫 AI prompt rejected: %v", err)
+		return nil, err
+	}
+	if pct := budget.UsagePercent(); pct >= 80 {
+		logger.Infof("⚠️  AI prompt budget: %d input + %d output / %d context (%d%%) — %s/%s",
+			budget.InputTokens, budget.OutputBudget, budget.ContextWindow, pct, budget.Provider, budget.Model)
+	} else {
+		logger.Infof("🧮 AI prompt budget: %d input + %d output / %d context (%d%%) — %s/%s",
+			budget.InputTokens, budget.OutputBudget, budget.ContextWindow, pct, budget.Provider, budget.Model)
+	}
+
+	// 5. Call AI API
 	aiCallStart := time.Now()
 	aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
 	aiCallDuration := time.Since(aiCallStart)
@@ -121,7 +109,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		return nil, fmt.Errorf("AI API call failed: %w", err)
 	}
 
-	// 5. Parse AI response. Open notional, protection direction and the loss cap
+	// 6. Parse AI response. Open notional, protection direction and the loss cap
 	//    are validated and filled in here; the model does not supply an amount.
 	decision, err := parseFullDecisionResponse(aiResponse, DecisionSizing{
 		Principal:       ctx.Account.Principal,

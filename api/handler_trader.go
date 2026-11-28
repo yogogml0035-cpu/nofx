@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"nofx/logger"
+	"nofx/mcp"
 	"nofx/store"
 	"nofx/trader/types"
 
@@ -335,8 +336,9 @@ func formatTraderStartError(reason, nextStep string) string {
 }
 
 // strategyTokenBlocker returns a user-facing reason when the trader's AI strategy
-// cannot fit the context window of its bound model. Prechecking at start keeps a
-// too-large config from starting and then failing every cycle in safe mode.
+// cannot fit the context window of its bound model. The check reserves the output
+// budget the request will actually send, so a config that passes here cannot
+// start and then fail every cycle in the runtime budget check.
 func strategyTokenBlocker(fullCfg *store.TraderFullConfig) (string, bool) {
 	if fullCfg == nil || fullCfg.Strategy == nil || fullCfg.AIModel == nil {
 		return "", false
@@ -350,11 +352,17 @@ func strategyTokenBlocker(fullCfg *store.TraderFullConfig) (string, bool) {
 		return "", false
 	}
 	estimate := cfg.EstimateTokens()
-	limit := store.GetContextLimitForClient(fullCfg.AIModel.Provider, fullCfg.AIModel.CustomModelName)
-	if estimate.Total <= limit {
+	capability := store.GetModelCapabilities(fullCfg.AIModel.Provider, fullCfg.AIModel.CustomModelName)
+	outputBudget := mcp.OutputTokenBudget(fullCfg.AIModel.ReasoningEffort)
+	if capability.MaxOutputTokens > 0 && outputBudget > capability.MaxOutputTokens {
+		return fmt.Sprintf("输出预算 %d tokens 超过模型「%s」的最大输出 %d",
+			outputBudget, fullCfg.AIModel.Name, capability.MaxOutputTokens), true
+	}
+	if estimate.Total+outputBudget <= capability.ContextWindow {
 		return "", false
 	}
-	return fmt.Sprintf("策略配置估算 %d tokens，超过模型「%s」的上下文上限 %d", estimate.Total, fullCfg.AIModel.Name, limit), true
+	return fmt.Sprintf("策略配置估算 %d tokens + 输出预算 %d，超过模型「%s」的上下文窗口 %d",
+		estimate.Total, outputBudget, fullCfg.AIModel.Name, capability.ContextWindow), true
 }
 
 // handleCreateTrader Create new AI trader

@@ -1026,9 +1026,11 @@ type ModelLimit struct {
 	Level        string `json:"level"` // "ok" | "warning" | "danger"
 }
 
-// Context window sizes (tokens) for each model family
+// Context window sizes (tokens) for each provider's current generation.
+// DeepSeek V4.1-Flash/V4-Pro publish a 1M window and 384K max output; the
+// retired model ids are served by V4.1-Flash (DeepSeek API docs, 2026-11-27).
 const (
-	contextLimitDeepSeek = 131_072   // 128K
+	contextLimitDeepSeek = 1_000_000 // 1M
 	contextLimitOpenAI   = 128_000   // 128K
 	contextLimitClaude   = 200_000   // 200K
 	contextLimitQwen     = 131_072   // 128K
@@ -1036,9 +1038,15 @@ const (
 	contextLimitGrok     = 131_072   // 128K
 	contextLimitKimi     = 131_072   // 128K
 	contextLimitMinimax  = 1_000_000 // 1M
+
+	// defaultContextLimit is the conservative fallback for an unknown
+	// provider or a custom endpoint whose model id does not declare a window.
+	defaultContextLimit = 131_072
 )
 
-// ModelContextLimits maps provider names to their context window sizes (in tokens)
+// ModelContextLimits maps provider names to their default context window.
+// Model-specific capabilities below take precedence when the model id is
+// known; this table remains the fallback for custom endpoints.
 var ModelContextLimits = map[string]int{
 	"deepseek": contextLimitDeepSeek,
 	"openai":   contextLimitOpenAI,
@@ -1050,17 +1058,45 @@ var ModelContextLimits = map[string]int{
 	"minimax":  contextLimitMinimax,
 }
 
-// GetContextLimit returns the context limit for a given provider
+// GetContextLimit returns the provider-level fallback context limit.
 func GetContextLimit(provider string) int {
 	if limit, ok := ModelContextLimits[provider]; ok {
 		return limit
 	}
-	return contextLimitDeepSeek // safe default
+	return defaultContextLimit
 }
 
-// GetContextLimitForClient returns context limit for a provider+model pair.
-func GetContextLimitForClient(provider, model string) int {
-	return GetContextLimit(provider)
+// ModelCapability is the budget the selected model actually enforces. The
+// context window is shared by prompt + completion; MaxOutputTokens is the
+// provider-documented completion ceiling (0 means unknown).
+type ModelCapability struct {
+	ContextWindow   int
+	MaxOutputTokens int
+}
+
+// modelCapabilities lists model ids whose capacity is known to differ from a
+// single provider-wide number. Match by lower-case prefix so dated snapshots
+// such as DeepSeek-V4.1-Flash-1017 resolve to the same generation.
+var modelCapabilities = []struct {
+	Prefix     string
+	Capability ModelCapability
+}{
+	{"deepseek-v4.1-flash", ModelCapability{ContextWindow: contextLimitDeepSeek, MaxOutputTokens: 384_000}},
+	{"deepseek-v4-pro", ModelCapability{ContextWindow: contextLimitDeepSeek, MaxOutputTokens: 384_000}},
+}
+
+// GetModelCapabilities resolves the budget for a provider+model pair. A custom
+// BaseURL can route to a different model than the provider id suggests, so the
+// model id is authoritative when it is known and the provider table is only a
+// fallback.
+func GetModelCapabilities(provider, model string) ModelCapability {
+	normalizedModel := strings.ToLower(strings.TrimSpace(model))
+	for _, entry := range modelCapabilities {
+		if normalizedModel == entry.Prefix || strings.HasPrefix(normalizedModel, entry.Prefix+"-") {
+			return entry.Capability
+		}
+	}
+	return ModelCapability{ContextWindow: GetContextLimit(provider)}
 }
 
 // EstimateTokens estimates the total token count for a strategy configuration.
@@ -1099,39 +1135,32 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 		klineCount = MinKlineCount
 	}
 
-	// Per coin per timeframe: kline OHLCV rows
-	charsPerCoinTF := klineCount * 80 // each OHLCV line ~80 chars
-
-	// Add enabled indicator overhead per timeframe
-	indicatorCharsPerLine := 0
+	// Per coin per timeframe: one rendered OHLCV row plus the per-row share of
+	// the indicator arrays. Real 4-decimal numeric tables tokenize at ~35
+	// tokens per K-line row and ~5 tokens per indicator value; the 15% safety
+	// margin below covers formatting drift such as the current marker.
+	klineTokensPerLine := 35
+	indicatorTokensPerLine := 0
 	if c.Indicators.EnableEMA {
-		indicatorCharsPerLine += 20 // EMA values appended
+		indicatorTokensPerLine += 10 // EMA20 + EMA50 arrays
 	}
 	if c.Indicators.EnableMACD {
-		indicatorCharsPerLine += 30
+		indicatorTokensPerLine += 5
 	}
 	if c.Indicators.EnableRSI {
-		indicatorCharsPerLine += 15
-	}
-	if c.Indicators.EnableATR {
-		indicatorCharsPerLine += 15
+		indicatorTokensPerLine += 10 // RSI7 + RSI14 arrays
 	}
 	if c.Indicators.EnableBOLL {
-		indicatorCharsPerLine += 25
+		indicatorTokensPerLine += 15 // upper/middle/lower arrays
 	}
-	if c.Indicators.EnableVolume {
-		indicatorCharsPerLine += 10
-	}
-	charsPerCoinTF += klineCount * indicatorCharsPerLine
+	// ATR is one scalar per timeframe and volume is already in the OHLCV row;
+	// both stay inside the safety margin instead of a per-line addend.
+	tokensPerCoinTF := klineCount * (klineTokensPerLine + indicatorTokensPerLine)
 
-	totalMarketChars := numCoins * numTimeframes * charsPerCoinTF
-
-	// OI + Funding per coin
+	breakdown.MarketData = numCoins * numTimeframes * tokensPerCoinTF
 	if c.Indicators.EnableOI || c.Indicators.EnableFundingRate {
-		totalMarketChars += numCoins * 100
+		breakdown.MarketData += numCoins * 25 // OI + funding lines
 	}
-
-	breakdown.MarketData = totalMarketChars / 4 // numeric data: ~4 chars per token
 
 	// --- Market Environment Context（勾选即计入，软上限约 600 tokens）---
 	if c.MarketContext.MarketContextEnabled() && c.StrategyType != "grid_trading" {
@@ -1179,11 +1208,11 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 	}
 	if minLimit > 0 && total > minLimit {
 		if numTimeframes > 1 {
-			savedPerTF := (numCoins * klineCount * (80 + indicatorCharsPerLine)) / 4 * 115 / 100
+			savedPerTF := numCoins * tokensPerCoinTF * 115 / 100
 			suggestions = append(suggestions, fmt.Sprintf("Reduce 1 timeframe to save ~%d tokens", savedPerTF))
 		}
 		if numCoins > 1 {
-			savedPerCoin := (numTimeframes * klineCount * (80 + indicatorCharsPerLine)) / 4 * 115 / 100
+			savedPerCoin := numTimeframes * tokensPerCoinTF * 115 / 100
 			suggestions = append(suggestions, fmt.Sprintf("Reduce 1 coin to save ~%d tokens", savedPerCoin))
 		}
 		if klineCount > MinKlineCount {
@@ -1199,6 +1228,36 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 		ModelLimits: modelLimits,
 		Suggestions: suggestions,
 	}
+}
+
+// The rendered market data is a dense numeric table, not prose: the real
+// 2-coin x 4-timeframe x 300-bar prompt measured 139,981 provider tokens for
+// 256,432 bytes (~1.83 ASCII bytes per token). Using 1.7 keeps the runtime
+// bound above the provider count without a tokenizer dependency; non-ASCII
+// (CJK) text is counted as one token per rune.
+const (
+	asciiBytesPerTokenNumerator   = 10
+	asciiBytesPerTokenDenominator = 17
+	promptMessageOverheadTokens   = 64
+)
+
+// EstimatePromptTokens returns a conservative token bound for an already
+// rendered prompt. Use it immediately before the model call; EstimateTokens
+// remains the config-level precheck used before market data exists.
+func EstimatePromptTokens(systemPrompt, userPrompt string) int {
+	if systemPrompt == "" && userPrompt == "" {
+		return 0
+	}
+	asciiBytes := 0
+	nonASCII := 0
+	for _, r := range systemPrompt + "\n" + userPrompt {
+		if r <= 0x7F {
+			asciiBytes++
+		} else {
+			nonASCII++
+		}
+	}
+	return asciiBytes*asciiBytesPerTokenNumerator/asciiBytesPerTokenDenominator + nonASCII + promptMessageOverheadTokens
 }
 
 // ExceedsAllModelLimits reports whether the estimated prompt exceeds every

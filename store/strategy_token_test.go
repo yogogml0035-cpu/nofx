@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestEstimateTokens_DefaultConfig(t *testing.T) {
 	config := GetDefaultStrategyConfig("en")
@@ -83,11 +86,101 @@ func TestEstimateTokens_HighConfig(t *testing.T) {
 }
 
 func TestGetContextLimit(t *testing.T) {
-	if got := GetContextLimit("deepseek"); got != 131072 {
-		t.Errorf("deepseek limit = %d, want 131072", got)
+	if got := GetContextLimit("deepseek"); got != 1_000_000 {
+		t.Errorf("deepseek limit = %d, want 1_000_000 for the V4.1-Flash/V4-Pro generation", got)
 	}
-	if got := GetContextLimit("unknown_provider"); got != 131072 {
-		t.Errorf("unknown provider should return default 131072, got %d", got)
+	if got := GetContextLimit("unknown_provider"); got != defaultContextLimit {
+		t.Errorf("unknown provider should return default %d, got %d", defaultContextLimit, got)
+	}
+}
+
+func TestGetModelCapabilitiesPrefersModelOverProvider(t *testing.T) {
+	cases := []struct {
+		name     string
+		provider string
+		model    string
+		context  int
+		maxOut   int
+	}{
+		{
+			name:     "DeepSeek V4.1 Flash snapshot",
+			provider: "deepseek", model: "DeepSeek-V4.1-Flash-1017",
+			context: 1_000_000, maxOut: 384_000,
+		},
+		{
+			name:     "DeepSeek V4 Pro lowercase snapshot",
+			provider: "deepseek", model: "deepseek-v4-pro-0813",
+			context: 1_000_000, maxOut: 384_000,
+		},
+		{
+			name:     "DeepSeek provider fallback",
+			provider: "deepseek", model: "",
+			context: 1_000_000, maxOut: 0,
+		},
+		{
+			name:     "Unknown provider stays conservative",
+			provider: "custom", model: "my-private-model",
+			context: defaultContextLimit, maxOut: 0,
+		},
+		{
+			name:     "Qwen model keeps provider window",
+			provider: "qwen", model: "qwen-max",
+			context: 131_072, maxOut: 0,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := GetModelCapabilities(tc.provider, tc.model)
+			if got.ContextWindow != tc.context || got.MaxOutputTokens != tc.maxOut {
+				t.Fatalf("GetModelCapabilities(%q, %q) = %+v, want context=%d maxOut=%d",
+					tc.provider, tc.model, got, tc.context, tc.maxOut)
+			}
+		})
+	}
+}
+
+// 真实失败配置的形状：2 币 × 4 周期 × 300 根，EMA/MACD/ATR/成交量开启。
+// 线上同一形状的渲染提示词被 provider 计为 139,981 input tokens；配置级估算
+// 应落在这个量级附近，而不是旧公式的 114,333。
+func TestEstimateTokensMatchesMeasuredRealConfigShape(t *testing.T) {
+	cfg := GetDefaultStrategyConfig("zh")
+	cfg.CoinSource.StaticCoins = []string{"BTCUSDT", "ETHUSDT"}
+	cfg.Indicators.Klines.SelectedTimeframes = []string{"5m", "4h", "15m", "1h"}
+	cfg.Indicators.Klines.PrimaryCount = 300
+	cfg.Indicators.EnableEMA = true
+	cfg.Indicators.EnableMACD = true
+	cfg.Indicators.EnableRSI = false
+	cfg.Indicators.EnableATR = true
+	cfg.Indicators.EnableBOLL = false
+	cfg.Indicators.EnableVolume = true
+	cfg.Indicators.EnableOI = true
+	cfg.Indicators.EnableFundingRate = true
+	cfg.ClampLimits()
+
+	est := cfg.EstimateTokens()
+	wantMarket := 2*4*300*(35+10+5) + 2*25
+	if est.Breakdown.MarketData != wantMarket {
+		t.Fatalf("market estimate = %d, want %d", est.Breakdown.MarketData, wantMarket)
+	}
+	if est.Total < 135_000 || est.Total > 155_000 {
+		t.Fatalf("real-shape estimate = %d, want within 135000..155000 around the measured 139981 provider tokens", est.Total)
+	}
+}
+
+func TestEstimatePromptTokensNumericTablesAreDense(t *testing.T) {
+	var b strings.Builder
+	line := "11-26 07:15    60447.3000 60523.2000 60441.0000 60510.1000 7617070.04  \n"
+	for i := 0; i < 2400; i++ {
+		b.WriteString(line)
+	}
+	value := "60634.5750, "
+	for i := 0; i < 7200; i++ {
+		b.WriteString(value)
+	}
+
+	got := EstimatePromptTokens("", b.String())
+	if got < 135_000 || got > 165_000 {
+		t.Fatalf("numeric prompt estimate = %d, want a conservative bound around the measured 139981 tokens", got)
 	}
 }
 

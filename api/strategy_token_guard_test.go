@@ -84,17 +84,54 @@ func TestStrategyTokenBlockerRejectsTraderOverModelLimit(t *testing.T) {
 
 	fullCfg := &store.TraderFullConfig{
 		Strategy: &store.Strategy{Config: string(raw)},
-		AIModel:  &store.AIModel{Name: "deepseek", Provider: "deepseek"},
+		AIModel:  &store.AIModel{Name: "qwen", Provider: "qwen"},
 	}
 	reason, blocked := strategyTokenBlocker(fullCfg)
 	require.True(t, blocked)
 	require.Contains(t, reason, "131072")
 
+	// 同一配置在真实的 DeepSeek V4.1-Flash 上必须放行：该模型上下文是 1M，
+	// 旧 provider 级 128K 元数据会把一次合法启动误判为永久超限。
+	fullCfg.AIModel = &store.AIModel{
+		Name:            "DeepSeek-V4.1-Flash-1017",
+		Provider:        "deepseek",
+		CustomModelName: "DeepSeek-V4.1-Flash-1017",
+	}
+	if reason, blocked := strategyTokenBlocker(fullCfg); blocked {
+		t.Fatalf("DeepSeek V4.1-Flash must allow the 1M-context config, got blocked: %s", reason)
+	}
+
 	cfg.Indicators.Klines.PrimaryCount = 200
 	raw, err = json.Marshal(cfg)
 	require.NoError(t, err)
 	fullCfg.Strategy.Config = string(raw)
+	fullCfg.AIModel = &store.AIModel{Name: "qwen", Provider: "qwen"}
 	if reason, blocked := strategyTokenBlocker(fullCfg); blocked {
-		t.Fatalf("200 bars should fit deepseek, got blocked: %s", reason)
+		t.Fatalf("200 bars should fit qwen, got blocked: %s", reason)
 	}
+}
+
+// 启动预检必须和运行时一样预留输出预算：否则估算刚好放下的配置会在启动后
+// 每轮被 kernel.CheckPromptBudget 拒绝，进入永久失败。
+func TestStrategyTokenBlockerReservesOutputBudget(t *testing.T) {
+	cfg := store.GetDefaultStrategyConfig("zh")
+	cfg.CoinSource.StaticCoins = []string{"BTCUSDT"}
+	cfg.Indicators.Klines.SelectedTimeframes = []string{"5m", "15m", "1h"}
+	cfg.Indicators.Klines.PrimaryTimeframe = "5m"
+	cfg.Indicators.Klines.PrimaryCount = 900
+	raw, err := json.Marshal(cfg)
+	require.NoError(t, err)
+
+	fullCfg := &store.TraderFullConfig{
+		Strategy: &store.Strategy{Config: string(raw)},
+		AIModel:  &store.AIModel{Name: "qwen", Provider: "qwen", ReasoningEffort: store.DefaultReasoningEffort},
+	}
+	if reason, blocked := strategyTokenBlocker(fullCfg); blocked {
+		t.Fatalf("default output budget must fit qwen, got blocked: %s", reason)
+	}
+
+	fullCfg.AIModel.ReasoningEffort = store.ReasoningEffortMax
+	reason, blocked := strategyTokenBlocker(fullCfg)
+	require.True(t, blocked, "max effort reserves 32K output and must not start")
+	require.Contains(t, reason, "输出预算 32000")
 }
