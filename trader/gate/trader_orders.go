@@ -102,6 +102,21 @@ func (t *GateTrader) OpenShort(symbol string, quantity float64, leverage int) (m
 	return t.openMarket(symbol, quantity, leverage, "SHORT")
 }
 
+// CheckOrderSize 币数量不足合约的一个最小步长时返回错误（types.OrderSizeChecker）。
+// 合约信息读不到时不下结论：下单时 openMarket 仍会按最小步长换算并拒绝
+func (t *GateTrader) CheckOrderSize(symbol string, quantity float64) error {
+	contract := t.convertSymbol(symbol)
+	spec, err := t.GetContractSpec(contract)
+	if err != nil {
+		logger.Warnf("  [Gate] contract spec unavailable for %s; skipping the order size pre-check: %v", contract, err)
+		return nil
+	}
+	if _, err := spec.ContractsFromQuantityFloor(quantity); err != nil {
+		return fmt.Errorf("open %s skipped: %w", contract, err)
+	}
+	return nil
+}
+
 // findPosition 读取该合约指定方向的持仓条目（含张数、入场价与方向设置）。
 // 直接查交易所不经 GetPositions 缓存：改单与全平前的持仓状态必须是当前值。
 func (t *GateTrader) findPosition(symbol, side string) (gateapi.Position, error) {

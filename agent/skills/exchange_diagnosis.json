@@ -11,7 +11,7 @@
   "dynamic_rules": [
     "交易所连接失败优先按顺序排查：配置是否启用 -> 必填凭证是否齐全 -> API Key/Secret/Passphrase 是否填反或过期 -> 系统时间/timestamp -> IP 白名单 -> 合约/交易权限 -> 测试网/主网是否选错。",
     "OKX、Bitget、KuCoin 的 passphrase/API 口令不是可选项；如果缺失，必须明确提示补齐。",
-    "下单失败时继续排查：账户余额/可用保证金 -> 杠杆限制 -> 仓位模式（单向/双向） -> symbol 是否支持合约交易 -> 最小下单金额/数量。",
+    "下单失败时继续排查：账户余额/可用保证金 -> 杠杆限制 -> 仓位模式（单向/双向） -> symbol 是否支持合约交易 -> 交易所的最小下单数量。",
     "Aster、Lighter 这类钱包/DEX 配置错误时，不要用 CEX 的 API Key/Secret 逻辑套用；按各自 required fields 解释。",
     "诊断回复不得展示完整 API Key、Secret、Passphrase 或私钥。"
   ]

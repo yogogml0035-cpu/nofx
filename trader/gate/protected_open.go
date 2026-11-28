@@ -79,7 +79,7 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 		return types.ProtectedOpenResult{}, err
 	}
 
-	quote, err := spec.SizeForNotional(price, req.NotionalUSD, req.MinNotional)
+	quote, err := spec.SizeForNotional(price, req.NotionalUSD)
 	if err != nil {
 		return types.ProtectedOpenResult{}, err
 	}
@@ -127,7 +127,7 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 	}
 
 	// 提交前按最坏成交价复核亏损上限（D34）：决策校验用的是取数时刻的 K 线收盘价，模型调用
-	// 期间价格会漂移，IOC 市价单还可能成交在滑点上限上。超过上限时等比收缩名义价值。
+	// 期间价格会漂移，IOC 市价单还可能成交在滑点上限上。超过上限时收缩到上限内最多能开的张数。
 	if req.Principal > 0 && req.MaxLossPercent > 0 {
 		resized, err := t.capNotionalForWorstCaseLoss(spec, req, side, price, slip, slValue, quote)
 		if err != nil {
@@ -414,9 +414,10 @@ func worstCaseLossAtStop(spec ContractSpec, side, contracts string, entry, stop 
 	return new(big.Rat).Mul(quantity, distance), nil
 }
 
-// capNotionalForWorstCaseLoss 让「到止损价的亏损 ≤ 本金 × MaxLossPercent%」在最坏成交价下仍成立：
-// 超过时按 上限 ÷ 亏损 等比收缩名义价值并重新换算张数（向下取整只会让亏损更小）。
-// 收缩后不足最小下单金额时返回错误——止损太远，这个仓位开不了。
+// capNotionalForWorstCaseLoss 让「到止损价的亏损 ≤ 本金 × MaxLossPercent%」在最坏成交价下仍成立。
+// 超过时不再按比例缩放名义价值：亏损与张数成正比，直接按「上限 ÷ 一个最小步长的最坏亏损」
+// 算出上限内最多能开几个步长，按这个张数下单（按比例缩放取整后可能仍是原来的张数，把本可以
+// 少开一两张的单误拒）。一个步长都开不了时返回错误——止损太远，这个仓位开不了。
 func (t *GateTrader) capNotionalForWorstCaseLoss(spec ContractSpec, req types.ProtectedOpenRequest, side string,
 	price float64, slip string, stop *big.Rat, quote SizeQuote) (SizeQuote, error) {
 	entry, err := worstCaseEntryPrice(price, side, slip)
@@ -440,31 +441,46 @@ func (t *GateTrader) capNotionalForWorstCaseLoss(spec ContractSpec, req types.Pr
 		return quote, nil
 	}
 
-	scale := new(big.Rat).Quo(limit, loss)
-	adjusted, err := decimalFromFloat("adjusted notional", req.NotionalUSD*ratFloat(scale))
+	stepContracts, err := spec.contracts(big.NewInt(1))
 	if err != nil {
 		return quote, err
 	}
-	adjustedNotional := ratFloat(adjusted)
-	adjustedQuote, err := spec.SizeForNotional(price, adjustedNotional, req.MinNotional)
+	lossPerStep, err := worstCaseLossAtStop(spec, side, stepContracts, entry, stop)
+	if err != nil {
+		return quote, err
+	}
+	if lossPerStep.Sign() <= 0 {
+		return quote, fmt.Errorf("loss at stop %.6f USDT exceeds the %.6f USDT cap but one size step has no loss at stop",
+			ratFloat(loss), ratFloat(limit))
+	}
+	steps := floorDiv(limit, lossPerStep)
+	if steps.Sign() <= 0 {
+		return quote, fmt.Errorf(
+			"stop loss %v is too far for the %.2f%% principal loss cap: one size step would lose %.6f USDT at stop, above the %.6f USDT cap (notional %.4f USDT)",
+			ratFloat(stop), req.MaxLossPercent, ratFloat(lossPerStep), ratFloat(limit), req.NotionalUSD)
+	}
+	unitValue, err := spec.unitValue(price)
+	if err != nil {
+		return quote, err
+	}
+	adjustedQuote, err := spec.sizeForSteps(unitValue, steps)
 	if err != nil {
 		return quote, err
 	}
 	if !adjustedQuote.Orderable() {
-		return quote, fmt.Errorf(
-			"stop loss %v is too far for the %.2f%% principal loss cap: notional would shrink from %.4f to %.4f USDT (%s)",
-			ratFloat(stop), req.MaxLossPercent, req.NotionalUSD, adjustedNotional, adjustedQuote.Skip)
+		return quote, fmt.Errorf("capped size is not orderable for %s: %s", req.Symbol, adjustedQuote.Skip)
 	}
-	// 张数向下取整只会让亏损更小；仍超过上限说明换算有误，宁可拒绝
+	// 步数由精确有理数算出，亏损必然在上限内；仍超过说明换算有误，宁可拒绝
 	recheck, err := worstCaseLossAtStop(spec, side, adjustedQuote.Contracts, entry, stop)
 	if err != nil {
 		return quote, err
 	}
 	if recheck.Cmp(limit) > 0 {
-		return quote, fmt.Errorf("loss at stop %.6f USDT still exceeds the %.6f USDT cap after resizing", ratFloat(recheck), ratFloat(limit))
+		return quote, fmt.Errorf("loss at stop %.6f USDT exceeds the %.6f USDT cap after capping to %s contracts",
+			ratFloat(recheck), ratFloat(limit), adjustedQuote.Contracts)
 	}
-	logger.Infof("  [Gate] Notional reduced %.4f -> %.4f USDT: worst-case loss at stop %.6f exceeded the %.2f%% cap %.6f USDT (price %v, slip %s)",
-		req.NotionalUSD, adjustedNotional, ratFloat(loss), req.MaxLossPercent, ratFloat(limit), price, slipDisplay(slip))
+	logger.Infof("  [Gate] Notional reduced %.4f -> %.4f USDT (%s contracts): worst-case loss at stop %.6f exceeded the %.2f%% cap %.6f USDT (price %v, slip %s)",
+		req.NotionalUSD, adjustedQuote.Notional, adjustedQuote.Contracts, ratFloat(loss), req.MaxLossPercent, ratFloat(limit), price, slipDisplay(slip))
 	return adjustedQuote, nil
 }
 

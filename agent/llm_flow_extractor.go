@@ -564,7 +564,7 @@ func (a *Agent) applyLLMExtractionToSkillSession(storeUserID string, session *sk
 			if err := applyStrategyConfigPatch(&cfg, key, value); err == nil {
 				setField(session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))
 			} else {
-				// 值被拒绝（例如已废弃的周期 3m、低于下限的最小开仓金额）：字段不会被写入，
+				// 值被拒绝（例如已废弃的周期 3m）：字段不会被写入，
 				// 必须把原因带回给用户，否则这一项看起来像被静默忽略
 				setField(session, strategyConfigPatchErrorField, err.Error())
 			}

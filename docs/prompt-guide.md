@@ -419,10 +419,10 @@ The following constraints are enforced by the system and the strategy prompt (th
 
 **Meaning**: Reserve 10% for liquidation protection and fees
 
-#### 6. Minimum Opening Amount
-**Requirement**: ≥ 10 USDT after rounding (configurable in the strategy, default 10)
+#### 6. Minimum Order Size
+**Requirement**: the open notional, rounded down to the contract's size step, must cover at least one contract
 
-**Reason**: The notional is rounded down to the contract's size step; below this amount or below one size step the order is not placed. The open notional itself is computed and enforced by the system from principal × position percent (1%-20%, default 10%); the AI does not output an amount.
+**Reason**: the exchange has no minimum order amount; the only lower bound on the order size is the contract's minimum size (set by the contract multiplier, e.g. 1 BTC_USDT contract = 0.0001 BTC). The open notional itself is computed and enforced by the system from principal × position percent (1%-20%, default 10%); the AI does not output an amount.
 
 ---
 
@@ -778,7 +778,7 @@ Key: Sharpe Ratio is the only metric, naturally punishes frequent trading and ex
 The system:
 1. Computes the notional (USDT) from principal × percent
 2. Rounds it down to the contract's size step to get the order size
-3. Skips the order when the rounded amount is below the minimum order size (default 10 USDT) or below one size step
+3. Skips the order when it is below the contract's minimum order size (one size step); the exchange has no minimum order amount
 4. Refuses the decision when the loss at the stop loss exceeds 2% of the principal
 
 The AI only supplies: direction, leverage, stop loss, take profit and confidence.
@@ -1346,7 +1346,6 @@ Your custom Prompt must include:
 3. Single position: open notional = principal × position percent (default 10%, adjustable 1%-20% in the strategy)
 4. Leverage: Altcoin ≤5x, BTC/ETH ≤20x
 5. Margin usage ≤ 90%
-6. Minimum opening: ≥ 10 USDT after rounding (configurable in the strategy)
 
 # Output Format
 Use <reasoning> and <decision> tags:
@@ -1413,7 +1412,7 @@ Chain of thought analysis
 - The loss at the stop loss exceeds 2% of the principal
 - Leverage exceeds limits (Altcoin >5x, BTC/ETH >20x)
 - Stop loss / take profit on the wrong side of the current price (a long stop must sit below the market and its take profit above it; short reversed)
-- The open amount computed from principal × percent, after rounding, is below the minimum order size (default 10 USDT)
+- The open amount computed from principal × percent is below the contract's minimum order size (the decision record shows `open skipped … 不足一个最小步长`, i.e. below one size step)
 
 **Solution**:
 - Emphasize hard constraint requirements in Prompt

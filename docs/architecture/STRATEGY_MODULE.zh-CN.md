@@ -220,9 +220,8 @@ if roleDefinition == "" {
 maxPositions := config.RiskControl.MaxPositions           // 默认: 3
 positionPercent := config.RiskControl.PositionPercent     // 默认: 10%（开仓名义价值 = 本金 × 该百分比）
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // 默认: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // 默认: 10 USDT（用户可配置，按合约步长取整后校验）
 // 价格到止损价的亏损 ≤ 本金的 2%（D34）；开仓名义价值、张数换算与亏损上限都由代码计算，
-// AI 决策 JSON 不含金额字段（D12/D22/D24）
+// AI 决策 JSON 不含金额字段（D12/D22/D24）。下单量的下限只有交易所合约的最小张数，由适配器按最小步长取整时校验
 ```
 
 **AI引导 (建议值):**
@@ -520,7 +519,6 @@ sort.SliceStable(decisions, func(i, j int) bool {
 | 检查项 | 方法 | 动作 |
 |--------|------|------|
 | 最大持仓数 | `enforceMaxPositions()` | 拒绝新开仓 |
-| 最小仓位 | `enforceMinPositionSize()` | 拒绝过小订单 |
 | 保证金调整 | 自动计算 | 根据可用余额调整 |
 
 ### 7.3 订单执行
@@ -597,7 +595,7 @@ at.store.Decision().LogDecision(record)
 | **思维链提取** | `decision/engine.go:1327-1345` | `extractCoTTrace()` |
 | **JSON提取** | `decision/engine.go:1347-1408` | `extractDecisions()` |
 | **决策验证** | `decision/engine.go:1480-1602` | `validateDecisions()` |
-| **风控执行** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforceMinPositionSize()` |
+| **风控执行** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()` |
 | **策略配置** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
 
 ---
@@ -642,7 +640,6 @@ type StrategyConfig struct {
         AltcoinMaxLeverage         int     // 山寨币最大杠杆
         PositionPercent            float64 // 开仓名义价值 = 本金 × 该百分比（1-20，默认 10）
         MaxMarginUsage             float64 // 最大保证金使用率
-        MinPositionSize            float64 // 最小仓位
         MinRiskRewardRatio         float64 // 最小风险回报比
         MinConfidence              int     // 最小置信度
     }

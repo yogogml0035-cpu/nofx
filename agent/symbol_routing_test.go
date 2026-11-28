@@ -44,28 +44,12 @@ func TestResolveStockSymbolWithoutManager(t *testing.T) {
 	}
 }
 
-// 最小开仓金额与服务端同口径：低于 10 USDT 或高于 1000 USDT 直接拒绝，而不是保存后被静默夹回
-func TestApplyStrategyConfigPatchMinPositionSizeBounds(t *testing.T) {
+// 最小开仓金额已删除：助手再传这个字段要明确报不支持，而不是静默忽略
+func TestApplyStrategyConfigPatchRejectsRemovedMinPositionSize(t *testing.T) {
 	cfg := store.GetDefaultStrategyConfig("zh")
-	for _, tc := range []struct {
-		value string
-		want  string
-	}{
-		{"5", "不能低于 10"},
-		{"0", "不能低于 10"},
-		{"-3", "不能低于 10"},
-		{"5000", "不能高于 1000"},
-	} {
-		err := applyStrategyConfigPatch(&cfg, "min_position_size", tc.value)
-		if err == nil || !strings.Contains(err.Error(), tc.want) {
-			t.Fatalf("min_position_size %q: error = %v, want it to contain %q", tc.value, err, tc.want)
-		}
-	}
-	if err := applyStrategyConfigPatch(&cfg, "min_position_size", "20"); err != nil {
-		t.Fatalf("min_position_size 20 must be accepted: %v", err)
-	}
-	if cfg.RiskControl.MinPositionSize != 20 {
-		t.Fatalf("min_position_size = %v, want 20", cfg.RiskControl.MinPositionSize)
+	err := applyStrategyConfigPatch(&cfg, "min_position_size", "20")
+	if err == nil || !strings.Contains(err.Error(), "unsupported strategy config field") {
+		t.Fatalf("min_position_size must be rejected as an unsupported field, got: %v", err)
 	}
 }
 
@@ -81,5 +65,14 @@ func TestPrefixStrategyPatchError(t *testing.T) {
 	got = prefixStrategyPatchError("en", "invalid", "reply")
 	if !strings.Contains(got, "was not accepted") || !strings.HasSuffix(got, "reply") {
 		t.Fatalf("en reply = %q", got)
+	}
+	// 字段不存在时不是「值不合法」：说明这个值没有被应用，而不是让用户换一个值
+	got = prefixStrategyPatchError("zh", "unsupported strategy config field: min_position_size", "reply")
+	if !strings.Contains(got, "策略配置里没有「min_position_size」这个字段") || strings.Contains(got, "请换一个值") || !strings.HasSuffix(got, "reply") {
+		t.Fatalf("zh unsupported-field reply = %q", got)
+	}
+	got = prefixStrategyPatchError("en", "unsupported strategy config field: min_position_size", "reply")
+	if !strings.Contains(got, `has no field "min_position_size"`) || strings.Contains(got, "another value") || !strings.HasSuffix(got, "reply") {
+		t.Fatalf("en unsupported-field reply = %q", got)
 	}
 }

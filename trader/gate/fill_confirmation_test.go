@@ -87,7 +87,7 @@ func TestOpenProtectedRejectsZeroFill(t *testing.T) {
 }
 
 // 决策校验时按收盘价算刚好不超上限的仓位，按最坏成交价（最新价 × 1.01）会超：
-// 提交前必须等比收缩名义价值。
+// 提交前必须收缩到上限内最多能开的张数。
 func TestOpenProtectedShrinksNotionalForWorstCaseLoss(t *testing.T) {
 	mock := newGateMock()
 	gt := newLocalGateTrader(t, mock.handler)
@@ -117,11 +117,64 @@ func TestOpenProtectedRefusesWhenCapCannotBeMet(t *testing.T) {
 	gt := newLocalGateTrader(t, mock.handler)
 
 	req := longRequest(11.2)                  // 2 张（11.2 USDT），可下单
-	req.Principal, req.MaxLossPercent = 50, 2 // 上限 1 USDT：2 张的最坏亏损 1.712 已超，收缩后 1 张又低于最小下单金额
+	req.Principal, req.MaxLossPercent = 25, 2 // 上限 0.5 USDT：一张的最坏亏损 0.856 已超，收缩后不足一张
 	_, err := gt.OpenLongProtected(req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too far")
 	mock.assertNoOrder(t)
+}
+
+// 金额下限删除后新可达的结果：只要一张的最坏亏损在上限内，收缩到 1 张（5.6 USDT）也照常开仓
+func TestOpenProtectedShrinksToOneContract(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+
+	req := longRequest(11.2)                  // 2 张（11.2 USDT）
+	req.Principal, req.MaxLossPercent = 50, 2 // 上限 1 USDT：2 张的最坏亏损 1.712 已超，收缩后 1 张亏损 0.856
+	res, err := gt.OpenLongProtected(req)
+	require.NoError(t, err)
+	assert.Equal(t, "1", mock.lastOrderBody(t)["size"])
+	assert.Equal(t, "1", res.Contracts)
+}
+
+// 回归：上限刚好卡在 17 张的亏损之下时，按比例缩放名义价值再取整往往仍是 17 张，
+// 旧算法因此把本可以开 16 张的单拒掉，还报成「换算有误」。现在直接取上限内最多的张数
+func TestOpenProtectedCapsToLargestAffordableContracts(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+
+	req := longRequest(96.8004)                   // 17.28 张 → 取整 17 张
+	req.Principal, req.MaxLossPercent = 717.04, 2 // 上限 14.3408 USDT：17 张最坏亏损 14.552 已超，16 张 13.696 在上限内
+	res, err := gt.OpenLongProtected(req)
+	require.NoError(t, err)
+	assert.Equal(t, "16", mock.lastOrderBody(t)["size"])
+	assert.Equal(t, "16", res.Contracts)
+}
+
+// 一张合约的亏损就超上限时直接报「止损太远」，不再走成「收缩后仍超上限」
+func TestOpenProtectedReportsTooFarWhenOneContractBreachesCap(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+
+	req := longRequest(10.73)                 // 1 张（5.6 USDT）
+	req.Principal, req.MaxLossPercent = 40, 2 // 上限 0.8 USDT：一张的最坏亏损 0.856 已超
+	_, err := gt.OpenLongProtected(req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too far")
+	assert.NotContains(t, err.Error(), "after capping")
+	mock.assertNoOrder(t)
+}
+
+// 手动下单的前置校验：与 openMarket 用同一个换算，够一个最小步长才通过
+func TestCheckOrderSize(t *testing.T) {
+	gt := newLocalGateTrader(t, newGateMock().handler)
+
+	require.NoError(t, gt.CheckOrderSize("DOGEUSDT", 170), "17 张：够最小步长")
+	require.NoError(t, gt.CheckOrderSize("DOGEUSDT", 10), "恰好 1 张")
+
+	err := gt.CheckOrderSize("DOGEUSDT", 5)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "below one size step")
 }
 
 func TestOpenMarketRejectsUnfilledOrder(t *testing.T) {

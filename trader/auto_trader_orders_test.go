@@ -5,6 +5,7 @@ package trader
 // stub 经接口嵌入满足 Trader，但不实现 ProtectedOpener —— 与真实适配器的能力边界一致。
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,16 +68,31 @@ func TestOpenRefusedWithoutProtectedOpener(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not support protected open")
 }
 
-func TestMinOrderNotional(t *testing.T) {
-	at := newRefusalTrader()
+// 交易路径没有金额下限：本金 × 百分比算出的名义价值原样交给适配器，够不够合约的
+// 最小张数由适配器判断。策略配置直接从存量 JSON 反序列化——旧版本把最小下单金额 12
+// 固化在里面，本金 107.34 × 10% 的 10.73 USDT 曾因此每次开仓都被拦下
+func TestProtectedOpenPassesSmallNotionalToAdapter(t *testing.T) {
+	var strategyCfg store.StrategyConfig
+	require.NoError(t, json.Unmarshal(
+		[]byte(`{"ai_config":{"risk_control":{"position_percent":10,"min_position_size":12}}}`), &strategyCfg))
 
-	// 无策略配置时默认 10（与 enforceMinPositionSize 同源，D19）
-	assert.InDelta(t, 10, at.minOrderNotional(), 1e-9)
+	stub := &protectedCaptureStub{}
+	at := &AutoTrader{
+		exchange:              "gate",
+		config:                AutoTraderConfig{StrategyConfig: &strategyCfg},
+		trader:                stub,
+		positionFirstSeenTime: map[string]int64{},
+	}
+	decision := &kernel.Decision{
+		Action: "open_short", Symbol: "BTCUSDT", Leverage: 5,
+		NotionalUSD: 10.73, StopLoss: 59860, TakeProfit: 59200,
+	}
 
-	minSize := 10.0
-	at.config.StrategyConfig = &store.StrategyConfig{}
-	at.config.StrategyConfig.RiskControl.MinPositionSize = minSize
-	assert.InDelta(t, minSize, at.minOrderNotional(), 1e-9)
+	err := at.executeOpenShortWithRecord(decision, &store.DecisionAction{})
+	require.NoError(t, err)
+
+	require.Len(t, stub.requests, 1)
+	assert.InDelta(t, 10.73, stub.requests[0].NotionalUSD, 1e-9)
 }
 
 // protectedCaptureStub 实现随单保护开仓的适配器桩：记录收到的开仓请求

@@ -370,16 +370,6 @@ export const riskControl = {
     en: 'Entry Requirements',
     es: 'Requisitos de Entrada',
   },
-  minPositionSize: {
-    zh: '最小开仓金额',
-    en: 'Min Position Size',
-    es: 'Tamaño Mínimo',
-  },
-  minPositionSizeDesc: {
-    zh: '每笔开仓的最小名义价值（USDT，默认 10，可调整）',
-    en: 'Minimum notional per trade in USDT (default 10, editable)',
-    es: 'Valor mínimo por operación (por defecto 10, editable)',
-  },
   minConfidence: {
     zh: '最小信心度',
     en: 'Min Confidence',
