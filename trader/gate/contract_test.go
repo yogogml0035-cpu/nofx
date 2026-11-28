@@ -93,7 +93,7 @@ func TestNewContractSpec(t *testing.T) {
 func TestContractSpec_SizeForNotional(t *testing.T) {
 	btc := mustSpec(t, "BTC_USDT", "0.0001", "1", "12000000", false)
 	eth := mustSpec(t, "ETH_USDT", "0.01", "0.1", "10000000", true)
-	// 价格 100 时一张 10U，便于构造最小下单金额的边界；单笔最多 3 张
+	// 价格 100 时一张 10U，便于构造最小张数与最大张数的边界；单笔最多 3 张
 	ten := mustSpec(t, "TEN_USDT", "0.1", "1", "3", false)
 	// 同上，但市价单最多 2 张
 	capped := mustSpecCapped(t, "TEN_USDT", "0.1", "1", "3", "2", false)
@@ -103,31 +103,28 @@ func TestContractSpec_SizeForNotional(t *testing.T) {
 		spec         ContractSpec
 		price        float64
 		notional     float64
-		minNotional  float64
 		want         string
 		wantNotional float64
-		wantMin      float64
 		wantSkip     SkipReason
 	}{
-		{name: "整数张向下取整", spec: btc, price: 60240, notional: 20, minNotional: 10, want: "3", wantNotional: 18.072, wantMin: 12.048},
-		{name: "小数张向下取整", spec: eth, price: 1693, notional: 20, minNotional: 10, want: "1.1", wantNotional: 18.623, wantMin: 10.158},
-		{name: "取整前不足一个最小步长", spec: btc, price: 60240, notional: 5, minNotional: 10, wantSkip: SizeSkipBelowStep, wantMin: 12.048},
-		{name: "最小下单金额为 0 时不足一个最小步长仍是步长原因", spec: btc, price: 60240, notional: 5, minNotional: 0, wantSkip: SizeSkipBelowStep, wantMin: 6.024},
-		{name: "取整后低于最小下单金额", spec: btc, price: 60240, notional: 10, minNotional: 10, wantSkip: SizeSkipBelowMinNotional, wantMin: 12.048},
-		{name: "恰好等于最小下单金额", spec: ten, price: 100, notional: 10, minNotional: 10, want: "1", wantNotional: 10, wantMin: 10},
-		{name: "最小下单金额提高后原先的张数不够", spec: ten, price: 100, notional: 10, minNotional: 20, wantSkip: SizeSkipBelowMinNotional, wantMin: 20},
-		{name: "未设置市价单上限时按单笔最大张数", spec: ten, price: 100, notional: 100, minNotional: 0, wantSkip: SizeSkipAboveMax, wantMin: 10},
-		{name: "恰好等于单笔最大张数", spec: ten, price: 100, notional: 30, minNotional: 0, want: "3", wantNotional: 30, wantMin: 10},
-		{name: "超过市价单最大张数", spec: capped, price: 100, notional: 30, minNotional: 0, wantSkip: SizeSkipAboveMax, wantMin: 10},
-		{name: "恰好等于市价单最大张数", spec: capped, price: 100, notional: 20, minNotional: 0, want: "2", wantNotional: 20, wantMin: 10},
+		{name: "整数张向下取整", spec: btc, price: 60240, notional: 20, want: "3", wantNotional: 18.072},
+		{name: "小数张向下取整", spec: eth, price: 1693, notional: 20, want: "1.1", wantNotional: 18.623},
+		{name: "取整前不足一个最小步长", spec: btc, price: 60240, notional: 5, wantSkip: SizeSkipBelowStep},
+		{name: "恰好等于一个最小步长", spec: ten, price: 100, notional: 10, want: "1", wantNotional: 10},
+		// 回归：本金 107.34 × 10% ≈ 10.73 USDT 曾被策略里 12 USDT 的金额下限拦下；
+		// 下单量的下限只有合约最小张数，够一张就下单
+		{name: "够一张就下单，没有金额下限", spec: btc, price: 60240, notional: 10.73, want: "1", wantNotional: 6.024},
+		{name: "未设置市价单上限时按单笔最大张数", spec: ten, price: 100, notional: 100, wantSkip: SizeSkipAboveMax},
+		{name: "恰好等于单笔最大张数", spec: ten, price: 100, notional: 30, want: "3", wantNotional: 30},
+		{name: "超过市价单最大张数", spec: capped, price: 100, notional: 30, wantSkip: SizeSkipAboveMax},
+		{name: "恰好等于市价单最大张数", spec: capped, price: 100, notional: 20, want: "2", wantNotional: 20},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			quote, err := c.spec.SizeForNotional(c.price, c.notional, c.minNotional)
+			quote, err := c.spec.SizeForNotional(c.price, c.notional)
 			require.NoError(t, err)
 			assert.Equal(t, c.want, quote.Contracts)
 			assert.InDelta(t, c.wantNotional, quote.Notional, 1e-9)
-			assert.InDelta(t, c.wantMin, quote.MinOrderValue, 1e-9)
 			assert.Equal(t, c.wantSkip, quote.Skip)
 			assert.Equal(t, c.wantSkip == SizeOK, quote.Orderable())
 		})
@@ -142,7 +139,7 @@ func TestContractSpec_SizeForNotionalAvoidsFloatTruncation(t *testing.T) {
 	// 浮点除法 8.6 ÷ 0.1 得 85.99999999999999，直接截断会少 1 张
 	assert.EqualValues(t, 85, int64(notional/(price*0.1)))
 
-	quote, err := unit.SizeForNotional(price, notional, 0)
+	quote, err := unit.SizeForNotional(price, notional)
 	require.NoError(t, err)
 	require.True(t, quote.Orderable(), quote.Skip.String())
 	assert.Equal(t, "86", quote.Contracts)
@@ -153,26 +150,22 @@ func TestContractSpec_SizeForNotionalRejectsInvalidInput(t *testing.T) {
 	btc := mustSpec(t, "BTC_USDT", "0.0001", "1", "12000000", false)
 
 	for _, price := range []float64{0, -1, math.NaN(), math.Inf(1)} {
-		_, err := btc.SizeForNotional(price, 20, 10)
+		_, err := btc.SizeForNotional(price, 20)
 		assert.Error(t, err, "price=%v", price)
 	}
 	for _, notional := range []float64{0, -5, math.NaN()} {
-		_, err := btc.SizeForNotional(60240, notional, 10)
+		_, err := btc.SizeForNotional(60240, notional)
 		assert.Error(t, err, "notional=%v", notional)
-	}
-	for _, minNotional := range []float64{-1, math.Inf(-1)} {
-		_, err := btc.SizeForNotional(60240, 20, minNotional)
-		assert.Error(t, err, "minNotional=%v", minNotional)
 	}
 
 	// 未经构造函数的零值不能参与换算
-	_, err := ContractSpec{}.SizeForNotional(60240, 20, 10)
+	_, err := ContractSpec{}.SizeForNotional(60240, 20)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
-// planContract 计划文档 6.1 节下单位置表里的一个合约
-type planContract struct {
+// sampleContract 一个有代表性的合约
+type sampleContract struct {
 	name          string
 	multiplier    string
 	sizeMin       string
@@ -182,57 +175,57 @@ type planContract struct {
 	minPercent    float64 // 本金 107.5U 时能下单的最小百分比
 }
 
-// planCell 下单位置表的一格：可下单时是张数，否则是不下单的原因
-type planCell struct {
+// sizeCell 一档名义价值下的下单结果：可下单时是张数，否则是不下单的原因
+type sizeCell struct {
 	contracts string
 	skip      SkipReason
 }
 
-// planContracts 计划文档 6.1 节的 7 个合约。元数据取自 2026-11-24 的真实读数：
+// sampleContracts 七个有代表性的合约。元数据取自 2026-11-24 的真实读数：
 // ETH、SOL 支持小数张，步长 0.1；其余为整数张
-var planContracts = []planContract{
-	{name: "BTC_USDT", multiplier: "0.0001", sizeMin: "1", sizeMax: "12000000", price: 60240, minPercent: 11.3},
-	{name: "ETH_USDT", multiplier: "0.01", sizeMin: "0.1", sizeMax: "10000000", enableDecimal: true, price: 1693, minPercent: 9.5},
-	{name: "SOL_USDT", multiplier: "1", sizeMin: "0.1", sizeMax: "300000", enableDecimal: true, price: 71.16, minPercent: 13.3},
-	{name: "ZEC_USDT", multiplier: "0.01", sizeMin: "1", sizeMax: "900000", price: 756, minPercent: 14.1},
-	{name: "HYPE_USDT", multiplier: "0.1", sizeMin: "1", sizeMax: "750000", price: 63.1, minPercent: 11.8},
-	{name: "DOGE_USDT", multiplier: "10", sizeMin: "1", sizeMax: "12000000", price: 0.05588, minPercent: 9.4},
-	{name: "XAU_USDT", multiplier: "0.0001", sizeMin: "1", sizeMax: "30000000", price: 3640, minPercent: 9.5},
+var sampleContracts = []sampleContract{
+	{name: "BTC_USDT", multiplier: "0.0001", sizeMin: "1", sizeMax: "12000000", price: 60240, minPercent: 5.7},
+	{name: "ETH_USDT", multiplier: "0.01", sizeMin: "0.1", sizeMax: "10000000", enableDecimal: true, price: 1693, minPercent: 1.6},
+	{name: "SOL_USDT", multiplier: "1", sizeMin: "0.1", sizeMax: "300000", enableDecimal: true, price: 71.16, minPercent: 6.7},
+	{name: "ZEC_USDT", multiplier: "0.01", sizeMin: "1", sizeMax: "900000", price: 756, minPercent: 7.1},
+	{name: "HYPE_USDT", multiplier: "0.1", sizeMin: "1", sizeMax: "750000", price: 63.1, minPercent: 5.9},
+	{name: "DOGE_USDT", multiplier: "10", sizeMin: "1", sizeMax: "12000000", price: 0.05588, minPercent: 0.6},
+	{name: "XAU_USDT", multiplier: "0.0001", sizeMin: "1", sizeMax: "30000000", price: 3640, minPercent: 0.4},
 }
 
-func TestContractSpec_SizeForNotionalMatchesPlanTable(t *testing.T) {
+// 下单量的下限只有合约的最小张数：名义价值够一个最小步长就下单，没有金额下限
+func TestContractSpec_SizeForNotionalAcrossContracts(t *testing.T) {
 	// 表头六列的名义价值：100U×5%、100U×10%、100U×20%、107.5U×10%、107.5U×20%、500U×10%
 	notionals := []float64{5, 10, 20, 10.75, 21.5, 50}
-	belowMin := planCell{skip: SizeSkipBelowMinNotional}
-	belowStep := planCell{skip: SizeSkipBelowStep}
+	belowStep := sizeCell{skip: SizeSkipBelowStep}
 
-	want := map[string][]planCell{
-		"BTC_USDT":  {belowStep, belowMin, {contracts: "3"}, belowMin, {contracts: "3"}, {contracts: "8"}},
-		"ETH_USDT":  {belowMin, belowMin, {contracts: "1.1"}, {contracts: "0.6"}, {contracts: "1.2"}, {contracts: "2.9"}},
-		"SOL_USDT":  {belowStep, belowMin, {contracts: "0.2"}, belowMin, {contracts: "0.3"}, {contracts: "0.7"}},
-		"ZEC_USDT":  {belowStep, belowMin, {contracts: "2"}, belowMin, {contracts: "2"}, {contracts: "6"}},
-		"HYPE_USDT": {belowStep, belowMin, {contracts: "3"}, belowMin, {contracts: "3"}, {contracts: "7"}},
-		"DOGE_USDT": {belowMin, belowMin, {contracts: "35"}, {contracts: "19"}, {contracts: "38"}, {contracts: "89"}},
-		"XAU_USDT":  {belowMin, belowMin, {contracts: "54"}, {contracts: "29"}, {contracts: "59"}, {contracts: "137"}},
+	want := map[string][]sizeCell{
+		"BTC_USDT":  {belowStep, {contracts: "1"}, {contracts: "3"}, {contracts: "1"}, {contracts: "3"}, {contracts: "8"}},
+		"ETH_USDT":  {{contracts: "0.2"}, {contracts: "0.5"}, {contracts: "1.1"}, {contracts: "0.6"}, {contracts: "1.2"}, {contracts: "2.9"}},
+		"SOL_USDT":  {belowStep, {contracts: "0.1"}, {contracts: "0.2"}, {contracts: "0.1"}, {contracts: "0.3"}, {contracts: "0.7"}},
+		"ZEC_USDT":  {belowStep, {contracts: "1"}, {contracts: "2"}, {contracts: "1"}, {contracts: "2"}, {contracts: "6"}},
+		"HYPE_USDT": {belowStep, {contracts: "1"}, {contracts: "3"}, {contracts: "1"}, {contracts: "3"}, {contracts: "7"}},
+		"DOGE_USDT": {{contracts: "8"}, {contracts: "17"}, {contracts: "35"}, {contracts: "19"}, {contracts: "38"}, {contracts: "89"}},
+		"XAU_USDT":  {{contracts: "13"}, {contracts: "27"}, {contracts: "54"}, {contracts: "29"}, {contracts: "59"}, {contracts: "137"}},
 	}
 
-	for _, c := range planContracts {
+	for _, c := range sampleContracts {
 		t.Run(c.name, func(t *testing.T) {
 			spec := mustSpec(t, c.name, c.multiplier, c.sizeMin, c.sizeMax, c.enableDecimal)
 			for i, notional := range notionals {
-				quote, err := spec.SizeForNotional(c.price, notional, 10)
+				quote, err := spec.SizeForNotional(c.price, notional)
 				require.NoError(t, err, "notional=%v", notional)
-				got := planCell{contracts: quote.Contracts, skip: quote.Skip}
+				got := sizeCell{contracts: quote.Contracts, skip: quote.Skip}
 				assert.Equal(t, want[c.name][i], got, "notional=%v", notional)
 			}
 		})
 	}
 }
 
-func TestContractSpec_MinOrderablePercentMatchesPlanTable(t *testing.T) {
-	const principal, minNotional = 107.5, 10
+func TestContractSpec_MinOrderablePercent(t *testing.T) {
+	const principal = 107.5
 
-	for _, c := range planContracts {
+	for _, c := range sampleContracts {
 		t.Run(c.name, func(t *testing.T) {
 			spec := mustSpec(t, c.name, c.multiplier, c.sizeMin, c.sizeMax, c.enableDecimal)
 
@@ -240,7 +233,7 @@ func TestContractSpec_MinOrderablePercentMatchesPlanTable(t *testing.T) {
 			for tenths := 1; tenths <= 200; tenths++ {
 				percent := float64(tenths) / 10
 				// 名义价值 = 107.5 × 百分比，按十分位逐级放大
-				quote, err := spec.SizeForNotional(c.price, principal*float64(tenths)/1000, minNotional)
+				quote, err := spec.SizeForNotional(c.price, principal*float64(tenths)/1000)
 				require.NoError(t, err)
 				if quote.Orderable() {
 					first = percent
@@ -544,7 +537,7 @@ func TestGateTrader_GetContractSpecConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			quotes[i], errs[i] = results[0].SizeForNotional(1700, 20, 10)
+			quotes[i], errs[i] = results[0].SizeForNotional(1700, 20)
 		}(i)
 	}
 	wg.Wait()

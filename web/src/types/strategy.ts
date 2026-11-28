@@ -162,7 +162,6 @@ export interface RiskControlConfig {
 
   // Risk Parameters
   max_margin_usage: number;        // Max margin utilization, e.g. 0.9 = 90% (CODE ENFORCED)
-  min_position_size: number;       // Min position size in USDT (user configurable, default 10)
   min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number;          // Min AI confidence to open position (AI guided)
 }

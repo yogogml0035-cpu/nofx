@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// ⑧ strategy-config：开仓金额百分比（D23）、最小下单默认（D19）与周期收敛（D25）。
+// ⑧ strategy-config：开仓金额百分比（D23）与周期收敛（D25）。
 
 func TestPositionPercentClampMatrix(t *testing.T) {
 	tests := []struct {
@@ -39,11 +39,8 @@ func TestDefaultStrategyConfigPositionFields(t *testing.T) {
 	if cfg.RiskControl.PositionPercent != 10 {
 		t.Fatalf("default PositionPercent = %v, want 10", cfg.RiskControl.PositionPercent)
 	}
-	if cfg.RiskControl.MinPositionSize != 10 {
-		t.Fatalf("default MinPositionSize = %v, want 10", cfg.RiskControl.MinPositionSize)
-	}
 
-	// 旧配置里的倍数字段被忽略，不再出现在序列化结果中。
+	// 旧配置里的倍数字段与最小下单金额被忽略，不再出现在序列化结果中。
 	legacy := `{"risk_control":{"btc_eth_max_position_value_ratio":5,"altcoin_max_position_value_ratio":1,"min_position_size":12}}`
 	var parsed StrategyConfig
 	if err := json.Unmarshal([]byte(legacy), &parsed); err != nil {
@@ -54,7 +51,7 @@ func TestDefaultStrategyConfigPositionFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal risk control: %v", err)
 	}
-	for _, gone := range []string{"btc_eth_max_position_value_ratio", "altcoin_max_position_value_ratio"} {
+	for _, gone := range []string{"btc_eth_max_position_value_ratio", "altcoin_max_position_value_ratio", "min_position_size"} {
 		if strings.Contains(string(out), gone) {
 			t.Fatalf("serialized risk control still contains %q: %s", gone, out)
 		}
@@ -62,8 +59,42 @@ func TestDefaultStrategyConfigPositionFields(t *testing.T) {
 	if !strings.Contains(string(out), `"position_percent":10`) {
 		t.Fatalf("legacy config without percent should default to 10, got: %s", out)
 	}
-	if parsed.RiskControl.MinPositionSize != 12 {
-		t.Fatalf("explicit legacy min_position_size 12 must be preserved, got %v", parsed.RiskControl.MinPositionSize)
+}
+
+// MergeStrategyConfig 对不认识的键静默丢弃；把关函数必须按真实的结构体标签判断，
+// 已知字段的零值与自由格式的键不能被误判，调用方的 patch 也不能被改动
+func TestFindUnknownStrategyConfigField(t *testing.T) {
+	cases := []struct {
+		name  string
+		patch string
+		want  string
+	}{
+		{name: "空的 patch", patch: `{}`, want: ""},
+		{name: "嵌套结构里的已知字段", patch: `{"ai_config":{"risk_control":{"position_percent":15},"coin_source":{"static_coins":["BTCUSDT"]}}}`, want: ""},
+		{name: "顶层的 AI 字段先归一再判断", patch: `{"risk_control":{"position_percent":15}}`, want: ""},
+		{name: "已知字段的零值不是未知字段", patch: `{"custom_prompt":""}`, want: ""},
+		{name: "自由格式的键不受限制", patch: `{"indicators":{"external_data_sources":[{"name":"x","headers":{"X-Any":"1"}}]}}`, want: ""},
+		{name: "网格配置", patch: `{"grid_config":{"grid_count":20}}`, want: ""},
+		{name: "已删除的字段", patch: `{"risk_control":{"min_position_size":20}}`, want: "min_position_size"},
+		{name: "顶层的未知字段", patch: `{"whatever":1}`, want: "whatever"},
+		{name: "更深一层的未知字段", patch: `{"ai_config":{"indicators":{"klines":{"primary_timeframe":"5m","magic":true}}}}`, want: "magic"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var patch map[string]any
+			if err := json.Unmarshal([]byte(c.patch), &patch); err != nil {
+				t.Fatalf("unmarshal patch: %v", err)
+			}
+			before, _ := json.Marshal(patch)
+			got, ok := FindUnknownStrategyConfigField(patch)
+			if got != c.want || ok != (c.want != "") {
+				t.Fatalf("FindUnknownStrategyConfigField(%s) = %q, %v; want %q", c.patch, got, ok, c.want)
+			}
+			after, _ := json.Marshal(patch)
+			if string(before) != string(after) {
+				t.Fatalf("the caller's patch must not be modified: %s -> %s", before, after)
+			}
+		})
 	}
 }
 

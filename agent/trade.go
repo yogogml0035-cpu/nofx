@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"nofx/store"
+	"nofx/trader/types"
 	"strings"
 	"sync"
 	"time"
@@ -343,15 +344,14 @@ func validateTradeAction(
 		return fmt.Errorf("leverage exceeds configured limit (%dx > %dx)", trade.Leverage, maxLeverage)
 	}
 
-	minPositionSize := riskControl.MinPositionSize
-	if minPositionSize <= 0 {
-		minPositionSize = 10
-	}
-	if positionValue < minPositionSize {
-		return fmt.Errorf("position value %.2f USDT is below configured minimum %.2f USDT", positionValue, minPositionSize)
+	// 下单量的下限只有交易所合约的最小张数：适配器能判断时在创建待确认订单前就把关，
+	// 而不是等用户确认之后才在下单时被挡下
+	if checker, ok := underlyingTrader.(types.OrderSizeChecker); ok {
+		if err := checker.CheckOrderSize(trade.Symbol, trade.Quantity); err != nil {
+			return err
+		}
 	}
 
-	// 仓位金额由策略的 position_percent（本金 × 百分比）决定，助手下单只检查不低于最小开仓金额。
 	return nil
 }
 

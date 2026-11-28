@@ -758,6 +758,14 @@ func prefixStrategyPatchError(lang, patchErr, reply string) string {
 	if patchErr == "" {
 		return reply
 	}
+	// 字段不存在与「值不合法」不同：换一个值没有意义，直接说明这个值没有被应用
+	if strings.HasPrefix(patchErr, unsupportedStrategyFieldPrefix) {
+		field := strings.TrimPrefix(patchErr, unsupportedStrategyFieldPrefix)
+		if lang == "zh" {
+			return fmt.Sprintf("策略配置里没有「%s」这个字段，这个值没有被应用。\n\n", field) + reply
+		}
+		return fmt.Sprintf("The strategy config has no field %q, so the value was not applied.\n\n", field) + reply
+	}
 	if lang == "zh" {
 		return "上一个值没有被接受：" + patchErr + "。请换一个值。\n\n" + reply
 	}
@@ -1147,7 +1155,6 @@ func formatStrategyCreateFinalConfirmation(lang string, session skillSession, cf
 				fmt.Sprintf("- 最大持仓数（System enforced）：%d", cfg.RiskControl.MaxPositions),
 				fmt.Sprintf("- 开仓金额百分比：%.1f%%（开仓名义价值 = 本金 × 该百分比）", cfg.RiskControl.PositionPercent),
 				fmt.Sprintf("- 最大保证金使用率（System enforced）：%.0f%%", cfg.RiskControl.MaxMarginUsage*100),
-				fmt.Sprintf("- 最小开仓金额：%.2f USDT", cfg.RiskControl.MinPositionSize),
 				fmt.Sprintf("- 角色定义：%s", compactSummaryText(cfg.PromptSections.RoleDefinition)),
 				fmt.Sprintf("- 交易频率规则：%s", compactSummaryText(cfg.PromptSections.TradingFrequency)),
 				fmt.Sprintf("- 开仓标准：%s", compactSummaryText(cfg.PromptSections.EntryStandards)),
@@ -1685,8 +1692,8 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 		}
 		lines = append(lines, fmt.Sprintf("- 仓位风险：最多持仓 %d，BTC/ETH 最大杠杆 %d，山寨最大杠杆 %d，最低置信度 %d",
 			cfg.RiskControl.MaxPositions, cfg.RiskControl.BTCETHMaxLeverage, cfg.RiskControl.AltcoinMaxLeverage, cfg.RiskControl.MinConfidence))
-		lines = append(lines, fmt.Sprintf("- 风控阈值：最小盈亏比 %.2f；最大保证金使用率 %.2f；最小开仓金额 %.2f；开仓金额百分比 %.1f%%",
-			cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.MinPositionSize, cfg.RiskControl.PositionPercent))
+		lines = append(lines, fmt.Sprintf("- 风控阈值：最小盈亏比 %.2f；最大保证金使用率 %.2f；开仓金额百分比 %.1f%%",
+			cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.PositionPercent))
 		if len(indicatorBits) > 0 {
 			lines = append(lines, "- 已启用指标："+strings.Join(indicatorBits, "、"))
 		}
@@ -1731,8 +1738,8 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 	}
 	lines = append(lines, fmt.Sprintf("- Risk: max positions %d, BTC/ETH max leverage %d, alt max leverage %d, min confidence %d",
 		cfg.RiskControl.MaxPositions, cfg.RiskControl.BTCETHMaxLeverage, cfg.RiskControl.AltcoinMaxLeverage, cfg.RiskControl.MinConfidence))
-	lines = append(lines, fmt.Sprintf("- Risk thresholds: min RR %.2f, max margin usage %.2f, min position size %.2f, position percent %.1f%%",
-		cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.MinPositionSize, cfg.RiskControl.PositionPercent))
+	lines = append(lines, fmt.Sprintf("- Risk thresholds: min RR %.2f, max margin usage %.2f, position percent %.1f%%",
+		cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.PositionPercent))
 	if len(indicatorBits) > 0 {
 		lines = append(lines, "- Enabled indicators: "+strings.Join(indicatorBits, ", "))
 	}

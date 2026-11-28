@@ -226,23 +226,6 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 // Risk Control Helpers
 // ============================================================================
 
-// enforceMinPositionSize checks minimum position size (CODE ENFORCED)
-func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
-	if at.config.StrategyConfig == nil {
-		return nil
-	}
-
-	minSize := at.config.StrategyConfig.RiskControl.MinPositionSize
-	if minSize <= 0 {
-		minSize = 10 // Default: 10 USDT (D19)
-	}
-
-	if positionSizeUSD < minSize {
-		return fmt.Errorf("❌ [RISK CONTROL] Position %.2f USDT below minimum (%.2f USDT)", positionSizeUSD, minSize)
-	}
-	return nil
-}
-
 // enforceMaxPositions checks maximum positions count (CODE ENFORCED)
 func (at *AutoTrader) enforceMaxPositions(currentPositionCount int) error {
 	if at.config.StrategyConfig == nil {

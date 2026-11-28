@@ -98,7 +98,7 @@ func TestGetDecisionsToolReturnsRecentTraderDecisionEvidence(t *testing.T) {
 		CycleNumber:         151,
 		Timestamp:           time.Now(),
 		Success:             false,
-		ErrorMessage:        "Failed to execute open_short: ❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
+		ErrorMessage:        "Failed to execute open_short: open skipped for BTC_USDT: 不足一个最小步长 (notional 5.2000 USDT, price 59635.2, size step 1)",
 		AIRequestDurationMs: 25878,
 		CandidateCoins:      []string{"BTCUSDT"},
 		ExecutionLog:        []string{"AI call duration: 25878 ms"},
@@ -108,7 +108,7 @@ func TestGetDecisionsToolReturnsRecentTraderDecisionEvidence(t *testing.T) {
 	}
 
 	raw := a.toolGetDecisions("default", `{"trader_name":"alpha","limit":2}`)
-	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "below minimum", "20.00 USDT"} {
+	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "不足一个最小步长", "5.2000 USDT"} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("expected decision evidence %q in tool response, got: %s", want, raw)
 		}
@@ -190,7 +190,7 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 		CycleNumber:         2,
 		Timestamp:           time.Now(),
 		Success:             false,
-		ErrorMessage:        "Failed to execute open_short: ❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
+		ErrorMessage:        "Failed to execute open_short: open skipped for BTC_USDT: 不足一个最小步长 (notional 5.2000 USDT, price 59635.2, size step 1)",
 		AIRequestDurationMs: 25878,
 		CandidateCoins:      []string{"BTCUSDT"},
 		ExecutionLog:        []string{"AI call duration: 25878 ms"},
@@ -200,15 +200,116 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 	}
 
 	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
-	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 10.75 USDT", "最小下单要求 20.00 USDT", "增加账户资金", "调高策略里的开仓金额百分比", "最小开仓金额（默认 10 USDT）"} {
+	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 5.20 USDT", "不足这个合约的最小下单张数", "增加账户资金", "调高策略里的开仓金额百分比"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected diagnosis to include %q, got: %s", want, reply)
 		}
 	}
-	for _, unexpected := range []string{"诊断证据包", "辅助异常", "status 402", "404", "EOF", "订阅", "数据服务", "position_size_usd", "AI 调用耗时"} {
+	for _, unexpected := range []string{"诊断证据包", "辅助异常", "status 402", "404", "EOF", "订阅", "数据服务", "position_size_usd", "AI 调用耗时", "最小开仓金额", "below minimum"} {
 		if strings.Contains(reply, unexpected) {
 			t.Fatalf("diagnosis should stay user-facing and avoid %q, got: %s", unexpected, reply)
 		}
+	}
+}
+
+// 真实落库形态：一次开仓失败时决策记录本身是成功的（AI 调用成功），错误只出现在
+// execution_log 与 decisions[].error 里，error_message 为空。诊断必须在这种形态下也认出金额不足
+func TestTraderDiagnosisAmountTooSmallReadsPersistedRecordShape(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "trader-diagnosis-persisted-shape.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+	traderCfg := &store.Trader{
+		ID:                  "trader-alpha",
+		UserID:              "default",
+		Name:                "alpha",
+		AIModelID:           "model-1",
+		ExchangeID:          "exchange-1",
+		InitialBalance:      6.21,
+		ScanIntervalMinutes: 3,
+		IsRunning:           true,
+	}
+	if err := st.Trader().Create(traderCfg); err != nil {
+		t.Fatalf("seed trader: %v", err)
+	}
+	// 与 trader/gate 的 TestOpenProtectedSkipMessageContract 钉住的是同一句文案
+	const skipped = "open skipped for BTC_USDT: 不足一个最小步长 (notional 5.2000 USDT, price 59635.2, size step 1)"
+	if err := st.Decision().LogDecision(&store.DecisionRecord{
+		TraderID:            traderCfg.ID,
+		CycleNumber:         4,
+		Timestamp:           time.Now(),
+		Success:             true,
+		AIRequestDurationMs: 25878,
+		CandidateCoins:      []string{"BTCUSDT"},
+		ExecutionLog:        []string{"AI call duration: 25878 ms", "❌ BTCUSDT open_short failed: " + skipped},
+		Decisions: []store.DecisionAction{{
+			Symbol: "BTCUSDT", Action: "open_short", Leverage: 5, StopLoss: 99000, TakeProfit: 95000,
+			Error: skipped,
+		}},
+	}); err != nil {
+		t.Fatalf("seed decision: %v", err)
+	}
+
+	zh := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
+	for _, want := range []string{"不是没运行", "开仓金额约 5.20 USDT", "不足这个合约的最小下单张数"} {
+		if !strings.Contains(zh, want) {
+			t.Fatalf("expected zh diagnosis to include %q, got: %s", want, zh)
+		}
+	}
+	en := a.handleTraderDiagnosisSkill("default", "en", "why is my alpha trader not opening trades")
+	if !strings.Contains(en, "below the exchange's minimum contract size") {
+		t.Fatalf("expected en diagnosis to name the exchange minimum contract size, got: %s", en)
+	}
+}
+
+// 执行阶段的失败只写在 decisions[].error 里：确定性兜底必须把真实原因带出来，
+// 而不是说「没有显示明确的拒单原因」
+func TestTraderDiagnosisSurfacesExecutionStageError(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "trader-diagnosis-execution-error.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+	traderCfg := &store.Trader{
+		ID:                  "trader-alpha",
+		UserID:              "default",
+		Name:                "alpha",
+		AIModelID:           "model-1",
+		ExchangeID:          "exchange-1",
+		InitialBalance:      107.34,
+		ScanIntervalMinutes: 3,
+		IsRunning:           true,
+	}
+	if err := st.Trader().Create(traderCfg); err != nil {
+		t.Fatalf("seed trader: %v", err)
+	}
+	const failure = "refusing to open BTC_USDT: stop loss 65000 is too far for the 2.00% principal loss cap: one size step would lose 6.1 USDT at stop, above the 2.1468 USDT cap (notional 10.7300 USDT)"
+	if err := st.Decision().LogDecision(&store.DecisionRecord{
+		TraderID:       traderCfg.ID,
+		CycleNumber:    5,
+		Timestamp:      time.Now(),
+		Success:        true,
+		CandidateCoins: []string{"BTCUSDT"},
+		ExecutionLog:   []string{"AI call duration: 65557 ms", "❌ BTCUSDT open_short failed: " + failure},
+		Decisions: []store.DecisionAction{{
+			Symbol: "BTCUSDT", Action: "open_short", Leverage: 5, StopLoss: 65000, TakeProfit: 59000,
+			Error: failure,
+		}},
+	}); err != nil {
+		t.Fatalf("seed decision: %v", err)
+	}
+
+	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
+	for _, want := range []string{"返回了错误", "too far"} {
+		if !strings.Contains(reply, want) {
+			t.Fatalf("expected diagnosis to surface the execution error %q, got: %s", want, reply)
+		}
+	}
+	if strings.Contains(reply, "没有显示明确的拒单原因") {
+		t.Fatalf("a recorded execution error must not be reported as an unclear rejection: %s", reply)
 	}
 }
 
@@ -239,7 +340,7 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		CycleNumber:    3,
 		Timestamp:      time.Now(),
 		Success:        false,
-		ErrorMessage:   "❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
+		ErrorMessage:   "open skipped for BTC_USDT: 不足一个最小步长 (notional 5.2000 USDT, price 59635.2, size step 1)",
 		CandidateCoins: []string{"BTCUSDT"},
 		DecisionJSON:   `[{"symbol":"BTCUSDT","action":"open_short","leverage":5,"stop_loss":99000,"take_profit":95000,"confidence":80}]`,
 	}); err != nil {
@@ -254,7 +355,7 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		t.Fatalf("expected LLM request to be captured")
 	}
 	prompt := llm.lastRequest.Messages[1].Content
-	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "below minimum", "decision_json"} {
+	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "不足一个最小步长", "decision_json"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("expected LLM evidence prompt to include %q, got: %s", want, prompt)
 		}
@@ -896,7 +997,7 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 		},
 	}
 	reply := formatStrategyCreateFinalConfirmation("zh", session, cfg)
-	for _, want := range []string{"最大持仓数（System enforced）", "开仓金额百分比：10.0%", "最大保证金使用率（System enforced）", "最小开仓金额：10.00 USDT"} {
+	for _, want := range []string{"最大持仓数（System enforced）", "开仓金额百分比：10.0%", "最大保证金使用率（System enforced）"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected final summary to display %q, got: %s", want, reply)
 		}
@@ -907,13 +1008,7 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 		t.Fatalf("expected system enforced edit to be rejected, got: %v", resp)
 	}
 
-	// 最小开仓金额与开仓金额百分比现在是可编辑策略项
-	if err := applyStrategyConfigPatch(&cfg, "min_position_size", "30"); err != nil {
-		t.Fatalf("expected min_position_size edit to be accepted, got: %v", err)
-	}
-	if cfg.RiskControl.MinPositionSize != 30 {
-		t.Fatalf("expected stored min_position_size 30, got %v", cfg.RiskControl.MinPositionSize)
-	}
+	// 开仓金额百分比是可编辑策略项
 	if err := applyStrategyConfigPatch(&cfg, "position_percent", "15"); err != nil {
 		t.Fatalf("expected position_percent edit to be accepted, got: %v", err)
 	}

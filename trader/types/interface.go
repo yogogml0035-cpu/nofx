@@ -115,7 +115,6 @@ type ProtectedOpenRequest struct {
 	IsCrossMargin bool
 	StopLoss      float64 // 止损触发价
 	TakeProfit    float64 // 止盈触发价
-	MinNotional   float64 // 最小下单金额（USDT）；0 表示不设下限
 	SlipRatio     float64 // 市价滑点上限（0.01 = 1%）；0 表示用交易所默认
 	// Principal 与 MaxLossPercent 用于提交前的亏损上限复核（D34）：按最坏成交价计算「到止损价的
 	// 亏损 ≤ 本金 × MaxLossPercent%」，超过时等比收缩名义价值。任一为 0 表示不做这项复核。
@@ -157,6 +156,13 @@ type ProtectedOpener interface {
 
 	// VerifyOrderProtection 开仓成交后核对保护单存在；缺失返回错误（调用方立即平仓）。
 	VerifyOrderProtection(symbol, orderID string) error
+}
+
+// OrderSizeChecker 下单数量的前置校验：数量不足交易所合约的一个最小步长时返回错误。
+// 助手手动下单在创建待确认订单前用它把关，免得用户确认之后才在下单时被挡下；
+// 判断不了（例如合约信息暂时读不到）时不返回错误，最终仍由下单路径按最小步长换算并拒绝。
+type OrderSizeChecker interface {
+	CheckOrderSize(symbol string, quantity float64) error
 }
 
 // PartialCloseStatus 描述一个持仓能否分批平仓。Supported 为 true 当且仅当交易所可精确

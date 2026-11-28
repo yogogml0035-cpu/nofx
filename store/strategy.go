@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -34,8 +35,6 @@ const (
 	MaxRiskReward          = 10.0
 	MinMarginUsage         = 0.1
 	MaxMarginUsage         = 1.0
-	MinPositionSize        = 10.0
-	MaxPositionSize        = 1000.0
 	MinConfidence          = 50
 	MaxConfidence          = 100
 )
@@ -111,12 +110,6 @@ func (c *StrategyConfig) ClampLimits() {
 	}
 	if c.RiskControl.MaxMarginUsage > MaxMarginUsage {
 		c.RiskControl.MaxMarginUsage = MaxMarginUsage
-	}
-	if c.RiskControl.MinPositionSize < MinPositionSize {
-		c.RiskControl.MinPositionSize = MinPositionSize
-	}
-	if c.RiskControl.MinPositionSize > MaxPositionSize {
-		c.RiskControl.MinPositionSize = MaxPositionSize
 	}
 	if c.RiskControl.MinConfidence < MinConfidence {
 		c.RiskControl.MinConfidence = MinConfidence
@@ -396,6 +389,46 @@ func mergeJSONMaps(dst, src map[string]any) {
 	}
 }
 
+// FindUnknownStrategyConfigField 返回 patch 里策略配置不认识的第一个字段（JSON 键名）。
+// MergeStrategyConfig 对不认识的键是静默丢弃的：调用方如果要把「更新了什么」如实反馈给用户
+// （例如助手按模型给出的字段更新策略），应先用它把关，否则会被回复成「已更新」而实际没有生效。
+func FindUnknownStrategyConfigField(patch map[string]any) (string, bool) {
+	if len(patch) == 0 {
+		return "", false
+	}
+	// 在副本上做与 MergeStrategyConfig 相同的归一（顶层 AI 字段挪进 ai_config），不动调用方的 patch
+	raw, err := json.Marshal(patch)
+	if err != nil {
+		return "", false
+	}
+	var normalized map[string]any
+	if err := json.Unmarshal(raw, &normalized); err != nil {
+		return "", false
+	}
+	normalizeStrategyConfigPatch(normalized)
+	probe, err := json.Marshal(normalized)
+	if err != nil {
+		return "", false
+	}
+
+	// 形状与 StrategyConfig.UnmarshalJSON 接受的嵌套结构一致，键名是否认识由各层结构体的 json 标签决定
+	var shape struct {
+		StrategyType json.RawMessage     `json:"strategy_type"`
+		Language     json.RawMessage     `json:"language"`
+		AIConfig     *AIStrategyConfig   `json:"ai_config"`
+		GridConfig   *GridStrategyConfig `json:"grid_config"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(probe))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&shape); err != nil {
+		var field string
+		if _, scanErr := fmt.Sscanf(err.Error(), `json: unknown field %q`, &field); scanErr == nil {
+			return field, true
+		}
+	}
+	return "", false
+}
+
 func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 	if lang != "zh" {
 		lang = "en"
@@ -428,7 +461,6 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 	appendFloat("开仓金额百分比", "position_percent", before.RiskControl.PositionPercent, after.RiskControl.PositionPercent)
 	appendFloat("最小盈亏比", "min_risk_reward_ratio", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
 	appendFloat("最大保证金使用率", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
-	appendFloat("最小开仓金额", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
 	appendInt("最低置信度", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
 	appendInt("K 线数量", "K-line count", before.Indicators.Klines.PrimaryCount, after.Indicators.Klines.PrimaryCount)
 
@@ -739,8 +771,6 @@ type RiskControlConfig struct {
 
 	// Max margin utilization (e.g. 0.9 = 90%) (CODE ENFORCED)
 	MaxMarginUsage float64 `json:"max_margin_usage"`
-	// Min position size in USDT (user configurable, default 10; D19)
-	MinPositionSize float64 `json:"min_position_size"`
 
 	// Min take_profit / stop_loss ratio (AI guided)
 	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
@@ -803,7 +833,6 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			AltcoinMaxLeverage: 5,   // Altcoin exchange leverage (AI guided)
 			PositionPercent:    10,  // Notional = principal × 10% (D23)
 			MaxMarginUsage:     0.9, // Max 90% margin usage (CODE ENFORCED)
-			MinPositionSize:    10,  // Min 10 USDT per position (user configurable, D19)
 			MinRiskRewardRatio: 3.0, // Min 3:1 profit/loss ratio (AI guided)
 			MinConfidence:      75,  // Min 75% confidence (AI guided)
 		},

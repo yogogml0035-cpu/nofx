@@ -35,18 +35,6 @@ const (
 	marketOrderSlipRatio = 0.01
 )
 
-// minOrderNotional 策略配置的最小下单金额（USDT），与 enforceMinPositionSize 同源同默认（D19：默认 10）
-func (at *AutoTrader) minOrderNotional() float64 {
-	if at.config.StrategyConfig == nil {
-		return 10
-	}
-	minSize := at.config.StrategyConfig.RiskControl.MinPositionSize
-	if minSize <= 0 {
-		return 10
-	}
-	return minSize
-}
-
 // protectedOpener 返回随单保护开仓能力；适配器未实现时开仓被拒绝（fail-closed：
 // 父分支不得出现"能开仓但没有有效止损"的状态）
 func (at *AutoTrader) protectedOpener() (types.ProtectedOpener, error) {
@@ -283,7 +271,9 @@ func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, float64, 
 	availableBalance := account.Available
 
 	// The open notional is computed and validated by the engine from principal ×
-	// position_percent (D22/D24); the model never supplies an amount.
+	// position_percent (D22/D24); the model never supplies an amount. The only
+	// lower bound on the order is the exchange's minimum contract size, enforced
+	// by the adapter when it rounds the notional down to the size step.
 	positionSize := decision.NotionalUSD
 	if positionSize <= 0 {
 		return 0, 0, fmt.Errorf("decision for %s has no code-computed open notional", decision.Symbol)
@@ -301,10 +291,6 @@ func (at *AutoTrader) prepareOpen(decision *kernel.Decision) (float64, float64, 
 		decision.NotionalUSD = positionSize
 	}
 
-	// [CODE ENFORCED] Minimum position size check
-	if err := at.enforceMinPositionSize(positionSize); err != nil {
-		return 0, 0, err
-	}
 	return positionSize, account.Principal, nil
 }
 
@@ -339,7 +325,6 @@ func (at *AutoTrader) executeProtectedOpen(decision *kernel.Decision, actionReco
 		IsCrossMargin: at.config.IsCrossMargin,
 		StopLoss:      decision.StopLoss,
 		TakeProfit:    decision.TakeProfit,
-		MinNotional:   at.minOrderNotional(),
 		SlipRatio:     marketOrderSlipRatio,
 		// 提交前按最坏成交价复核「到止损价的亏损 ≤ 本金 2%」（D34）：决策校验用的是取数时刻的收盘价
 		Principal:      principal,

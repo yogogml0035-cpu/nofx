@@ -250,40 +250,6 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {ts(riskControl.minPositionSize, language)}
-            </label>
-            <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {ts(riskControl.minPositionSizeDesc, language)}
-            </p>
-            <div className="flex items-center">
-              <input
-                type="number"
-                value={config.min_position_size ?? 10}
-                onChange={(e) =>
-                  // 服务端下限是 10 USDT（store.MinPositionSize），界面同口径，避免保存后被静默夹回
-                  updateField('min_position_size', Math.max(10, parseFloat(e.target.value) || 10))
-                }
-                disabled={disabled}
-                min={10}
-                step={1}
-                className="w-20 px-3 py-2 rounded"
-                style={{
-                  background: '#1E2329',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
-              />
-              <span className="ml-2" style={{ color: '#848E9C' }}>
-                USDT
-              </span>
-            </div>
-          </div>
-
-          <div
-            className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
-          >
-            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
               {ts(riskControl.minConfidence, language)}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>

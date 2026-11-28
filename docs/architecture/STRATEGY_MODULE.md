@@ -221,9 +221,10 @@ if roleDefinition == "" {
 maxPositions := config.RiskControl.MaxPositions           // Default: 3
 positionPercent := config.RiskControl.PositionPercent     // Default: 10 (%): open notional = principal × percent
 maxMarginUsage := config.RiskControl.MaxMarginUsage       // Default: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // Default: 10 USDT (user configurable, checked after rounding to the size step)
 // Loss at the stop loss must stay ≤ 2% of the principal (D34). Open notional, contract
 // count and the loss cap are all computed by code; the decision JSON has no amount fields.
+// The only lower bound on the order size is the exchange contract's minimum size, enforced by
+// the adapter when it rounds the notional down to the size step.
 ```
 
 **AI Guided (Suggested Values):**
@@ -522,7 +523,6 @@ sort.SliceStable(decisions, func(i, j int) bool {
 | Check | Method | Action |
 |-------|--------|--------|
 | Max positions | `enforceMaxPositions()` | Reject new opens |
-| Min position | `enforceMinPositionSize()` | Reject small orders |
 | Margin adjustment | Auto calculate | Adjust by available balance |
 
 ### 7.3 Order Execution
@@ -603,7 +603,7 @@ at.store.Decision().LogDecision(record)
 | **CoT Extract** | `decision/engine.go:1327-1345` | `extractCoTTrace()` |
 | **JSON Extract** | `decision/engine.go:1347-1408` | `extractDecisions()` |
 | **Decision Valid** | `decision/engine.go:1480-1602` | `validateDecisions()` |
-| **Risk Enforce** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforceMinPositionSize()` |
+| **Risk Enforce** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()` |
 | **Strategy Config** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
 
 ---
@@ -648,7 +648,6 @@ type StrategyConfig struct {
         AltcoinMaxLeverage         int     // Altcoin max leverage
         PositionPercent            float64 // Open notional = principal × percent (1-20, default 10)
         MaxMarginUsage             float64 // Max margin usage
-        MinPositionSize            float64 // Min position size (default 10 USDT)
         MinRiskRewardRatio         float64 // Min risk/reward ratio
         MinConfidence              int     // Min confidence
     }
