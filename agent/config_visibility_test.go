@@ -200,6 +200,140 @@ func TestToolManageStrategyUpdateRejectsOutOfRangeLeverageBeforeSave(t *testing.
 	}
 }
 
+// 助手整段更新策略时，模型给出的字段必须真实存在：MergeStrategyConfig 对不认识的键静默丢弃，
+// 不拦就会回复「已更新」而实际什么都没改（min_position_size 是已删除的字段）
+func TestToolManageStrategyRejectsUnknownConfigField(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-unknown-field.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	cfg := store.GetDefaultStrategyConfig("zh")
+	rawCfg, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+	strategy := &store.Strategy{
+		ID:          "strategy-unknown-field",
+		UserID:      "default",
+		Name:        "未知字段策略",
+		Description: "test",
+		Config:      string(rawCfg),
+	}
+	if err := st.Strategy().Create(strategy); err != nil {
+		t.Fatalf("create strategy: %v", err)
+	}
+
+	resp := a.toolManageStrategy("default", `{"action":"update","strategy_id":"strategy-unknown-field","config":{"risk_control":{"position_percent":15,"min_position_size":20}}}`)
+	if !strings.Contains(resp, `"error"`) || !strings.Contains(resp, "unsupported strategy config field: min_position_size") {
+		t.Fatalf("expected the unknown field to be rejected, got: %s", resp)
+	}
+
+	updated, err := st.Strategy().Get("default", strategy.ID)
+	if err != nil {
+		t.Fatalf("reload strategy: %v", err)
+	}
+	parsed, err := updated.ParseConfig()
+	if err != nil {
+		t.Fatalf("parse updated strategy config: %v", err)
+	}
+	if parsed.RiskControl.PositionPercent != 10 {
+		t.Fatalf("a rejected update must not be applied, position_percent = %v", parsed.RiskControl.PositionPercent)
+	}
+}
+
+// 助手更新一个真实存在的字段：被接受、落库、重读一致
+func TestToolManageStrategyUpdatesPositionPercent(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-update-percent.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	cfg := store.GetDefaultStrategyConfig("zh")
+	rawCfg, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+	strategy := &store.Strategy{
+		ID:          "strategy-update-percent",
+		UserID:      "default",
+		Name:        "百分比更新策略",
+		Description: "test",
+		Config:      string(rawCfg),
+	}
+	if err := st.Strategy().Create(strategy); err != nil {
+		t.Fatalf("create strategy: %v", err)
+	}
+
+	resp := a.toolManageStrategy("default", `{"action":"update","strategy_id":"strategy-update-percent","config":{"risk_control":{"position_percent":15}}}`)
+	if strings.Contains(resp, `"error"`) || !strings.Contains(resp, `"position_percent":15`) {
+		t.Fatalf("expected position_percent update to be accepted and echoed, got: %s", resp)
+	}
+
+	updated, err := st.Strategy().Get("default", strategy.ID)
+	if err != nil {
+		t.Fatalf("reload strategy: %v", err)
+	}
+	parsed, err := updated.ParseConfig()
+	if err != nil {
+		t.Fatalf("parse updated strategy config: %v", err)
+	}
+	if parsed.RiskControl.PositionPercent != 15 {
+		t.Fatalf("expected stored position_percent 15, got %v", parsed.RiskControl.PositionPercent)
+	}
+}
+
+// 库里存量的 config 可能带着已删除的字段；助手看到的配置必须与 API 同口径（经结构体序列化），
+// 不认识的键不进入模型证据
+func TestToolGetStrategiesDropsUnknownConfigKeys(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-stale-key.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	cfg := store.GetDefaultStrategyConfig("zh")
+	cfg.RiskControl.PositionPercent = 12
+	rawCfg, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+	// 模拟存量数据：已删除的字段还留在 risk_control 里
+	var withStale map[string]any
+	if err := json.Unmarshal(rawCfg, &withStale); err != nil {
+		t.Fatalf("unmarshal strategy config: %v", err)
+	}
+	risk := withStale["ai_config"].(map[string]any)["risk_control"].(map[string]any)
+	risk["min_position_size"] = 12
+	rawWithStale, err := json.Marshal(withStale)
+	if err != nil {
+		t.Fatalf("marshal stale strategy config: %v", err)
+	}
+	strategy := &store.Strategy{
+		ID:          "strategy-stale-key",
+		UserID:      "default",
+		Name:        "存量键策略",
+		Description: "test",
+		Config:      string(rawWithStale),
+	}
+	if err := st.Strategy().Create(strategy); err != nil {
+		t.Fatalf("create strategy: %v", err)
+	}
+
+	resp := a.toolGetStrategies("default")
+	if strings.Contains(resp, "min_position_size") {
+		t.Fatalf("stale config keys must not reach the model, got: %s", resp)
+	}
+	if !strings.Contains(resp, `"position_percent":12`) {
+		t.Fatalf("known config keys must still be returned, got: %s", resp)
+	}
+}
+
 func TestExchangeSkillOptionSummaryMatchesManualPage(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "exchange-options.db")
 	st, err := store.New(dbPath)

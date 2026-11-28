@@ -1138,9 +1138,16 @@ func safeStrategyForTool(strategy *store.Strategy) safeStrategyToolConfig {
 		HasConfig:   strings.TrimSpace(strategy.Config) != "",
 	}
 	if out.HasConfig {
-		var cfg map[string]any
-		if err := json.Unmarshal([]byte(strategy.Config), &cfg); err == nil {
-			out.Config = cfg
+		// 与 API 同口径：经 StrategyConfig 再序列化。库里不认识的键（例如旧版本留下的字段）
+		// 不会进入模型看到的配置
+		var typed store.StrategyConfig
+		if err := json.Unmarshal([]byte(strategy.Config), &typed); err == nil {
+			if raw, err := json.Marshal(typed); err == nil {
+				var cfg map[string]any
+				if json.Unmarshal(raw, &cfg) == nil {
+					out.Config = cfg
+				}
+			}
 		}
 	}
 	return out
@@ -1939,6 +1946,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		if lockedField, ok := strategyConfigContainsLockedField(args.Config); ok {
 			return fmt.Sprintf(`{"error":"%s"}`, strategyLockedFieldError("zh", lockedField))
 		}
+		if errPayload := strategyConfigUnknownFieldError(args.Config); errPayload != "" {
+			return errPayload
+		}
 		if err := a.ensureUniqueStrategyName(storeUserID, name, ""); err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err)
 		}
@@ -1991,6 +2001,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		}
 		if lockedField, ok := strategyConfigContainsLockedField(args.Config); ok {
 			return fmt.Sprintf(`{"error":"%s"}`, strategyLockedFieldError("zh", lockedField))
+		}
+		if errPayload := strategyConfigUnknownFieldError(args.Config); errPayload != "" {
+			return errPayload
 		}
 		existing, err := a.store.Strategy().Get(storeUserID, strategyID)
 		if err != nil {
@@ -3009,6 +3022,17 @@ func strategyConfigContainsLockedField(config map[string]any) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// strategyConfigUnknownFieldError 模型给出的策略配置里有策略不认识的字段时返回错误。
+// MergeStrategyConfig 对不认识的键静默丢弃，不拦就会回复「已更新」而实际什么都没改。
+func strategyConfigUnknownFieldError(config map[string]any) string {
+	field, ok := store.FindUnknownStrategyConfigField(config)
+	if !ok {
+		return ""
+	}
+	payload, _ := json.Marshal(map[string]string{"error": unsupportedStrategyFieldPrefix + field})
+	return string(payload)
 }
 
 // validKlineInterval 只接受 D25 保留周期（与 market.GetGateKlines 一致）。

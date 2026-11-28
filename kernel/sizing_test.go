@@ -245,8 +245,8 @@ func TestValidateDecisionResolvesSymbolVariants(t *testing.T) {
 }
 
 // TestValidateDecisionAcceptsNotionalBelowOldThresholds 锁定旧硬编码最小下单（12/60）
-// 已删除：本金 110 × 10% = 11 USDT，山寨与 BTC 都应通过（只受策略最小下单与适配器
-// 取整后校验）。
+// 已删除：本金 110 × 10% = 11 USDT，山寨与 BTC 都应通过（下单量的下限只在适配器
+// 按最小步长取整时校验）。
 func TestValidateDecisionAcceptsNotionalBelowOldThresholds(t *testing.T) {
 	sizing := DecisionSizing{
 		Principal:       110,

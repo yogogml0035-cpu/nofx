@@ -264,24 +264,27 @@ func (s ContractSpec) SizeForNotional(price, notional float64) (SizeQuote, error
 	}
 
 	stepValue := new(big.Rat).Mul(unitValue, s.step) // 一个最小步长的名义价值
-	quote := SizeQuote{}
-
 	steps := floorDiv(notionalValue, stepValue)
-	contractsValue := new(big.Rat).Mul(s.step, new(big.Rat).SetInt(steps))
-	switch {
-	case steps.Sign() == 0:
-		quote.Skip = SizeSkipBelowStep
-	case contractsValue.Cmp(s.sizeMax) > 0:
-		quote.Skip = SizeSkipAboveMax
-	default:
-		contracts, err := s.contracts(steps)
-		if err != nil {
-			return SizeQuote{}, err
-		}
-		quote.Contracts = contracts
-		quote.Notional = ratFloat(new(big.Rat).Mul(contractsValue, unitValue))
+	if steps.Sign() == 0 {
+		return SizeQuote{Skip: SizeSkipBelowStep}, nil
 	}
-	return quote, nil
+	return s.sizeForSteps(unitValue, steps)
+}
+
+// sizeForSteps 按正整数个最小步长给出下单结果；超过市价单的单笔最大张数时不下单
+func (s ContractSpec) sizeForSteps(unitValue *big.Rat, steps *big.Int) (SizeQuote, error) {
+	contractsValue := new(big.Rat).Mul(s.step, new(big.Rat).SetInt(steps))
+	if contractsValue.Cmp(s.sizeMax) > 0 {
+		return SizeQuote{Skip: SizeSkipAboveMax}, nil
+	}
+	contracts, err := s.contracts(steps)
+	if err != nil {
+		return SizeQuote{}, err
+	}
+	return SizeQuote{
+		Contracts: contracts,
+		Notional:  ratFloat(new(big.Rat).Mul(contractsValue, unitValue)),
+	}, nil
 }
 
 // CloseQuote 分批平仓比例换算后的平仓张数

@@ -441,6 +441,20 @@ func TestOpenProtectedAcceptsNotionalBelowFormerFloor(t *testing.T) {
 	assert.Equal(t, "1", res.Contracts)
 }
 
+// 跳过下单的文案是跨模块契约：助手诊断靠「open skipped」+「不足一个最小步长」识别金额不足，
+// 并用「notional N USDT」取出被拦下的名义价值
+func TestOpenProtectedSkipMessageContract(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+
+	_, err := gt.OpenLongProtected(longRequest(4))
+	require.Error(t, err)
+	assert.Equal(t,
+		"open skipped for DOGE_USDT: 不足一个最小步长 (notional 4.0000 USDT, price 0.56, size step 1)",
+		err.Error())
+	mock.assertNoOrder(t)
+}
+
 func TestOpenLongProtectedPayload(t *testing.T) {
 	mock := newGateMock()
 	gt := newLocalGateTrader(t, mock.handler)

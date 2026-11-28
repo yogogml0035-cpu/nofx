@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -386,6 +387,46 @@ func mergeJSONMaps(dst, src map[string]any) {
 		}
 		dst[key] = srcVal
 	}
+}
+
+// FindUnknownStrategyConfigField 返回 patch 里策略配置不认识的第一个字段（JSON 键名）。
+// MergeStrategyConfig 对不认识的键是静默丢弃的：调用方如果要把「更新了什么」如实反馈给用户
+// （例如助手按模型给出的字段更新策略），应先用它把关，否则会被回复成「已更新」而实际没有生效。
+func FindUnknownStrategyConfigField(patch map[string]any) (string, bool) {
+	if len(patch) == 0 {
+		return "", false
+	}
+	// 在副本上做与 MergeStrategyConfig 相同的归一（顶层 AI 字段挪进 ai_config），不动调用方的 patch
+	raw, err := json.Marshal(patch)
+	if err != nil {
+		return "", false
+	}
+	var normalized map[string]any
+	if err := json.Unmarshal(raw, &normalized); err != nil {
+		return "", false
+	}
+	normalizeStrategyConfigPatch(normalized)
+	probe, err := json.Marshal(normalized)
+	if err != nil {
+		return "", false
+	}
+
+	// 形状与 StrategyConfig.UnmarshalJSON 接受的嵌套结构一致，键名是否认识由各层结构体的 json 标签决定
+	var shape struct {
+		StrategyType json.RawMessage     `json:"strategy_type"`
+		Language     json.RawMessage     `json:"language"`
+		AIConfig     *AIStrategyConfig   `json:"ai_config"`
+		GridConfig   *GridStrategyConfig `json:"grid_config"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(probe))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&shape); err != nil {
+		var field string
+		if _, scanErr := fmt.Sscanf(err.Error(), `json: unknown field %q`, &field); scanErr == nil {
+			return field, true
+		}
+	}
+	return "", false
 }
 
 func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {

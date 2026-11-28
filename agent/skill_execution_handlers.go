@@ -950,10 +950,14 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 	case "custom_prompt":
 		cfg.CustomPrompt = value
 	default:
-		return fmt.Errorf("unsupported strategy config field: %s", field)
+		return fmt.Errorf(unsupportedStrategyFieldPrefix+"%s", field)
 	}
 	return nil
 }
+
+// unsupportedStrategyFieldPrefix 字段不存在时的报错前缀：prefixStrategyPatchError 据此区分
+// 「值不合法」与「字段不存在」
+const unsupportedStrategyFieldPrefix = "unsupported strategy config field: "
 
 func extractSymbolList(text string, labels []string) []string {
 	segment := extractLongSegmentAfterKeywords(text, labels)
@@ -2801,6 +2805,17 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 	latestWait := containsAny(latestEvidence, []string{"wait succeeded", `"action":"wait"`, `"action":"hold"`})
 	primarySymbol := primaryDiagnosisSymbol(latest.CandidateCoins, latest.DecisionJSON)
 	amount := openingNotional(string(rawDecisions))
+	// 执行阶段的失败只写在 decisions[].error 与 execution_log 里（error_message 留空）：
+	// 拒单原因优先取记录自带的错误，其次取最新决策里第一条失败动作的原因
+	latestError := strings.TrimSpace(latest.ErrorMessage)
+	if latestError == "" {
+		for _, action := range latest.Decisions {
+			if msg, _ := action["error"].(string); strings.TrimSpace(msg) != "" {
+				latestError = strings.TrimSpace(msg)
+				break
+			}
+		}
+	}
 	totalEquity := toFloat(ev.Account["total_equity"])
 	// Open notional is sized from the account principal (本金, D22), not equity.
 	principal := toFloat(ev.Account["wallet_balance"])
@@ -2869,8 +2884,8 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 		case len(latest.CandidateCoins) == 0:
 			lines = append(lines, fmt.Sprintf("%s 最近没有拿到可交易候选币，所以没有进入开单。", traderName))
 			lines = append(lines, "该怎么办：检查策略的选币方式、指定币种或排除币设置，确认当前策略确实有可交易标的。")
-		case strings.TrimSpace(latest.ErrorMessage) != "":
-			lines = append(lines, fmt.Sprintf("%s 最近没有开单，是因为系统在决策或下单校验时返回了错误：%s", traderName, latest.ErrorMessage))
+		case latestError != "":
+			lines = append(lines, fmt.Sprintf("%s 最近没有开单，是因为系统在决策或下单校验时返回了错误：%s", traderName, latestError))
 			lines = append(lines, "该怎么办：先按这条错误处理；如果它涉及交易所权限、余额或仓位模式，就优先处理对应的账户设置。")
 		default:
 			lines = append(lines, fmt.Sprintf("%s 最近没有开单，但现有记录没有显示明确的拒单原因。", traderName))
@@ -2891,8 +2906,8 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 		lines = append(lines, fmt.Sprintf("%s has no recent AI decision records yet, so there is not enough evidence that it completed a decision cycle.", traderName))
 	case len(latest.CandidateCoins) == 0:
 		lines = append(lines, fmt.Sprintf("%s has no tradable candidate coins in the latest decision, so it did not open a trade.", traderName))
-	case strings.TrimSpace(latest.ErrorMessage) != "":
-		lines = append(lines, fmt.Sprintf("%s did not open a trade because the latest decision/check returned: %s", traderName, latest.ErrorMessage))
+	case latestError != "":
+		lines = append(lines, fmt.Sprintf("%s did not open a trade because the latest decision/check returned: %s", traderName, latestError))
 	default:
 		lines = append(lines, fmt.Sprintf("%s has no clear rejection reason in the latest records yet.", traderName))
 	}

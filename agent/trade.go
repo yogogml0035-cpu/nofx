@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"nofx/store"
+	"nofx/trader/types"
 	"strings"
 	"sync"
 	"time"
@@ -341,6 +342,14 @@ func validateTradeAction(
 	}
 	if trade.Leverage > maxLeverage {
 		return fmt.Errorf("leverage exceeds configured limit (%dx > %dx)", trade.Leverage, maxLeverage)
+	}
+
+	// 下单量的下限只有交易所合约的最小张数：适配器能判断时在创建待确认订单前就把关，
+	// 而不是等用户确认之后才在下单时被挡下
+	if checker, ok := underlyingTrader.(types.OrderSizeChecker); ok {
+		if err := checker.CheckOrderSize(trade.Symbol, trade.Quantity); err != nil {
+			return err
+		}
 	}
 
 	return nil

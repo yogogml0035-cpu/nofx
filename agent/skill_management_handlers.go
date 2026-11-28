@@ -758,6 +758,14 @@ func prefixStrategyPatchError(lang, patchErr, reply string) string {
 	if patchErr == "" {
 		return reply
 	}
+	// 字段不存在与「值不合法」不同：换一个值没有意义，直接说明这个值没有被应用
+	if strings.HasPrefix(patchErr, unsupportedStrategyFieldPrefix) {
+		field := strings.TrimPrefix(patchErr, unsupportedStrategyFieldPrefix)
+		if lang == "zh" {
+			return fmt.Sprintf("策略配置里没有「%s」这个字段，这个值没有被应用。\n\n", field) + reply
+		}
+		return fmt.Sprintf("The strategy config has no field %q, so the value was not applied.\n\n", field) + reply
+	}
 	if lang == "zh" {
 		return "上一个值没有被接受：" + patchErr + "。请换一个值。\n\n" + reply
 	}

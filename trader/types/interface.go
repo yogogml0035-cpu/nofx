@@ -158,6 +158,13 @@ type ProtectedOpener interface {
 	VerifyOrderProtection(symbol, orderID string) error
 }
 
+// OrderSizeChecker 下单数量的前置校验：数量不足交易所合约的一个最小步长时返回错误。
+// 助手手动下单在创建待确认订单前用它把关，免得用户确认之后才在下单时被挡下；
+// 判断不了（例如合约信息暂时读不到）时不返回错误，最终仍由下单路径按最小步长换算并拒绝。
+type OrderSizeChecker interface {
+	CheckOrderSize(symbol string, quantity float64) error
+}
+
 // PartialCloseStatus 描述一个持仓能否分批平仓。Supported 为 true 当且仅当交易所可精确
 // 读到持仓张数与最小步长，且持仓张数严格大于一个最小步长（至少两步）。只有一步的仓位
 // 任何一个小于 100% 的比例都会向下取整为 0 步，无法分批。

@@ -5,6 +5,7 @@ package trader
 // stub 经接口嵌入满足 Trader，但不实现 ProtectedOpener —— 与真实适配器的能力边界一致。
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,14 +69,17 @@ func TestOpenRefusedWithoutProtectedOpener(t *testing.T) {
 }
 
 // 交易路径没有金额下限：本金 × 百分比算出的名义价值原样交给适配器，够不够合约的
-// 最小张数由适配器判断（本金 107.34 × 10% 的 10.73 USDT 曾被策略里的金额下限拦下）
+// 最小张数由适配器判断。策略配置直接从存量 JSON 反序列化——旧版本把最小下单金额 12
+// 固化在里面，本金 107.34 × 10% 的 10.73 USDT 曾因此每次开仓都被拦下
 func TestProtectedOpenPassesSmallNotionalToAdapter(t *testing.T) {
+	var strategyCfg store.StrategyConfig
+	require.NoError(t, json.Unmarshal(
+		[]byte(`{"ai_config":{"risk_control":{"position_percent":10,"min_position_size":12}}}`), &strategyCfg))
+
 	stub := &protectedCaptureStub{}
 	at := &AutoTrader{
-		exchange: "gate",
-		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
-			RiskControl: store.RiskControlConfig{PositionPercent: 10},
-		}},
+		exchange:              "gate",
+		config:                AutoTraderConfig{StrategyConfig: &strategyCfg},
 		trader:                stub,
 		positionFirstSeenTime: map[string]int64{},
 	}

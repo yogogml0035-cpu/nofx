@@ -212,6 +212,107 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 	}
 }
 
+// 真实落库形态：一次开仓失败时决策记录本身是成功的（AI 调用成功），错误只出现在
+// execution_log 与 decisions[].error 里，error_message 为空。诊断必须在这种形态下也认出金额不足
+func TestTraderDiagnosisAmountTooSmallReadsPersistedRecordShape(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "trader-diagnosis-persisted-shape.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+	traderCfg := &store.Trader{
+		ID:                  "trader-alpha",
+		UserID:              "default",
+		Name:                "alpha",
+		AIModelID:           "model-1",
+		ExchangeID:          "exchange-1",
+		InitialBalance:      6.21,
+		ScanIntervalMinutes: 3,
+		IsRunning:           true,
+	}
+	if err := st.Trader().Create(traderCfg); err != nil {
+		t.Fatalf("seed trader: %v", err)
+	}
+	// 与 trader/gate 的 TestOpenProtectedSkipMessageContract 钉住的是同一句文案
+	const skipped = "open skipped for BTC_USDT: 不足一个最小步长 (notional 5.2000 USDT, price 59635.2, size step 1)"
+	if err := st.Decision().LogDecision(&store.DecisionRecord{
+		TraderID:            traderCfg.ID,
+		CycleNumber:         4,
+		Timestamp:           time.Now(),
+		Success:             true,
+		AIRequestDurationMs: 25878,
+		CandidateCoins:      []string{"BTCUSDT"},
+		ExecutionLog:        []string{"AI call duration: 25878 ms", "❌ BTCUSDT open_short failed: " + skipped},
+		Decisions: []store.DecisionAction{{
+			Symbol: "BTCUSDT", Action: "open_short", Leverage: 5, StopLoss: 99000, TakeProfit: 95000,
+			Error: skipped,
+		}},
+	}); err != nil {
+		t.Fatalf("seed decision: %v", err)
+	}
+
+	zh := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
+	for _, want := range []string{"不是没运行", "开仓金额约 5.20 USDT", "不足这个合约的最小下单张数"} {
+		if !strings.Contains(zh, want) {
+			t.Fatalf("expected zh diagnosis to include %q, got: %s", want, zh)
+		}
+	}
+	en := a.handleTraderDiagnosisSkill("default", "en", "why is my alpha trader not opening trades")
+	if !strings.Contains(en, "below the exchange's minimum contract size") {
+		t.Fatalf("expected en diagnosis to name the exchange minimum contract size, got: %s", en)
+	}
+}
+
+// 执行阶段的失败只写在 decisions[].error 里：确定性兜底必须把真实原因带出来，
+// 而不是说「没有显示明确的拒单原因」
+func TestTraderDiagnosisSurfacesExecutionStageError(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "trader-diagnosis-execution-error.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+	traderCfg := &store.Trader{
+		ID:                  "trader-alpha",
+		UserID:              "default",
+		Name:                "alpha",
+		AIModelID:           "model-1",
+		ExchangeID:          "exchange-1",
+		InitialBalance:      107.34,
+		ScanIntervalMinutes: 3,
+		IsRunning:           true,
+	}
+	if err := st.Trader().Create(traderCfg); err != nil {
+		t.Fatalf("seed trader: %v", err)
+	}
+	const failure = "refusing to open BTC_USDT: stop loss 65000 is too far for the 2.00% principal loss cap: one size step would lose 6.1 USDT at stop, above the 2.1468 USDT cap (notional 10.7300 USDT)"
+	if err := st.Decision().LogDecision(&store.DecisionRecord{
+		TraderID:       traderCfg.ID,
+		CycleNumber:    5,
+		Timestamp:      time.Now(),
+		Success:        true,
+		CandidateCoins: []string{"BTCUSDT"},
+		ExecutionLog:   []string{"AI call duration: 65557 ms", "❌ BTCUSDT open_short failed: " + failure},
+		Decisions: []store.DecisionAction{{
+			Symbol: "BTCUSDT", Action: "open_short", Leverage: 5, StopLoss: 65000, TakeProfit: 59000,
+			Error: failure,
+		}},
+	}); err != nil {
+		t.Fatalf("seed decision: %v", err)
+	}
+
+	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
+	for _, want := range []string{"返回了错误", "too far"} {
+		if !strings.Contains(reply, want) {
+			t.Fatalf("expected diagnosis to surface the execution error %q, got: %s", want, reply)
+		}
+	}
+	if strings.Contains(reply, "没有显示明确的拒单原因") {
+		t.Fatalf("a recorded execution error must not be reported as an unclear rejection: %s", reply)
+	}
+}
+
 func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "trader-diagnosis-llm.db")
 	st, err := store.New(dbPath)

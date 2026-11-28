@@ -66,4 +66,13 @@ func TestPrefixStrategyPatchError(t *testing.T) {
 	if !strings.Contains(got, "was not accepted") || !strings.HasSuffix(got, "reply") {
 		t.Fatalf("en reply = %q", got)
 	}
+	// 字段不存在时不是「值不合法」：说明这个值没有被应用，而不是让用户换一个值
+	got = prefixStrategyPatchError("zh", "unsupported strategy config field: min_position_size", "reply")
+	if !strings.Contains(got, "策略配置里没有「min_position_size」这个字段") || strings.Contains(got, "请换一个值") || !strings.HasSuffix(got, "reply") {
+		t.Fatalf("zh unsupported-field reply = %q", got)
+	}
+	got = prefixStrategyPatchError("en", "unsupported strategy config field: min_position_size", "reply")
+	if !strings.Contains(got, `has no field "min_position_size"`) || strings.Contains(got, "another value") || !strings.HasSuffix(got, "reply") {
+		t.Fatalf("en unsupported-field reply = %q", got)
+	}
 }
