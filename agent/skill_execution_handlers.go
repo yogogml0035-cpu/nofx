@@ -632,11 +632,6 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "最大保证金使用率"
 		}
 		return "max margin usage"
-	case "min_position_size":
-		if lang == "zh" {
-			return "最小开仓金额"
-		}
-		return "min position size"
 	case "enable_ema":
 		if lang == "zh" {
 			return "EMA"
@@ -896,18 +891,6 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		cfg.RiskControl.PositionPercent = parsed
 	case "max_margin_usage":
 		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
-	case "min_position_size":
-		parsed, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("最小开仓金额需要是数字")
-		}
-		if parsed < store.MinPositionSize {
-			return fmt.Errorf("最小开仓金额不能低于 %.0f USDT", store.MinPositionSize)
-		}
-		if parsed > store.MaxPositionSize {
-			return fmt.Errorf("最小开仓金额不能高于 %.0f USDT", store.MaxPositionSize)
-		}
-		cfg.RiskControl.MinPositionSize = parsed
 	case "primary_timeframe":
 		if !store.IsValidTimeframe(value) {
 			return fmt.Errorf("主周期 %q 不在支持范围，可选：%s", value, store.RetainedTimeframeList())
@@ -1217,8 +1200,6 @@ func strategyFieldKeywords(field string) []string {
 		return []string{"boll周期", "布林周期", "boll periods"}
 	case "position_percent":
 		return []string{"仓位百分比", "开仓百分比", "开仓金额百分比", "开仓比例", "position percent", "position_percent"}
-	case "min_position_size":
-		return []string{"最小开仓金额", "最小下单金额", "min position size"}
 	case "max_margin_usage":
 		return []string{"最大保证金使用率", "max margin usage"}
 	default:
@@ -1280,8 +1261,6 @@ func strategyFieldExplicitlyMentioned(text, field string) bool {
 			keywords = []string{"山寨币杠杆", "altcoin leverage", "alts leverage"}
 		case "position_percent":
 			keywords = []string{"仓位百分比", "开仓百分比", "开仓金额百分比", "开仓比例", "position percent", "position_percent"}
-		case "min_position_size":
-			keywords = []string{"最小开仓金额", "最小下单金额", "min position size"}
 		case "max_margin_usage":
 			keywords = []string{"最大保证金使用率", "max margin usage"}
 		case "primary_timeframe":
@@ -2769,7 +2748,7 @@ Your job:
 - Do not expose evidence-package wording, tool names, raw logs, HTTP status codes, backend internals, or engineering troubleshooting unless the user explicitly asked for technical logs.
 - Do not invent subscriptions, data services, websites, missing product fields, or unsupported actions.
 - Never say "subscription expired" unless the evidence explicitly contains a confirmed subscription state.
-- If an order is blocked because the amount is too small, explain it as account size/order minimum/system limit. Suggest real levers (adding funds, smaller-suitable symbols, the strategy's position_percent 1%-20%, or the editable min_position_size default 10 USDT). Do not suggest editing the open amount (the system computes it as principal × position_percent) or System enforced fields such as max_positions and max_margin_usage.
+- If an order is blocked because the amount is too small (below the exchange's minimum contract size), explain it as account size versus the contract minimum. Suggest real levers (adding funds, symbols with a smaller contract size, or the strategy's position_percent 1%-20%). Do not suggest editing the open amount (the system computes it as principal × position_percent) or System enforced fields such as max_positions and max_margin_usage.
 - If the latest decision is wait/hold, explain that the trader is running and the AI chose to wait because the entry standard was not met.
 - If evidence is insufficient, say what is missing and the next concrete check.
 
@@ -2817,10 +2796,11 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 	rawDecisions, _ := json.Marshal(ev.Decisions)
 	allEvidence := strings.ToLower(string(rawDecisions))
 	latestEvidence := strings.ToLower(strings.Join(append(append([]string{}, latest.ExecutionLog...), latest.ErrorMessage, latest.DecisionJSON), "\n"))
-	hasAmountTooSmall := containsAny(allEvidence, []string{"below minimum", "position value below minimum", "open skipped", "低于最小下单金额", "最小下单门槛"})
+	// 开仓名义价值不足合约最小下单张数时，适配器以「open skipped … 不足一个最小步长」拒绝下单
+	hasAmountTooSmall := strings.Contains(allEvidence, "open skipped") && strings.Contains(allEvidence, "不足一个最小步长")
 	latestWait := containsAny(latestEvidence, []string{"wait succeeded", `"action":"wait"`, `"action":"hold"`})
 	primarySymbol := primaryDiagnosisSymbol(latest.CandidateCoins, latest.DecisionJSON)
-	amount, minimum := openingAmountAndMinimum(string(rawDecisions))
+	amount := openingNotional(string(rawDecisions))
 	totalEquity := toFloat(ev.Account["total_equity"])
 	// Open notional is sized from the account principal (本金, D22), not equity.
 	principal := toFloat(ev.Account["wallet_balance"])
@@ -2871,19 +2851,15 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 			if amount > 0 {
 				summary += fmt.Sprintf("约 %.2f USDT", amount)
 			}
-			summary += "，低于系统最小下单要求"
-			if minimum > 0 {
-				summary += fmt.Sprintf(" %.2f USDT", minimum)
-			}
-			summary += "，所以这笔单被拦下了。"
+			summary += "，不足这个合约的最小下单张数，所以这笔单被拦下了。"
 			lines = append(lines, summary)
 			if expectedOpenNotional > 0 {
-				lines = append(lines, fmt.Sprintf("当前账户本金约 %.2f USDT，按策略的开仓金额百分比算出来的单笔名义价值约 %.2f USDT，容易达不到最小下单金额。", principal, expectedOpenNotional))
+				lines = append(lines, fmt.Sprintf("当前账户本金约 %.2f USDT，按策略的开仓金额百分比算出来的单笔名义价值约 %.2f USDT，达不到该合约的最小下单张数。", principal, expectedOpenNotional))
 			}
 			if latestWait {
 				lines = append(lines, "另外，最近也有一些周期是 AI 主动选择等待，说明并不是系统完全没跑。")
 			}
-			lines = append(lines, "该怎么办：增加账户资金，或者换更适合小资金的策略/标的；也可以调高策略里的开仓金额百分比（1%–20%），或在策略编辑页调整最小开仓金额（默认 10 USDT）。")
+			lines = append(lines, "该怎么办：增加账户资金，或者换最小下单张数面值更小的标的；也可以调高策略里的开仓金额百分比（1%–20%）。")
 		case latestWait:
 			lines = append(lines, fmt.Sprintf("%s 是运行的，最近 AI 决策也成功了；它不开单的原因是当前信号没有达到入场标准，所以主动选择等待。", traderName))
 			lines = append(lines, "该怎么办：如果你想让它更容易出手，可以调整产品里真实可改的策略偏好，比如降低最低置信度或最低盈亏比；如果你更重视安全，就让它继续等待更明确的机会。")
@@ -2895,7 +2871,7 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 			lines = append(lines, "该怎么办：检查策略的选币方式、指定币种或排除币设置，确认当前策略确实有可交易标的。")
 		case strings.TrimSpace(latest.ErrorMessage) != "":
 			lines = append(lines, fmt.Sprintf("%s 最近没有开单，是因为系统在决策或下单校验时返回了错误：%s", traderName, latest.ErrorMessage))
-			lines = append(lines, "该怎么办：先按这条错误处理；如果它涉及交易所权限、余额、仓位模式或最小下单金额，就优先处理对应账户或策略可编辑项。")
+			lines = append(lines, "该怎么办：先按这条错误处理；如果它涉及交易所权限、余额或仓位模式，就优先处理对应的账户设置。")
 		default:
 			lines = append(lines, fmt.Sprintf("%s 最近没有开单，但现有记录没有显示明确的拒单原因。", traderName))
 			lines = append(lines, "该怎么办：继续观察下一个扫描周期；如果连续没有开单，再重点看策略门槛、账户余额、交易所权限和模型调用是否正常。")
@@ -2908,7 +2884,7 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 	case !ev.TraderConfig.IsRunning:
 		lines = append(lines, fmt.Sprintf("%s is not running, so it will not open trades.", traderName))
 	case hasAmountTooSmall:
-		lines = append(lines, fmt.Sprintf("%s did try to open a %s trade, but the calculated order size was below the system minimum, so it was blocked.", traderName, primarySymbol))
+		lines = append(lines, fmt.Sprintf("%s did try to open a %s trade, but the calculated order size was below the exchange's minimum contract size, so it was blocked.", traderName, primarySymbol))
 	case latestWait:
 		lines = append(lines, fmt.Sprintf("%s is running, but the latest AI decision chose to wait because the signal did not meet its entry standard.", traderName))
 	case !hasDecision:
@@ -2920,7 +2896,7 @@ func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) stri
 	default:
 		lines = append(lines, fmt.Sprintf("%s has no clear rejection reason in the latest records yet.", traderName))
 	}
-	lines = append(lines, "What to do: use the real editable product settings or account actions, such as adding funds, changing to a small-account-friendly symbol/strategy, raising the position percent (1%-20%), adjusting the minimum order size (default 10 USDT), or tuning confidence/risk-reward preferences. Do not change system-enforced fields or the system-computed open amount (principal × position_percent).")
+	lines = append(lines, "What to do: use the real editable product settings or account actions, such as adding funds, changing to a symbol with a smaller contract size, raising the position percent (1%-20%), or tuning confidence/risk-reward preferences. Do not change system-enforced fields or the system-computed open amount (principal × position_percent).")
 	return strings.Join(lines, "\n")
 }
 
@@ -2937,25 +2913,14 @@ func primaryDiagnosisSymbol(candidates []string, decisionJSON string) string {
 	return "当前标的"
 }
 
-func openingAmountAndMinimum(evidence string) (float64, float64) {
-	amount := 0.0
-	minimum := 0.0
-	// 适配器跳过下单时给出换算用的名义价值：open skipped for X: 取整后低于最小下单金额
-	// (notional 10.7500 USDT, price ..., size step ...)
+// openingNotional 从证据里取出被拦下的开仓名义价值：适配器跳过下单时带出换算用的名义价值，
+// 形如 open skipped for X: 不足一个最小步长 (notional 10.7500 USDT, price ..., size step ...)
+func openingNotional(evidence string) float64 {
 	if match := regexp.MustCompile(`(?i)notional\s+(\d+(?:\.\d+)?)\s*USDT`).FindStringSubmatch(evidence); len(match) >= 2 {
-		amount, _ = strconv.ParseFloat(match[1], 64)
+		amount, _ := strconv.ParseFloat(match[1], 64)
+		return amount
 	}
-	// 交易路径的最小下单早退检查同样带出被拦下的金额：Position 10.75 USDT below minimum (20.00 USDT)
-	if amount == 0 {
-		if match := regexp.MustCompile(`(?i)position\s+(\d+(?:\.\d+)?)\s*USDT\s+below minimum`).FindStringSubmatch(evidence); len(match) >= 2 {
-			amount, _ = strconv.ParseFloat(match[1], 64)
-		}
-	}
-	// 交易路径的最小下单早退检查：Position 10.00 USDT below minimum (20.00 USDT)
-	if match := regexp.MustCompile(`(?i)below minimum\s*\((\d+(?:\.\d+)?)\s*USDT\)`).FindStringSubmatch(evidence); len(match) >= 2 {
-		minimum, _ = strconv.ParseFloat(match[1], 64)
-	}
-	return amount, minimum
+	return 0
 }
 
 func nestedMap(root map[string]any, path ...string) (map[string]any, bool) {

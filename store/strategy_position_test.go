@@ -39,11 +39,8 @@ func TestDefaultStrategyConfigPositionFields(t *testing.T) {
 	if cfg.RiskControl.PositionPercent != 10 {
 		t.Fatalf("default PositionPercent = %v, want 10", cfg.RiskControl.PositionPercent)
 	}
-	if cfg.RiskControl.MinPositionSize != 10 {
-		t.Fatalf("default MinPositionSize = %v, want 10", cfg.RiskControl.MinPositionSize)
-	}
 
-	// 旧配置里的倍数字段被忽略，不再出现在序列化结果中。
+	// 旧配置里的倍数字段与最小下单金额被忽略，不再出现在序列化结果中。
 	legacy := `{"risk_control":{"btc_eth_max_position_value_ratio":5,"altcoin_max_position_value_ratio":1,"min_position_size":12}}`
 	var parsed StrategyConfig
 	if err := json.Unmarshal([]byte(legacy), &parsed); err != nil {
@@ -54,16 +51,13 @@ func TestDefaultStrategyConfigPositionFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal risk control: %v", err)
 	}
-	for _, gone := range []string{"btc_eth_max_position_value_ratio", "altcoin_max_position_value_ratio"} {
+	for _, gone := range []string{"btc_eth_max_position_value_ratio", "altcoin_max_position_value_ratio", "min_position_size"} {
 		if strings.Contains(string(out), gone) {
 			t.Fatalf("serialized risk control still contains %q: %s", gone, out)
 		}
 	}
 	if !strings.Contains(string(out), `"position_percent":10`) {
 		t.Fatalf("legacy config without percent should default to 10, got: %s", out)
-	}
-	if parsed.RiskControl.MinPositionSize != 12 {
-		t.Fatalf("explicit legacy min_position_size 12 must be preserved, got %v", parsed.RiskControl.MinPositionSize)
 	}
 }
 

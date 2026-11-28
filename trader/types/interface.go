@@ -115,7 +115,6 @@ type ProtectedOpenRequest struct {
 	IsCrossMargin bool
 	StopLoss      float64 // 止损触发价
 	TakeProfit    float64 // 止盈触发价
-	MinNotional   float64 // 最小下单金额（USDT）；0 表示不设下限
 	SlipRatio     float64 // 市价滑点上限（0.01 = 1%）；0 表示用交易所默认
 	// Principal 与 MaxLossPercent 用于提交前的亏损上限复核（D34）：按最坏成交价计算「到止损价的
 	// 亏损 ≤ 本金 × MaxLossPercent%」，超过时等比收缩名义价值。任一为 0 表示不做这项复核。

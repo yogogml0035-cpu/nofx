@@ -212,10 +212,9 @@ func (s ContractSpec) contracts(steps *big.Int) (string, error) {
 
 // SizeQuote USDT 名义价值换算后的下单数量
 type SizeQuote struct {
-	Contracts     string     // 向下取整到最小步长后的张数；只在 Orderable 为真时非空
-	Notional      float64    // Contracts 按参考价折算的名义价值（USDT）
-	MinOrderValue float64    // 当前价格下可下单的最小名义价值（USDT）；最少步数超过市价单最大张数时按它下单会被判为超过最大张数，能否下单以 Orderable 为准
-	Skip          SkipReason // 不能下单的原因
+	Contracts string     // 向下取整到最小步长后的张数；只在 Orderable 为真时非空
+	Notional  float64    // Contracts 按参考价折算的名义价值（USDT）
+	Skip      SkipReason // 不能下单的原因
 }
 
 // Orderable 报告这次换算的结果能否下单
@@ -227,10 +226,9 @@ func (q SizeQuote) Orderable() bool {
 type SkipReason int
 
 const (
-	SizeOK                   SkipReason = iota // 可下单
-	SizeSkipBelowStep                          // 取整前已不足一个最小步长
-	SizeSkipBelowMinNotional                   // 取整后低于最小下单金额
-	SizeSkipAboveMax                           // 超过市价单的单笔最大张数
+	SizeOK            SkipReason = iota // 可下单
+	SizeSkipBelowStep                   // 取整前已不足一个最小步长
+	SizeSkipAboveMax                    // 超过市价单的单笔最大张数
 )
 
 // String 给出给用户与模型看的说明，使用中文；包内的错误信息沿用惯例用英文
@@ -240,8 +238,6 @@ func (r SkipReason) String() string {
 		return "可下单"
 	case SizeSkipBelowStep:
 		return "不足一个最小步长"
-	case SizeSkipBelowMinNotional:
-		return "取整后低于最小下单金额"
 	case SizeSkipAboveMax:
 		return "超过市价单最大张数"
 	}
@@ -249,9 +245,9 @@ func (r SkipReason) String() string {
 }
 
 // SizeForNotional 把 USDT 名义价值换算为下单张数，按最小步长向下取整。
-// minNotional 是最小下单金额（USDT）。取整后不足一个最小步长、低于最小下单金额、
+// 交易所没有最小下单金额的规定，下单量的下限只有合约的最小张数：取整前不足一个最小步长、
 // 或超过市价单的单笔最大张数时不下单，原因见返回值的 Skip。
-func (s ContractSpec) SizeForNotional(price, notional, minNotional float64) (SizeQuote, error) {
+func (s ContractSpec) SizeForNotional(price, notional float64) (SizeQuote, error) {
 	if err := s.check(); err != nil {
 		return SizeQuote{}, err
 	}
@@ -266,30 +262,15 @@ func (s ContractSpec) SizeForNotional(price, notional, minNotional float64) (Siz
 	if notionalValue.Sign() <= 0 {
 		return SizeQuote{}, fmt.Errorf("notional must be positive, got %v", notional)
 	}
-	minNotionalValue, err := decimalFromFloat("min notional", minNotional)
-	if err != nil {
-		return SizeQuote{}, err
-	}
-	if minNotionalValue.Sign() < 0 {
-		return SizeQuote{}, fmt.Errorf("min notional must not be negative, got %v", minNotional)
-	}
 
 	stepValue := new(big.Rat).Mul(unitValue, s.step) // 一个最小步长的名义价值
-	minSteps := ceilDiv(minNotionalValue, stepValue)
-	if minSteps.Sign() == 0 {
-		minSteps = big.NewInt(1)
-	}
-	quote := SizeQuote{
-		MinOrderValue: ratFloat(new(big.Rat).Mul(stepValue, new(big.Rat).SetInt(minSteps))),
-	}
+	quote := SizeQuote{}
 
 	steps := floorDiv(notionalValue, stepValue)
 	contractsValue := new(big.Rat).Mul(s.step, new(big.Rat).SetInt(steps))
 	switch {
 	case steps.Sign() == 0:
 		quote.Skip = SizeSkipBelowStep
-	case steps.Cmp(minSteps) < 0:
-		quote.Skip = SizeSkipBelowMinNotional
 	case contractsValue.Cmp(s.sizeMax) > 0:
 		quote.Skip = SizeSkipAboveMax
 	default:

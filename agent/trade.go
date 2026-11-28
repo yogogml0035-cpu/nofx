@@ -343,15 +343,6 @@ func validateTradeAction(
 		return fmt.Errorf("leverage exceeds configured limit (%dx > %dx)", trade.Leverage, maxLeverage)
 	}
 
-	minPositionSize := riskControl.MinPositionSize
-	if minPositionSize <= 0 {
-		minPositionSize = 10
-	}
-	if positionValue < minPositionSize {
-		return fmt.Errorf("position value %.2f USDT is below configured minimum %.2f USDT", positionValue, minPositionSize)
-	}
-
-	// 仓位金额由策略的 position_percent（本金 × 百分比）决定，助手下单只检查不低于最小开仓金额。
 	return nil
 }
 

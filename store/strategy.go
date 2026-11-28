@@ -34,8 +34,6 @@ const (
 	MaxRiskReward          = 10.0
 	MinMarginUsage         = 0.1
 	MaxMarginUsage         = 1.0
-	MinPositionSize        = 10.0
-	MaxPositionSize        = 1000.0
 	MinConfidence          = 50
 	MaxConfidence          = 100
 )
@@ -111,12 +109,6 @@ func (c *StrategyConfig) ClampLimits() {
 	}
 	if c.RiskControl.MaxMarginUsage > MaxMarginUsage {
 		c.RiskControl.MaxMarginUsage = MaxMarginUsage
-	}
-	if c.RiskControl.MinPositionSize < MinPositionSize {
-		c.RiskControl.MinPositionSize = MinPositionSize
-	}
-	if c.RiskControl.MinPositionSize > MaxPositionSize {
-		c.RiskControl.MinPositionSize = MaxPositionSize
 	}
 	if c.RiskControl.MinConfidence < MinConfidence {
 		c.RiskControl.MinConfidence = MinConfidence
@@ -428,7 +420,6 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 	appendFloat("开仓金额百分比", "position_percent", before.RiskControl.PositionPercent, after.RiskControl.PositionPercent)
 	appendFloat("最小盈亏比", "min_risk_reward_ratio", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
 	appendFloat("最大保证金使用率", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
-	appendFloat("最小开仓金额", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
 	appendInt("最低置信度", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
 	appendInt("K 线数量", "K-line count", before.Indicators.Klines.PrimaryCount, after.Indicators.Klines.PrimaryCount)
 
@@ -739,8 +730,6 @@ type RiskControlConfig struct {
 
 	// Max margin utilization (e.g. 0.9 = 90%) (CODE ENFORCED)
 	MaxMarginUsage float64 `json:"max_margin_usage"`
-	// Min position size in USDT (user configurable, default 10; D19)
-	MinPositionSize float64 `json:"min_position_size"`
 
 	// Min take_profit / stop_loss ratio (AI guided)
 	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
@@ -803,7 +792,6 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			AltcoinMaxLeverage: 5,   // Altcoin exchange leverage (AI guided)
 			PositionPercent:    10,  // Notional = principal × 10% (D23)
 			MaxMarginUsage:     0.9, // Max 90% margin usage (CODE ENFORCED)
-			MinPositionSize:    10,  // Min 10 USDT per position (user configurable, D19)
 			MinRiskRewardRatio: 3.0, // Min 3:1 profit/loss ratio (AI guided)
 			MinConfidence:      75,  // Min 75% confidence (AI guided)
 		},

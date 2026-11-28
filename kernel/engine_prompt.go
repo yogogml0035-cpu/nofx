@@ -212,12 +212,10 @@ func writeHardConstraints(sb *strings.Builder, principal float64, riskControl st
 	}
 
 	if zh {
-		sb.WriteString(fmt.Sprintf("- 最大保证金占用: ≤%.0f%%\n", riskControl.MaxMarginUsage*100))
-		sb.WriteString(fmt.Sprintf("- 最小下单金额: ≥%.0f USDT (按合约最小步长取整后校验)\n\n", riskControl.MinPositionSize))
+		sb.WriteString(fmt.Sprintf("- 最大保证金占用: ≤%.0f%%\n\n", riskControl.MaxMarginUsage*100))
 		sb.WriteString("## AI 建议 (推荐遵循):\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("- Max Margin Usage: ≤%.0f%%\n", riskControl.MaxMarginUsage*100))
-		sb.WriteString(fmt.Sprintf("- Min Position Size: ≥%.0f USDT (checked after rounding to the contract size step)\n\n", riskControl.MinPositionSize))
+		sb.WriteString(fmt.Sprintf("- Max Margin Usage: ≤%.0f%%\n\n", riskControl.MaxMarginUsage*100))
 		sb.WriteString("## AI GUIDED (recommended):\n")
 	}
 

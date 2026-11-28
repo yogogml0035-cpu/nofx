@@ -67,16 +67,28 @@ func TestOpenRefusedWithoutProtectedOpener(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not support protected open")
 }
 
-func TestMinOrderNotional(t *testing.T) {
-	at := newRefusalTrader()
+// 交易路径没有金额下限：本金 × 百分比算出的名义价值原样交给适配器，够不够合约的
+// 最小张数由适配器判断（本金 107.34 × 10% 的 10.73 USDT 曾被策略里的金额下限拦下）
+func TestProtectedOpenPassesSmallNotionalToAdapter(t *testing.T) {
+	stub := &protectedCaptureStub{}
+	at := &AutoTrader{
+		exchange: "gate",
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
+			RiskControl: store.RiskControlConfig{PositionPercent: 10},
+		}},
+		trader:                stub,
+		positionFirstSeenTime: map[string]int64{},
+	}
+	decision := &kernel.Decision{
+		Action: "open_short", Symbol: "BTCUSDT", Leverage: 5,
+		NotionalUSD: 10.73, StopLoss: 59860, TakeProfit: 59200,
+	}
 
-	// 无策略配置时默认 10（与 enforceMinPositionSize 同源，D19）
-	assert.InDelta(t, 10, at.minOrderNotional(), 1e-9)
+	err := at.executeOpenShortWithRecord(decision, &store.DecisionAction{})
+	require.NoError(t, err)
 
-	minSize := 10.0
-	at.config.StrategyConfig = &store.StrategyConfig{}
-	at.config.StrategyConfig.RiskControl.MinPositionSize = minSize
-	assert.InDelta(t, minSize, at.minOrderNotional(), 1e-9)
+	require.Len(t, stub.requests, 1)
+	assert.InDelta(t, 10.73, stub.requests[0].NotionalUSD, 1e-9)
 }
 
 // protectedCaptureStub 实现随单保护开仓的适配器桩：记录收到的开仓请求

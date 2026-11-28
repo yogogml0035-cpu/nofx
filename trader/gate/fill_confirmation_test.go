@@ -117,7 +117,7 @@ func TestOpenProtectedRefusesWhenCapCannotBeMet(t *testing.T) {
 	gt := newLocalGateTrader(t, mock.handler)
 
 	req := longRequest(11.2)                  // 2 张（11.2 USDT），可下单
-	req.Principal, req.MaxLossPercent = 50, 2 // 上限 1 USDT：2 张的最坏亏损 1.712 已超，收缩后 1 张又低于最小下单金额
+	req.Principal, req.MaxLossPercent = 25, 2 // 上限 0.5 USDT：一张的最坏亏损 0.856 已超，收缩后不足一张
 	_, err := gt.OpenLongProtected(req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too far")

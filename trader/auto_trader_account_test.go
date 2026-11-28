@@ -299,7 +299,7 @@ func TestGetAccountInfoRejectsUnreadableBalance(t *testing.T) {
 
 func TestOpenUsesCodeComputedNotionalWithoutTraderCapping(t *testing.T) {
 	// 开仓名义价值由 kernel 按本金 × position_percent 计算（⑨ sizing-engine）；交易路径不再
-	// 按权益封顶，只剩可用保证金自动缩减与最小下单门槛。本金 100 + 浮盈 50（权益 150）时
+	// 按权益封顶，只剩可用保证金自动缩减。本金 100 + 浮盈 50（权益 150）时
 	// 代码计算出的 500 USDT 原样进入下单请求。
 	stub := &accountProtectedStub{
 		protectedCaptureStub: &protectedCaptureStub{},
@@ -308,7 +308,7 @@ func TestOpenUsesCodeComputedNotionalWithoutTraderCapping(t *testing.T) {
 	at := &AutoTrader{
 		exchange: "gate",
 		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
-			RiskControl: store.RiskControlConfig{PositionPercent: 10, MinPositionSize: 10},
+			RiskControl: store.RiskControlConfig{PositionPercent: 10},
 		}},
 		trader:                stub,
 		positionFirstSeenTime: map[string]int64{},

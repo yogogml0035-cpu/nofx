@@ -98,7 +98,7 @@ func TestGetDecisionsToolReturnsRecentTraderDecisionEvidence(t *testing.T) {
 		CycleNumber:         151,
 		Timestamp:           time.Now(),
 		Success:             false,
-		ErrorMessage:        "Failed to execute open_short: ❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
+		ErrorMessage:        "Failed to execute open_short: open skipped for BTC_USDT: 不足一个最小步长 (notional 5.2000 USDT, price 59635.2, size step 1)",
 		AIRequestDurationMs: 25878,
 		CandidateCoins:      []string{"BTCUSDT"},
 		ExecutionLog:        []string{"AI call duration: 25878 ms"},
@@ -108,7 +108,7 @@ func TestGetDecisionsToolReturnsRecentTraderDecisionEvidence(t *testing.T) {
 	}
 
 	raw := a.toolGetDecisions("default", `{"trader_name":"alpha","limit":2}`)
-	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "below minimum", "20.00 USDT"} {
+	for _, want := range []string{"alpha", "BTCUSDT", "wait", "wait succeeded", "不足一个最小步长", "5.2000 USDT"} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("expected decision evidence %q in tool response, got: %s", want, raw)
 		}
@@ -190,7 +190,7 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 		CycleNumber:         2,
 		Timestamp:           time.Now(),
 		Success:             false,
-		ErrorMessage:        "Failed to execute open_short: ❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
+		ErrorMessage:        "Failed to execute open_short: open skipped for BTC_USDT: 不足一个最小步长 (notional 5.2000 USDT, price 59635.2, size step 1)",
 		AIRequestDurationMs: 25878,
 		CandidateCoins:      []string{"BTCUSDT"},
 		ExecutionLog:        []string{"AI call duration: 25878 ms"},
@@ -200,12 +200,12 @@ func TestTraderDiagnosisAmountTooSmallUsesUserFacingCauseAndAction(t *testing.T)
 	}
 
 	reply := a.handleTraderDiagnosisSkill("default", "zh", "为什么我的alpha交易员一直不开单呢")
-	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 10.75 USDT", "最小下单要求 20.00 USDT", "增加账户资金", "调高策略里的开仓金额百分比", "最小开仓金额（默认 10 USDT）"} {
+	for _, want := range []string{"不是没运行", "账户资金太小", "开仓金额约 5.20 USDT", "不足这个合约的最小下单张数", "增加账户资金", "调高策略里的开仓金额百分比"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected diagnosis to include %q, got: %s", want, reply)
 		}
 	}
-	for _, unexpected := range []string{"诊断证据包", "辅助异常", "status 402", "404", "EOF", "订阅", "数据服务", "position_size_usd", "AI 调用耗时"} {
+	for _, unexpected := range []string{"诊断证据包", "辅助异常", "status 402", "404", "EOF", "订阅", "数据服务", "position_size_usd", "AI 调用耗时", "最小开仓金额", "below minimum"} {
 		if strings.Contains(reply, unexpected) {
 			t.Fatalf("diagnosis should stay user-facing and avoid %q, got: %s", unexpected, reply)
 		}
@@ -239,7 +239,7 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		CycleNumber:    3,
 		Timestamp:      time.Now(),
 		Success:        false,
-		ErrorMessage:   "❌ [RISK CONTROL] Position 10.75 USDT below minimum (20.00 USDT)",
+		ErrorMessage:   "open skipped for BTC_USDT: 不足一个最小步长 (notional 5.2000 USDT, price 59635.2, size step 1)",
 		CandidateCoins: []string{"BTCUSDT"},
 		DecisionJSON:   `[{"symbol":"BTCUSDT","action":"open_short","leverage":5,"stop_loss":99000,"take_profit":95000,"confidence":80}]`,
 	}); err != nil {
@@ -254,7 +254,7 @@ func TestTraderDiagnosisUsesLLMToReasonOverCollectedEvidence(t *testing.T) {
 		t.Fatalf("expected LLM request to be captured")
 	}
 	prompt := llm.lastRequest.Messages[1].Content
-	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "below minimum", "decision_json"} {
+	for _, want := range []string{"Evidence JSON", "alpha", "BTCUSDT", "不足一个最小步长", "decision_json"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("expected LLM evidence prompt to include %q, got: %s", want, prompt)
 		}
@@ -896,7 +896,7 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 		},
 	}
 	reply := formatStrategyCreateFinalConfirmation("zh", session, cfg)
-	for _, want := range []string{"最大持仓数（System enforced）", "开仓金额百分比：10.0%", "最大保证金使用率（System enforced）", "最小开仓金额：10.00 USDT"} {
+	for _, want := range []string{"最大持仓数（System enforced）", "开仓金额百分比：10.0%", "最大保证金使用率（System enforced）"} {
 		if !strings.Contains(reply, want) {
 			t.Fatalf("expected final summary to display %q, got: %s", want, reply)
 		}
@@ -907,13 +907,7 @@ func TestAIStrategySystemEnforcedFieldsAreDisplayedButNotEditable(t *testing.T) 
 		t.Fatalf("expected system enforced edit to be rejected, got: %v", resp)
 	}
 
-	// 最小开仓金额与开仓金额百分比现在是可编辑策略项
-	if err := applyStrategyConfigPatch(&cfg, "min_position_size", "30"); err != nil {
-		t.Fatalf("expected min_position_size edit to be accepted, got: %v", err)
-	}
-	if cfg.RiskControl.MinPositionSize != 30 {
-		t.Fatalf("expected stored min_position_size 30, got %v", cfg.RiskControl.MinPositionSize)
-	}
+	// 开仓金额百分比是可编辑策略项
 	if err := applyStrategyConfigPatch(&cfg, "position_percent", "15"); err != nil {
 		t.Fatalf("expected position_percent edit to be accepted, got: %v", err)
 	}

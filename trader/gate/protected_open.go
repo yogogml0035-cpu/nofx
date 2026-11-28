@@ -79,7 +79,7 @@ func (t *GateTrader) openProtected(req types.ProtectedOpenRequest, side string) 
 		return types.ProtectedOpenResult{}, err
 	}
 
-	quote, err := spec.SizeForNotional(price, req.NotionalUSD, req.MinNotional)
+	quote, err := spec.SizeForNotional(price, req.NotionalUSD)
 	if err != nil {
 		return types.ProtectedOpenResult{}, err
 	}
@@ -416,7 +416,7 @@ func worstCaseLossAtStop(spec ContractSpec, side, contracts string, entry, stop 
 
 // capNotionalForWorstCaseLoss 让「到止损价的亏损 ≤ 本金 × MaxLossPercent%」在最坏成交价下仍成立：
 // 超过时按 上限 ÷ 亏损 等比收缩名义价值并重新换算张数（向下取整只会让亏损更小）。
-// 收缩后不足最小下单金额时返回错误——止损太远，这个仓位开不了。
+// 收缩后不足一个最小步长时返回错误——止损太远，这个仓位开不了。
 func (t *GateTrader) capNotionalForWorstCaseLoss(spec ContractSpec, req types.ProtectedOpenRequest, side string,
 	price float64, slip string, stop *big.Rat, quote SizeQuote) (SizeQuote, error) {
 	entry, err := worstCaseEntryPrice(price, side, slip)
@@ -446,7 +446,7 @@ func (t *GateTrader) capNotionalForWorstCaseLoss(spec ContractSpec, req types.Pr
 		return quote, err
 	}
 	adjustedNotional := ratFloat(adjusted)
-	adjustedQuote, err := spec.SizeForNotional(price, adjustedNotional, req.MinNotional)
+	adjustedQuote, err := spec.SizeForNotional(price, adjustedNotional)
 	if err != nil {
 		return quote, err
 	}

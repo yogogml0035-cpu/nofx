@@ -426,9 +426,19 @@ func longRequest(notional float64) types.ProtectedOpenRequest {
 		Leverage:    10,
 		StopLoss:    0.48,
 		TakeProfit:  0.65,
-		MinNotional: 10,
 		SlipRatio:   0.01,
 	}
+}
+
+// 交易所没有最小下单金额的规定：名义价值够合约的最小张数就下单
+func TestOpenProtectedAcceptsNotionalBelowFormerFloor(t *testing.T) {
+	mock := newGateMock()
+	gt := newLocalGateTrader(t, mock.handler)
+
+	res, err := gt.OpenLongProtected(longRequest(5.7)) // 1 张 = 5.6 USDT
+	require.NoError(t, err)
+	assert.Equal(t, "1", mock.lastOrderBody(t)["size"])
+	assert.Equal(t, "1", res.Contracts)
 }
 
 func TestOpenLongProtectedPayload(t *testing.T) {
@@ -490,18 +500,9 @@ func TestOpenProtectedRejects(t *testing.T) {
 			wantErr: "notional must be positive",
 		},
 		{
-			name: "不足一个最小步长",
-			req: func() types.ProtectedOpenRequest {
-				r := longRequest(4)
-				r.MinNotional = 0
-				return r
-			}(),
+			name:    "不足一个最小步长",
+			req:     longRequest(4), // 不足 1 张（5.6 USDT）
 			wantErr: "不足一个最小步长",
-		},
-		{
-			name:    "取整后低于最小下单金额",
-			req:     longRequest(5.7), // 1 张 5.6 < 10
-			wantErr: "取整后低于最小下单金额",
 		},
 		{
 			name: "保护价不合法",
@@ -651,7 +652,6 @@ func TestOpenProtectedETHFractionalStep(t *testing.T) {
 		Leverage:    10,
 		StopLoss:    0.48,
 		TakeProfit:  0.65,
-		MinNotional: 10,
 	}
 	res, err := gt.OpenLongProtected(req)
 	require.NoError(t, err)

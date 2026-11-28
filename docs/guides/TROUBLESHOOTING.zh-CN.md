@@ -91,7 +91,7 @@
    cat decision_logs/your_trader_id/latest_file.json
    ```
    - 查看 AI 决策：是"wait"、"hold"还是实际交易？
-   - 检查系统按本金 × 百分比算出的开仓名义价值是否达到最小下单金额
+   - 检查系统按本金 × 百分比算出的开仓名义价值是否达到该合约的最小下单张数
 
 ---
 
